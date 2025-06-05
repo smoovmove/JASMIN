@@ -45,7 +45,7 @@ def open_notes(boxname: str, outdir: Path):
 
     editor = os.environ.get("EDITOR", "micro")
 
-    print(f"[*] Opening notes for {boxname} in {editor}... (close the editor to return to Cockpit)")
+    print(f"[*] Opening notes for {boxname} in {editor}... (close the editor to return to JARVIS)")
 
     try: 
         subprocess.run(

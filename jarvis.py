@@ -20,8 +20,8 @@ sys.path.append(str(Path(__file__).parent.resolve()))
 
 
 
-def cockpit_repl(env):
-    print("[+] Starting cockpit session. Type 'help' to see a list of available commands")
+def jarvis_repl(env):
+    print("[+] Starting jarvis session. Type 'help' to see a list of available commands")
 
     while True: 
 
@@ -100,7 +100,7 @@ def main():
         #print("Invalid option.")
         #return
 
-    cockpit_repl(env)
+    jarvis_repl(env)
 
 if __name__ == "__main__":
     main()

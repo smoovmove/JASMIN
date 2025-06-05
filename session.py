@@ -14,12 +14,12 @@ from datetime import datetime
 from notes import default_note_template, update_notes_section
 
 #Create the "Boxes" directory if it doesn't exist yet
-cockpit_dir = Path.home() / "Boxes"
-cockpit_dir.mkdir(parents=True, exist_ok=True)
+jarvis_dir = Path.home() / "Boxes"
+jarvis_dir.mkdir(parents=True, exist_ok=True)
 
 #Prompt a choice for the type of session 
 def prompt_session(): 
-    print("Welcome to the cockpit. Are you resuming or starting a new session")
+    print("Welcome to the jarvis. Are you resuming or starting a new session")
     print("1) Starting a new box")
     print("2) Resuming an existing box")
     print("3) Exit" )
@@ -30,12 +30,12 @@ def prompt_session():
 #To hop back into a session after leaving it
 def resume_session():
     print("Availble boxes:")
-    for d in cockpit_dir.iterdir():
+    for d in jarvis_dir.iterdir():
         if d.is_dir():
             print(f"- {d.name}")
     
     boxname = input("Enter box name to resume session: ").strip()
-    session_file = cockpit_dir / boxname / "session.env"
+    session_file = jarvis_dir / boxname / "session.env"
 
     if session_file.exists():
         env = {}
@@ -50,7 +50,7 @@ def resume_session():
             outdir = Path(env["OUTDIR"])
         
         else: 
-            outdir = cockpit_dir / boxname
+            outdir = jarvis_dir / boxname
             env["OUTDIR"] = str (outdir)
 
         notes_file = outdir / f"{boxname}_notes.txt"
@@ -68,7 +68,7 @@ def resume_session():
 def new_session():
     ip = input("Target IP: ").strip()
     boxname = input("Box name: ").strip()
-    outdir = cockpit_dir / boxname
+    outdir = jarvis_dir / boxname
     screenshots = outdir / "Screenshots"
     outdir.mkdir(parents=True, exist_ok=True)
     screenshots.mkdir(parents=True, exist_ok=True)

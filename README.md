@@ -1,8 +1,8 @@
-# Cockpit: A Pentester's Enumeration Assistant (Python Edition)
+# JARVIS: A Pentester's Enumeration Assistant (Python Edition)
 
 ## Overview
 
-**Cockpit** is a Python-based REPL-style toolkit built to streamline enumeration and documentation during penetration testing engagements. Originally designed with OSCP-like scenarios in mind, it automates scanning, notes generation, and service analysis in a structured and reusable way.
+**JARVIS** is a Python-based REPL-style toolkit built to streamline enumeration and documentation during penetration testing engagements. Originally designed with OSCP-like scenarios in mind, it automates scanning, notes generation, and service analysis in a structured and reusable way.
 
 ---
 
@@ -58,7 +58,7 @@ Utility functions to extract and write relevant info into notes:
 
 ### 📓 Notes Expansion
 
-Enhance `cockpit notes` to support quick entries:
+Enhance `jarvis notes` to support quick entries:
 
 * `quick` — write to `[Quick Notes]`
 * `attack` — log attack ideas under `[Attack Vectors]`
@@ -91,7 +91,7 @@ Integrate local or cloud-based AI to:
 
 ## 🛠️ Usage
 
-Start cockpit and use the REPL interface to:
+Start jarvis and use the REPL interface to:
 
 ```
 run tcp <ip> <boxname>
