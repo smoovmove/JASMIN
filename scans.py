@@ -7,7 +7,7 @@ import sys
 
 from logger import log_output
 
-from notes import append_to_notes_section, extract_web_tech, extract_os_from_nmap
+from notes import append_to_notes_section, extract_web_tech, extract_os_from_nmap, update_notes_section
 
 #Function for tcp scans
 def run_tcp_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
@@ -65,7 +65,8 @@ def run_service_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
             capture_output= True, text= True, check= True
         )
         log_output(logfile, "[SERVICE] Service Scan Output", result.stdout)
-        extract_os_from_nmap(service_output_file)
+        os_info = extract_os_from_nmap(service_output_file)
+        update_notes_section(note_file, "[OS]:", os_info)
 
     except subprocess.CalledProcessError as e: 
         print(f"[!] Error running service scan: {e}")

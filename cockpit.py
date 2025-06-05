@@ -12,7 +12,7 @@ from datetime import datetime
 
 from session import prompt_session, resume_session, new_session
 
-from scans import run_full_scan, check_udp_progress, run_script_scan, web_enum
+from scans import run_full_scan, check_udp_progress, run_script_scan, web_enum, run_tcp_scan
 
 from notes import open_notes, notes_quick, notes_creds, notes_users
 
@@ -34,6 +34,9 @@ def cockpit_repl(env):
             
             if cmd in ["full scan", "fullscan", "fs"]:
                 run_full_scan(env["IP"], env["BOXNAME"], Path(env["OUTDIR"]), Path(env["LOGFILE"]))
+                
+            if cmd in ["tcp scan", "tcp"]:
+                run_tcp_scan(env["IP"], env["BOXNAME"], Path(env["OUTDIR"]), Path(env["LOGFILE"]))
 
             elif cmd in ["service", "service scan", "ss"]:
                 run_script_scan(env["IP"], env["BOXNAME"], Path(env["OUTDIR"]), Path(env["LOGFILE"]))
@@ -62,6 +65,7 @@ def cockpit_repl(env):
                 print("""Available commands:
 
   fs / full scan            - Run full TCP scan + service + UDP
+  tcp / tcp scan            - Run TCP scan only
   ss / script scan          - Run targeted script scan
   we / web enum             - Run web enumeration scan
   udp progress              - Show progress of background UDP scan

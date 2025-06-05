@@ -18,7 +18,7 @@ Users:
 
 =========================================================================
 
-[CREDENTIALS]:
+[Credentials]:
 
 =========================================================================
 
@@ -74,26 +74,27 @@ def update_notes_section(notes_path: Path, section_header: str, new_content: str
     section_found = False
 
     for idx, line in enumerate(lines):
-        if line.strip().startswith(section_header): 
+        stripped_line = stripped_line.strip()
+        
+        if stripped_line == section_header:  
             section_found = True
             inside_target_section = True
             updated_lines.append(line) #keep the header itself
             # Add new content with trailing newlines
-            new_block = new_content.strip() + "\n\n"
-            updated_lines.append(new_block)
+            updated_lines.append(new_content.strip() + "\n\n")
             continue
 
-        if inside_target_section: 
+        if inside_target_section and stripped_line.startswith("="): 
             if line.strip().startswith("[") and line.strip() != section_header: 
                 #reached the next section
                 inside_target_section = False
                 updated_lines.append(line)
-            else: 
-                #skip lines inside the target section (overwrite)
-                continue 
+                continue
+            
+        if inside_target_section: 
+            continue
         
-        else: 
-            updated_lines.append(line)
+        updated_lines.append(line)
 
     if not section_found: 
         print(f"[!] Section header '{section_header}' not found in notes file")
@@ -111,28 +112,35 @@ def append_to_notes_section(notes_path: Path, section_header: str, new_content: 
     inside_target_section = False
     section_found = False
     content_appended = False
+    temp_selection_content = []
 
-    for idx, line in enumerate(lines):
+    for i, line in enumerate(lines):
 
         stripped_line = line.strip()
 
+        #Match the section header exactly
         if stripped_line == section_header: 
             section_found = True 
             inside_target_section = True 
             updated_lines.append(line)
             continue
 
-        if inside_target_section: 
-            if stripped_line.startswith("[") and stripped_line != section_header:
-                if not content_appended: 
-                    updated_lines.append(new_content.strip() + "\n\n")
-                    content_appended = True
-                inside_target_section = False
+        #If we are inside the target section
+        if inside_target_section and stripped_line.startswith("="): 
+            #if we hit the next section
+            if not content_appended: 
+                updated_lines.append(new_content.strip() + "\n\n")
+                content_appended = True
+                    
+            inside_target_section = False
         
+        #add the current line
         updated_lines.append(line)
 
-        if inside_target_section and not content_appended: 
-            updated_lines.append(new_content.strip() + "\n\n")
+        #if file ended while still inside target section, append at end
+    if inside_target_section and not content_appended: 
+        updated_lines.append(new_content.strip() + "\n\n")
+        content_appended = True
 
     if not section_found: 
         print(f"[!] Section header '{section_header}' not found in notes file")
@@ -165,37 +173,26 @@ def extract_os_from_nmap(scan_file: Path) -> str:
     if not scan_file.exists():
         return "[!] Scan file not found."
     
+    lines = scan_file.read_text().splitlines()
+    
+    #try specific match from service info 
+    for line in lines: 
+        if line.startswith("Service Info:") and "OS:" in line: 
+            try: 
+                os_part = line.split("OS:")[1]
+                os_value = os_part.split(";")[0].strip()
+                return os_value
+            except IndexError: 
+                continue
+    
+    #fallback: keyword match
     os_keywords = ["Windows", "Linux", "Ubuntu", "Debian", "CentOS", "FreeBSD", "Unix", "Fedora"]
-
     for line in scan_file.read_text().splitlines(): 
         for keyword in os_keywords: 
             if keyword.lower() in line.lower():
                 return line.strip()
             
     return "[!] No OS found."
-
-#def extract_hostname_from_nmap(scan_file: Path) -> str:
-#    for line in scan_file.read_text().splitlines():
-#        if "hostname" in line.lower():
-#            return line.strip()
-#        
-#    return "[!] No hostmame found."
-
-def extract_os_from_nmap(scan_file: Path):
-    if not scan_file: 
-        return "[!] Nmap service scan file not found."
-    
-    for line in scan_file.read_text().splitlines():
-        if line.startswith("Service Info:") and "OS:" in line: 
-            try: 
-
-                os_part = line.split("OS:")[1]
-                os_value = os_part.split(";")[0].strip()
-                return os_value
-            except IndexError: 
-                continue
-            
-    return "[!] OS not found"
 
 def extract_web_tech(header_text: str) -> str: 
     header_lines = []
@@ -205,7 +202,7 @@ def extract_web_tech(header_text: str) -> str:
 
     return "\n".join(header_lines) if header_lines else ""
 
-def notes_quick(notes_path = Path):
+def notes_quick(notes_path: Path):
     print("┌" + "─" * 46 + "┐")
     print("│ Write your note. Press ENTER twice to save.  │")
     print("└" + "─" * 46 + "┘")
@@ -226,7 +223,7 @@ def notes_quick(notes_path = Path):
     for line in lines[1:]: 
         note += f"\n      {line}"
 
-    append_to_notes_section(notes_path, "[Quick Notes]", note)
+    append_to_notes_section(notes_path, "[Quick Notes]:", note)
     print("[+] Multi-line note added to [Quick Notes]")
 
 def notes_creds(notes_path: Path):
