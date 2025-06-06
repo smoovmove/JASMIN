@@ -12,10 +12,19 @@ import sys
 from datetime import datetime
 
 from notes import default_note_template, update_notes_section
+from state import create_initial_state_file
+from target import set_last_target
+
+import json 
+
+import re
 
 #Create the "Boxes" directory if it doesn't exist yet
 jarvis_dir = Path.home() / "Boxes"
 jarvis_dir.mkdir(parents=True, exist_ok=True)
+
+def get_session_file(boxname: str) -> Path: 
+    return Path.home() / "Boxes" / boxname / "session.env"
 
 #Prompt a choice for the type of session 
 def prompt_session(): 
@@ -58,6 +67,8 @@ def resume_session():
             notes_file.write_text(default_note_template)
             print(f"[+] Notes file was missing - created new one at {notes_file}")
         
+        set_last_target(boxname)
+        
         return env
 
     else: 
@@ -66,7 +77,12 @@ def resume_session():
 
 #To start a new session which inclides the box and the IP
 def new_session():
-    ip = input("Target IP: ").strip()
+    while True: 
+        ip = input("Target IP: ").strip()
+        if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", ip):
+            break
+        else: 
+            print("[!] Invalid IP format. Try again.")
     boxname = input("Box name: ").strip()
     outdir = jarvis_dir / boxname
     screenshots = outdir / "Screenshots"
@@ -89,6 +105,8 @@ def new_session():
         f.write(f"LOGFILE={logfile}")
 
     print(f"[+] New session started for {boxname} ({ip})")
+    create_initial_state_file(outdir, boxname, ip)
+    set_last_target(boxname)
     
     return{
         "BOXNAME": boxname, 
@@ -96,5 +114,3 @@ def new_session():
         "OUTDIR": str(outdir),
         "LOGFILE": str(logfile)
     }
-
-

@@ -10,13 +10,15 @@ from pathlib import Path
 #for timestamping command logs
 from datetime import datetime
 
-from session import prompt_session, resume_session, new_session
-
+#all of the created functions called here in the main function
+from session import prompt_session, resume_session, new_session, get_session_file
 from scans import run_full_scan, check_udp_progress, run_script_scan, web_enum, run_tcp_scan
-
 from notes import open_notes, notes_quick, notes_creds, notes_users
+from cli import parse_fuzzy_args, new_session_cli, resume_session_cli, cli_dispatch
+from target import get_last_target, get_target_path, set_last_target
 
 sys.path.append(str(Path(__file__).parent.resolve()))
+
 
 
 
@@ -26,7 +28,8 @@ def jarvis_repl(env):
     while True: 
 
         try: 
-            cmd = input(">> ").strip()
+            prompt = f"\033[94m[{env['BOXNAME']}]\033[0m >> " if env and 'BOXNAME' in env else ">> " 
+            cmd = input(prompt).strip()
             timestamp = datetime.now().strftime("%F %T")
             
             with open(env["LOGFILE"], "a") as f: 
@@ -60,6 +63,43 @@ def jarvis_repl(env):
                     notes_creds(notes_path)
                 elif tokens[1] == "user": 
                     notes_users(notes_path)
+            elif cmd.startswith("target"):
+                tokens = cmd.split()
+                if len(tokens) >= 2:
+                    subcmd = tokens[1]
+
+                    if subcmd == "set" and len(tokens) == 3:
+                        box = tokens[2]
+                        session_file = get_session_file(box)
+                        if session_file.exists():
+                            env = resume_session_cli(box)
+                            set_last_target(box)
+                            print(f"[+] Switched to target: {box}")
+                        else:
+                            print(f"[!] No session found for '{box}'.")
+
+                    elif subcmd == "new":
+                        env = new_session()
+                        set_last_target(env["BOXNAME"])
+                        print(f"[+] Created and switched to new target: {env['BOXNAME']}")
+
+                    elif subcmd == "list":
+                        print("[*] Available targets in ~/Boxes/:")
+                        for d in (Path.home() / "Boxes").iterdir():
+                            if d.is_dir():
+                                print(f" - {d.name}")
+
+                    elif subcmd == "show":
+                        current = get_last_target()
+                        if current:
+                            print(f"[+] Current target: {current}")
+                        else:
+                            print("[!] No target currently set.")
+
+                    else:
+                        print("[!] Unknown target command. Use: set, new, list, or show.")
+                else:
+                    print("[!] Incomplete target command. Try: target set <box>")
             
             elif cmd in ["help"]: 
                 print("""Available commands:
@@ -80,25 +120,129 @@ def jarvis_repl(env):
 """)
             
             elif cmd in ["exit", "quit", "done", "finish", "q"]:
-                print(f"[*] Session for {env['BOXNAME']} closed")
+                print(f"[*] Acknoweldged. Closing session for {env['BOXNAME']}...")
                 break
             else: 
                 print("Unknown command. Type 'help' for a list of avaialble commands.")
         except KeyboardInterrupt: 
-            print(f"\n[*] Ctrl+C detected. Session for {env['BOXNAME']} closed.")
+            print(f"\n[*] Ctrl+C detected. Very well, session for {env['BOXNAME']} closed.")
             sys.exit(0)
 
 def main(): 
-    choice = prompt_session()
-    if choice == "1": 
-        env = new_session()
-    if choice == "2": 
-        env = resume_session()
-    if choice == "3": 
-        sys.exit(0)
-    #else:
-        #print("Invalid option.")
-        #return
+    args = sys.argv[1:]
+    parsed = parse_fuzzy_args(args)
+    env = None
+    
+    if args:
+        if not parsed["box"]:
+            last_target = get_last_target()
+        
+            if last_target: 
+                print(f"[*] No box specified. Using last active target: {last_target}")
+                session_file = get_session_file()
+                if session_file.exists():
+                    env = resume_session_cli(last_target)
+                    set_last_target(last_target)
+                    cli_dispatch(parsed["actions"], parsed["subargs"], env)
+                    return
+                else: 
+                    print(f"[!] Could not find session file for {last_target}.")
+                    print("[!] Run `target set <box>` or `target new` to fix.")
+
+        else:
+            print("[!] No box name provided and no active target found.")
+            print("[!] Use: `jarvis <boxname> <command>` or run `target set <box>` first.")
+    
+    elif "new" in parsed["actions"] and parsed["box"] and parsed["ip"]:
+        new_session_cli(parsed["box"],parsed["ip"])
+        return
+    
+    elif "resume" in parsed["actions"] and parsed["box"]:
+        resume_session_cli(parsed["box"], parsed["ip"])
+        return
+    
+    elif parsed["box"] and parsed["actions"]:
+        box_path = Path.home() / "Boxes" / parsed["box"]
+        session_file = box_path / "session.env"
+        
+        if not session_file.exists() and "new" not in parsed["actions"]:
+            confirm = input(f"[?] Detected new box name: '{parsed['box']}'. Start a new session? (y/n): ").strip().lower()
+            if confirm !="y": 
+                print("[!] Aborted.")
+                return
+            ip = parsed["ip"] or input("[?] Enter IP for new session: ").strip()
+            env = new_session_cli(parsed["box"], ip)
+            cli_dispatch(parsed["actions"], parsed["subargs"], env)
+            return
+        
+        env = resume_session_cli(parsed["box"])
+        cli_dispatch(parsed["actions"], parsed["subargs"], env)
+        return
+    
+    #otherwise, fall back to the repl
+    
+    if not args: 
+        last_target = get_last_target()
+        if last_target:
+            session_file = get_session_file(last_target)
+            if session_file.exists():
+                print(f"[*] Resuming sessio for last target: {last_target}")
+                env = resume_session_cli(last_target)
+                jarvis_repl(env)
+                return
+            else: 
+                print(f"[!] .jarvis_last_target points to '{last_target}', but no session.env found.")
+      
+        print("[!] No active target found. Use 'target set <box>' or 'target new' to begin")
+        env = None
+        
+        while not env: 
+            cmd = input(">> ").strip()
+                           
+            if cmd.startswith("target"):
+                tokens = cmd.split()
+                if len(tokens) >= 2: 
+                    subcmd = tokens[1]
+                    
+                    if subcmd == "set" and len(tokens) == 3: 
+                        box = tokens [2]
+                        session_file = get_session_file(box)
+                        if session_file.exists():
+                            env = resume_session_cli(box)
+                            set_last_target(box)
+                            print(f"[+] Switched to target: {box}")
+                        else:
+                            print(f"[!] No session found for '{box}'.")
+                            
+                    elif subcmd == "new":
+                        env = new_session()
+                        set_last_target(env["BOXNAME"])
+                        print(f"[+] Created and switched to new target: {env['BOXNAME']}")
+                        
+                    elif subcmd == "list":
+                        print("[*] Available targets in ~/Boxes/:")
+                        for d in (Path.home() / "Boxes").iterdir():
+                            if d.is_dir():
+                                print(f" - {d.name}")
+                                
+                    elif subcmd == "show":
+                        current = get_last_target()
+                        if current: 
+                            print(f"[+] Current target: {current}")
+                        else:
+                            print("[!] No target currently set.")
+
+                    else:
+                        print("[!] Unknown target command. Use: set, new, list, or show.")
+                else:
+                    print("[!] Incomplete target command. Try: target set <box>")
+            
+            elif cmd in {"exit", "quit", "q"}:
+                print("Very well. Halting system operations.")
+                sys.exit(0)
+                
+            else: 
+                print("[!] Invalid command. Use 'target set <box>' or 'target new'.") 
 
     jarvis_repl(env)
 

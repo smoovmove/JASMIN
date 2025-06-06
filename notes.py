@@ -7,6 +7,8 @@ from pathlib import Path
 
 from datetime import datetime
 
+from state import append_to_state_list
+
 default_note_template = """=========================================================================
 
 [System Info]
@@ -74,7 +76,7 @@ def update_notes_section(notes_path: Path, section_header: str, new_content: str
     section_found = False
 
     for idx, line in enumerate(lines):
-        stripped_line = stripped_line.strip()
+        stripped_line = line.strip()
         
         if stripped_line == section_header:  
             section_found = True
@@ -225,6 +227,12 @@ def notes_quick(notes_path: Path):
 
     append_to_notes_section(notes_path, "[Quick Notes]:", note)
     print("[+] Multi-line note added to [Quick Notes]")
+    
+    outdir = notes_path.parent
+    append_to_state_list(outdir, "notes", {
+        "timestamp": timestamp,
+        "content": "\n".join(lines)
+    })
 
 def notes_creds(notes_path: Path):
     print("┌" + "─" * 46 + "┐")
@@ -246,6 +254,13 @@ def notes_creds(notes_path: Path):
 
     append_to_notes_section(notes_path, "[Credentials]:", formatted_cred)
     print(f"[+] Credential added under [Credentials]")
+    
+    outdir = notes_path.parent
+    append_to_state_list(outdir, "credentials", {
+        "service": service or "unknown",
+        "username": username,
+        "password": password
+    })
 
 def notes_users(notes_path: Path):
     print("┌" + "─" * 46 + "┐")

@@ -7,7 +7,9 @@ import sys
 
 from logger import log_output
 
-from notes import append_to_notes_section, extract_web_tech, extract_os_from_nmap, update_notes_section
+from notes import append_to_notes_section, extract_web_tech, extract_os_from_nmap, extract_nmap_services
+
+from state import update_state_field, mark_module_used
 
 #Function for tcp scans
 def run_tcp_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
@@ -39,8 +41,10 @@ def run_tcp_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
     print(f"[+] Open ports found: {port_string}")
 
     (outdir / "open_ports.txt").write_text(port_string)
+    update_state_field(outdir, "ports" , open_ports)
 
     print(f"TCP Scan complete! Results saved to {tcp_output_file}")
+    mark_module_used(outdir, "tcp_scan")
 
 
 
@@ -57,16 +61,27 @@ def run_service_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
         return
     
     port_string = port_file.read_text().strip()
-    ports = port_string.split(",")
 
     try: 
         result = subprocess.run(
             ["nmap", f"-p{port_string}", "-sC", "-sV", "-Pn", "-oN", str(service_output_file), ip], 
             capture_output= True, text= True, check= True
         )
+        
+        #log raw output
         log_output(logfile, "[SERVICE] Service Scan Output", result.stdout)
+        
+        #extract and write os
         os_info = extract_os_from_nmap(service_output_file)
-        update_notes_section(note_file, "[OS]:", os_info)
+        update_state_field(outdir, "os", os_info)
+        
+        #extract and write services
+        raw_services = extract_nmap_services(service_output_file).splitlines()
+        service_objects = [{"version":line} for line in raw_services]
+        update_state_field(outdir, "services", service_objects)
+        
+        print(f"[+] OS Identified: {os_info}")
+        print(f"[+] Services Extracted: {len(service_objects)} entries")
 
     except subprocess.CalledProcessError as e: 
         print(f"[!] Error running service scan: {e}")
@@ -74,6 +89,7 @@ def run_service_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
     
     
     print(f"Service scan complete! Scan saved to {service_output_file}")
+    mark_module_used(outdir, "service_scan")
 
 
 
@@ -99,6 +115,7 @@ def run_full_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
 #Function for script scans on the ports that were found from the tcp scan
 def run_script_scan(ip:str, boxname: str, outdir: Path, logfile:Path):
     port_file = outdir / "open_ports.txt"
+    service_scan_file = outdir / f"script_scan_port_{port}.txt"
 
     if not port_file.exists():
         print(f"[-] Open ports file not found at: {outdir}")
@@ -131,6 +148,9 @@ def run_script_scan(ip:str, boxname: str, outdir: Path, logfile:Path):
         except subprocess.CalledProcessError as e: 
             print(f"[!] Script scan failed for port {port}: {e}")
     
+    print(f"[!] Script scan complete! Scan saved to {service_scan_file}")       
+    mark_module_used(outdir, "script_scan")
+    
     
 
 #Function for running UDP Scans
@@ -149,6 +169,8 @@ def run_udp_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
     except subprocess.CalledProcessError as e: 
         print(f"[!] Error running UDP scan: {e}")
         return
+         
+    mark_module_used(outdir, "udp_scan")
 
 
 
@@ -303,9 +325,10 @@ def web_enum(ip: str, boxname: str, outdir: Path, logfile:Path ):
         append_to_notes_section(notes_file, "[Web Services Enumeration]:", f"Headers for {url}:\n{result.stdout}")
 
         #extract and log web tech 
-        tech_summary = extract_web_tech
+        tech_summary = extract_web_tech(tech_summary)
         if tech_summary: 
-            append_to_notes_section(notes_file, "Web Technology:", tech_summary)
+            #append_to_notes_section(notes_file, "Web Technology:", tech_summary)
+            update_state_field(outdir, "web_tech", tech_summary)
         
 
     except subprocess.CalledProcessError as e:
@@ -328,6 +351,25 @@ def web_enum(ip: str, boxname: str, outdir: Path, logfile:Path ):
 
         log_output(logfile, "[WEB] Gobuster Scan Output", result.stdout)
         append_to_notes_section(notes_file, "[Web Services Enumeration]:", f"Gobuster Scan for {url}:\n{result.stdout}")
+        
+        #extract discovered paths from gobuster output
+        paths = []
+        for line in result.stdout.splitlines():
+            parts = line.strip().split()
+            if len(parts) >= 2 and parts[1] in ("GET", "POST"): 
+                path = parts[0]
+                if path.startswith("/"):
+                    paths.append(path)
+                    
+        #only update state.json if paths found
+        if paths: 
+            from state import load_state
+            services = load_state(outdir).get("services", [])
+            if services: 
+                services[0]["discovered_paths"] = paths
+            else: 
+                services = [{"discovered_paths" : paths}]
+            update_state_field(outdir, "services", services)
 
         print(f"[+] Gobuster output saved to {gobuster_file}")
     
@@ -356,5 +398,6 @@ def web_enum(ip: str, boxname: str, outdir: Path, logfile:Path ):
         print(f"[-] Ferroxbuster scan failed: {e}")
     
     print("[+] Web Enumertion Complete!")
+    mark_module_used(outdir, "web_enum")
     
 

@@ -2,6 +2,8 @@
 
 from notes import open_notes, notes_creds, notes_users, notes_quick, append_to_notes_section
 from scans import run_full_scan, run_tcp_scan, run_service_scan, run_script_scan, run_udp_scan, check_udp_progress, web_enum
+from state import create_initial_state_file
+from target import set_last_target
 from pathlib import Path
 from datetime import datetime
 import sys
@@ -27,6 +29,9 @@ def new_session_cli(boxname, ip):
         f.write(f"LOGFILE={logfile}")
 
     print(f"[+] New session started for {boxname} ({ip})")
+    create_initial_state_file(outdir, boxname, ip)
+    set_last_target(boxname)
+    
     
     return{
         "BOXNAME": boxname, 
@@ -47,6 +52,8 @@ def resume_session_cli(boxname):
         for line in f:
             key, val = line.strip().split("=", 1)
             env[key] = val
+            
+    set_last_target(boxname)
 
     return env
 
