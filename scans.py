@@ -7,7 +7,9 @@ import sys
 
 from logger import log_output
 
-from notes import append_to_notes_section, extract_web_tech, extract_os_from_nmap, extract_nmap_services
+from notes import append_to_notes_section
+
+from parser import extract_web_tech, extract_os_from_nmap, extract_nmap_services
 
 from state import update_state_field, mark_module_used
 

@@ -4,6 +4,7 @@ from notes import open_notes, notes_creds, notes_users, notes_quick, append_to_n
 from scans import run_full_scan, run_tcp_scan, run_service_scan, run_script_scan, run_udp_scan, check_udp_progress, web_enum
 from state import create_initial_state_file
 from target import set_last_target
+from pretty import view_file
 from pathlib import Path
 from datetime import datetime
 import sys
@@ -58,7 +59,7 @@ def resume_session_cli(boxname):
     return env
 
 def parse_fuzzy_args(args):
-    known_actions = {"new", "resume", "notes", "quick", "user", "creds", "fs", "fullscan", "script", "ss", "tcp", "udp", "progress", "web", "open"}
+    known_actions = {"new", "resume", "notes", "quick", "user", "creds", "fs", "fullscan", "script", "ss", "tcp", "udp", "progress", "web", "open", "view"}
     ip_regex = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
     actions = set()
@@ -66,10 +67,13 @@ def parse_fuzzy_args(args):
     box = None
     subargs = []
 
+    action_found = False
+
     for arg in args:
         lower = arg.lower()
-        if lower in known_actions:
+        if lower in known_actions and not action_found:
             actions.add(lower)
+            action_found = True
         elif ip_regex.match(arg):
             ip = arg
         elif not box:
@@ -103,6 +107,9 @@ def handle_users_note(env, subargs):
 def handle_open_notes(env, subargs):
     open_notes(env["BOXNAME"], Path(env["OUTDIR"]))
 
+def handle_view_file(env, subgargs):
+    view_file(env, subgargs)
+
 
 COMMANDS = {
     frozenset(["fs"]): lambda env, sub: run_full_scan(env["IP"], env["BOXNAME"], Path(env["OUTDIR"]), Path(env["LOGFILE"])),
@@ -117,10 +124,18 @@ COMMANDS = {
     frozenset(["notes", "quick"]): handle_quick_note,
     frozenset(["notes", "creds"]): handle_creds_note,
     frozenset(["notes", "user"]): handle_users_note,
-    frozenset(["notes", "open"]): handle_open_notes    
+    frozenset(["notes", "open"]): handle_open_notes,    
+
+    frozenset(["view"]): handle_view_file
 }
 
 def cli_dispatch(actions, subargs, env):
+
+    for key_combo, handler in COMMANDS.items():
+        if key_combo == actions:
+            handler(env, subargs)
+            return
+        
     for key_combo, handler in COMMANDS.items():
         if key_combo.issubset(actions):
             handler(env, subargs)

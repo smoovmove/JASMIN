@@ -16,10 +16,9 @@ from scans import run_full_scan, check_udp_progress, run_script_scan, web_enum, 
 from notes import open_notes, notes_quick, notes_creds, notes_users
 from cli import parse_fuzzy_args, new_session_cli, resume_session_cli, cli_dispatch
 from target import get_last_target, get_target_path, set_last_target
+from pretty import view_file
 
 sys.path.append(str(Path(__file__).parent.resolve()))
-
-
 
 
 def jarvis_repl(env):
@@ -101,6 +100,10 @@ def jarvis_repl(env):
                 else:
                     print("[!] Incomplete target command. Try: target set <box>")
             
+            elif cmd.startswith("view"):
+                tokens = cmd.split()
+                view_file(env, tokens[1:])
+            
             elif cmd in ["help"]: 
                 print("""Available commands:
 
@@ -134,52 +137,46 @@ def main():
     env = None
     
     if args:
-        if not parsed["box"]:
+        if parsed["box"]:
+            # ✅ Handle case where box is explicitly provided
+            box_path = Path.home() / "Boxes" / parsed["box"]
+            session_file = box_path / "session.env"
+
+            if not session_file.exists() and "new" not in parsed["actions"]:
+                confirm = input(f"[?] Detected new box name: '{parsed['box']}'. Start a new session? (y/n): ").strip().lower()
+                if confirm != "y":
+                    print("[!] Aborted.")
+                    return
+                ip = parsed["ip"] or input("[?] Enter IP for new session: ").strip()
+                env = new_session_cli(parsed["box"], ip)
+                cli_dispatch(parsed["actions"], parsed["subargs"], env)
+                return
+
+            env = resume_session_cli(parsed["box"])
+            cli_dispatch(parsed["actions"], parsed["subargs"], env)
+            return
+
+        elif not parsed["box"]:
+            # ✅ Fallback: no box, try last known target
             last_target = get_last_target()
-        
-            if last_target: 
+            if last_target:
                 print(f"[*] No box specified. Using last active target: {last_target}")
-                session_file = get_session_file()
+                session_file = get_session_file(last_target)
                 if session_file.exists():
                     env = resume_session_cli(last_target)
                     set_last_target(last_target)
                     cli_dispatch(parsed["actions"], parsed["subargs"], env)
                     return
-                else: 
+                else:
                     print(f"[!] Could not find session file for {last_target}.")
                     print("[!] Run `target set <box>` or `target new` to fix.")
-
-        else:
-            print("[!] No box name provided and no active target found.")
-            print("[!] Use: `jarvis <boxname> <command>` or run `target set <box>` first.")
-    
-    elif "new" in parsed["actions"] and parsed["box"] and parsed["ip"]:
-        new_session_cli(parsed["box"],parsed["ip"])
-        return
-    
-    elif "resume" in parsed["actions"] and parsed["box"]:
-        resume_session_cli(parsed["box"], parsed["ip"])
-        return
-    
-    elif parsed["box"] and parsed["actions"]:
-        box_path = Path.home() / "Boxes" / parsed["box"]
-        session_file = box_path / "session.env"
-        
-        if not session_file.exists() and "new" not in parsed["actions"]:
-            confirm = input(f"[?] Detected new box name: '{parsed['box']}'. Start a new session? (y/n): ").strip().lower()
-            if confirm !="y": 
-                print("[!] Aborted.")
+                    return
+            else:
+                print("[!] No box name provided and no active target found.")
+                print("[!] Use: `jarvis <boxname> <command>` or run `target set <box>` first.")
                 return
-            ip = parsed["ip"] or input("[?] Enter IP for new session: ").strip()
-            env = new_session_cli(parsed["box"], ip)
-            cli_dispatch(parsed["actions"], parsed["subargs"], env)
-            return
-        
-        env = resume_session_cli(parsed["box"])
-        cli_dispatch(parsed["actions"], parsed["subargs"], env)
-        return
-    
-    #otherwise, fall back to the repl
+
+    # 🧯 fallback for zero-arg REPL
     
     if not args: 
         last_target = get_last_target()
