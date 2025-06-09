@@ -18,8 +18,33 @@ from cli import parse_fuzzy_args, new_session_cli, resume_session_cli, cli_dispa
 from target import get_last_target, get_target_path, set_last_target
 from pretty import view_file
 
+import shutil 
+import subprocess
+
 sys.path.append(str(Path(__file__).parent.resolve()))
 
+def check_and_install_deps():
+
+    deps_marker = Path.home() / ".jarvis_deps_checked"
+
+    if deps_marker.exists():
+        return
+    
+    tools = ["nmap", "gobuster", "feroxbuster", "curl", "python3"]
+    missing = [t for t in tools if not shutil.which(t)]
+    
+    if missing: 
+        print(f"[!] Misisng required tools: {', '.join(missing)}")
+        script = Path("install_deps.sh")
+        if not script.exists():
+            print("[!] install_deps.sh not found in current directory.")
+            sys.exit(1)
+        print("[*] Running install_deps.sh to set up environment...")
+        subprocess.run(["chmod", "+x", "install_deps.sh"], check=True)
+        subprocess.run(["bash", "install_deps.sh"], check=True)
+
+    deps_marker.touch()
+    print("[+] Dependencies verified. Skipping future checks unless you delete ~/.jarvis_deps_checked.")
 
 def jarvis_repl(env):
     print("[+] Starting jarvis session. Type 'help' to see a list of available commands")
@@ -132,6 +157,7 @@ def jarvis_repl(env):
             sys.exit(0)
 
 def main(): 
+    check_and_install_deps()
     args = sys.argv[1:]
     parsed = parse_fuzzy_args(args)
     env = None
@@ -176,7 +202,7 @@ def main():
                 print("[!] Use: `jarvis <boxname> <command>` or run `target set <box>` first.")
                 return
 
-    # 🧯 fallback for zero-arg REPL
+    # fallback for zero-arg REPL
     
     if not args: 
         last_target = get_last_target()
