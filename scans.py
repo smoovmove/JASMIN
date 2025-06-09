@@ -5,8 +5,6 @@ import subprocess
 
 import sys
 
-from logger import log_output
-
 from notes import append_to_notes_section
 
 from parser import extract_web_tech, extract_os_from_nmap, extract_nmap_services
@@ -24,7 +22,6 @@ def run_tcp_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
             capture_output= True, text= True, check= True
         )
 
-        log_output(logfile, "[TCP] TCP Scan Output", result.stdout)
     except subprocess.CalledProcessError as e: 
         print(f"[!] Error running full scan: {e}")
         return
@@ -70,9 +67,7 @@ def run_service_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
             capture_output= True, text= True, check= True
         )
         
-        #log raw output
-        log_output(logfile, "[SERVICE] Service Scan Output", result.stdout)
-        
+                      
         #extract and write os
         os_info = extract_os_from_nmap(service_output_file)
         update_state_field(outdir, "os", os_info)
@@ -146,7 +141,7 @@ def run_script_scan(ip:str, boxname: str, outdir: Path, logfile:Path):
                     ["nmap", "-Pn", "-p", f"{port}", "--script", f"{scripts}", "-sV", "-T4", "-v0", "--script-timeout", "30s", "-oN", f"{outdir}/script_scan_port_{port}.txt", ip], 
                     capture_output= True, text= True, check= True
                 )
-            log_output(logfile, "[SCRIPT] Script Scan Output", result.stdout)
+            #log_output(logfile, "[SCRIPT] Script Scan Output", result.stdout)
         except subprocess.CalledProcessError as e: 
             print(f"[!] Script scan failed for port {port}: {e}")
     
@@ -167,7 +162,7 @@ def run_udp_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
                 ["nmap", "-sU", "--top-ports", "100", "-Pn", "--stats-every", "5s",
                 "-v", "-T4", "-oN", str(udp_output_file), ip], stdout=log_file, stderr=subprocess.STDOUT
             )
-            log_output(logfile, "[UDP] UDP Scan Started",f"UDP Scan started in background, writing to {udp_output_file}")
+            #log_output(logfile, "[UDP] UDP Scan Started",f"UDP Scan started in background, writing to {udp_output_file}")
     except subprocess.CalledProcessError as e: 
         print(f"[!] Error running UDP scan: {e}")
         return
@@ -291,7 +286,7 @@ def web_enum(ip: str, boxname: str, outdir: Path, logfile:Path ):
             ["curl", "-s", "-o", "/dev/null", "-w", "%{scheme}", f"http://{ip}:{web_port}"], 
             capture_output= True, text= True, check= True)
         proto = result.stdout.strip()
-        log_output(logfile, "[WEB] HTTP vs HTTPS Scan Output", result.stdout)
+        #log_output(logfile, "[WEB] HTTP vs HTTPS Scan Output", result.stdout)
     except subprocess.CalledProcessError: 
         print("[!] Curl failed to connect, assuming HTTPS")
         proto = "https"
@@ -314,7 +309,7 @@ def web_enum(ip: str, boxname: str, outdir: Path, logfile:Path ):
             ["curl", "-I", "--insecure", url], 
             capture_output=True, text=True, check=True
         )
-        log_output(logfile, "[WEB] HTTP Headers Scan", result.stdout)
+        #log_output(logfile, "[WEB] HTTP Headers Scan", result.stdout)
 
         #print headers to screen
         print(result.stdout)
@@ -351,7 +346,7 @@ def web_enum(ip: str, boxname: str, outdir: Path, logfile:Path ):
             capture_output=True, text=True, check=True
         )
 
-        log_output(logfile, "[WEB] Gobuster Scan Output", result.stdout)
+        #log_output(logfile, "[WEB] Gobuster Scan Output", result.stdout)
         append_to_notes_section(notes_file, "[Web Services Enumeration]:", f"Gobuster Scan for {url}:\n{result.stdout}")
         
         #extract discovered paths from gobuster output
@@ -391,7 +386,7 @@ def web_enum(ip: str, boxname: str, outdir: Path, logfile:Path ):
              "-o", str(ferrox_file)], 
             capture_output=True, text=True, check=True
         )
-        log_output(logfile, "[WEB] Feroxbuster Scan Result", result.stdout)
+        #log_output(logfile, "[WEB] Feroxbuster Scan Result", result.stdout)
         append_to_notes_section(notes_file, "[Web Services Enumeration]:", f"Feroxbuster Scan for {url}:\n{result.stdout}")
 
         print(f"[+] Ferroxbuster output saved to {ferrox_file}")

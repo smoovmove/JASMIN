@@ -2,7 +2,6 @@
 
 import subprocess
 import json
-from state import load_state
 from pathlib import Path
 
 def extract_nmap_services(scan_file: Path) -> str: 

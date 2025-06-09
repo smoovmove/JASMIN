@@ -11,12 +11,13 @@ from pathlib import Path
 from datetime import datetime
 
 #all of the created functions called here in the main function
-from session import prompt_session, resume_session, new_session, get_session_file
+from session import new_session, get_session_file
 from scans import run_full_scan, check_udp_progress, run_script_scan, web_enum, run_tcp_scan
 from notes import open_notes, notes_quick, notes_creds, notes_users
 from cli import parse_fuzzy_args, new_session_cli, resume_session_cli, cli_dispatch
-from target import get_last_target, get_target_path, set_last_target
+from target import get_last_target, set_last_target, get_jarvis_file
 from pretty import view_file
+from logger import show_log_hint_once, start_tmux_logger
 
 import shutil 
 import subprocess
@@ -25,7 +26,7 @@ sys.path.append(str(Path(__file__).parent.resolve()))
 
 def check_and_install_deps():
 
-    deps_marker = Path.home() / ".jarvis_deps_checked"
+    deps_marker = get_jarvis_file("deps_checked")
 
     if deps_marker.exists():
         return
@@ -44,7 +45,7 @@ def check_and_install_deps():
         subprocess.run(["bash", "install_deps.sh"], check=True)
 
     deps_marker.touch()
-    print("[+] Dependencies verified. Skipping future checks unless you delete ~/.jarvis_deps_checked.")
+    print("[+] Dependencies verified. Skipping future checks unless you delete ~/.jarvis/deps_checked.")
 
 def jarvis_repl(env):
     print("[+] Starting jarvis session. Type 'help' to see a list of available commands")
@@ -87,6 +88,7 @@ def jarvis_repl(env):
                     notes_creds(notes_path)
                 elif tokens[1] == "user": 
                     notes_users(notes_path)
+            
             elif cmd.startswith("target"):
                 tokens = cmd.split()
                 if len(tokens) >= 2:
@@ -125,6 +127,23 @@ def jarvis_repl(env):
                 else:
                     print("[!] Incomplete target command. Try: target set <box>")
             
+            elif cmd.startswith("log"):
+                tokens = cmd.split()
+                if len(tokens) < 2:
+                    print("Usage: log <set|status>")
+                else:
+                    subcmd = tokens[1].lower()
+                    box = get_last_target()
+                    if not box:
+                        print("[!] No target set. Use `target set <box>` first.")
+                    else:
+                        outdir = Path.home() / "Boxes" / box
+                        if subcmd == "set":
+                            start_tmux_logger(box, outdir)
+                        else:
+                            print("Unknown log command. Use: log <set|status>")
+
+            
             elif cmd.startswith("view"):
                 tokens = cmd.split()
                 view_file(env, tokens[1:])
@@ -143,8 +162,16 @@ def jarvis_repl(env):
   notes creds               - Log discovered credentials
   notes user                - Log discovered usernames
 
+  target set <box>          - Switch to an existing target
+  target new                - Create and switch to a new target
+  target list               - List all available targets
+  target show               - Show the current target
+
+  log set                   - Start logging terminal output for the current target
+
+  view <file>               - View a file in the current target's directory
+
   help                      - Show this help menu
-  exit / quit               - Exit the session
 """)
             
             elif cmd in ["exit", "quit", "done", "finish", "q"]:
@@ -158,6 +185,7 @@ def jarvis_repl(env):
 
 def main(): 
     check_and_install_deps()
+    show_log_hint_once()
     args = sys.argv[1:]
     parsed = parse_fuzzy_args(args)
     env = None
@@ -209,7 +237,7 @@ def main():
         if last_target:
             session_file = get_session_file(last_target)
             if session_file.exists():
-                print(f"[*] Resuming sessio for last target: {last_target}")
+                print(f"[*] Resuming session for last target: {last_target}")
                 env = resume_session_cli(last_target)
                 jarvis_repl(env)
                 return
@@ -260,6 +288,22 @@ def main():
                 else:
                     print("[!] Incomplete target command. Try: target set <box>")
             
+            elif cmd.startswith("log"):
+                tokens = cmd.split()
+                if len(tokens) <2: 
+                    print("[!] Incomplete log command. Use: log <set>")
+                else: 
+                    subcmd = tokens[1].lower
+                    box = get_last_target()
+                    if not box: 
+                        print("[!] No target set. Use `target set <box>` first.")
+                    else: 
+                        outdir = Path.home() / "Boxes" / box
+                        if subcmd == "set":
+                            start_tmux_logger(box, outdir)
+                        else: 
+                            print("[!] Unknown log command. Use log <set>")
+
             elif cmd in {"exit", "quit", "q"}:
                 print("Very well. Halting system operations.")
                 sys.exit(0)
