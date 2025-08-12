@@ -1,0 +1,900 @@
+{
+  "writeup_id": "Htb_Devvortex",
+  "scenario_fingerprint": {
+    "scenario_name": "joomla_information_disclosure_to_root",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "joomla_cve_information_disclosure",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "joomla_cms_vulnerable_version",
+      "subdomain_enumeration_required",
+      "database_credential_exposure",
+      "admin_panel_template_modification"
+    ],
+    "environmental_clues": [
+      "nginx_host_based_routing",
+      "ubuntu_20_04_focal",
+      "dev_subdomain_pattern",
+      "static_main_site_with_cms_subdomain"
+    ],
+    "similar_scenarios": [
+      "joomla_rce_boxes",
+      "cms_info_disclosure_scenarios"
+    ],
+    "unique_aspects": [
+      "apport_cli_pager_privilege_escalation",
+      "sudo_pager_escape_technique",
+      "database_hash_cracking_pivot"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Joomla Information Disclosure",
+        "success_reason": "Joomla 4.2.6 vulnerable to CVE-2023-23752 allowing unauthenticated information disclosure",
+        "prerequisite_indicators": [
+          "joomla_cms_detected",
+          "vulnerable_version_4.2.6",
+          "api_endpoints_accessible"
+        ],
+        "recognition_patterns": [
+          "robots.txt contains joomla paths",
+          "/administrator/ login page exists",
+          "joomla.xml manifest reveals version",
+          "PHP-based CMS with specific 404 error format"
+        ],
+        "failure_modes": [
+          "joomla_version_patched",
+          "api_endpoints_disabled",
+          "custom_error_pages_hide_joomla"
+        ],
+        "environmental_factors": [
+          "development_subdomain_less_hardened",
+          "outdated_cms_version",
+          "default_joomla_configuration"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Subdomain Enumeration",
+        "success_reason": "Development subdomain exposed with less security controls",
+        "prerequisite_indicators": [
+          "host_based_routing_detected",
+          "redirect_to_domain_name",
+          "nginx_virtual_hosts_configured"
+        ],
+        "recognition_patterns": [
+          "HTTP redirect to domain name",
+          "different response sizes for subdomains",
+          "dev/staging naming patterns"
+        ],
+        "failure_modes": [
+          "no_additional_subdomains",
+          "subdomains_properly_secured",
+          "internal_only_subdomains"
+        ],
+        "environmental_factors": [
+          "development_environment_exposed",
+          "insufficient_access_controls",
+          "common_subdomain_naming"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Template Modification RCE",
+        "success_reason": "Admin panel access allows modification of PHP templates for code execution",
+        "prerequisite_indicators": [
+          "joomla_admin_access_obtained",
+          "template_editing_enabled",
+          "php_execution_allowed"
+        ],
+        "recognition_patterns": [
+          "System > Site Templates menu available",
+          "PHP template files editable",
+          "no restrictions on template modification"
+        ],
+        "failure_modes": [
+          "template_editing_disabled",
+          "file_permissions_restrictive",
+          "php_execution_blocked"
+        ],
+        "environmental_factors": [
+          "default_joomla_permissions",
+          "development_environment_settings",
+          "unrestricted_admin_capabilities"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "dev.devvortex.htb subdomain",
+        "discovery_method": "ffuf subdomain enumeration",
+        "why_critical": "Exposed development Joomla instance with vulnerabilities",
+        "how_to_recognize": [
+          "different response size in subdomain fuzzing",
+          "dev/staging/test naming patterns",
+          "less restrictive security controls"
+        ],
+        "follow_up_actions": [
+          "enumerate_cms_version",
+          "check_for_known_vulnerabilities",
+          "test_default_credentials"
+        ]
+      },
+      {
+        "discovery": "Joomla 4.2.6 with CVE-2023-23752",
+        "discovery_method": "Version detection via joomla.xml manifest",
+        "why_critical": "Allows unauthenticated access to database credentials and user information",
+        "how_to_recognize": [
+          "specific version number in manifest",
+          "api endpoints respond without authentication",
+          "information disclosure in responses"
+        ],
+        "follow_up_actions": [
+          "exploit_information_disclosure",
+          "extract_database_credentials",
+          "enumerate_admin_users"
+        ]
+      },
+      {
+        "discovery": "Database credentials in API response",
+        "discovery_method": "Joomla information disclosure vulnerability",
+        "why_critical": "Provides admin panel access and database access for further enumeration",
+        "how_to_recognize": [
+          "database connection strings in API responses",
+          "mysql credentials exposed",
+          "configuration details leaked"
+        ],
+        "follow_up_actions": [
+          "test_admin_panel_access",
+          "connect_to_database_directly",
+          "extract_user_hashes"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web",
+        "escalation_method": "Information_Disclosure_to_Admin",
+        "why_possible": "Joomla vulnerability exposes database credentials allowing admin login",
+        "recognition_signs": [
+          "vulnerable_joomla_version",
+          "api_endpoints_accessible",
+          "database_credentials_in_response"
+        ],
+        "exploitation_path": "CVE-2023-23752 → Database Creds → Admin Panel → Template RCE"
+      },
+      {
+        "privilege_level": "joomla_admin",
+        "escalation_method": "Template_Modification_RCE",
+        "why_possible": "Admin panel allows editing PHP templates without restrictions",
+        "recognition_signs": [
+          "template_editing_menu_available",
+          "php_files_writable",
+          "no_code_execution_restrictions"
+        ],
+        "exploitation_path": "Admin Panel → System Templates → PHP Code Injection → Web Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with HTTP redirect to domain",
+        "decision": "Add domain to hosts file and enumerate subdomains",
+        "reasoning": "Host-based routing indicates multiple virtual hosts likely present",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_ip_enumeration",
+            "when": "if subdomain_enum_fails"
+          },
+          {
+            "option": "directory_bruteforce",
+            "when": "if_no_subdomains_found"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "different_response_codes",
+          "varying_content_lengths"
+        ],
+        "next_decision": "analyze_discovered_subdomains"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered dev subdomain with different tech stack",
+        "decision": "Identify CMS/framework through fingerprinting",
+        "reasoning": "Dev environments often have different security posture and may reveal technology stack",
+        "confidence": 0.85,
+        "prerequisites": [
+          "subdomain_accessible",
+          "different_response_pattern"
+        ],
+        "success_indicators": [
+          "cms_identified",
+          "version_discovered",
+          "admin_panel_found"
+        ],
+        "failure_fallbacks": [
+          "directory_enumeration",
+          "technology_detection",
+          "source_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Identified Joomla 4.2.6 with admin panel accessible",
+        "decision": "Check for CVE-2023-23752 information disclosure vulnerability",
+        "reasoning": "Version 4.2.6 is vulnerable to unauthenticated API access via mass assignment",
+        "confidence": 0.95,
+        "prerequisites": [
+          "joomla_version_confirmed",
+          "api_endpoints_accessible"
+        ],
+        "success_indicators": [
+          "config_data_leaked",
+          "database_credentials_obtained",
+          "user_data_accessible"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "other_joomla_exploits",
+          "directory_enumeration"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Obtained database credentials and admin access via CVE-2023-23752",
+        "decision": "Gain code execution through template modification or plugin upload",
+        "reasoning": "Admin panel access allows multiple paths to RCE in Joomla",
+        "confidence": 0.9,
+        "prerequisites": [
+          "admin_panel_access",
+          "write_permissions"
+        ],
+        "success_indicators": [
+          "template_modified",
+          "webshell_uploaded",
+          "code_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "database_access",
+          "configuration_modification",
+          "user_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_subdomain_found": {
+        "action": "enumerate_technology_stack",
+        "tools": [
+          "whatweb",
+          "wappalyzer",
+          "manual_inspection"
+        ],
+        "next_phase": "vulnerability_identification"
+      },
+      "if_joomla_identified": {
+        "action": "version_detection_and_exploit_search",
+        "methods": [
+          "manifest_files",
+          "changelog_access",
+          "api_fingerprinting"
+        ],
+        "decision_criteria": "based_on_version_vulnerability_mapping"
+      },
+      "if_cve_2023_23752_applicable": {
+        "action": "exploit_information_disclosure",
+        "targets": [
+          "config/application",
+          "users/list",
+          "database_credentials"
+        ],
+        "tools": [
+          "curl",
+          "custom_scripts",
+          "burp_suite"
+        ]
+      },
+      "if_admin_access_obtained": {
+        "action": "achieve_code_execution",
+        "methods": [
+          "template_modification",
+          "plugin_upload",
+          "webshell_creation"
+        ],
+        "tools": [
+          "joomla_admin_panel",
+          "php_webshells"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_enumerate_subdomains_on_host_based_routing",
+        "reasoning": "dev_environments_often_less_secure_and_reveal_technology_stack",
+        "applicability": "web_applications_with_domain_redirects"
+      },
+      {
+        "rule": "prioritize_cms_version_identification",
+        "reasoning": "specific_versions_have_known_vulnerabilities_with_public_exploits",
+        "applicability": "content_management_systems"
+      },
+      {
+        "rule": "exploit_information_disclosure_before_authentication_attacks",
+        "reasoning": "information_leaks_often_provide_credentials_and_reduce_attack_complexity",
+        "applicability": "cms_with_api_vulnerabilities"
+      },
+      {
+        "rule": "use_admin_panel_for_code_execution_over_direct_exploitation",
+        "reasoning": "legitimate_functionality_less_likely_to_be_detected_or_blocked",
+        "applicability": "cms_admin_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Joomla Information Disclosure",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "joomla_cms_detected",
+          "vulnerable_joomla_version",
+          "web_service_accessible"
+        ],
+        "success_indicators": [
+          "joomla_version_disclosure",
+          "database_credentials_leaked",
+          "user_enumeration_possible",
+          "admin_panel_accessible"
+        ],
+        "incompatible_with": [
+          "joomla_patched",
+          "web_application_firewall",
+          "access_controls_enforced"
+        ],
+        "confidence_boosters": [
+          "default_joomla_paths_accessible",
+          "administrator_directory_found",
+          "joomla_specific_headers",
+          "generator_meta_tag_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Template Modification RCE",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "cms_admin_access",
+          "template_editing_enabled",
+          "file_write_permissions"
+        ],
+        "success_indicators": [
+          "admin_panel_access_confirmed",
+          "template_editor_accessible",
+          "php_execution_possible",
+          "web_shell_deployed"
+        ],
+        "incompatible_with": [
+          "template_editing_disabled",
+          "file_permissions_restricted",
+          "code_execution_blocked"
+        ],
+        "confidence_boosters": [
+          "php_based_cms",
+          "default_template_structure",
+          "writable_template_directory"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Subdomain Enumeration",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "http",
+          "https",
+          "dns"
+        ],
+        "required_ports": [
+          53,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "host_based_routing_detected",
+          "domain_name_identified",
+          "dns_resolution_available"
+        ],
+        "success_indicators": [
+          "additional_subdomains_found",
+          "different_response_sizes",
+          "unique_content_discovered",
+          "development_environments_exposed"
+        ],
+        "incompatible_with": [
+          "wildcard_dns_blocking",
+          "subdomain_access_restricted",
+          "uniform_responses_only"
+        ],
+        "confidence_boosters": [
+          "redirect_to_domain_detected",
+          "host_header_sensitivity",
+          "development_naming_patterns"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Hash Cracking Privilege Escalation",
+        "mitre_id": "T1110.002",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [
+          "any"
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "password_hashes_obtained",
+          "hash_format_identified",
+          "cracking_tools_available"
+        ],
+        "success_indicators": [
+          "hashes_extracted_from_database",
+          "weak_passwords_identified",
+          "credential_reuse_confirmed",
+          "user_account_compromised"
+        ],
+        "incompatible_with": [
+          "strong_password_policy",
+          "salted_hashes_only",
+          "account_lockout_mechanisms"
+        ],
+        "confidence_boosters": [
+          "common_hash_formats",
+          "default_credentials_present",
+          "password_reuse_patterns"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "joomla_cms": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Joomla",
+          "administrator/",
+          "/joomla/"
+        ],
+        "path_indicators": [
+          "/administrator",
+          "/components",
+          "/modules",
+          "/templates"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "subdomain_enumeration",
+          "when": "host_based_routing_detected",
+          "reason": "often_reveals_development_environments"
+        },
+        {
+          "attack": "joomla_information_disclosure",
+          "when": "joomla_cms_detected",
+          "reason": "high_impact_credential_disclosure"
+        },
+        {
+          "attack": "template_modification_rce",
+          "when": "cms_admin_access_obtained",
+          "reason": "reliable_code_execution_method"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_paths_and_files"
+        },
+        {
+          "attack": "hash_cracking",
+          "when": "password_hashes_obtained",
+          "reason": "enables_lateral_movement"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Joomla Information Disclosure",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s 'http://{target}/api/index.php/v1/{endpoint}?public=true' | jq",
+            "actual_command": "curl -s 'http://dev.devvortex.htb/api/index.php/v1/users?public=true' | jq",
+            "output_pattern": "JSON response with user data",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -s 'http://{target}/api/index.php/v1/config/application?public=true' | jq",
+            "actual_command": "curl -s 'http://dev.devvortex.htb/api/index.php/v1/config/application?public=true' | jq",
+            "output_pattern": "Database credentials in JSON",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "joomla_4.0.0_to_4.2.7",
+          "api_endpoints_accessible",
+          "target_uses_vulnerable_version"
+        ],
+        "success_indicators": [
+          "user_enumeration_successful",
+          "database_credentials_leaked",
+          "admin_users_identified"
+        ],
+        "common_failures": [
+          "patched_joomla_version",
+          "api_endpoints_disabled",
+          "custom_authentication_bypass"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "admin_panel_access",
+          "template_modification"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Joomla Template Modification RCE",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "joomla_admin_panel",
+            "command_template": "Navigate to System > Site Templates > {template_name} > index.php",
+            "actual_command": "System > Site Templates > Cassoiopeia Details and Files > index.php",
+            "output_pattern": "Template editor interface",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "joomla_admin_access",
+          "template_editing_permissions",
+          "writable_template_directory"
+        ],
+        "success_indicators": [
+          "template_modification_saved",
+          "webshell_accessible_via_http",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "template_syntax_errors",
+          "file_write_restrictions"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Subdomain Enumeration",
+        "mitre_id": "T1590.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u http://{ip} -H 'Host: FUZZ.{domain}' -w {wordlist} -mc all -ac",
+            "actual_command": "ffuf -u http://10.10.11.242 -H 'Host: FUZZ.devvortex.htb' -w /opt/SecLists/Discovery/DNS/subdomains-top1million-20000.txt -mc all -ac",
+            "output_pattern": "Status codes and response sizes for valid subdomains",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "target_uses_virtual_hosting",
+          "domain_name_known",
+          "http_service_accessible"
+        ],
+        "success_indicators": [
+          "additional_subdomains_discovered",
+          "different_response_patterns_identified",
+          "expanded_attack_surface"
+        ],
+        "common_failures": [
+          "no_virtual_hosts_configured",
+          "rate_limiting_blocks_requests",
+          "dns_resolution_issues"
+        ],
+        "follow_up_techniques": [
+          "technology_stack_identification",
+          "vulnerability_scanning",
+          "content_discovery"
+        ],
+        "time_investment": "1-3 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ffuf",
+        "use_case": "subdomain_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "virtual_host_discovery"
+        ],
+        "alternatives": [
+          "gobuster",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_auto_calibration_flag",
+          "match_all_response_codes_initially",
+          "use_quality_wordlists_like_seclists"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "api_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "rest_api_testing",
+          "information_disclosure"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "postman"
+        ],
+        "best_practices": [
+          "pipe_json_responses_to_jq",
+          "test_public_parameter_bypass",
+          "enumerate_multiple_endpoints"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "joomla_cve_2023_23752_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ffuf -u http://10.10.11.242 -H 'Host: FUZZ.devvortex.htb' -w /opt/SecLists/Discovery/DNS/subdomains-top1million-20000.txt -mc all -ac",
+            "purpose": "Discover subdomains",
+            "expected_output": "dev subdomain discovered"
+          },
+          {
+            "step": 2,
+            "command": "curl -s 'http://dev.devvortex.htb/administrator/manifests/files/joomla.xml'",
+            "purpose": "Identify Joomla version",
+            "expected_output": "Version 4.2.6 confirmed"
+          },
+          {
+            "step": 3,
+            "command": "curl -s 'http://dev.devvortex.htb/api/index.php/v1/users?public=true' | jq",
+            "purpose": "Extract user information",
+            "expected_output": "Admin user lewis identified"
+          },
+          {
+            "step": 4,
+            "command": "curl -s 'http://dev.devvortex.htb/api/index.php/v1/config/application?public=true' | jq",
+            "purpose": "Extract database credentials",
+            "expected_output": "MySQL password revealed"
+          },
+          {
+            "step": 5,
+            "command": "Navigate to /administrator and login with lewis:P4ntherg0t1n5r3c0n##",
+            "purpose": "Access admin panel",
+            "expected_output": "Successful admin authentication"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "DevVortex",
+      "difficulty": "Easy",
+      "os": "Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2023-11-25",
+      "author": "7u9y",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_application",
+        "cms_exploitation",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "joomla_information_disclosure",
+        "template_modification",
+        "sudo_pager_escape"
+      ],
+      "environment_type": "web_server_linux",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "cms_exploitation",
+        "hash_cracking",
+        "sudo_abuse"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "cms_concepts",
+        "linux_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "cms_exploitation",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "code_execution",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "cms_patching",
+        "template_security",
+        "sudo_configuration"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blocky",
+        "Jasmin",
+        "Tabby"
+      ],
+      "similarity_reasons": [
+        "cms_exploitation",
+        "web_to_shell",
+        "hash_cracking"
+      ],
+      "unique_aspects": [
+        "joomla_specific_vuln",
+        "apport_cli_abuse",
+        "pager_escape"
+      ],
+      "difficulty_factors": [
+        "straightforward_enumeration",
+        "well_known_techniques",
+        "clear_attack_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-03T23:32:39.759965",
+    "original_file": "0xdf_writeups/Htb Devvortex.md",
+    "content_length": 35574,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

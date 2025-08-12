@@ -1,0 +1,983 @@
+{
+  "writeup_id": "Htb_Instant",
+  "scenario_fingerprint": {
+    "scenario_name": "android_apk_hardcoded_jwt_api_exploitation",
+    "primary_services": [
+      "http",
+      "api",
+      "swagger"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+http+api",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "hardcoded_credentials_in_apk",
+    "privilege_path": "api_abuse_to_file_read_to_shell",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "android_apk_analysis_required",
+      "hardcoded_admin_jwt_token",
+      "swagger_api_documentation",
+      "file_read_vulnerability_in_api"
+    ],
+    "environmental_clues": [
+      "apk_download_from_website",
+      "multiple_subdomains_for_api_services",
+      "ubuntu_apache_hosting",
+      "mobile_app_backend_infrastructure"
+    ],
+    "similar_scenarios": [
+      "mobile_app_api_exploitation",
+      "jwt_token_abuse"
+    ],
+    "unique_aspects": [
+      "solarputty_session_file_decryption",
+      "android_reverse_engineering_entry_point",
+      "swagger_ui_subdomain_discovery"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Android APK Reverse Engineering",
+        "success_reason": "Hard-coded admin JWT token found in application source code",
+        "prerequisite_indicators": [
+          "android_apk_available",
+          "mobile_application_present",
+          "downloadable_app_files"
+        ],
+        "recognition_patterns": [
+          "APK files available for download",
+          "Mobile app references in web content",
+          "Application stores or direct downloads"
+        ],
+        "failure_modes": [
+          "obfuscated_code",
+          "encrypted_strings",
+          "runtime_token_generation"
+        ],
+        "environmental_factors": [
+          "development_artifacts_in_production",
+          "insufficient_code_review",
+          "hard_coded_credentials"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Swagger API Documentation Discovery",
+        "success_reason": "Swagger UI exposed admin endpoints and authentication requirements",
+        "prerequisite_indicators": [
+          "api_endpoints_present",
+          "web_application_with_rest_api",
+          "development_documentation_exposed"
+        ],
+        "recognition_patterns": [
+          "swagger-ui subdomain patterns",
+          "/swagger, /api-docs endpoints",
+          "API documentation references in code"
+        ],
+        "failure_modes": [
+          "swagger_ui_disabled",
+          "authentication_required_for_docs",
+          "internal_network_only"
+        ],
+        "environmental_factors": [
+          "development_tools_in_production",
+          "insufficient_access_controls",
+          "default_swagger_configurations"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "JWT Token Privilege Escalation",
+        "success_reason": "Hard-coded admin token provided full administrative access",
+        "prerequisite_indicators": [
+          "jwt_authentication_in_use",
+          "admin_endpoints_available",
+          "token_based_authorization"
+        ],
+        "recognition_patterns": [
+          "JWT tokens in source code",
+          "Bearer token authentication",
+          "Admin role claims in tokens"
+        ],
+        "failure_modes": [
+          "token_expiration",
+          "signature_validation",
+          "role_based_restrictions"
+        ],
+        "environmental_factors": [
+          "weak_jwt_implementation",
+          "no_token_rotation",
+          "development_tokens_in_production"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "File Read via API Vulnerability",
+        "success_reason": "Admin API endpoint allowed arbitrary file reading through path traversal",
+        "prerequisite_indicators": [
+          "file_upload_download_functionality",
+          "admin_api_access",
+          "file_path_parameters"
+        ],
+        "recognition_patterns": [
+          "File-related API endpoints",
+          "Path parameters in requests",
+          "Download/read functionality"
+        ],
+        "failure_modes": [
+          "input_validation",
+          "path_restrictions",
+          "sandboxed_file_access"
+        ],
+        "environmental_factors": [
+          "insufficient_input_validation",
+          "unrestricted_file_access",
+          "admin_bypass_security_controls"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "SolarPuTTY Session Decryption",
+        "success_reason": "Encrypted session file found with decryptable credentials",
+        "prerequisite_indicators": [
+          "putty_session_files_present",
+          "ssh_client_configurations",
+          "encrypted_credential_storage"
+        ],
+        "recognition_patterns": [
+          "SolarPuTTY session files",
+          "Encrypted credential stores",
+          "SSH client configuration files"
+        ],
+        "failure_modes": [
+          "strong_encryption_keys",
+          "missing_session_files",
+          "corrupted_credential_data"
+        ],
+        "environmental_factors": [
+          "weak_encryption_implementation",
+          "accessible_session_files",
+          "predictable_encryption_keys"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-25 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Hard-coded admin JWT token",
+        "discovery_method": "APK reverse engineering with jadx-gui",
+        "why_critical": "Provided immediate administrative access to API",
+        "how_to_recognize": [
+          "JWT token patterns in source code",
+          "Admin role claims in tokens",
+          "Bearer token authentication strings"
+        ],
+        "follow_up_actions": [
+          "decode_jwt_claims",
+          "test_admin_endpoints",
+          "enumerate_api_functionality"
+        ]
+      },
+      {
+        "discovery": "Swagger UI documentation endpoint",
+        "discovery_method": "String analysis in APK source code",
+        "why_critical": "Revealed admin API endpoints and authentication requirements",
+        "how_to_recognize": [
+          "swagger-ui subdomain references",
+          "API documentation URLs in code",
+          "Development tool endpoints"
+        ],
+        "follow_up_actions": [
+          "access_swagger_documentation",
+          "enumerate_admin_endpoints",
+          "test_authentication_methods"
+        ]
+      },
+      {
+        "discovery": "File read vulnerability in admin API",
+        "discovery_method": "API endpoint testing with admin token",
+        "why_critical": "Enabled arbitrary file system access for shell exploitation",
+        "how_to_recognize": [
+          "File-related API endpoints",
+          "Path traversal possibilities",
+          "Unrestricted file access"
+        ],
+        "follow_up_actions": [
+          "test_path_traversal",
+          "read_sensitive_files",
+          "identify_shell_vectors"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_user",
+        "escalation_method": "APK_reverse_engineering_to_admin",
+        "why_possible": "Hard-coded admin JWT token in mobile application",
+        "recognition_signs": [
+          "mobile_app_available_for_download",
+          "jwt_authentication_system",
+          "development_artifacts_in_production"
+        ],
+        "exploitation_path": "Download APK → Reverse engineer → Extract admin token → Admin API access"
+      },
+      {
+        "privilege_level": "admin_api_access",
+        "escalation_method": "file_read_to_shell",
+        "why_possible": "Admin API allowed arbitrary file reading leading to shell access",
+        "recognition_signs": [
+          "file_related_admin_endpoints",
+          "unrestricted_file_access",
+          "path_traversal_vulnerability"
+        ],
+        "exploitation_path": "Admin token → File read API → System file access → Shell exploitation"
+      },
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "solarputty_credential_extraction",
+        "why_possible": "SolarPuTTY session file contained encrypted root credentials",
+        "recognition_signs": [
+          "putty_session_files_present",
+          "ssh_client_configurations",
+          "encrypted_credential_storage"
+        ],
+        "exploitation_path": "File system access → Find session files → Decrypt credentials → Root access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and look for additional attack vectors",
+        "reasoning": "Limited attack surface suggests web app is primary entry point",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "subdomain_enumeration",
+            "when": "if host-based routing detected"
+          }
+        ],
+        "success_indicators": [
+          "redirect_to_domain_found",
+          "additional_subdomains_discovered",
+          "downloadable_files_found"
+        ],
+        "next_decision": "analyze_downloadable_content"
+      },
+      {
+        "step": 2,
+        "situation": "Found APK file download on website",
+        "decision": "Reverse engineer mobile application for hardcoded secrets and API endpoints",
+        "reasoning": "Mobile apps frequently contain hardcoded credentials, API keys, and endpoint information",
+        "confidence": 0.95,
+        "prerequisites": [
+          "apk_file_downloaded"
+        ],
+        "success_indicators": [
+          "api_endpoints_discovered",
+          "hardcoded_credentials_found",
+          "additional_domains_found"
+        ],
+        "failure_fallbacks": [
+          "static_analysis_tools",
+          "dynamic_analysis",
+          "network_traffic_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Discovered API endpoints and potential admin token in APK",
+        "decision": "Test hardcoded admin JWT token against discovered API endpoints",
+        "reasoning": "Hardcoded admin tokens often provide immediate privileged access",
+        "confidence": 0.85,
+        "prerequisites": [
+          "jwt_token_extracted",
+          "api_endpoints_identified"
+        ],
+        "success_indicators": [
+          "admin_api_access_granted",
+          "privileged_functions_accessible"
+        ],
+        "failure_fallbacks": [
+          "token_manipulation",
+          "api_fuzzing",
+          "credential_stuffing"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Gained admin API access with hardcoded JWT",
+        "decision": "Enumerate admin API functions for file operations and system access",
+        "reasoning": "Admin APIs often expose dangerous functions like file read/write operations",
+        "confidence": 0.8,
+        "prerequisites": [
+          "admin_token_validated"
+        ],
+        "success_indicators": [
+          "file_read_endpoint_found",
+          "system_command_execution",
+          "sensitive_data_access"
+        ],
+        "failure_fallbacks": [
+          "api_parameter_fuzzing",
+          "swagger_documentation_review"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_apk_analysis_succeeds": {
+        "action": "extract_all_hardcoded_secrets",
+        "tools": [
+          "jadx-gui",
+          "strings",
+          "grep"
+        ],
+        "next_phase": "api_endpoint_testing"
+      },
+      "if_admin_token_found": {
+        "action": "test_against_all_discovered_endpoints",
+        "alternatives": [
+          "swagger_ui_access",
+          "direct_api_calls",
+          "admin_panel_access"
+        ],
+        "decision_criteria": "based_on_endpoint_availability"
+      },
+      "if_file_read_vulnerability_found": {
+        "action": "escalate_to_shell_access",
+        "purpose": "gain_initial_foothold",
+        "tools": [
+          "curl",
+          "burp_suite",
+          "custom_scripts"
+        ]
+      },
+      "if_shell_access_obtained": {
+        "action": "enumerate_for_privilege_escalation",
+        "purpose": "find_stored_credentials_and_config_files",
+        "tools": [
+          "linpeas",
+          "find",
+          "grep"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_reverse_engineer_mobile_apps_thoroughly",
+        "reasoning": "mobile_apps_frequently_contain_hardcoded_secrets_and_api_details",
+        "applicability": "any_downloadable_mobile_application"
+      },
+      {
+        "rule": "prioritize_hardcoded_admin_tokens_over_user_credentials",
+        "reasoning": "admin_tokens_provide_immediate_privileged_access_without_bruteforce",
+        "applicability": "when_multiple_credential_types_found"
+      },
+      {
+        "rule": "check_swagger_ui_endpoints_when_api_discovered",
+        "reasoning": "swagger_documentation_reveals_all_available_endpoints_and_parameters",
+        "applicability": "rest_api_environments"
+      },
+      {
+        "rule": "look_for_stored_session_files_after_initial_access",
+        "reasoning": "applications_like_solarputty_store_encrypted_credentials_locally",
+        "applicability": "windows_and_linux_environments_with_remote_access_tools"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "APK_Reverse_Engineering",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "android",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "android_application_present",
+          "apk_file_accessible",
+          "hardcoded_credentials_exist"
+        ],
+        "success_indicators": [
+          "jwt_token_found_in_source",
+          "api_endpoints_discovered",
+          "admin_credentials_hardcoded"
+        ],
+        "incompatible_with": [
+          "code_obfuscation_enabled",
+          "certificate_pinning_active",
+          "runtime_application_protection"
+        ],
+        "confidence_boosters": [
+          "clear_text_strings_present",
+          "swagger_documentation_accessible",
+          "debug_build_detected"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "JWT_Token_Abuse",
+        "mitre_id": "T1550.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "jwt_authentication_enabled",
+          "hardcoded_admin_token_found",
+          "api_endpoints_accessible"
+        ],
+        "success_indicators": [
+          "admin_api_access_granted",
+          "privileged_operations_available",
+          "file_read_vulnerability_present"
+        ],
+        "incompatible_with": [
+          "jwt_signature_validation_strict",
+          "token_expiration_enforced",
+          "ip_whitelist_active"
+        ],
+        "confidence_boosters": [
+          "swagger_ui_accessible",
+          "admin_role_in_token",
+          "no_token_rotation"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "File_Read_LFI",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "file_parameter_exists",
+          "path_traversal_possible"
+        ],
+        "success_indicators": [
+          "system_files_readable",
+          "application_source_accessible",
+          "configuration_files_exposed"
+        ],
+        "incompatible_with": [
+          "input_validation_strict",
+          "chroot_jail_active",
+          "file_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "admin_api_access",
+          "error_messages_verbose",
+          "no_path_sanitization"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "SolarPuTTY_Session_Decrypt",
+        "mitre_id": "T1552.002",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "solarputty_installed",
+          "session_files_accessible",
+          "encrypted_credentials_present"
+        ],
+        "success_indicators": [
+          "session_file_found",
+          "decryption_successful",
+          "root_credentials_obtained"
+        ],
+        "incompatible_with": [
+          "strong_encryption_used",
+          "session_files_protected",
+          "credential_manager_secured"
+        ],
+        "confidence_boosters": [
+          "default_solarputty_paths",
+          "weak_encryption_algorithm",
+          "predictable_key_derivation"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "15-25 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "android_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "file_indicators": [
+          ".apk",
+          "AndroidManifest.xml"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_api": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "API"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "jwt_authentication": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "header_indicators": [
+          "Authorization: Bearer",
+          "JWT"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "swagger_documentation": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "path_indicators": [
+          "/swagger",
+          "/api-docs",
+          "swagger-ui"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "apk_reverse_engineering",
+          "when": "android_application_detected",
+          "reason": "often_contains_hardcoded_secrets_and_api_endpoints"
+        },
+        {
+          "attack": "jwt_token_abuse",
+          "when": "hardcoded_jwt_found",
+          "reason": "immediate_privilege_escalation_possible"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "file_read_lfi",
+          "when": "admin_api_access_gained",
+          "reason": "can_lead_to_code_execution_via_file_disclosure"
+        },
+        {
+          "attack": "solarputty_decrypt",
+          "when": "session_files_discovered",
+          "reason": "high_chance_of_root_credential_recovery"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Android APK Reverse Engineering",
+        "mitre_id": "T1140",
+        "category": "defense_evasion",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "jadx-gui",
+            "command_template": "jadx-gui {apk_file}",
+            "actual_command": "jadx-gui instant.apk",
+            "output_pattern": "Decompiled Java source code",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "strings",
+            "command_template": "strings {apk_file} | grep -i {pattern}",
+            "actual_command": "strings instant.apk | grep -i instant.htb",
+            "success_factors": [
+              "hardcoded_strings",
+              "domain_names",
+              "api_endpoints"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "android_apk_file_available",
+          "java_decompiler_installed"
+        ],
+        "success_indicators": [
+          "source_code_decompiled",
+          "api_endpoints_discovered",
+          "hardcoded_credentials_found",
+          "domain_names_extracted"
+        ],
+        "common_failures": [
+          "obfuscated_code",
+          "encrypted_strings",
+          "anti_reverse_engineering_measures"
+        ],
+        "follow_up_techniques": [
+          "api_endpoint_enumeration",
+          "swagger_documentation_discovery",
+          "jwt_token_analysis"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Subdomain Discovery via APK Analysis",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "jadx-gui_text_search",
+            "command_template": "Search for '{domain_pattern}' in decompiled code",
+            "actual_command": "Search for 'instant.htb' in jadx-gui",
+            "output_pattern": "mywalletv1.instant.htb, swagger-ui.instant.htb",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "apk_successfully_decompiled",
+          "text_search_capability"
+        ],
+        "success_indicators": [
+          "multiple_subdomains_discovered",
+          "api_endpoints_identified",
+          "swagger_documentation_found"
+        ],
+        "common_failures": [
+          "domains_not_hardcoded",
+          "dynamic_domain_resolution"
+        ],
+        "follow_up_techniques": [
+          "hosts_file_modification",
+          "swagger_ui_enumeration",
+          "api_documentation_analysis"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "API Endpoint Discovery",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "source_code_analysis",
+            "command_template": "Analyze decompiled code for HTTP requests",
+            "actual_command": "Review LoginActivity, RegisterActivity, ProfileActivity classes",
+            "output_pattern": "/api/v1/login, /api/v1/register, /api/v1/view/profile, /api/v1/initiate/transaction",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "decompiled_android_source_code",
+          "java_code_reading_skills"
+        ],
+        "success_indicators": [
+          "complete_api_endpoint_list",
+          "request_format_understood",
+          "authentication_mechanism_identified"
+        ],
+        "common_failures": [
+          "incomplete_endpoint_discovery",
+          "missing_authentication_details"
+        ],
+        "follow_up_techniques": [
+          "api_testing",
+          "swagger_documentation_access",
+          "jwt_token_extraction"
+        ],
+        "time_investment": "20-40 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Hardcoded JWT Token Extraction",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "source_code_review",
+            "command_template": "Search for JWT tokens in AdminActivities class",
+            "actual_command": "Review AdminActivities.TestAdminAuthorization function",
+            "output_pattern": "eyJ* JWT token format",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "access_to_decompiled_source",
+          "admin_functionality_classes_identified"
+        ],
+        "success_indicators": [
+          "valid_jwt_token_extracted",
+          "admin_privileges_confirmed",
+          "api_access_granted"
+        ],
+        "common_failures": [
+          "expired_tokens",
+          "invalid_token_format",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "jwt_token_validation",
+          "admin_api_access",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "jadx-gui",
+        "use_case": "android_apk_reverse_engineering",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "android_application_analysis"
+        ],
+        "alternatives": [
+          "apktool",
+          "dex2jar",
+          "bytecode_viewer"
+        ],
+        "best_practices": [
+          "use_text_search_for_strings",
+          "focus_on_network_related_classes",
+          "examine_authentication_mechanisms",
+          "look_for_hardcoded_credentials"
+        ]
+      },
+      {
+        "tool": "appetize.io",
+        "use_case": "android_app_emulation",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "very_low",
+        "essential_for": [
+          "quick_app_functionality_testing"
+        ],
+        "alternatives": [
+          "android_studio_emulator",
+          "genymotion"
+        ],
+        "best_practices": [
+          "test_all_user_flows",
+          "capture_error_messages",
+          "identify_network_dependencies"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "apk_to_api_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "jadx-gui instant.apk",
+            "purpose": "Decompile Android APK",
+            "expected_output": "Java source code in GUI"
+          },
+          {
+            "step": 2,
+            "command": "Text Search for 'instant.htb'",
+            "purpose": "Find hardcoded domains",
+            "expected_output": "mywalletv1.instant.htb, swagger-ui.instant.htb"
+          },
+          {
+            "step": 3,
+            "command": "echo '10.10.11.37 instant.htb mywalletv1.instant.htb swagger-ui.instant.htb' >> /etc/hosts",
+            "purpose": "Add discovered domains to hosts file",
+            "expected_output": "DNS resolution configured"
+          },
+          {
+            "step": 4,
+            "command": "Review AdminActivities class",
+            "purpose": "Extract hardcoded admin JWT token",
+            "expected_output": "Admin authentication token"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Instant",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu 24.04",
+      "platform": "HackTheBox",
+      "release_date": "2024-10-12",
+      "author": "tahaafarooq",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "android_reverse_engineering",
+        "jwt_token_abuse",
+        "file_read_vulnerability"
+      ],
+      "key_vulnerabilities": [
+        "hardcoded_credentials",
+        "path_traversal",
+        "credential_storage"
+      ],
+      "environment_type": "web_application_with_mobile_component",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "mobile_app_analysis",
+        "api_security",
+        "jwt_exploitation",
+        "credential_extraction"
+      ],
+      "prerequisite_knowledge": [
+        "android_reversing",
+        "jwt_concepts",
+        "api_testing",
+        "file_system_traversal"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "mobile_security",
+        "api_security",
+        "credential_access"
+      ],
+      "attack_types": [
+        "reverse_engineering",
+        "authentication_bypass",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_credential_storage",
+        "jwt_security",
+        "api_access_controls",
+        "input_validation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bagel",
+        "Shoppy",
+        "Previse"
+      ],
+      "similarity_reasons": [
+        "jwt_exploitation",
+        "api_vulnerabilities",
+        "file_read_attacks"
+      ],
+      "unique_aspects": [
+        "android_app_component",
+        "solarputty_credential_extraction",
+        "mobile_to_server_attack_chain"
+      ],
+      "difficulty_factors": [
+        "requires_mobile_reversing_skills",
+        "multi_stage_attack_chain",
+        "credential_decryption"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:02:49.346100",
+    "original_file": "0xdf_writeups/Htb Instant.md",
+    "content_length": 36333,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

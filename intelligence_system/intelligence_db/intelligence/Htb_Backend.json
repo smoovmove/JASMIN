@@ -1,0 +1,866 @@
+{
+  "writeup_id": "Htb_Backend",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_api_privilege_escalation",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+http_api",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "api_enumeration_and_abuse",
+    "privilege_path": "api_user_to_admin_to_debug_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "uvicorn_python_webserver",
+      "fastapi_framework",
+      "swagger_docs_behind_auth",
+      "api_privilege_escalation_chain",
+      "password_in_application_logs"
+    ],
+    "environmental_clues": [
+      "json_api_responses",
+      "uvicorn_server_headers",
+      "api_versioning_structure",
+      "unauthorized_docs_endpoint",
+      "admin_api_endpoints"
+    ],
+    "similar_scenarios": [
+      "json_htb_medium",
+      "node_htb_medium"
+    ],
+    "unique_aspects": [
+      "multi_tier_api_access_levels",
+      "debug_command_execution",
+      "root_password_in_logs",
+      "uhc_api_branding"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "API_Enumeration",
+        "success_reason": "API exposed endpoints through directory traversal and predictable structure",
+        "prerequisite_indicators": [
+          "uvicorn_server_detected",
+          "json_responses_present",
+          "api_version_endpoint_accessible"
+        ],
+        "recognition_patterns": [
+          "uvicorn server header",
+          "JSON response format",
+          "API version strings in responses",
+          "RESTful endpoint structure (/api/v1/)"
+        ],
+        "failure_modes": [
+          "api_endpoints_properly_hidden",
+          "authentication_required_everywhere",
+          "no_directory_traversal_possible"
+        ],
+        "environmental_factors": [
+          "fastapi_framework_default_config",
+          "development_endpoints_exposed",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "HTTP_Method_Enumeration",
+        "success_reason": "Different HTTP methods revealed different authentication requirements",
+        "prerequisite_indicators": [
+          "api_endpoints_discovered",
+          "method_not_allowed_responses",
+          "varying_error_messages"
+        ],
+        "recognition_patterns": [
+          "405 Method Not Allowed vs 401 Unauthorized",
+          "POST returns 'Not authenticated' vs GET 'Method Not Allowed'",
+          "Different error messages per HTTP verb"
+        ],
+        "failure_modes": [
+          "consistent_authentication_across_methods",
+          "all_methods_properly_restricted",
+          "no_method_based_bypass"
+        ],
+        "environmental_factors": [
+          "inconsistent_authorization_implementation",
+          "method_based_routing_differences",
+          "developer_oversight_in_security"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "Swagger_Documentation_Access",
+        "success_reason": "Documentation endpoint accessible after gaining admin privileges",
+        "prerequisite_indicators": [
+          "docs_endpoint_returns_401",
+          "fastapi_framework_detected",
+          "admin_access_available"
+        ],
+        "recognition_patterns": [
+          "/docs endpoint returning 401",
+          "FastAPI/uvicorn stack indicators",
+          "Swagger/OpenAPI documentation patterns"
+        ],
+        "failure_modes": [
+          "docs_completely_disabled",
+          "docs_properly_secured",
+          "no_admin_escalation_possible"
+        ],
+        "environmental_factors": [
+          "default_fastapi_documentation_enabled",
+          "development_features_in_production",
+          "insufficient_endpoint_hardening"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "2-5 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "/api/v1/admin/file endpoint with POST method",
+        "discovery_method": "HTTP method enumeration with feroxbuster",
+        "why_critical": "POST method bypassed initial authentication check",
+        "how_to_recognize": [
+          "GET returns 405 Method Not Allowed",
+          "POST returns 'Not authenticated' instead of 'Method Not Allowed'",
+          "Different error messages indicate endpoint accepts POST"
+        ],
+        "follow_up_actions": [
+          "attempt_authentication_bypass",
+          "test_file_upload_functionality",
+          "enumerate_additional_parameters"
+        ]
+      },
+      {
+        "discovery": "uvicorn server with FastAPI framework",
+        "discovery_method": "HTTP header analysis and response format",
+        "why_critical": "Indicates likely Swagger documentation and predictable API structure",
+        "how_to_recognize": [
+          "uvicorn server header",
+          "JSON error responses with 'detail' field",
+          "RESTful API structure patterns"
+        ],
+        "follow_up_actions": [
+          "check_docs_endpoint",
+          "enumerate_api_versions",
+          "test_common_fastapi_endpoints"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_user",
+        "escalation_method": "API_Authentication_Bypass",
+        "why_possible": "Inconsistent authentication implementation across HTTP methods",
+        "recognition_signs": [
+          "different_error_messages_per_method",
+          "post_method_accepts_requests",
+          "authentication_not_enforced_consistently"
+        ],
+        "exploitation_path": "Method Enumeration → Authentication Bypass → Admin Access → Documentation Access"
+      },
+      {
+        "privilege_level": "api_user",
+        "escalation_method": "Admin_Privilege_Escalation",
+        "why_possible": "API allows privilege escalation through parameter manipulation",
+        "recognition_signs": [
+          "user_endpoints_accessible",
+          "admin_endpoints_discoverable",
+          "parameter_based_privilege_control"
+        ],
+        "exploitation_path": "User Access → Parameter Manipulation → Admin Role → Debug Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with uvicorn web server",
+        "decision": "Identify as API endpoint and enumerate API structure",
+        "reasoning": "uvicorn indicates Python web framework, likely FastAPI with structured endpoints",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "standard_web_enumeration",
+            "when": "if API enumeration fails"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "api_endpoints_discovered",
+          "swagger_docs_found",
+          "authentication_mechanisms_identified"
+        ],
+        "next_decision": "enumerate_api_endpoints"
+      },
+      {
+        "step": 2,
+        "situation": "Found /docs endpoint returning 401 Unauthorized",
+        "decision": "Focus on gaining authenticated access to unlock Swagger documentation",
+        "reasoning": "Swagger docs typically reveal all API endpoints and parameters",
+        "confidence": 0.85,
+        "prerequisites": [
+          "api_structure_partially_mapped"
+        ],
+        "success_indicators": [
+          "swagger_docs_accessible",
+          "full_api_schema_revealed"
+        ],
+        "failure_fallbacks": [
+          "manual_endpoint_enumeration",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Discovered /api/v1/user/{id} endpoints with valid user data",
+        "decision": "Enumerate user accounts and look for privilege escalation paths",
+        "reasoning": "User enumeration often reveals admin accounts or authentication bypass opportunities",
+        "confidence": 0.8,
+        "prerequisites": [
+          "user_endpoints_discovered"
+        ],
+        "success_indicators": [
+          "admin_users_found",
+          "user_data_extracted"
+        ],
+        "next_decision": "attempt_privilege_escalation_via_api"
+      },
+      {
+        "step": 4,
+        "situation": "Found /api/v1/admin/file endpoint requiring authentication",
+        "decision": "Attempt to escalate privileges through API manipulation",
+        "reasoning": "Admin endpoints often have weaker validation and can lead to system access",
+        "confidence": 0.75,
+        "prerequisites": [
+          "admin_endpoints_identified"
+        ],
+        "success_indicators": [
+          "admin_access_gained",
+          "file_operations_available"
+        ],
+        "next_decision": "exploit_admin_functionality"
+      }
+    ],
+    "branching_logic": {
+      "if_swagger_docs_accessible": {
+        "action": "analyze_complete_api_schema",
+        "tools": [
+          "burp_suite",
+          "curl",
+          "custom_scripts"
+        ],
+        "next_phase": "targeted_endpoint_exploitation"
+      },
+      "if_user_enumeration_succeeds": {
+        "action": "extract_user_data_and_find_admin_accounts",
+        "alternatives": [
+          "credential_extraction",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "decision_criteria": "based_on_user_privilege_levels"
+      },
+      "if_admin_access_obtained": {
+        "action": "exploit_admin_functionality_for_code_execution",
+        "purpose": "gain_shell_access",
+        "tools": [
+          "curl",
+          "custom_payloads",
+          "reverse_shells"
+        ]
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_system_for_privilege_escalation",
+        "purpose": "escalate_to_root",
+        "tools": [
+          "linpeas",
+          "manual_enumeration",
+          "log_analysis"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_for_swagger_docs_on_api_endpoints",
+        "reasoning": "swagger_documentation_reveals_complete_attack_surface",
+        "applicability": "any_api_based_application"
+      },
+      {
+        "rule": "enumerate_user_endpoints_with_integer_ids",
+        "reasoning": "often_reveals_admin_accounts_and_sensitive_data",
+        "applicability": "rest_apis_with_user_management"
+      },
+      {
+        "rule": "test_admin_endpoints_for_authentication_bypass",
+        "reasoning": "admin_functionality_often_has_weaker_validation",
+        "applicability": "when_admin_endpoints_discovered"
+      },
+      {
+        "rule": "check_application_logs_for_credentials_after_shell_access",
+        "reasoning": "users_often_accidentally_input_passwords_in_wrong_fields",
+        "applicability": "post_exploitation_privilege_escalation"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "API_Enumeration",
+        "mitre_id": "T1087",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_detected",
+          "api_endpoints_present",
+          "json_responses_detected"
+        ],
+        "success_indicators": [
+          "api_version_strings_found",
+          "endpoint_enumeration_successful",
+          "swagger_docs_accessible",
+          "unauthorized_responses_present"
+        ],
+        "incompatible_with": [
+          "static_html_only",
+          "no_web_service",
+          "complete_network_isolation"
+        ],
+        "confidence_boosters": [
+          "uvicorn_server_header",
+          "fastapi_framework_detected",
+          "restful_endpoint_structure",
+          "json_error_responses"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "directory_structure_present"
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "status_code_variations",
+          "unauthorized_endpoints_discovered"
+        ],
+        "incompatible_with": [
+          "single_page_applications",
+          "complete_access_control",
+          "rate_limiting_strict"
+        ],
+        "confidence_boosters": [
+          "multiple_http_methods_supported",
+          "consistent_error_responses",
+          "restful_api_patterns"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "SSH_Service_Enumeration",
+        "mitre_id": "T1046",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_running",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "ssh_banner_retrieved",
+          "version_information_gathered",
+          "os_fingerprint_successful"
+        ],
+        "incompatible_with": [
+          "ssh_disabled",
+          "port_filtered",
+          "connection_refused"
+        ],
+        "confidence_boosters": [
+          "openssh_version_detected",
+          "ubuntu_os_identified",
+          "standard_ssh_port"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "python_web_api": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "uvicorn",
+          "fastapi",
+          "flask",
+          "django"
+        ],
+        "banner_indicators": [
+          "uvicorn",
+          "FastAPI",
+          "Python"
+        ],
+        "confidence_threshold": 0.88
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "openssh"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "rest_api": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "json_responses",
+          "api_versioning",
+          "restful_endpoints"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "api_enumeration",
+          "when": "python_web_api_detected",
+          "reason": "apis_often_expose_sensitive_endpoints"
+        },
+        {
+          "attack": "swagger_documentation_access",
+          "when": "unauthorized_docs_found",
+          "reason": "documentation_reveals_full_api_surface"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "may_reveal_hidden_functionality"
+        },
+        {
+          "attack": "ssh_enumeration",
+          "when": "ssh_service_detected",
+          "reason": "provides_os_fingerprinting"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "time_intensive_low_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "API Enumeration",
+        "mitre_id": "T1087",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {target_url} -m {methods}",
+            "actual_command": "feroxbuster -u http://10.10.11.161/api/v1/admin/ -m GET,POST,PUT",
+            "output_pattern": "405      GET        1l        3w       31c",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u {target_url}/FUZZ -w {wordlist} --hc {hide_codes}",
+            "actual_command": "wfuzz -u http://10.10.11.161/api/v1/user/FUZZ -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt --hc 422",
+            "success_factors": [
+              "proper_status_code_filtering",
+              "comprehensive_wordlist"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -s {target_url} | jq .",
+            "actual_command": "curl -s http://10.10.11.161/api/v1/user/1 | jq .",
+            "success_factors": [
+              "json_response_parsing",
+              "method_variation"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "api_endpoints_identified",
+          "proper_wordlists_available"
+        ],
+        "success_indicators": [
+          "hidden_endpoints_discovered",
+          "different_http_methods_reveal_functionality",
+          "user_data_enumerated"
+        ],
+        "common_failures": [
+          "inadequate_status_code_filtering",
+          "missing_http_method_variations",
+          "insufficient_wordlist_coverage"
+        ],
+        "follow_up_techniques": [
+          "parameter_fuzzing",
+          "authentication_bypass",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "API Authentication Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl {target_url} -X {method}",
+            "actual_command": "curl http://10.10.11.161/api/v1/admin/file -X POST",
+            "output_pattern": "{\"detail\":\"Not authenticated\"}",
+            "effectiveness_rating": 3,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "api_endpoints_enumerated",
+          "authentication_mechanisms_identified",
+          "different_http_methods_tested"
+        ],
+        "success_indicators": [
+          "authentication_error_vs_authorization_error",
+          "method_not_allowed_vs_not_authenticated",
+          "access_to_restricted_endpoints"
+        ],
+        "common_failures": [
+          "not_testing_all_http_methods",
+          "missing_authentication_headers",
+          "inadequate_parameter_testing"
+        ],
+        "follow_up_techniques": [
+          "jwt_token_manipulation",
+          "session_hijacking",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "User Enumeration via API",
+        "mitre_id": "T1087.001",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s {api_url}/user/{id} | jq .",
+            "actual_command": "curl -s http://10.10.11.161/api/v1/user/1 | jq .",
+            "output_pattern": "\"is_superuser\": true",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "api_user_endpoint_discovered",
+          "numeric_id_pattern_identified",
+          "json_parsing_capability"
+        ],
+        "success_indicators": [
+          "user_accounts_enumerated",
+          "admin_privileges_identified",
+          "email_addresses_collected"
+        ],
+        "common_failures": [
+          "not_testing_sequential_ids",
+          "missing_privilege_level_analysis",
+          "inadequate_response_parsing"
+        ],
+        "follow_up_techniques": [
+          "credential_stuffing",
+          "password_spraying",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "api_endpoint_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_api_enumeration"
+        ],
+        "alternatives": [
+          "wfuzz",
+          "gobuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_multiple_http_methods",
+          "filter_status_codes_appropriately",
+          "consider_recursion_limitations"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "parameter_fuzzing_with_granular_filtering",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "complex_filtering_scenarios"
+        ],
+        "alternatives": [
+          "feroxbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "hide_irrelevant_status_codes",
+          "test_different_http_methods_separately",
+          "use_appropriate_wordlists"
+        ]
+      },
+      {
+        "tool": "uvicorn",
+        "use_case": "python_web_framework_identification",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "framework_fingerprinting"
+        ],
+        "alternatives": [
+          "manual_header_analysis"
+        ],
+        "best_practices": [
+          "check_server_headers",
+          "identify_likely_python_frameworks",
+          "look_for_fastapi_patterns"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "api_discovery_and_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.161",
+            "purpose": "Initial port discovery",
+            "expected_output": "PORT 80/tcp open http"
+          },
+          {
+            "step": 2,
+            "command": "curl 10.10.11.161",
+            "purpose": "Identify API service",
+            "expected_output": "{\"msg\":\"UHC API Version 1.0\"}"
+          },
+          {
+            "step": 3,
+            "command": "feroxbuster -u http://10.10.11.161",
+            "purpose": "Discover API endpoints",
+            "expected_output": "401 /docs, 200 /api"
+          },
+          {
+            "step": 4,
+            "command": "curl http://10.10.11.161/api/v1/user/1",
+            "purpose": "Enumerate user accounts",
+            "expected_output": "Admin user with superuser privileges"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-45 minutes"
+      },
+      {
+        "sequence_name": "api_method_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "feroxbuster -u http://10.10.11.161/api/v1/admin/ -m GET,POST,PUT",
+            "purpose": "Discover admin endpoints with multiple methods",
+            "expected_output": "405 Method Not Allowed on /file"
+          },
+          {
+            "step": 2,
+            "command": "curl http://10.10.11.161/api/v1/admin/file -X POST",
+            "purpose": "Test POST method on discovered endpoint",
+            "expected_output": "{\"detail\":\"Not authenticated\"}"
+          },
+          {
+            "step": 3,
+            "command": "wfuzz -X POST -u http://10.10.11.161/api/v1/user/FUZZ -w wordlist.txt --hc 405",
+            "purpose": "Discover POST endpoints in user API",
+            "expected_output": "422 responses on /login and /signup"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Backend",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2022-04-12",
+      "author": "ippsec",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "api_enumeration",
+        "api_abuse",
+        "log_analysis"
+      ],
+      "key_vulnerabilities": [
+        "api_privilege_escalation",
+        "debug_access",
+        "credential_exposure"
+      ],
+      "environment_type": "web_api_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "api_security",
+        "swagger_enumeration",
+        "privilege_escalation_via_logs"
+      ],
+      "prerequisite_knowledge": [
+        "api_fundamentals",
+        "swagger_documentation",
+        "linux_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "api_security",
+        "privilege_escalation",
+        "log_analysis"
+      ],
+      "attack_types": [
+        "enumeration",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "secure_api_design",
+        "proper_logging_practices",
+        "access_control"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "JSON",
+        "Postman",
+        "Craft"
+      ],
+      "similarity_reasons": [
+        "api_focused",
+        "web_enumeration",
+        "privilege_escalation"
+      ],
+      "unique_aspects": [
+        "swagger_abuse",
+        "debug_mode_exploitation",
+        "password_in_logs"
+      ],
+      "difficulty_factors": [
+        "api_enumeration_skills",
+        "understanding_swagger",
+        "log_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T23:42:39.599800",
+    "original_file": "0xdf_writeups/Htb Backend.md",
+    "content_length": 42865,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

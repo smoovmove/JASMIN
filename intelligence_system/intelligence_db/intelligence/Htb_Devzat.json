@@ -1,0 +1,870 @@
+{
+  "writeup_id": "Htb_Devzat",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_app_git_exposure_command_injection",
+    "primary_services": [
+      "http",
+      "ssh",
+      "custom_ssh_chat"
+    ],
+    "port_signature": "22+80+8000",
+    "service_combination": "ssh+http+custom_ssh_service",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "git_repository_exposure",
+    "privilege_path": "web_shell_to_local_access_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "custom_ssh_chat_application",
+      "exposed_git_repository",
+      "virtual_host_enumeration",
+      "influxdb_auth_bypass",
+      "file_read_vulnerability_in_custom_app"
+    ],
+    "environmental_clues": [
+      "ssh_service_on_port_8000",
+      "go_based_ssh_service",
+      "multiple_virtual_hosts",
+      "static_html_website",
+      "ubuntu_20_04_fingerprint"
+    ],
+    "similar_scenarios": [
+      "custom_web_apps_with_git_exposure",
+      "multi_stage_privilege_escalation"
+    ],
+    "unique_aspects": [
+      "devzat_chat_application",
+      "ssh_based_chat_service",
+      "influxdb_database_component",
+      "multi_user_chat_history_enumeration"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Virtual_Host_Discovery",
+        "success_reason": "pets.devzat.htb subdomain exposed additional attack surface",
+        "prerequisite_indicators": [
+          "hostname_based_routing",
+          "apache_virtual_hosts_configured",
+          "dns_resolution_available"
+        ],
+        "recognition_patterns": [
+          "HTTP redirect to hostname",
+          "Host header usage",
+          "subdomain naming patterns"
+        ],
+        "failure_modes": [
+          "no_virtual_hosts_configured",
+          "wildcard_catches_all",
+          "strict_host_validation"
+        ],
+        "environmental_factors": [
+          "default_apache_configuration",
+          "development_environment",
+          "multiple_applications_hosted"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "SSH_Chat_Reconnaissance",
+        "success_reason": "Custom SSH chat application revealed usernames and internal information",
+        "prerequisite_indicators": [
+          "custom_ssh_service_on_alternate_port",
+          "go_based_ssh_implementation",
+          "chat_application_accessible"
+        ],
+        "recognition_patterns": [
+          "SSH-2.0-Go banner",
+          "port 8000 SSH service",
+          "username restrictions for local users"
+        ],
+        "failure_modes": [
+          "authentication_required",
+          "ip_restrictions_enforced",
+          "no_information_disclosure"
+        ],
+        "environmental_factors": [
+          "development_chat_tool",
+          "username_enumeration_possible",
+          "localhost_privilege_separation"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "patrick username restriction",
+        "discovery_method": "SSH chat connection attempt",
+        "why_critical": "Indicates local user account exists and chat has privilege separation",
+        "how_to_recognize": [
+          "nickname reserved for local use error",
+          "username enumeration via chat",
+          "localhost access requirements"
+        ],
+        "follow_up_actions": [
+          "enumerate_other_usernames",
+          "gain_localhost_access",
+          "access_privileged_chat_features"
+        ]
+      },
+      {
+        "discovery": "pets.devzat.htb virtual host",
+        "discovery_method": "Virtual host fuzzing with wfuzz",
+        "why_critical": "Additional application with potential vulnerabilities",
+        "how_to_recognize": [
+          "different response word count",
+          "subdomain enumeration success",
+          "separate application functionality"
+        ],
+        "follow_up_actions": [
+          "analyze_pets_application",
+          "test_for_web_vulnerabilities",
+          "examine_source_code_exposure"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web_access",
+        "escalation_method": "virtual_host_to_code_exposure",
+        "why_possible": "pets subdomain likely contains additional vulnerabilities",
+        "recognition_signs": [
+          "separate_application_stack",
+          "development_environment_indicators",
+          "potential_git_repository_exposure"
+        ],
+        "exploitation_path": "VHost Discovery → Code Analysis → Vulnerability Exploitation"
+      },
+      {
+        "privilege_level": "external_chat_access",
+        "escalation_method": "localhost_chat_privilege_escalation",
+        "why_possible": "patrick user restricted to localhost suggests privileged access",
+        "recognition_signs": [
+          "username_restrictions_enforced",
+          "localhost_only_users",
+          "chat_history_information_disclosure"
+        ],
+        "exploitation_path": "External Chat → Shell Access → Localhost Chat → Information Disclosure"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22, 80, 8000 open on Linux host with custom SSH service on 8000",
+        "decision": "Enumerate web services first, then investigate custom SSH chat application",
+        "reasoning": "Web services typically have larger attack surface than custom SSH implementations",
+        "confidence": 0.8,
+        "alternatives": [
+          {
+            "option": "investigate_ssh_chat_first",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "parallel_enumeration",
+            "when": "if time permits"
+          }
+        ],
+        "success_indicators": [
+          "web_directories_found",
+          "virtual_hosts_discovered",
+          "application_functionality_mapped"
+        ],
+        "next_decision": "analyze_discovered_vhosts"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered pets.devzat.htb virtual host with API endpoints",
+        "decision": "Focus on pets subdomain API for vulnerabilities before main site",
+        "reasoning": "API endpoints often have injection vulnerabilities and custom server header indicates custom implementation",
+        "confidence": 0.9,
+        "prerequisites": [
+          "vhost_enumeration_complete",
+          "api_endpoints_identified"
+        ],
+        "success_indicators": [
+          "api_vulnerability_found",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "git_repository_enumeration",
+          "directory_traversal_testing",
+          "command_injection_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found custom Go server with pet management API",
+        "decision": "Test for directory traversal and command injection in API parameters",
+        "reasoning": "Custom implementations often lack proper input validation, Go applications commonly vulnerable to path traversal",
+        "confidence": 0.85,
+        "prerequisites": [
+          "api_functionality_mapped",
+          "request_structure_understood"
+        ],
+        "success_indicators": [
+          "file_read_achieved",
+          "command_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "source_code_analysis",
+          "git_repository_search"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_web_vulnerabilities_found": {
+        "action": "exploit_for_initial_access",
+        "tools": [
+          "curl",
+          "burp_suite",
+          "custom_payloads"
+        ],
+        "next_phase": "establish_foothold_and_enumerate_localhost"
+      },
+      "if_initial_access_achieved": {
+        "action": "access_localhost_only_services",
+        "purpose": "access_reserved_usernames_and_local_services",
+        "tools": [
+          "ssh",
+          "local_enumeration_scripts"
+        ]
+      },
+      "if_localhost_access_gained": {
+        "action": "enumerate_chat_history_and_local_services",
+        "purpose": "find_credentials_and_privilege_escalation_paths",
+        "tools": [
+          "ssh_chat_access",
+          "service_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_enumerate_vhosts_on_hostname_redirects",
+        "reasoning": "hostname_redirects_indicate_multiple_applications_likely_present",
+        "applicability": "web_applications_using_hostnames"
+      },
+      {
+        "rule": "prioritize_custom_implementations_over_standard_services",
+        "reasoning": "custom_code_more_likely_to_contain_vulnerabilities",
+        "applicability": "custom_server_headers_or_implementations_detected"
+      },
+      {
+        "rule": "test_localhost_restricted_services_after_initial_access",
+        "reasoning": "many_services_restrict_access_to_localhost_for_security",
+        "applicability": "initial_foothold_established"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SSH_Chat_Enumeration",
+        "mitre_id": "T1046",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          8000
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "custom_ssh_service_detected",
+          "go_ssh_banner_present",
+          "chat_application_accessible"
+        ],
+        "success_indicators": [
+          "ssh_connection_established",
+          "chat_interface_accessible",
+          "user_enumeration_possible"
+        ],
+        "incompatible_with": [
+          "ssh_disabled",
+          "port_filtered",
+          "authentication_required"
+        ],
+        "confidence_boosters": [
+          "ssh_2_0_go_banner",
+          "non_standard_ssh_port",
+          "web_documentation_present"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Git_Repository_Exposure",
+        "mitre_id": "T1213.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_detected",
+          "git_directory_accessible",
+          "source_code_exposed"
+        ],
+        "success_indicators": [
+          "git_objects_readable",
+          "commit_history_accessible",
+          "source_code_retrieved"
+        ],
+        "incompatible_with": [
+          "git_directory_protected",
+          "web_server_misconfigured",
+          "access_controls_present"
+        ],
+        "confidence_boosters": [
+          "dot_git_directory_found",
+          "git_config_accessible",
+          "development_environment"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Virtual_Host_Discovery",
+        "mitre_id": "T1046",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "hostname_based_routing",
+          "multiple_applications_hosted",
+          "dns_resolution_available"
+        ],
+        "success_indicators": [
+          "different_response_sizes",
+          "unique_content_discovered",
+          "additional_services_found"
+        ],
+        "incompatible_with": [
+          "single_application_only",
+          "ip_based_hosting",
+          "strict_host_validation"
+        ],
+        "confidence_boosters": [
+          "redirect_to_hostname",
+          "subdomain_patterns",
+          "development_naming_conventions"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "InfluxDB_Auth_Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "influxdb"
+        ],
+        "required_ports": [
+          8086
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "influxdb_service_running",
+          "vulnerable_version_present",
+          "network_access_available"
+        ],
+        "success_indicators": [
+          "authentication_bypassed",
+          "database_access_gained",
+          "sensitive_data_readable"
+        ],
+        "incompatible_with": [
+          "patched_version",
+          "authentication_enforced",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_configuration",
+          "development_environment",
+          "unpatched_system"
+        ],
+        "typical_success_rate": 0.89,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "custom_ssh_chat": {
+        "port_indicators": [
+          8000
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "SSH-2.0-Go"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "git_repository": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "path_indicators": [
+          "/.git/",
+          "/.git/config"
+        ],
+        "confidence_threshold": 0.88
+      },
+      "influxdb": {
+        "port_indicators": [
+          8086
+        ],
+        "service_indicators": [
+          "influxdb"
+        ],
+        "banner_indicators": [
+          "InfluxDB"
+        ],
+        "confidence_threshold": 0.92
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ssh_chat_enumeration",
+          "when": "custom_ssh_detected",
+          "reason": "immediate_access_no_authentication"
+        },
+        {
+          "attack": "git_repository_exposure",
+          "when": "web_application_detected",
+          "reason": "source_code_reveals_vulnerabilities"
+        },
+        {
+          "attack": "vhost_discovery",
+          "when": "hostname_redirect_detected",
+          "reason": "additional_attack_surface"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "influxdb_auth_bypass",
+          "when": "influxdb_service_detected",
+          "reason": "known_vulnerability_high_impact"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_but_time_consuming"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Git Repository Disclosure",
+        "mitre_id": "T1213.002",
+        "category": "collection",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -sCV -p {port} -oA scans/nmap-scripts-{target} {target}",
+            "actual_command": "nmap -sCV -p 80 -oA scans/nmap-scripts-pets pets.devzat.htb",
+            "output_pattern": "http-git:",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "wget",
+            "command_template": "wget -r http://{target}/.git/",
+            "actual_command": "wget -r http://pets.devzat.htb/.git/",
+            "success_factors": [
+              "directory_listing_enabled",
+              "git_directory_exposed"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "git-dumper",
+            "command_template": "git-dumper http://{target}/.git/ {output_dir}",
+            "actual_command": "git-dumper http://pets.devzat.htb/.git/ ./git-dump",
+            "success_factors": [
+              "git_directory_accessible",
+              "standard_git_structure"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "git_directory_exposed",
+          "directory_listing_enabled_or_predictable_paths"
+        ],
+        "success_indicators": [
+          "git_repository_found_message",
+          "source_code_recovered",
+          "commit_history_accessible"
+        ],
+        "common_failures": [
+          "git_directory_protected",
+          "incomplete_repository_structure",
+          "access_controls_blocking_enumeration"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "vulnerability_identification",
+          "credential_extraction"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u http://{target} -H 'Host: FUZZ.{target}' -w {wordlist} --hw {hide_words}",
+            "actual_command": "wfuzz -u http://devzat.htb -H 'Host: FUZZ.devzat.htb' -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt --hw 26",
+            "output_pattern": "200.*Ch.*pets",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "hostname_based_routing_suspected",
+          "base_domain_identified"
+        ],
+        "success_indicators": [
+          "additional_subdomains_discovered",
+          "different_response_sizes_or_codes",
+          "new_applications_accessible"
+        ],
+        "common_failures": [
+          "no_virtual_hosts_configured",
+          "rate_limiting_blocking_enumeration",
+          "incorrect_filter_settings"
+        ],
+        "follow_up_techniques": [
+          "subdomain_enumeration",
+          "application_fingerprinting",
+          "vulnerability_assessment"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSH Service Enumeration",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp {target}",
+            "actual_command": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp 10.10.11.118",
+            "output_pattern": "8000/tcp open http-alt",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "ssh",
+            "command_template": "ssh -p {port} {username}@{target}",
+            "actual_command": "ssh -p 8000 oxdf@devzat.htb",
+            "success_factors": [
+              "custom_ssh_application",
+              "chat_service_accessible"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "target_accessible",
+          "port_scanning_permitted"
+        ],
+        "success_indicators": [
+          "non_standard_ssh_ports_identified",
+          "custom_ssh_banners_detected",
+          "application_specific_responses"
+        ],
+        "common_failures": [
+          "ports_filtered_or_closed",
+          "rate_limiting_active",
+          "service_detection_inaccurate"
+        ],
+        "follow_up_techniques": [
+          "service_interaction",
+          "banner_analysis",
+          "application_enumeration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "nmap",
+        "use_case": "service_discovery_and_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance",
+          "service_identification"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "use_script_scanning_for_detailed_enumeration",
+          "combine_port_discovery_with_service_detection",
+          "save_output_in_multiple_formats"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "virtual_host_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_enumeration",
+          "subdomain_discovery"
+        ],
+        "alternatives": [
+          "ffuf",
+          "gobuster"
+        ],
+        "best_practices": [
+          "use_appropriate_filters_to_reduce_noise",
+          "test_filter_settings_before_full_scan",
+          "combine_with_dns_enumeration"
+        ]
+      },
+      {
+        "tool": "wget",
+        "use_case": "recursive_file_download",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "git_repository_extraction",
+          "site_mirroring"
+        ],
+        "alternatives": [
+          "git-dumper",
+          "GitTools"
+        ],
+        "best_practices": [
+          "use_when_directory_listing_enabled",
+          "verify_complete_download",
+          "respect_robots_txt_if_stealth_required"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_application_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp 10.10.11.118",
+            "purpose": "Discover all open ports",
+            "expected_output": "Ports 22, 80, 8000 identified"
+          },
+          {
+            "step": 2,
+            "command": "nmap -sCV -p 22,80,8000 -oA scans/nmap-tcpscripts 10.10.11.118",
+            "purpose": "Detailed service enumeration",
+            "expected_output": "HTTP redirect to devzat.htb, SSH on 8000"
+          },
+          {
+            "step": 3,
+            "command": "wfuzz -u http://devzat.htb -H 'Host: FUZZ.devzat.htb' -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt --hw 26",
+            "purpose": "Discover virtual hosts",
+            "expected_output": "pets.devzat.htb subdomain found"
+          },
+          {
+            "step": 4,
+            "command": "nmap -sCV -p 80 -oA scans/nmap-scripts-pets pets.devzat.htb",
+            "purpose": "Enumerate pets subdomain",
+            "expected_output": "Git repository disclosure detected"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "git_repository_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -I http://pets.devzat.htb/.git/",
+            "purpose": "Verify git directory accessibility",
+            "expected_output": "200 OK response with directory listing"
+          },
+          {
+            "step": 2,
+            "command": "wget -r http://pets.devzat.htb/.git/",
+            "purpose": "Download entire git repository",
+            "expected_output": "Complete git structure downloaded"
+          },
+          {
+            "step": 3,
+            "command": "cd pets.devzat.htb && git status",
+            "purpose": "Verify repository integrity",
+            "expected_output": "Valid git repository structure"
+          },
+          {
+            "step": 4,
+            "command": "git log --oneline",
+            "purpose": "Review commit history",
+            "expected_output": "Commit history with potential sensitive information"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Devzat",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2021-10-16",
+      "author": "c1sc0",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "source_code_analysis",
+        "ssh_services"
+      ],
+      "key_vulnerabilities": [
+        "git_exposure",
+        "command_injection",
+        "directory_traversal",
+        "auth_bypass",
+        "file_read"
+      ],
+      "environment_type": "web_application_with_custom_services",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "git_repository_analysis",
+        "custom_application_exploitation",
+        "influxdb_exploitation",
+        "ssh_key_extraction"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "source_code_review",
+        "linux_fundamentals",
+        "ssh_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "source_code_analysis",
+        "custom_services",
+        "database_exploitation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_git_repositories",
+        "input_validation",
+        "database_authentication",
+        "file_permission_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Pit",
+        "Forge",
+        "Writer"
+      ],
+      "similarity_reasons": [
+        "git_exposure",
+        "custom_applications",
+        "multi_stage_exploitation",
+        "source_code_analysis"
+      ],
+      "unique_aspects": [
+        "ssh_chat_application",
+        "influxdb_exploitation",
+        "custom_devzat_service"
+      ],
+      "difficulty_factors": [
+        "multiple_exploitation_stages",
+        "custom_application_analysis",
+        "database_exploitation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T20:42:23.658483",
+    "original_file": "0xdf_writeups/Htb Devzat.md",
+    "content_length": 45710,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

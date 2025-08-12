@@ -1,0 +1,865 @@
+{
+  "writeup_id": "Htb_Spectra",
+  "scenario_fingerprint": {
+    "scenario_name": "chromeos_wordpress_plugin_edit",
+    "primary_services": [
+      "http",
+      "mysql",
+      "ssh"
+    ],
+    "port_signature": "22+80+3306",
+    "service_combination": "ssh+nginx+mysql",
+    "os_family": "chromeos",
+    "environment_type": "web_server",
+    "entry_vector": "wordpress_admin_takeover",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "wordpress_config_backup_exposure",
+      "password_reuse_across_services",
+      "plugin_edit_permissions_enabled"
+    ],
+    "environmental_clues": [
+      "nginx_web_server",
+      "mysql_remote_restrictions",
+      "chromeos_operating_system",
+      "wordpress_cms"
+    ],
+    "similar_scenarios": [
+      "wordpress_admin_rce",
+      "config_file_exposure"
+    ],
+    "unique_aspects": [
+      "wp_config_save_file_exposure",
+      "chromeos_target_system",
+      "nano_emergency_file_leak"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "WordPress Admin Panel Access",
+        "success_reason": "Password reuse between database config and WordPress admin account",
+        "prerequisite_indicators": [
+          "wordpress_site_identified",
+          "configuration_files_accessible",
+          "admin_user_enumerated"
+        ],
+        "recognition_patterns": [
+          "wp-config.php backup files (.save, .bak)",
+          "directory listing enabled",
+          "standard WordPress login page"
+        ],
+        "failure_modes": [
+          "no_config_file_exposure",
+          "unique_passwords_per_service",
+          "directory_listing_disabled"
+        ],
+        "environmental_factors": [
+          "development_environment_practices",
+          "backup_files_in_web_root",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "WordPress Plugin Upload RCE",
+        "success_reason": "Admin access allowed custom plugin installation and execution",
+        "prerequisite_indicators": [
+          "wordpress_admin_access",
+          "plugin_upload_enabled",
+          "php_execution_allowed"
+        ],
+        "recognition_patterns": [
+          "WordPress admin dashboard accessible",
+          "Plugins -> Add New -> Upload available",
+          "Theme editor restrictions bypass via plugins"
+        ],
+        "failure_modes": [
+          "plugin_upload_disabled",
+          "file_execution_restrictions",
+          "theme_editor_only_attempted"
+        ],
+        "environmental_factors": [
+          "default_wordpress_permissions",
+          "no_plugin_upload_restrictions",
+          "web_server_php_execution"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "wp-config.php.save file exposure",
+        "discovery_method": "Directory listing enumeration",
+        "why_critical": "Contained database credentials reused for WordPress admin",
+        "how_to_recognize": [
+          "directory listing shows backup files",
+          "nano editor backup file patterns (.save)",
+          "configuration files in web accessible paths"
+        ],
+        "follow_up_actions": [
+          "download_and_examine_config_files",
+          "test_credentials_on_login_forms",
+          "enumerate_database_if_accessible"
+        ]
+      },
+      {
+        "discovery": "administrator WordPress user",
+        "discovery_method": "WordPress site enumeration and post author identification",
+        "why_critical": "Default admin user with reused password enabled full site compromise",
+        "how_to_recognize": [
+          "default 'administrator' username",
+          "post author enumeration",
+          "WordPress user enumeration techniques"
+        ],
+        "follow_up_actions": [
+          "test_discovered_passwords",
+          "enumerate_additional_users",
+          "check_admin_panel_capabilities"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "wordpress_admin",
+        "escalation_method": "Plugin_Upload_to_RCE",
+        "why_possible": "WordPress admin could install custom plugins with PHP code execution",
+        "recognition_signs": [
+          "plugin_upload_functionality_available",
+          "theme_editor_restrictions_present",
+          "php_execution_in_plugin_directory"
+        ],
+        "exploitation_path": "Admin Login → Custom Plugin Upload → PHP Webshell → Reverse Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,3306 open on ChromeOS host",
+        "decision": "Focus on web application enumeration first",
+        "reasoning": "MySQL port closed to external access, SSH requires credentials, web service most accessible",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "mysql_enumeration",
+            "when": "if credentials found"
+          },
+          {
+            "option": "ssh_bruteforce",
+            "when": "if usernames discovered"
+          }
+        ],
+        "success_indicators": [
+          "web_directories_found",
+          "application_type_identified",
+          "configuration_files_accessible"
+        ],
+        "next_decision": "enumerate_web_directories"
+      },
+      {
+        "step": 2,
+        "situation": "Found WordPress site and backup configuration files",
+        "decision": "Extract credentials from backup files before attacking WordPress",
+        "reasoning": "Backup files (.save) often contain plaintext credentials and are easier targets",
+        "confidence": 0.95,
+        "prerequisites": [
+          "directory_listing_enabled",
+          "backup_files_present"
+        ],
+        "success_indicators": [
+          "database_credentials_found",
+          "plaintext_passwords_discovered"
+        ],
+        "failure_fallbacks": [
+          "wordpress_enumeration",
+          "plugin_vulnerabilities",
+          "brute_force_login"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found database credentials in wp-config.php.save",
+        "decision": "Try credentials against WordPress admin panel",
+        "reasoning": "Password reuse common, especially in development environments",
+        "confidence": 0.8,
+        "prerequisites": [
+          "wordpress_login_page_accessible",
+          "admin_username_known"
+        ],
+        "success_indicators": [
+          "admin_panel_access_gained"
+        ],
+        "failure_fallbacks": [
+          "mysql_connection_attempt",
+          "ssh_login_attempt",
+          "password_variations"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "WordPress admin access obtained",
+        "decision": "Upload malicious plugin for code execution",
+        "reasoning": "Plugin upload more reliable than theme editing due to file permissions",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "theme_editing",
+            "when": "if plugin upload blocked"
+          },
+          {
+            "option": "existing_plugin_modification",
+            "when": "if new plugin upload fails"
+          }
+        ],
+        "success_indicators": [
+          "plugin_uploaded_successfully",
+          "code_execution_achieved"
+        ],
+        "next_decision": "establish_reverse_shell"
+      }
+    ],
+    "branching_logic": {
+      "if_backup_files_found": {
+        "action": "download_and_analyze_immediately",
+        "tools": [
+          "curl",
+          "wget",
+          "browser_view_source"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_wordpress_admin_gained": {
+        "action": "attempt_code_execution_methods",
+        "priority_order": [
+          "plugin_upload",
+          "plugin_edit",
+          "theme_edit"
+        ],
+        "tools": [
+          "custom_php_plugin",
+          "webshell_injection"
+        ]
+      },
+      "if_theme_edit_blocked": {
+        "action": "try_plugin_modification",
+        "target": "existing_inactive_plugins",
+        "fallback": "create_new_plugin"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_for_privilege_escalation",
+        "focus_areas": [
+          "config_files",
+          "auto_login_credentials",
+          "sudo_permissions"
+        ],
+        "tools": [
+          "find",
+          "grep",
+          "sudo_check"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_for_backup_config_files",
+        "reasoning": "high_success_rate_for_credential_discovery",
+        "applicability": "web_applications_with_directory_listing",
+        "file_patterns": [
+          "*.save",
+          "*.bak",
+          "*.old",
+          "*.backup"
+        ]
+      },
+      {
+        "rule": "try_database_credentials_on_admin_panels",
+        "reasoning": "password_reuse_common_in_development",
+        "applicability": "cms_applications_with_database_backend"
+      },
+      {
+        "rule": "prefer_plugin_upload_over_theme_editing",
+        "reasoning": "better_success_rate_due_to_permissions",
+        "applicability": "wordpress_admin_access"
+      },
+      {
+        "rule": "enumerate_opt_directory_on_unusual_os",
+        "reasoning": "custom_applications_often_store_credentials_there",
+        "applicability": "chromeos_or_embedded_systems"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "WordPress Admin Plugin Edit",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "wordpress_installation",
+          "admin_credentials_available",
+          "plugin_editor_enabled",
+          "file_write_permissions"
+        ],
+        "success_indicators": [
+          "wp_admin_panel_accessible",
+          "plugin_editor_menu_present",
+          "existing_plugins_found",
+          "file_modification_successful"
+        ],
+        "incompatible_with": [
+          "plugin_editor_disabled",
+          "file_permissions_locked",
+          "wp_config_disallow_file_edit"
+        ],
+        "confidence_boosters": [
+          "default_wordpress_configuration",
+          "weak_admin_credentials",
+          "outdated_wordpress_version"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Configuration File Disclosure",
+        "mitre_id": "T1005",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "directory_listing_enabled",
+          "backup_files_accessible"
+        ],
+        "success_indicators": [
+          "directory_browsing_allowed",
+          "backup_file_extensions_found",
+          "configuration_files_readable"
+        ],
+        "incompatible_with": [
+          "directory_listing_disabled",
+          "proper_file_permissions",
+          "backup_files_secured"
+        ],
+        "confidence_boosters": [
+          "nano_save_files_present",
+          "development_environment_indicators",
+          "default_web_server_config"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Credential Reuse Attack",
+        "mitre_id": "T1078",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "credentials_discovered",
+          "multiple_services_present",
+          "authentication_mechanisms_available"
+        ],
+        "success_indicators": [
+          "database_credentials_found",
+          "admin_panels_identified",
+          "authentication_successful"
+        ],
+        "incompatible_with": [
+          "unique_passwords_enforced",
+          "multi_factor_authentication",
+          "account_lockout_policies"
+        ],
+        "confidence_boosters": [
+          "development_environment",
+          "default_configurations",
+          "shared_service_accounts"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "wordpress": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "WordPress",
+          "wp-content",
+          "wp-admin"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "technology_indicators": [
+          "nginx",
+          "apache",
+          "iis"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "mysql_database": {
+        "port_indicators": [
+          3306
+        ],
+        "service_indicators": [
+          "mysql"
+        ],
+        "banner_indicators": [
+          "MySQL"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "configuration_file_disclosure",
+          "when": "directory_listing_detected",
+          "reason": "often_reveals_credentials_and_sensitive_data"
+        },
+        {
+          "attack": "credential_reuse",
+          "when": "credentials_discovered",
+          "reason": "high_success_rate_immediate_access"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "wordpress_plugin_edit",
+          "when": "wordpress_admin_access_gained",
+          "reason": "reliable_code_execution_method"
+        },
+        {
+          "attack": "wordpress_enumeration",
+          "when": "wordpress_detected",
+          "reason": "reveals_users_and_vulnerabilities"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "WordPress Admin Panel Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wpscan",
+            "command_template": "wpscan --url http://{target}/main -e ap,t,tt,u --api-token {token}",
+            "actual_command": "wpscan --url http://spectra.htb/main -e ap,t,tt,u --api-token $WPSCAN_API",
+            "output_pattern": "WordPress version, plugins, themes, users",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "wordpress_site_identified",
+          "admin_credentials_obtained",
+          "plugin_upload_capability"
+        ],
+        "success_indicators": [
+          "admin_panel_access_gained",
+          "plugin_upload_successful",
+          "code_execution_achieved"
+        ],
+        "common_failures": [
+          "theme_editing_disabled",
+          "file_upload_restrictions",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_execution",
+          "local_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Configuration File Disclosure",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/testing/wp-config.php.save",
+            "actual_command": "curl http://spectra.htb/testing/wp-config.php.save",
+            "output_pattern": "Database credentials in plaintext",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "directory_listing_enabled",
+          "backup_files_accessible",
+          "web_server_misconfiguration"
+        ],
+        "success_indicators": [
+          "backup_file_discovered",
+          "credentials_extracted",
+          "database_connection_info_obtained"
+        ],
+        "common_failures": [
+          "backup_files_not_present",
+          "directory_listing_disabled",
+          "proper_file_permissions"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "database_enumeration",
+          "password_spraying"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "WordPress Plugin Upload RCE",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "custom_plugin",
+            "command_template": "zip {plugin_name}.zip {plugin_file}.php",
+            "actual_command": "zip 0xdf-plug.zip 0xdf.php",
+            "output_pattern": "Plugin installation successful",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/wp-content/plugins/{plugin}/{file}.php?{param}={command}",
+            "actual_command": "curl http://spectra.htb/main/wp-content/plugins/0xdf-plug/0xdf.php?0xdf=id",
+            "output_pattern": "Command execution output",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "wordpress_admin_access",
+          "plugin_upload_enabled",
+          "php_execution_allowed"
+        ],
+        "success_indicators": [
+          "plugin_uploaded_successfully",
+          "webshell_accessible",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "file_upload_restrictions",
+          "plugin_validation_errors",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "system_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Autologin Configuration Exploitation",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "cat",
+            "command_template": "cat /etc/autologin/passwd",
+            "actual_command": "cat /etc/autologin/passwd",
+            "output_pattern": "SummerHereWeCome!!",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec ssh {target} -u {userlist} -p '{password}' --continue-on-success",
+            "actual_command": "crackmapexec ssh 10.10.10.229 -u users -p 'SummerHereWeCome!!' --continue-on-success",
+            "output_pattern": "[+] katie:SummerHereWeCome!!",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "file_system_access",
+          "autologin_feature_enabled",
+          "readable_configuration_files"
+        ],
+        "success_indicators": [
+          "password_file_located",
+          "credentials_extracted",
+          "ssh_authentication_successful"
+        ],
+        "common_failures": [
+          "file_permissions_restrictive",
+          "autologin_not_configured",
+          "password_changed_since_configuration"
+        ],
+        "follow_up_techniques": [
+          "ssh_lateral_movement",
+          "sudo_enumeration",
+          "system_service_analysis"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wpscan",
+        "use_case": "wordpress_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "wordpress_penetration_testing"
+        ],
+        "alternatives": [
+          "manual_enumeration",
+          "nikto"
+        ],
+        "best_practices": [
+          "use_api_token_for_vulnerability_details",
+          "enumerate_users_plugins_themes",
+          "check_for_weak_credentials"
+        ]
+      },
+      {
+        "tool": "crackmapexec",
+        "use_case": "credential_validation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "credential_spraying",
+          "lateral_movement"
+        ],
+        "alternatives": [
+          "hydra",
+          "medusa",
+          "manual_testing"
+        ],
+        "best_practices": [
+          "use_continue_on_success_for_multiple_services",
+          "test_against_multiple_protocols",
+          "maintain_user_and_password_lists"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "wordpress_plugin_rce_chain",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://spectra.htb/testing/wp-config.php.save",
+            "purpose": "Extract database credentials from backup file",
+            "expected_output": "Database connection details including password"
+          },
+          {
+            "step": 2,
+            "command": "Login to WordPress admin with administrator:devteam01",
+            "purpose": "Gain administrative access to WordPress",
+            "expected_output": "WordPress admin dashboard access"
+          },
+          {
+            "step": 3,
+            "command": "zip 0xdf-plug.zip 0xdf.php",
+            "purpose": "Create malicious plugin package",
+            "expected_output": "Plugin zip file created"
+          },
+          {
+            "step": 4,
+            "command": "Upload plugin via WordPress admin interface",
+            "purpose": "Install webshell plugin",
+            "expected_output": "Plugin installation successful"
+          },
+          {
+            "step": 5,
+            "command": "curl http://spectra.htb/main/wp-content/plugins/0xdf-plug/0xdf.php?0xdf=id",
+            "purpose": "Test command execution",
+            "expected_output": "uid=20143(nginx) gid=20144(nginx)"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-25 minutes"
+      },
+      {
+        "sequence_name": "chromeos_autologin_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "cat /etc/autologin/passwd",
+            "purpose": "Extract autologin password",
+            "expected_output": "SummerHereWeCome!!"
+          },
+          {
+            "step": 2,
+            "command": "cat /etc/passwd | grep -v false",
+            "purpose": "Identify valid user accounts",
+            "expected_output": "List of users with valid shells"
+          },
+          {
+            "step": 3,
+            "command": "crackmapexec ssh 10.10.10.229 -u users -p 'SummerHereWeCome!!' --continue-on-success",
+            "purpose": "Test password against user accounts",
+            "expected_output": "[+] katie:SummerHereWeCome!!"
+          },
+          {
+            "step": 4,
+            "command": "ssh katie@10.10.10.229",
+            "purpose": "Establish SSH session as katie",
+            "expected_output": "SSH shell as katie user"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Spectra",
+      "difficulty": "Easy",
+      "os": "ChromeOS",
+      "platform": "HackTheBox",
+      "release_date": "2021-02-27",
+      "author": "egre55",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_application",
+        "wordpress",
+        "sudo_abuse"
+      ],
+      "key_vulnerabilities": [
+        "exposed_credentials",
+        "wordpress_plugin_upload",
+        "sudo_misconfiguration"
+      ],
+      "environment_type": "web_server_chromeos",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "wordpress_exploitation",
+        "sudo_privilege_escalation",
+        "chromeos_enumeration"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_exploitation",
+        "wordpress_basics",
+        "linux_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "wordpress",
+        "privilege_escalation",
+        "credential_discovery"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_file_permissions",
+        "wordpress_hardening",
+        "sudo_configuration_review"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Lame",
+        "Blocky",
+        "Apocalyst"
+      ],
+      "similarity_reasons": [
+        "wordpress_exploitation",
+        "exposed_credentials",
+        "straightforward_attack_path"
+      ],
+      "unique_aspects": [
+        "chromeos_target",
+        "init_daemon_abuse",
+        "auto_login_credentials"
+      ],
+      "difficulty_factors": [
+        "clear_attack_progression",
+        "well_known_techniques",
+        "minimal_enumeration_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T20:49:14.264507",
+    "original_file": "0xdf_writeups/Htb Spectra.md",
+    "content_length": 20654,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

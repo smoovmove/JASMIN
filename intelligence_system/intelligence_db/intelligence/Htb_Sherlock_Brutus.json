@@ -1,0 +1,793 @@
+{
+  "writeup_id": "Htb_Sherlock_Brutus",
+  "scenario_fingerprint": {
+    "scenario_name": "ssh_brute_force_persistence_analysis",
+    "primary_services": [
+      "ssh",
+      "linux_auth"
+    ],
+    "port_signature": "22",
+    "service_combination": "ssh",
+    "os_family": "linux",
+    "environment_type": "confluence_server",
+    "entry_vector": "ssh_brute_force",
+    "privilege_path": "root_access_to_persistence",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.9,
+    "distinguishing_factors": [
+      "auth_log_analysis",
+      "wtmp_forensics",
+      "ssh_session_tracking",
+      "user_creation_persistence"
+    ],
+    "environmental_clues": [
+      "confluence_service_user",
+      "aws_ec2_hostname_pattern",
+      "debian_ubuntu_auth_logs",
+      "cron_jobs_present"
+    ],
+    "similar_scenarios": [
+      "linux_ssh_compromise",
+      "server_persistence_analysis"
+    ],
+    "unique_aspects": [
+      "dfir_log_analysis_focus",
+      "session_number_tracking",
+      "sudo_command_execution_analysis",
+      "mitre_attack_mapping"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SSH_Brute_Force",
+        "success_reason": "Weak root password susceptible to dictionary attack",
+        "prerequisite_indicators": [
+          "ssh_service_exposed",
+          "root_login_enabled",
+          "weak_password_policy",
+          "no_rate_limiting"
+        ],
+        "recognition_patterns": [
+          "multiple failed auth attempts from single IP",
+          "auth.log shows repeated sshd failures",
+          "eventual successful login after failures",
+          "consistent source IP pattern"
+        ],
+        "failure_modes": [
+          "strong_password_policy",
+          "account_lockout_enabled",
+          "fail2ban_active",
+          "key_based_auth_only"
+        ],
+        "environmental_factors": [
+          "default_ssh_configuration",
+          "no_intrusion_detection",
+          "weak_credential_standards",
+          "internet_facing_ssh"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-60 minutes"
+      },
+      {
+        "technique": "Privilege_Escalation_via_User_Creation",
+        "success_reason": "Root access allowed creation of privileged backdoor account",
+        "prerequisite_indicators": [
+          "root_shell_access",
+          "sudo_group_exists",
+          "user_creation_permissions"
+        ],
+        "recognition_patterns": [
+          "useradd commands in auth.log",
+          "usermod adding to sudo group",
+          "new user in wtmp logs",
+          "privilege escalation artifacts"
+        ],
+        "failure_modes": [
+          "restricted_user_creation",
+          "sudo_group_restrictions",
+          "command_auditing_enabled"
+        ],
+        "environmental_factors": [
+          "standard_linux_user_management",
+          "sudo_group_configuration",
+          "minimal_access_controls"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SSH brute force source IP",
+        "discovery_method": "auth.log analysis for failed SSH attempts",
+        "why_critical": "Identifies attack origin and successful compromise",
+        "how_to_recognize": [
+          "repeated sshd authentication failures",
+          "consistent source IP in logs",
+          "eventual successful authentication"
+        ],
+        "follow_up_actions": [
+          "analyze_attack_timeline",
+          "check_wtmp_for_sessions",
+          "identify_compromised_accounts"
+        ]
+      },
+      {
+        "discovery": "Root account compromise",
+        "discovery_method": "Successful SSH authentication in auth.log",
+        "why_critical": "Full system compromise with highest privileges",
+        "how_to_recognize": [
+          "successful sshd session for root",
+          "wtmp shows root login sessions",
+          "session tracking numbers assigned"
+        ],
+        "follow_up_actions": [
+          "track_session_duration",
+          "analyze_privilege_usage",
+          "identify_persistence_mechanisms"
+        ]
+      },
+      {
+        "discovery": "Backdoor user creation",
+        "discovery_method": "User management commands in auth.log",
+        "why_critical": "Establishes persistent access mechanism",
+        "how_to_recognize": [
+          "useradd commands in logs",
+          "usermod sudo group additions",
+          "new user login sessions"
+        ],
+        "follow_up_actions": [
+          "identify_mitre_technique",
+          "track_backdoor_usage",
+          "analyze_sudo_command_execution"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "root_access",
+        "escalation_method": "SSH_brute_force_success",
+        "why_possible": "Weak root password and enabled SSH root login",
+        "recognition_signs": [
+          "successful_ssh_authentication",
+          "root_user_session_established",
+          "full_system_privileges_obtained"
+        ],
+        "exploitation_path": "SSH Brute Force → Root Shell → User Creation → Sudo Privileges"
+      },
+      {
+        "privilege_level": "persistent_backdoor",
+        "escalation_method": "privileged_user_creation",
+        "why_possible": "Root access allows unrestricted user management",
+        "recognition_signs": [
+          "useradd_command_execution",
+          "sudo_group_membership_granted",
+          "new_user_authentication_sessions"
+        ],
+        "exploitation_path": "Root Access → Create User → Add to Sudo → Persistent Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "SSH brute force attack detected in auth.log",
+        "decision": "Identify source IP and successful authentication",
+        "reasoning": "Failed SSH attempts followed by successful login indicates compromised credentials",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "analyze_wtmp",
+            "when": "if auth.log incomplete"
+          },
+          {
+            "option": "check_other_services",
+            "when": "if SSH not primary vector"
+          }
+        ],
+        "success_indicators": [
+          "repeated_failed_attempts_same_ip",
+          "successful_login_after_failures",
+          "session_established"
+        ],
+        "next_decision": "track_attacker_session_activity"
+      },
+      {
+        "step": 2,
+        "situation": "Attacker gained SSH access to root account",
+        "decision": "Monitor session for persistence mechanisms",
+        "reasoning": "Root access enables immediate privilege escalation and persistence",
+        "confidence": 0.9,
+        "prerequisites": [
+          "successful_ssh_login",
+          "root_access_confirmed"
+        ],
+        "success_indicators": [
+          "user_creation_commands",
+          "privilege_modification",
+          "sudo_group_changes"
+        ],
+        "failure_fallbacks": [
+          "check_cron_jobs",
+          "analyze_file_modifications",
+          "review_command_history"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "New user account created with elevated privileges",
+        "decision": "Classify as T1136.001 - Create Account: Local Account persistence",
+        "reasoning": "Creating backdoor user account is common persistence technique",
+        "confidence": 0.95,
+        "prerequisites": [
+          "useradd_command_detected",
+          "usermod_sudo_group"
+        ],
+        "success_indicators": [
+          "new_user_in_sudo_group",
+          "subsequent_login_new_user"
+        ],
+        "next_decision": "monitor_backdoor_account_usage"
+      },
+      {
+        "step": 4,
+        "situation": "Backdoor account used for malicious activity",
+        "decision": "Track sudo command execution for payload delivery",
+        "reasoning": "Elevated privileges used to download and execute malicious scripts",
+        "confidence": 0.85,
+        "prerequisites": [
+          "backdoor_account_login",
+          "sudo_privileges_confirmed"
+        ],
+        "success_indicators": [
+          "sudo_wget_curl_commands",
+          "script_downloads",
+          "execution_attempts"
+        ],
+        "failure_fallbacks": [
+          "check_network_connections",
+          "analyze_process_execution"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_ssh_bruteforce_detected": {
+        "action": "correlate_with_wtmp_for_session_tracking",
+        "tools": [
+          "grep",
+          "utmpdump",
+          "last"
+        ],
+        "next_phase": "session_analysis"
+      },
+      "if_root_access_gained": {
+        "action": "monitor_for_persistence_techniques",
+        "alternatives": [
+          "user_creation",
+          "cron_jobs",
+          "ssh_keys",
+          "service_modification"
+        ],
+        "decision_criteria": "based_on_commands_in_auth_log"
+      },
+      "if_new_user_created": {
+        "action": "track_privilege_escalation_path",
+        "purpose": "identify_mitre_attack_technique",
+        "tools": [
+          "grep_useradd",
+          "grep_usermod",
+          "grep_sudo"
+        ]
+      },
+      "if_backdoor_established": {
+        "action": "analyze_malicious_activity",
+        "focus": [
+          "command_execution",
+          "file_downloads",
+          "lateral_movement"
+        ],
+        "tools": [
+          "sudo_log_analysis",
+          "session_duration_calculation"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_correlate_auth_log_with_wtmp",
+        "reasoning": "wtmp_provides_session_timing_and_source_ip_confirmation",
+        "applicability": "ssh_based_attacks"
+      },
+      {
+        "rule": "calculate_session_duration_for_timeline",
+        "reasoning": "helps_establish_attacker_dwell_time_and_activity_scope",
+        "applicability": "successful_authentication_events"
+      },
+      {
+        "rule": "track_user_creation_as_persistence_indicator",
+        "reasoning": "T1136.001_common_technique_for_maintaining_access",
+        "applicability": "root_or_admin_access_obtained"
+      },
+      {
+        "rule": "monitor_sudo_commands_for_payload_delivery",
+        "reasoning": "elevated_privileges_often_used_for_malware_deployment",
+        "applicability": "backdoor_account_with_sudo_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SSH Brute Force",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_enabled",
+          "password_authentication_enabled",
+          "weak_credentials_present"
+        ],
+        "success_indicators": [
+          "repeated_failed_auth_attempts",
+          "eventual_successful_login",
+          "auth_log_entries_present"
+        ],
+        "incompatible_with": [
+          "ssh_disabled",
+          "key_only_authentication",
+          "account_lockout_enabled"
+        ],
+        "confidence_boosters": [
+          "multiple_usernames_attempted",
+          "sequential_login_attempts",
+          "external_ip_source"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-60 minutes"
+      },
+      {
+        "technique": "Create Account",
+        "mitre_id": "T1136.001",
+        "required_services": [
+          "ssh",
+          "system"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "root_or_admin_access",
+          "useradd_command_available",
+          "sudo_privileges"
+        ],
+        "success_indicators": [
+          "useradd_command_executed",
+          "new_user_in_passwd_file",
+          "sudo_group_modification"
+        ],
+        "incompatible_with": [
+          "restricted_user_creation",
+          "no_admin_privileges",
+          "immutable_user_database"
+        ],
+        "confidence_boosters": [
+          "sudo_group_addition",
+          "immediate_login_after_creation",
+          "privilege_escalation_commands"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "1-5 minutes"
+      },
+      {
+        "technique": "Sudo Caching",
+        "mitre_id": "T1548.003",
+        "required_services": [
+          "sudo"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "sudo_installed",
+          "user_in_sudoers",
+          "sudo_timeout_configured"
+        ],
+        "success_indicators": [
+          "sudo_commands_in_auth_log",
+          "privilege_escalation_successful",
+          "administrative_commands_executed"
+        ],
+        "incompatible_with": [
+          "sudo_disabled",
+          "no_sudo_privileges",
+          "restricted_sudo_commands"
+        ],
+        "confidence_boosters": [
+          "recent_sudo_usage",
+          "administrative_tool_downloads",
+          "system_modification_commands"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "1-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "linux_ssh_server": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "SSH-2.0"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "confluence_server": {
+        "port_indicators": [
+          8080,
+          8090,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "confluence"
+        ],
+        "banner_indicators": [
+          "Confluence",
+          "Atlassian"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ssh",
+          "cron",
+          "systemd"
+        ],
+        "banner_indicators": [
+          "Linux",
+          "Ubuntu",
+          "Debian"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ssh_brute_force",
+          "when": "ssh_service_detected",
+          "reason": "common_attack_vector_high_success_rate"
+        },
+        {
+          "attack": "credential_stuffing",
+          "when": "web_login_detected",
+          "reason": "leverages_compromised_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "service_enumeration",
+          "when": "multiple_services_detected",
+          "reason": "identifies_additional_attack_surface"
+        },
+        {
+          "attack": "default_credential_testing",
+          "when": "confluence_detected",
+          "reason": "common_misconfiguration"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "log_analysis",
+          "when": "system_access_gained",
+          "reason": "post_exploitation_intelligence_gathering"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SSH Brute Force Attack",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "automated_ssh_brute_forcer",
+            "command_template": "ssh {username}@{target_ip}",
+            "actual_command": "ssh admin@172.31.35.28",
+            "output_pattern": "Invalid user {username} from {source_ip}",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "ssh_service_accessible",
+          "target_ip_reachable",
+          "username_wordlist"
+        ],
+        "success_indicators": [
+          "accepted_password_log_entry",
+          "session_opened_for_user",
+          "no_preauth_disconnect"
+        ],
+        "common_failures": [
+          "invalid_user_messages",
+          "maxstartups_throttling",
+          "authentication_failure_logs"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "persistence_creation",
+          "lateral_movement"
+        ],
+        "time_investment": "9 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Create Local Account",
+        "mitre_id": "T1136.001",
+        "category": "persistence",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "useradd",
+            "command_template": "useradd {username}",
+            "actual_command": "useradd cyberjunkie",
+            "output_pattern": "new user: name={username}",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "usermod",
+            "command_template": "usermod -aG sudo {username}",
+            "actual_command": "usermod -aG sudo cyberjunkie",
+            "output_pattern": "add '{username}' to group 'sudo'",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "root_or_admin_access",
+          "system_shell_access"
+        ],
+        "success_indicators": [
+          "user_creation_log_entry",
+          "group_modification_log_entry",
+          "successful_login_with_new_account"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "username_already_exists",
+          "system_policy_restrictions"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation_via_sudo",
+          "command_execution",
+          "data_exfiltration"
+        ],
+        "time_investment": "1-2 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "auth.log_analysis",
+        "use_case": "forensic_investigation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "linux_forensics",
+          "brute_force_detection"
+        ],
+        "alternatives": [
+          "wtmp_analysis",
+          "system_logs"
+        ],
+        "best_practices": [
+          "correlate_with_wtmp_logs",
+          "focus_on_authentication_failures",
+          "track_session_numbers_and_timing"
+        ]
+      },
+      {
+        "tool": "utmpdump",
+        "use_case": "login_session_analysis",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "session_tracking",
+          "login_forensics"
+        ],
+        "alternatives": [
+          "last_command",
+          "who_command"
+        ],
+        "best_practices": [
+          "correlate_event_types_with_timestamps",
+          "track_user_process_events",
+          "identify_dead_process_events"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ssh_brute_force_to_persistence",
+        "steps": [
+          {
+            "step": 1,
+            "command": "grep sshd auth.log | grep 'Invalid user'",
+            "purpose": "Identify brute force attempts",
+            "expected_output": "Multiple invalid user attempts from 65.2.161.68"
+          },
+          {
+            "step": 2,
+            "command": "grep 'Accepted password' auth.log",
+            "purpose": "Find successful authentication",
+            "expected_output": "Accepted password for root from 65.2.161.68"
+          },
+          {
+            "step": 3,
+            "command": "grep 'useradd\\|usermod' auth.log",
+            "purpose": "Identify persistence mechanisms",
+            "expected_output": "User creation and privilege escalation"
+          },
+          {
+            "step": 4,
+            "command": "utmpdump wtmp | grep cyberjunkie",
+            "purpose": "Track backdoor account usage",
+            "expected_output": "Login sessions for created account"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "forensic_timeline_reconstruction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "cat auth.log | cut -d' ' -f 6 | cut -d[ -f1 | sort | uniq -c | sort -nr",
+            "purpose": "Get service overview",
+            "expected_output": "Service frequency analysis"
+          },
+          {
+            "step": 2,
+            "command": "grep 'session opened\\|session closed' auth.log",
+            "purpose": "Track session duration",
+            "expected_output": "Session start and end times"
+          },
+          {
+            "step": 3,
+            "command": "grep sudo auth.log",
+            "purpose": "Identify privilege escalation",
+            "expected_output": "Sudo command execution logs"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "10-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Brutus",
+      "difficulty": "Very Easy",
+      "os": "Linux",
+      "platform": "HackTheBox Sherlock",
+      "release_date": "2024-04-04",
+      "author": "CyberJunkie",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "ssh_brute_force",
+        "credential_access"
+      ],
+      "key_vulnerabilities": [
+        "weak_credentials",
+        "ssh_exposure"
+      ],
+      "environment_type": "confluence_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "log_analysis",
+        "dfir_fundamentals",
+        "persistence_techniques"
+      ],
+      "prerequisite_knowledge": [
+        "basic_linux",
+        "log_file_analysis",
+        "ssh_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "digital_forensics",
+      "subcategories": [
+        "log_analysis",
+        "incident_response",
+        "persistence"
+      ],
+      "attack_types": [
+        "credential_access",
+        "persistence",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "ssh_hardening",
+        "log_monitoring",
+        "user_account_auditing"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Investigation",
+        "Precious",
+        "Keeper"
+      ],
+      "similarity_reasons": [
+        "dfir_focus",
+        "log_analysis",
+        "ssh_attacks"
+      ],
+      "unique_aspects": [
+        "auth_log_analysis",
+        "wtmp_investigation",
+        "confluence_server"
+      ],
+      "difficulty_factors": [
+        "guided_questions",
+        "clear_attack_path",
+        "basic_log_parsing"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T18:54:38.352401",
+    "original_file": "0xdf_writeups/Htb Sherlock Brutus.md",
+    "content_length": 36038,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

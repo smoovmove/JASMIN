@@ -1,0 +1,809 @@
+{
+  "writeup_id": "Htb_Charon",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_sqli_file_upload_crypto",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "sql_injection",
+    "privilege_path": "sqli_to_file_upload_to_rce",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "manual_sqli_required",
+      "sqlmap_bypass_needed",
+      "file_upload_functionality",
+      "rsa_crypto_component",
+      "command_injection_final_stage"
+    ],
+    "environmental_clues": [
+      "cms_data_directory",
+      "login_php_interface",
+      "forgot_password_sqli_vector",
+      "upload_php_behind_auth",
+      "ubuntu_apache_stack"
+    ],
+    "similar_scenarios": [
+      "nineveh_htb_medium",
+      "apocalyst_htb_medium"
+    ],
+    "unique_aspects": [
+      "anti_sqlmap_protection",
+      "multi_stage_crypto_challenge",
+      "manual_sqli_enumeration_required",
+      "frozen_yogurt_shop_theme"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection_Manual",
+        "success_reason": "Forgot password form lacked input validation and used unsanitized user input in SQL query",
+        "prerequisite_indicators": [
+          "web_application_with_database",
+          "user_input_forms_present",
+          "error_messages_exposed"
+        ],
+        "recognition_patterns": [
+          "database error on single quote injection",
+          "different responses for valid/invalid email formats",
+          "error message changes with SQL syntax"
+        ],
+        "failure_modes": [
+          "parameterized_queries_used",
+          "input_validation_implemented",
+          "error_messages_suppressed"
+        ],
+        "environmental_factors": [
+          "legacy_php_application",
+          "direct_sql_concatenation",
+          "verbose_error_reporting"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Manual_SQLI_Enumeration",
+        "success_reason": "LIMIT clause allowed systematic data extraction bypassing sqlmap detection",
+        "prerequisite_indicators": [
+          "union_based_sqli_available",
+          "application_returns_data_in_response",
+          "mysql_database_backend"
+        ],
+        "recognition_patterns": [
+          "LIMIT clause accepted in injection",
+          "data returned in error messages",
+          "incremental enumeration possible"
+        ],
+        "failure_modes": [
+          "blind_sqli_only",
+          "no_data_reflection",
+          "query_structure_incompatible"
+        ],
+        "environmental_factors": [
+          "mysql_database_system",
+          "application_designed_to_break_automated_tools",
+          "custom_query_structure"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "forgot.php SQL injection vulnerability",
+        "discovery_method": "Manual testing with single quote injection",
+        "why_critical": "Allowed complete database enumeration and credential extraction",
+        "how_to_recognize": [
+          "error message changes with SQL metacharacters",
+          "different responses for malformed vs valid email formats",
+          "database error messages exposed to user"
+        ],
+        "follow_up_actions": [
+          "enumerate_database_structure",
+          "extract_user_credentials",
+          "test_extracted_credentials"
+        ]
+      },
+      {
+        "discovery": "User credentials via LIMIT-based enumeration",
+        "discovery_method": "LIMIT clause manipulation in SQL injection",
+        "why_critical": "Provided authentication bypass for CMS access",
+        "how_to_recognize": [
+          "successful LIMIT clause injection",
+          "data returned in application responses",
+          "systematic enumeration possible"
+        ],
+        "follow_up_actions": [
+          "test_credentials_on_login_form",
+          "enumerate_all_database_users",
+          "check_for_admin_accounts"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_user",
+        "escalation_method": "SQL_injection_to_credential_extraction",
+        "why_possible": "Application directly concatenated user input into SQL queries without sanitization",
+        "recognition_signs": [
+          "php_application_with_database_backend",
+          "forgot_password_functionality_present",
+          "verbose_error_messages_enabled"
+        ],
+        "exploitation_path": "SQL injection → credential extraction → CMS authentication → file upload → shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and vulnerability discovery",
+        "reasoning": "Limited attack surface requires thorough web app testing",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if web app fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "web_directories_found",
+          "dynamic_content_discovered",
+          "input_forms_identified"
+        ],
+        "next_decision": "enumerate_web_application"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered /cmsdata directory with login.php and forgot.php forms",
+        "decision": "Test forgot password form for SQL injection before attempting login bypass",
+        "reasoning": "Password reset forms often have weaker input validation",
+        "confidence": 0.85,
+        "prerequisites": [
+          "web_forms_identified",
+          "dynamic_php_content"
+        ],
+        "success_indicators": [
+          "database_error_messages",
+          "different_response_patterns"
+        ],
+        "failure_fallbacks": [
+          "login_form_sqli",
+          "credential_bruteforce",
+          "directory_traversal"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "SQL injection confirmed in forgot.php with WAF/filtering detected",
+        "decision": "Develop manual SQL injection bypassing filters rather than using automated tools",
+        "reasoning": "WAF designed to break sqlmap requires manual techniques",
+        "confidence": 0.95,
+        "prerequisites": [
+          "sqli_confirmed",
+          "filter_detected"
+        ],
+        "success_indicators": [
+          "successful_union_queries",
+          "data_extraction"
+        ],
+        "failure_fallbacks": [
+          "blind_sqli",
+          "time_based_sqli",
+          "alternative_injection_points"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_limited_ports_found": {
+        "action": "deep_web_enumeration",
+        "tools": [
+          "gobuster",
+          "directory_bruteforce"
+        ],
+        "next_phase": "web_vulnerability_assessment"
+      },
+      "if_sqli_with_waf_detected": {
+        "action": "manual_sqli_development",
+        "alternatives": [
+          "filter_bypass_techniques",
+          "encoding_methods",
+          "comment_variations"
+        ],
+        "decision_criteria": "based_on_error_message_patterns"
+      },
+      "if_credentials_extracted": {
+        "action": "authenticate_and_explore_cms",
+        "purpose": "find_file_upload_or_command_injection",
+        "tools": [
+          "curl",
+          "burp_suite"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "test_forgot_password_forms_before_login_forms",
+        "reasoning": "often_have_weaker_input_validation_and_error_disclosure",
+        "applicability": "web_applications_with_authentication"
+      },
+      {
+        "rule": "use_manual_sqli_when_waf_detected",
+        "reasoning": "automated_tools_often_blocked_by_filters",
+        "applicability": "filtered_sql_injection_scenarios"
+      },
+      {
+        "rule": "leverage_bash_oneliners_for_sqli_enumeration",
+        "reasoning": "faster_iteration_and_easier_payload_modification",
+        "applicability": "manual_sql_injection_exploitation"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "database_backend_exists",
+          "user_input_fields_available"
+        ],
+        "success_indicators": [
+          "database_error_messages",
+          "different_response_with_quotes",
+          "timing_differences",
+          "boolean_based_responses"
+        ],
+        "incompatible_with": [
+          "prepared_statements_only",
+          "strict_input_validation",
+          "web_application_firewall_blocking"
+        ],
+        "confidence_boosters": [
+          "php_application_detected",
+          "form_fields_present",
+          "dynamic_content_generation",
+          "error_messages_verbose"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_present",
+          "file_path_parameters",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "directory_listing_accessible",
+          "forbidden_directories_found",
+          "file_inclusion_parameters"
+        ],
+        "incompatible_with": [
+          "strict_path_validation",
+          "chroot_jail_enabled",
+          "access_controls_enforced"
+        ],
+        "confidence_boosters": [
+          "apache_server_detected",
+          "php_extensions_found",
+          "cms_structure_present"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Web Application Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "directory_structure_present"
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "admin_panels_discovered",
+          "sensitive_files_accessible"
+        ],
+        "incompatible_with": [
+          "directory_listing_disabled",
+          "strict_access_controls",
+          "minimal_web_footprint"
+        ],
+        "confidence_boosters": [
+          "standard_web_ports_open",
+          "common_web_technologies",
+          "cms_indicators_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "Microsoft-IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          ".php",
+          "PHP",
+          "X-Powered-By: PHP"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "database_backend": {
+        "port_indicators": [
+          3306,
+          5432,
+          1433,
+          1521
+        ],
+        "service_indicators": [
+          "mysql",
+          "postgresql",
+          "mssql",
+          "oracle"
+        ],
+        "application_indicators": [
+          "login_forms",
+          "dynamic_content",
+          "user_registration"
+        ],
+        "confidence_threshold": 0.75
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Debian",
+          "CentOS",
+          "Red Hat"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "web_application_enumeration",
+          "when": "web_service_detected",
+          "reason": "high_success_rate_reveals_attack_surface"
+        },
+        {
+          "attack": "sql_injection_testing",
+          "when": "form_fields_and_database_indicators_present",
+          "reason": "common_vulnerability_high_impact"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_traversal",
+          "when": "file_parameters_detected",
+          "reason": "moderate_success_rate_good_information_disclosure"
+        },
+        {
+          "attack": "ssh_enumeration",
+          "when": "ssh_service_detected",
+          "reason": "useful_for_lateral_movement_after_initial_access"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected_no_other_vectors",
+          "reason": "time_consuming_low_success_rate_without_usernames"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Manual SQL Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s {url} --data-urlencode \"email={payload}\" | grep '<h2>'",
+            "actual_command": "curl -s http://10.10.10.31/cmsdata/forgot.php --data-urlencode \"email=a@b.c' or 1=1 limit 1;-- -\" | grep '<h2>'",
+            "output_pattern": "Email sent to: {email}=>{username}",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_database",
+          "user_input_not_sanitized",
+          "error_messages_exposed"
+        ],
+        "success_indicators": [
+          "database_error_messages",
+          "different_responses_to_malformed_input",
+          "data_extraction_successful"
+        ],
+        "common_failures": [
+          "input_validation_present",
+          "waf_blocking_payloads",
+          "blind_injection_only"
+        ],
+        "follow_up_techniques": [
+          "union_based_injection",
+          "database_enumeration",
+          "credential_extraction"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "WAF Bypass",
+        "mitre_id": "T1190",
+        "category": "defense_evasion",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s {url} --data-urlencode \"email={payload_with_case_variation}\"",
+            "actual_command": "curl -s http://10.10.10.31/cmsdata/forgot.php --data-urlencode \"email=a@b.c' UNiON SELECT 1,2,3,4;-- -\"",
+            "output_pattern": "Different error messages indicate bypass success",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "waf_or_filter_detected",
+          "case_sensitive_filtering",
+          "keyword_based_blocking"
+        ],
+        "success_indicators": [
+          "blocked_keywords_work_with_case_changes",
+          "query_execution_resumes",
+          "different_error_responses"
+        ],
+        "common_failures": [
+          "advanced_waf_with_normalization",
+          "multiple_detection_methods",
+          "complete_input_sanitization"
+        ],
+        "follow_up_techniques": [
+          "continued_sql_injection",
+          "union_based_enumeration",
+          "database_schema_discovery"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Union-Based SQL Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s {url} --data-urlencode \"email={email}' UNiON SELECT {columns};-- -\"",
+            "actual_command": "curl -s http://10.10.10.31/cmsdata/forgot.php --data-urlencode \"email=a@b.c' UNiON SELECT 1,2,3,4;-- -\"",
+            "output_pattern": "Structured data extraction from database",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "sql_injection_confirmed",
+          "column_count_determined",
+          "output_fields_identified"
+        ],
+        "success_indicators": [
+          "controlled_data_in_response",
+          "database_schema_accessible",
+          "sensitive_data_extracted"
+        ],
+        "common_failures": [
+          "column_count_mismatch",
+          "data_type_incompatibility",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "database_enumeration",
+          "credential_harvesting",
+          "file_system_access"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Automated User Enumeration",
+        "mitre_id": "T1087",
+        "category": "discovery",
+        "phase": "enumeration",
+        "tools_used": [
+          {
+            "name": "bash_loop",
+            "command_template": "for i in {1..1000}; do curl -s {url} --data-urlencode \"email={payload} limit ${i},1;-- -\" | grep '<h2>' | awk '{print $5}' | grep -v \"^with\" || break; done",
+            "actual_command": "for i in {1..1000}; do curl -s http://10.10.10.31/cmsdata/forgot.php --data-urlencode \"email=a@b.c' or 1=1 limit ${i},1;-- -\" | grep '<h2>' | awk '{print $5}' | grep -v \"^with\" || break; done",
+            "output_pattern": "email@domain.com=>username",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "sql_injection_working",
+          "limit_clause_supported",
+          "predictable_output_format"
+        ],
+        "success_indicators": [
+          "multiple_users_extracted",
+          "email_username_pairs_obtained",
+          "administrative_accounts_identified"
+        ],
+        "common_failures": [
+          "rate_limiting_triggered",
+          "database_connection_limits",
+          "inconsistent_output_format"
+        ],
+        "follow_up_techniques": [
+          "credential_spraying",
+          "targeted_attacks",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "manual_sql_injection_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing",
+          "api_testing"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "postman",
+          "wget"
+        ],
+        "best_practices": [
+          "use_data_urlencode_for_special_characters",
+          "pipe_output_through_grep_for_specific_patterns",
+          "combine_with_bash_loops_for_automation"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_reconnaissance"
+        ],
+        "alternatives": [
+          "dirb",
+          "ffuf",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "include_file_extensions_relevant_to_technology",
+          "use_appropriate_wordlists_for_target",
+          "enumerate_discovered_directories_recursively"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sql_injection_discovery_and_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -s http://10.10.10.31/cmsdata/forgot.php --data-urlencode \"email=0xdf@aol.com'\" | grep '<h2>'",
+            "purpose": "Test for SQL injection vulnerability",
+            "expected_output": "Error in Database!"
+          },
+          {
+            "step": 2,
+            "command": "curl -s http://10.10.10.31/cmsdata/forgot.php --data-urlencode \"email=a@b.c' or 1=1 limit 1;-- -\" | grep '<h2>'",
+            "purpose": "Confirm injection and extract first user",
+            "expected_output": "Email sent to: test1@aa.com=>test1"
+          },
+          {
+            "step": 3,
+            "command": "curl -s http://10.10.10.31/cmsdata/forgot.php --data-urlencode \"email=a@b.c' UNiON SELECT 1,2,3,4;-- -\" | grep '<h2>'",
+            "purpose": "Test WAF bypass and column count",
+            "expected_output": "Incorrect format or database error"
+          },
+          {
+            "step": 4,
+            "command": "for i in {1..1000}; do curl -s http://10.10.10.31/cmsdata/forgot.php --data-urlencode \"email=a@b.c' or 1=1 limit ${i},1;-- -\" | grep '<h2>' | awk '{print $5}' | grep -v \"^with\" || break; done",
+            "purpose": "Enumerate all users in database",
+            "expected_output": "List of email=>username pairs"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Charon",
+      "difficulty": "Hard",
+      "os": "Linux Ubuntu 16.04",
+      "platform": "HackTheBox",
+      "release_date": "2017-07-07",
+      "author": "decoder",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "file_upload",
+        "command_injection"
+      ],
+      "key_vulnerabilities": [
+        "manual_sqli",
+        "crypto_weakness",
+        "upload_bypass"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "manual_sqli_techniques",
+        "rsa_cryptography",
+        "filter_bypass"
+      ],
+      "prerequisite_knowledge": [
+        "sql_injection",
+        "cryptography_basics",
+        "web_exploitation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "sql_injection",
+        "cryptography",
+        "command_injection"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "defense_evasion"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "file_upload_restrictions",
+        "crypto_implementation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Nightmare",
+        "Poison",
+        "Canape"
+      ],
+      "similarity_reasons": [
+        "complex_web_exploitation",
+        "multi_stage_attacks",
+        "crypto_elements"
+      ],
+      "unique_aspects": [
+        "sqlmap_resistant_sqli",
+        "rsa_crypto_challenge",
+        "filter_bypass_techniques"
+      ],
+      "difficulty_factors": [
+        "manual_exploitation_required",
+        "crypto_knowledge_needed",
+        "multiple_bypass_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T00:42:14.714782",
+    "original_file": "0xdf_writeups/Htb Charon.md",
+    "content_length": 53850,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

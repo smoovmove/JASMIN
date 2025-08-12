@@ -1,0 +1,776 @@
+{
+  "writeup_id": "Htb_Falafel",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_sqli_file_upload_privesc",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "sql_injection",
+    "privilege_path": "web_sqli_to_file_upload_to_shell",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "username_enumeration_via_error_messages",
+      "sql_injection_in_login_form",
+      "file_upload_functionality",
+      "robots_txt_hints"
+    ],
+    "environmental_clues": [
+      "php_web_application",
+      "apache_ubuntu_stack",
+      "upload_directory_present",
+      "cyberlaw_txt_intelligence"
+    ],
+    "similar_scenarios": [
+      "nineveh_htb_medium",
+      "bashed_htb_easy"
+    ],
+    "unique_aspects": [
+      "differential_login_responses",
+      "wfuzz_username_enumeration",
+      "sqlmap_required_for_bypass",
+      "image_upload_exploitation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Username Enumeration via Error Messages",
+        "success_reason": "Application returned different error messages for valid vs invalid usernames",
+        "prerequisite_indicators": [
+          "login_form_available",
+          "different_error_responses",
+          "no_rate_limiting"
+        ],
+        "recognition_patterns": [
+          "response length differences in wfuzz",
+          "distinct error messages ('try again' vs 'Wrong identification')",
+          "consistent response time variations"
+        ],
+        "failure_modes": [
+          "uniform_error_messages",
+          "rate_limiting_enabled",
+          "account_lockout_mechanisms"
+        ],
+        "environmental_factors": [
+          "poor_error_handling_implementation",
+          "lack_of_security_awareness",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Information Disclosure via robots.txt",
+        "success_reason": "robots.txt revealed file extension patterns and cyberlaw.txt contained sensitive information",
+        "prerequisite_indicators": [
+          "robots_txt_exists",
+          "disallowed_entries_present",
+          "accessible_restricted_files"
+        ],
+        "recognition_patterns": [
+          "robots.txt with specific file patterns",
+          "gobuster hits on restricted extensions",
+          "sensitive information in discovered files"
+        ],
+        "failure_modes": [
+          "no_robots_txt",
+          "properly_restricted_files",
+          "no_sensitive_information_disclosed"
+        ],
+        "environmental_factors": [
+          "developer_oversight",
+          "improper_file_permissions",
+          "lack_of_security_review"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "SQL Injection via Blind Boolean-Based",
+        "success_reason": "Login form vulnerable to SQL injection with distinguishable true/false responses",
+        "prerequisite_indicators": [
+          "different_response_patterns_exist",
+          "injectable_parameters_present",
+          "no_waf_protection"
+        ],
+        "recognition_patterns": [
+          "sqlmap --string option effectiveness",
+          "boolean-based blind injection signatures",
+          "response time/content variations"
+        ],
+        "failure_modes": [
+          "proper_parameterized_queries",
+          "waf_blocking_injection_attempts",
+          "uniform_error_responses"
+        ],
+        "environmental_factors": [
+          "legacy_php_application",
+          "insufficient_input_sanitization",
+          "lack_of_prepared_statements"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "cyberlaw.txt information disclosure",
+        "discovery_method": "gobuster enumeration following robots.txt hint",
+        "why_critical": "Revealed attack path via chris user and image upload vulnerability",
+        "how_to_recognize": [
+          "robots.txt patterns leading to file discovery",
+          "administrative communications in accessible files",
+          "specific user mentions and attack vectors"
+        ],
+        "follow_up_actions": [
+          "enumerate_mentioned_usernames",
+          "focus_on_image_upload_functionality",
+          "test_privilege_escalation_paths"
+        ]
+      },
+      {
+        "discovery": "chris and admin usernames",
+        "discovery_method": "wfuzz username enumeration via error message differences",
+        "why_critical": "Valid usernames enable targeted attacks and reduce brute force scope",
+        "how_to_recognize": [
+          "response length variations in fuzzing",
+          "distinct error message patterns",
+          "consistent behavioral differences"
+        ],
+        "follow_up_actions": [
+          "attempt_sql_injection_on_login",
+          "test_password_attacks",
+          "enumerate_additional_functionality"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "information_disclosure_to_user_enumeration",
+        "why_possible": "Poor error handling revealed valid usernames through response differences",
+        "recognition_signs": [
+          "different_error_messages_per_username",
+          "response_length_variations",
+          "timing_attack_possibilities"
+        ],
+        "exploitation_path": "robots.txt → cyberlaw.txt → username enum → SQL injection"
+      },
+      {
+        "privilege_level": "username_knowledge",
+        "escalation_method": "sql_injection_authentication_bypass",
+        "why_possible": "Login form lacks proper input validation and uses distinguishable responses",
+        "recognition_signs": [
+          "boolean_blind_injection_indicators",
+          "sqlmap_string_option_effectiveness",
+          "consistent_true_false_response_patterns"
+        ],
+        "exploitation_path": "Valid username → SQL injection → Authentication bypass → File upload access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with web application",
+        "decision": "Enumerate web application and check for authentication bypass",
+        "reasoning": "Limited attack surface suggests web app is primary entry point",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "login_page_found",
+          "directory_enumeration_reveals_files",
+          "robots_txt_contains_hints"
+        ],
+        "next_decision": "analyze_authentication_mechanism"
+      },
+      {
+        "step": 2,
+        "situation": "Login form shows different error messages for valid vs invalid usernames",
+        "decision": "Enumerate valid usernames using error message differences",
+        "reasoning": "Information disclosure allows username enumeration before password attacks",
+        "confidence": 0.95,
+        "prerequisites": [
+          "login_form_identified",
+          "error_message_differences_observed"
+        ],
+        "success_indicators": [
+          "valid_usernames_discovered"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "default_credentials"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Valid usernames found, different error responses indicate backend query",
+        "decision": "Test for SQL injection using blind boolean-based technique",
+        "reasoning": "Error message differences suggest SQL queries that can be manipulated",
+        "confidence": 0.85,
+        "prerequisites": [
+          "valid_usernames_known",
+          "error_message_patterns_identified"
+        ],
+        "success_indicators": [
+          "boolean_blind_sqli_confirmed"
+        ],
+        "failure_fallbacks": [
+          "password_bruteforce",
+          "session_manipulation"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_username_enumeration_succeeds": {
+        "action": "test_sql_injection_with_string_matching",
+        "tools": [
+          "sqlmap",
+          "wfuzz"
+        ],
+        "next_phase": "database_extraction"
+      },
+      "if_sqli_confirmed": {
+        "action": "dump_database_for_credentials",
+        "purpose": "extract_user_credentials_and_hashes",
+        "tools": [
+          "sqlmap"
+        ]
+      },
+      "if_credentials_obtained": {
+        "action": "authenticate_and_explore_upload_functionality",
+        "purpose": "achieve_code_execution_via_file_upload",
+        "tools": [
+          "burp",
+          "custom_payloads"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_error_message_differences_in_login_forms",
+        "reasoning": "common_information_disclosure_leading_to_username_enum",
+        "applicability": "web_applications_with_authentication"
+      },
+      {
+        "rule": "use_string_matching_for_blind_sqli_when_error_messages_differ",
+        "reasoning": "boolean_responses_enable_blind_injection_detection",
+        "applicability": "login_forms_with_distinguishable_error_states"
+      },
+      {
+        "rule": "prioritize_file_upload_functionality_after_authentication",
+        "reasoning": "common_path_to_code_execution_in_web_applications",
+        "applicability": "authenticated_web_application_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Username Enumeration via Response Differential",
+        "mitre_id": "T1087.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_login",
+          "differential_error_messages",
+          "post_based_authentication"
+        ],
+        "success_indicators": [
+          "response_length_variations",
+          "error_message_differences",
+          "valid_usernames_confirmed"
+        ],
+        "incompatible_with": [
+          "uniform_error_responses",
+          "rate_limiting_enabled",
+          "captcha_protection"
+        ],
+        "confidence_boosters": [
+          "admin_username_exists",
+          "common_usernames_present",
+          "verbose_error_messages"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory and File Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_disabled",
+          "common_file_extensions_present"
+        ],
+        "success_indicators": [
+          "robots_txt_found",
+          "backup_files_discovered",
+          "admin_panels_located"
+        ],
+        "incompatible_with": [
+          "waf_blocking_requests",
+          "aggressive_rate_limiting",
+          "custom_404_responses"
+        ],
+        "confidence_boosters": [
+          "robots_txt_exists",
+          "common_cms_patterns",
+          "php_extensions_found"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "SQL Injection via Login Form",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "database_backend_present",
+          "login_form_exists",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "sqlmap_detects_injection",
+          "database_errors_revealed",
+          "authentication_bypass_successful"
+        ],
+        "incompatible_with": [
+          "prepared_statements_used",
+          "waf_sql_protection",
+          "input_sanitization_proper"
+        ],
+        "confidence_boosters": [
+          "php_mysql_stack",
+          "custom_authentication_code",
+          "verbose_database_errors"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          "apache"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_server": {
+        "port_indicators": [
+          22,
+          80
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh",
+          "apache"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "often_reveals_sensitive_files_and_endpoints"
+        },
+        {
+          "attack": "username_enumeration",
+          "when": "login_form_detected",
+          "reason": "enables_targeted_attacks_and_credential_stuffing"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "sql_injection_testing",
+          "when": "database_backend_suspected",
+          "reason": "high_impact_but_requires_vulnerable_code"
+        },
+        {
+          "attack": "file_upload_testing",
+          "when": "upload_functionality_found",
+          "reason": "potential_code_execution_vector"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Username Enumeration via Response Differential",
+        "mitre_id": "T1087.001",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -w {wordlist} -d \"username=FUZZ&password=test\" -u {target_url} --hh {filter_size}",
+            "actual_command": "wfuzz -c -w /opt/SecLists/Usernames/Names/names.txt -d \"username=FUZZ&password=abcd\" -u http://10.10.10.73/login.php --hh 7074",
+            "output_pattern": "Different response size indicates valid username",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "login_form_accessible",
+          "differential_response_behavior",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "response_size_changes",
+          "error_message_variations",
+          "valid_usernames_identified"
+        ],
+        "common_failures": [
+          "uniform_error_responses",
+          "rate_limiting_implemented",
+          "account_lockout_mechanisms"
+        ],
+        "follow_up_techniques": [
+          "password_spraying",
+          "sql_injection_testing",
+          "credential_stuffing"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Blind SQL Injection via Boolean Response",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "sqlmap",
+            "command_template": "sqlmap -r {request_file} --level 5 --risk 3 --batch --string \"{true_response_string}\"",
+            "actual_command": "sqlmap -r login-chris.request --level 5 --risk 3 --batch --string \"Wrong identification\"",
+            "output_pattern": "Parameter: username (POST) Type: boolean-based blind",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "sqlmap",
+            "command_template": "sqlmap -r {request_file} --level 5 --risk 3 --batch --string \"{true_response_string}\" --dump",
+            "actual_command": "sqlmap -r login-chris.request --level 5 --risk 3 --batch --string \"Wrong identification\" --dump",
+            "success_factors": [
+              "boolean_response_differential",
+              "proper_string_matching"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "injectable_parameter_identified",
+          "boolean_response_differential",
+          "request_file_captured"
+        ],
+        "success_indicators": [
+          "injection_point_confirmed",
+          "database_enumeration_successful",
+          "credential_hashes_extracted"
+        ],
+        "common_failures": [
+          "no_response_differential",
+          "waf_protection_active",
+          "incorrect_string_matching"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Directory and File Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster -u {target_url} -w {wordlist} -x {extensions} -t {threads}",
+            "actual_command": "gobuster -u http://10.10.10.73 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x txt,php,html -t 30",
+            "output_pattern": "Status codes: 200,204,301,302,307",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "hidden_files_discovered",
+          "sensitive_information_exposed",
+          "additional_attack_surface_identified"
+        ],
+        "common_failures": [
+          "directory_listing_disabled",
+          "access_controls_implemented",
+          "insufficient_wordlist_coverage"
+        ],
+        "follow_up_techniques": [
+          "file_content_analysis",
+          "parameter_fuzzing",
+          "authentication_bypass"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wfuzz",
+        "use_case": "username_enumeration_via_response_differential",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "login_form_enumeration"
+        ],
+        "alternatives": [
+          "burp_intruder",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "filter_common_response_sizes",
+          "use_comprehensive_wordlists",
+          "monitor_for_rate_limiting"
+        ]
+      },
+      {
+        "tool": "sqlmap",
+        "use_case": "blind_sql_injection_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "sql_injection_testing"
+        ],
+        "alternatives": [
+          "manual_injection",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_string_matching_for_blind_injection",
+          "capture_requests_properly",
+          "increase_risk_and_level_for_thorough_testing"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_app_enumeration_to_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gobuster -u http://10.10.10.73 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x txt,php,html -t 30",
+            "purpose": "Discover hidden files and directories",
+            "expected_output": "cyberlaw.txt, login.php, upload.php discovered"
+          },
+          {
+            "step": 2,
+            "command": "wfuzz -c -w /opt/SecLists/Usernames/Names/names.txt -d \"username=FUZZ&password=abcd\" -u http://10.10.10.73/login.php --hh 7074",
+            "purpose": "Enumerate valid usernames",
+            "expected_output": "admin and chris usernames identified"
+          },
+          {
+            "step": 3,
+            "command": "sqlmap -r login-chris.request --level 5 --risk 3 --batch --string \"Wrong identification\"",
+            "purpose": "Test for SQL injection vulnerability",
+            "expected_output": "Boolean-based blind injection confirmed"
+          },
+          {
+            "step": 4,
+            "command": "sqlmap -r login-chris.request --level 5 --risk 3 --batch --string \"Wrong identification\" --dump",
+            "purpose": "Extract database contents",
+            "expected_output": "User credentials and password hashes extracted"
+          }
+        ],
+        "success_rate": 0.82,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Falafel",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2018-02-03",
+      "author": "dm0n, Stylish",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_application",
+        "sql_injection",
+        "file_upload"
+      ],
+      "key_vulnerabilities": [
+        "authentication_bypass",
+        "file_inclusion",
+        "privilege_escalation"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "advanced_web_exploitation",
+        "filter_bypass",
+        "linux_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "sql_injection",
+        "file_upload_attacks"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "sql_injection",
+        "file_upload",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "file_upload_restrictions",
+        "proper_authentication"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Nineveh",
+        "Popcorn",
+        "Blocky"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "multi_stage_exploitation",
+        "file_upload_vulnerabilities"
+      ],
+      "unique_aspects": [
+        "complex_filter_bypass",
+        "well_crafted_hints",
+        "educational_progression"
+      ],
+      "difficulty_factors": [
+        "multiple_bypass_techniques",
+        "advanced_web_exploitation",
+        "complex_attack_chain"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:18:05.407460",
+    "original_file": "0xdf_writeups/Htb Falafel.md",
+    "content_length": 56123,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

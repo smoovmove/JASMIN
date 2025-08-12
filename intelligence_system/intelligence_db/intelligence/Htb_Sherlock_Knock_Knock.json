@@ -1,0 +1,1022 @@
+{
+  "writeup_id": "Htb_Sherlock_Knock_Knock",
+  "scenario_fingerprint": {
+    "scenario_name": "ftp_password_spray_to_ransomware",
+    "primary_services": [
+      "ftp",
+      "ssh",
+      "http",
+      "dns"
+    ],
+    "port_signature": "21+22+80+53",
+    "service_combination": "ftp+ssh+http+dns",
+    "os_family": "linux",
+    "environment_type": "development_server",
+    "entry_vector": "password_spray_ftp",
+    "privilege_path": "ftp_to_ssh_to_ransomware",
+    "attack_complexity": "medium",
+    "estimated_time": "2-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "port_knocking_configuration",
+      "github_credential_exposure",
+      "chroot_jail_escape",
+      "directory_traversal"
+    ],
+    "environmental_clues": [
+      "publicly_exposed_ftp",
+      "development_server_misconfiguration",
+      "aws_credentials_in_documents",
+      "company_expansion_context"
+    ],
+    "similar_scenarios": [
+      "exposed_dev_server",
+      "credential_stuffing_ftp"
+    ],
+    "unique_aspects": [
+      "port_knocking_technique",
+      "dual_ftp_servers",
+      "gonnacry_ransomware",
+      "pcap_forensics_analysis"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Password Spray",
+        "success_reason": "FTP service exposed to internet with weak credentials",
+        "prerequisite_indicators": [
+          "ftp_service_publicly_accessible",
+          "weak_password_policies",
+          "service_accounts_with_predictable_passwords"
+        ],
+        "recognition_patterns": [
+          "sequential port scanning followed by service enumeration",
+          "multiple failed login attempts across different usernames",
+          "successful authentication after brute force pattern"
+        ],
+        "failure_modes": [
+          "account_lockout_policies_enabled",
+          "strong_password_requirements",
+          "service_not_internet_facing"
+        ],
+        "environmental_factors": [
+          "misconfigured_firewall_rules",
+          "default_service_configurations",
+          "lack_of_intrusion_detection"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Port Knocking",
+        "success_reason": "Configuration file contained port sequence and credentials",
+        "prerequisite_indicators": [
+          "config_files_accessible_via_initial_compromise",
+          "port_knocking_service_running",
+          "hidden_services_behind_firewall"
+        ],
+        "recognition_patterns": [
+          "sequential connections to specific ports",
+          "previously closed ports becoming accessible",
+          "configuration files mentioning port sequences"
+        ],
+        "failure_modes": [
+          "config_files_encrypted_or_protected",
+          "port_knocking_disabled",
+          "incorrect_sequence_timing"
+        ],
+        "environmental_factors": [
+          "security_through_obscurity_approach",
+          "configuration_files_in_accessible_locations",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Credential Harvesting from GitHub",
+        "success_reason": "SSH credentials stored in public repository",
+        "prerequisite_indicators": [
+          "github_repositories_referenced_in_documents",
+          "developers_storing_secrets_in_code",
+          "public_repositories_with_sensitive_data"
+        ],
+        "recognition_patterns": [
+          "references to github in configuration files",
+          "hardcoded credentials in repository files",
+          "ssh keys or passwords in commit history"
+        ],
+        "failure_modes": [
+          "secrets_properly_managed_with_vault",
+          "private_repositories_only",
+          "credential_rotation_policies"
+        ],
+        "environmental_factors": [
+          "developer_security_awareness_gaps",
+          "lack_of_secret_scanning_tools",
+          "insufficient_code_review_processes"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "FTP configuration file with port knocking sequence",
+        "discovery_method": "FTP directory traversal after password spray success",
+        "why_critical": "Revealed hidden internal FTP service access method",
+        "how_to_recognize": [
+          "config files in ftp directories",
+          "port sequences in configuration",
+          "references to hidden services"
+        ],
+        "follow_up_actions": [
+          "execute_port_knocking_sequence",
+          "attempt_access_to_hidden_service",
+          "enumerate_internal_services"
+        ]
+      },
+      {
+        "discovery": "GitHub repository with SSH credentials",
+        "discovery_method": "Document analysis from internal FTP server",
+        "why_critical": "Provided SSH access for full system compromise",
+        "how_to_recognize": [
+          "github references in company documents",
+          "hardcoded credentials in repositories",
+          "ssh keys in public repos"
+        ],
+        "follow_up_actions": [
+          "test_ssh_credentials",
+          "establish_persistent_access",
+          "escalate_privileges"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "ftp_user",
+        "escalation_method": "config_file_to_internal_service",
+        "why_possible": "Port knocking configuration exposed internal FTP with more sensitive data",
+        "recognition_signs": [
+          "config_files_readable_by_ftp_user",
+          "port_knocking_sequences_documented",
+          "internal_service_credentials_available"
+        ],
+        "exploitation_path": "FTP Access → Config File → Port Knocking → Internal FTP → GitHub Creds → SSH Access"
+      },
+      {
+        "privilege_level": "internal_ftp_user",
+        "escalation_method": "github_credential_harvesting",
+        "why_possible": "Company documents referenced GitHub repository containing SSH credentials",
+        "recognition_signs": [
+          "github_references_in_documents",
+          "public_repositories_with_secrets",
+          "developer_credential_exposure"
+        ],
+        "exploitation_path": "Internal FTP → Document Analysis → GitHub Repository → SSH Credentials → Full System Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,3306,6379,8086 open on target host",
+        "decision": "Target FTP service first for initial access",
+        "reasoning": "FTP often has weak authentication and allows file access",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if ftp fails"
+          },
+          {
+            "option": "mysql_enumeration",
+            "when": "if port 3306 accessible"
+          },
+          {
+            "option": "redis_enumeration",
+            "when": "if port 6379 accessible"
+          }
+        ],
+        "success_indicators": [
+          "ftp_banner_received",
+          "authentication_prompt_available",
+          "no_ip_restrictions"
+        ],
+        "next_decision": "choose_authentication_attack_method"
+      },
+      {
+        "step": 2,
+        "situation": "FTP service accessible and requires authentication",
+        "decision": "Use password spray attack instead of brute force",
+        "reasoning": "Password spray avoids account lockouts and is more efficient",
+        "confidence": 0.9,
+        "prerequisites": [
+          "ftp_service_accessible",
+          "common_usernames_identified"
+        ],
+        "success_indicators": [
+          "successful_login_achieved"
+        ],
+        "failure_fallbacks": [
+          "ssh_password_spray",
+          "service_enumeration",
+          "exploit_research"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Gained FTP access with credentials tony.shephard:Summer2023!",
+        "decision": "Enumerate files for configuration data and credentials",
+        "reasoning": "Configuration files often contain credentials or service information",
+        "confidence": 0.95,
+        "prerequisites": [
+          "ftp_access_obtained"
+        ],
+        "success_indicators": [
+          "config_files_found",
+          "credential_files_discovered"
+        ],
+        "next_decision": "analyze_discovered_files"
+      },
+      {
+        "step": 4,
+        "situation": "Found port-knocking configuration in FTP files",
+        "decision": "Use port-knocking sequence to access hidden services",
+        "reasoning": "Port-knocking reveals additional attack surface",
+        "confidence": 0.88,
+        "prerequisites": [
+          "port_knock_config_found",
+          "sequence_identified"
+        ],
+        "success_indicators": [
+          "new_services_accessible",
+          "additional_ports_open"
+        ],
+        "next_decision": "enumerate_newly_accessible_services"
+      },
+      {
+        "step": 5,
+        "situation": "Accessed internal FTP server via port-knocking",
+        "decision": "Perform comprehensive file enumeration for sensitive data",
+        "reasoning": "Internal servers often contain more sensitive information",
+        "confidence": 0.92,
+        "prerequisites": [
+          "internal_ftp_access"
+        ],
+        "success_indicators": [
+          "sensitive_documents_found",
+          "credential_references_discovered"
+        ],
+        "next_decision": "follow_credential_leads"
+      },
+      {
+        "step": 6,
+        "situation": "Found reference to GitHub repository with secrets",
+        "decision": "Enumerate GitHub repository for credentials",
+        "reasoning": "Developers often accidentally commit credentials to repositories",
+        "confidence": 0.85,
+        "prerequisites": [
+          "github_reference_found"
+        ],
+        "success_indicators": [
+          "ssh_credentials_found",
+          "api_keys_discovered"
+        ],
+        "next_decision": "attempt_ssh_access"
+      }
+    ],
+    "branching_logic": {
+      "if_ftp_password_spray_succeeds": {
+        "action": "enumerate_ftp_contents",
+        "tools": [
+          "ftp_client",
+          "wget",
+          "curl"
+        ],
+        "next_phase": "file_analysis_for_credentials"
+      },
+      "if_ftp_password_spray_fails": {
+        "action": "try_alternative_services",
+        "alternatives": [
+          "ssh_password_spray",
+          "mysql_enumeration",
+          "redis_exploitation"
+        ],
+        "decision_criteria": "based_on_service_accessibility"
+      },
+      "if_port_knocking_config_found": {
+        "action": "execute_port_knock_sequence",
+        "purpose": "access_hidden_services",
+        "tools": [
+          "nmap",
+          "custom_scripts",
+          "netcat"
+        ]
+      },
+      "if_ssh_credentials_obtained": {
+        "action": "establish_ssh_session",
+        "purpose": "gain_shell_access",
+        "tools": [
+          "ssh_client",
+          "wget",
+          "malware_download"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_password_spray_before_brute_force",
+        "reasoning": "avoids_account_lockouts_and_detection",
+        "applicability": "authentication_based_services"
+      },
+      {
+        "rule": "prioritize_file_services_for_credential_discovery",
+        "reasoning": "high_probability_of_finding_configuration_files",
+        "applicability": "ftp_smb_nfs_services_available"
+      },
+      {
+        "rule": "follow_all_credential_references_immediately",
+        "reasoning": "credentials_often_lead_to_privilege_escalation",
+        "applicability": "any_credential_reference_discovered"
+      },
+      {
+        "rule": "check_github_repositories_when_referenced",
+        "reasoning": "developers_frequently_commit_secrets",
+        "applicability": "development_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Password Spraying",
+        "mitre_id": "T1110.003",
+        "required_services": [
+          "ftp",
+          "ssh",
+          "smb",
+          "rdp"
+        ],
+        "required_ports": [
+          21,
+          22,
+          445,
+          3389
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "service_publicly_accessible",
+          "weak_password_policy",
+          "multiple_user_accounts"
+        ],
+        "success_indicators": [
+          "multiple_login_attempts_different_users",
+          "successful_authentication_after_failures",
+          "common_passwords_accepted"
+        ],
+        "incompatible_with": [
+          "account_lockout_enabled",
+          "strong_password_policy",
+          "mfa_required"
+        ],
+        "confidence_boosters": [
+          "default_service_configuration",
+          "common_username_patterns",
+          "service_banners_revealing_version"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-60 minutes"
+      },
+      {
+        "technique": "Port Knocking",
+        "mitre_id": "T1205.001",
+        "required_services": [
+          "any_tcp"
+        ],
+        "required_ports": [
+          "variable"
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "port_knocking_daemon_configured",
+          "sequence_configuration_accessible",
+          "firewall_rules_dynamic"
+        ],
+        "success_indicators": [
+          "sequential_port_connections",
+          "service_becomes_accessible_after_sequence",
+          "firewall_rules_modification"
+        ],
+        "incompatible_with": [
+          "static_firewall_rules",
+          "port_knocking_disabled",
+          "sequence_unknown"
+        ],
+        "confidence_boosters": [
+          "knockd_configuration_files",
+          "iptables_dynamic_rules",
+          "documented_sequences"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "1-5 minutes"
+      },
+      {
+        "technique": "Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "ftp",
+          "http",
+          "smb"
+        ],
+        "required_ports": [
+          21,
+          80,
+          443,
+          445
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "insufficient_input_validation",
+          "chroot_jail_misconfigured",
+          "path_traversal_vulnerable"
+        ],
+        "success_indicators": [
+          "access_to_parent_directories",
+          "file_system_enumeration_successful",
+          "restricted_files_accessible"
+        ],
+        "incompatible_with": [
+          "proper_input_sanitization",
+          "secure_chroot_implementation",
+          "path_restrictions_enforced"
+        ],
+        "confidence_boosters": [
+          "legacy_ftp_servers",
+          "default_configurations",
+          "insufficient_hardening"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "5-30 minutes"
+      },
+      {
+        "technique": "Credential Harvesting from Files",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "ftp",
+          "smb",
+          "http"
+        ],
+        "required_ports": [
+          21,
+          445,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "configuration_files_accessible",
+          "credentials_stored_plaintext",
+          "insufficient_file_permissions"
+        ],
+        "success_indicators": [
+          "config_files_contain_passwords",
+          "ssh_keys_discovered",
+          "database_credentials_found"
+        ],
+        "incompatible_with": [
+          "encrypted_credential_storage",
+          "proper_file_permissions",
+          "credential_vaults_used"
+        ],
+        "confidence_boosters": [
+          "default_config_locations",
+          "developer_documentation",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "ftp_service": {
+        "port_indicators": [
+          21,
+          2121
+        ],
+        "service_indicators": [
+          "ftp",
+          "ftps"
+        ],
+        "banner_indicators": [
+          "FTP",
+          "File Transfer Protocol"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ssh_service": {
+        "port_indicators": [
+          22,
+          2222
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "SSH",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "smb_service": {
+        "port_indicators": [
+          445,
+          139
+        ],
+        "service_indicators": [
+          "smb",
+          "cifs"
+        ],
+        "banner_indicators": [
+          "SMB",
+          "Samba"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "password_spraying",
+          "when": "authentication_service_detected",
+          "reason": "high_success_rate_against_weak_passwords"
+        },
+        {
+          "attack": "credential_file_harvesting",
+          "when": "file_service_access_gained",
+          "reason": "often_reveals_additional_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "port_knocking",
+          "when": "configuration_files_reference_sequences",
+          "reason": "reliable_when_sequence_known"
+        },
+        {
+          "attack": "directory_traversal",
+          "when": "ftp_or_web_service_detected",
+          "reason": "moderate_success_rate_high_impact"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "service_enumeration",
+          "when": "initial_foothold_established",
+          "reason": "time_consuming_but_thorough"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Network Service Scanning",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- {target_ip}",
+            "actual_command": "nmap scan targeting 172.31.39.46",
+            "output_pattern": "open ports: 21,22,3306,6379,8086",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "network_connectivity",
+          "target_ip_known"
+        ],
+        "success_indicators": [
+          "syn_ack_responses_received",
+          "open_ports_identified",
+          "service_enumeration_possible"
+        ],
+        "common_failures": [
+          "firewall_blocking",
+          "rate_limiting",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "service_enumeration",
+          "brute_force_attacks",
+          "vulnerability_scanning"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Password Spraying",
+        "mitre_id": "T1110.003",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "custom_script",
+            "command_template": "ftp {target_ip}",
+            "actual_command": "ftp connections to 172.31.39.46:21",
+            "output_pattern": "230 Login successful",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "ftp_service_accessible",
+          "username_list_available",
+          "common_password_list"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "ftp_session_established",
+          "file_system_access_gained"
+        ],
+        "common_failures": [
+          "account_lockout_policies",
+          "strong_password_policies",
+          "rate_limiting"
+        ],
+        "follow_up_techniques": [
+          "file_enumeration",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Port Knocking",
+        "mitre_id": "T1205.001",
+        "category": "defense_evasion",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "netcat",
+            "command_template": "nc {target_ip} {port}",
+            "actual_command": "Sequential connections to specific ports",
+            "output_pattern": "service_becomes_accessible",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "port_knock_sequence_known",
+          "target_service_configured_for_knocking",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "hidden_service_becomes_accessible",
+          "successful_connection_to_protected_service",
+          "authentication_prompt_received"
+        ],
+        "common_failures": [
+          "incorrect_sequence",
+          "timing_issues",
+          "firewall_interference"
+        ],
+        "follow_up_techniques": [
+          "service_authentication",
+          "file_enumeration",
+          "credential_extraction"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Unsecured Credentials",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "ftp_client",
+            "command_template": "get {filename}",
+            "actual_command": "RETR ftp://172.31.39.46/./.backup",
+            "output_pattern": "configuration_files_downloaded",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "file_system_access",
+          "readable_configuration_files",
+          "credentials_stored_in_plaintext"
+        ],
+        "success_indicators": [
+          "configuration_files_retrieved",
+          "credentials_extracted_from_files",
+          "additional_services_accessible"
+        ],
+        "common_failures": [
+          "encrypted_configuration_files",
+          "restricted_file_permissions",
+          "credentials_not_present"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "service_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Remote System Discovery",
+        "mitre_id": "T1018",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "wget",
+            "command_template": "wget {url}",
+            "actual_command": "wget from malicious URL for ransomware",
+            "output_pattern": "file_downloaded_successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "ssh_access_established",
+          "internet_connectivity",
+          "download_tools_available"
+        ],
+        "success_indicators": [
+          "malware_downloaded_successfully",
+          "executable_permissions_set",
+          "payload_ready_for_execution"
+        ],
+        "common_failures": [
+          "network_restrictions",
+          "antivirus_detection",
+          "download_tool_unavailable"
+        ],
+        "follow_up_techniques": [
+          "malware_execution",
+          "data_encryption",
+          "ransom_note_deployment"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "nmap",
+        "use_case": "port_scanning_and_service_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "zmap",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_stealth_scanning_options",
+          "scan_common_ports_first",
+          "follow_up_with_service_enumeration"
+        ]
+      },
+      {
+        "tool": "zeek",
+        "use_case": "network_traffic_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "incident_response",
+          "network_forensics"
+        ],
+        "alternatives": [
+          "wireshark",
+          "tcpdump",
+          "tshark"
+        ],
+        "best_practices": [
+          "use_-C_flag_for_checksum_issues",
+          "extract_files_for_analysis",
+          "focus_on_connection_logs_first"
+        ]
+      },
+      {
+        "tool": "ftp_client",
+        "use_case": "file_transfer_and_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "file_system_access"
+        ],
+        "alternatives": [
+          "sftp",
+          "scp",
+          "wget"
+        ],
+        "best_practices": [
+          "enumerate_hidden_files",
+          "check_for_configuration_files",
+          "download_all_accessible_files"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ftp_password_spray_to_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- 172.31.39.46",
+            "purpose": "Discover open ports",
+            "expected_output": "Ports 21,22,3306,6379,8086 open"
+          },
+          {
+            "step": 2,
+            "command": "ftp 172.31.39.46",
+            "purpose": "Attempt FTP authentication",
+            "expected_output": "Multiple failed logins, then success with tony.shephard:Summer2023!"
+          },
+          {
+            "step": 3,
+            "command": "LIST -la",
+            "purpose": "Enumerate available files",
+            "expected_output": "Directory listing with hidden files"
+          },
+          {
+            "step": 4,
+            "command": "GET .backup",
+            "purpose": "Download configuration file",
+            "expected_output": "Port knocking configuration retrieved"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "15-45 minutes"
+      },
+      {
+        "sequence_name": "port_knocking_to_internal_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nc 172.31.39.46 1001",
+            "purpose": "First knock sequence",
+            "expected_output": "Connection established and closed"
+          },
+          {
+            "step": 2,
+            "command": "nc 172.31.39.46 1002",
+            "purpose": "Second knock sequence",
+            "expected_output": "Connection established and closed"
+          },
+          {
+            "step": 3,
+            "command": "nc 172.31.39.46 1003",
+            "purpose": "Third knock sequence",
+            "expected_output": "Connection established and closed"
+          },
+          {
+            "step": 4,
+            "command": "ftp 172.31.39.46:24456",
+            "purpose": "Access internal FTP service",
+            "expected_output": "Internal FTP service now accessible"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Knock Knock",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox Sherlock",
+      "release_date": "2023-11-13",
+      "author": "CyberJunkie",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "password_spray",
+        "port_knocking",
+        "credential_harvesting"
+      ],
+      "key_vulnerabilities": [
+        "exposed_ftp_service",
+        "weak_credentials",
+        "information_disclosure"
+      ],
+      "environment_type": "development_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "pcap_analysis",
+        "network_forensics",
+        "attack_chain_reconstruction"
+      ],
+      "prerequisite_knowledge": [
+        "wireshark_analysis",
+        "network_protocols",
+        "ftp_protocol"
+      ]
+    },
+    "categorization": {
+      "primary_category": "digital_forensics",
+      "subcategories": [
+        "network_forensics",
+        "incident_response",
+        "pcap_analysis"
+      ],
+      "attack_types": [
+        "credential_access",
+        "initial_access",
+        "discovery"
+      ],
+      "defensive_lessons": [
+        "network_monitoring",
+        "service_hardening",
+        "credential_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Wireshark",
+        "Packet Capture",
+        "Network Analysis"
+      ],
+      "similarity_reasons": [
+        "pcap_analysis",
+        "network_forensics",
+        "attack_reconstruction"
+      ],
+      "unique_aspects": [
+        "port_knocking_technique",
+        "ransomware_incident",
+        "github_credential_exposure"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "multiple_attack_vectors",
+        "detailed_pcap_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T19:01:42.824530",
+    "original_file": "0xdf_writeups/Htb Sherlock Knock Knock.md",
+    "content_length": 47458,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

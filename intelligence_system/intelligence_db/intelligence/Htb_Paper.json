@@ -1,0 +1,900 @@
+{
+  "writeup_id": "Htb_Paper",
+  "scenario_fingerprint": {
+    "scenario_name": "wordpress_draft_disclosure_to_chat_bot_lfi",
+    "primary_services": [
+      "http",
+      "https",
+      "ssh"
+    ],
+    "port_signature": "22+80+443",
+    "service_combination": "ssh+http+https",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "wordpress_vulnerability",
+    "privilege_path": "web_disclosure_to_system_user",
+    "attack_complexity": "easy",
+    "estimated_time": "45-60 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "wordpress_draft_post_disclosure",
+      "rocket_chat_integration",
+      "chat_bot_directory_traversal",
+      "x_backend_server_header_leak"
+    ],
+    "environmental_clues": [
+      "centos_apache_default_page",
+      "virtual_host_configuration",
+      "wordpress_powered_site",
+      "office_themed_content"
+    ],
+    "similar_scenarios": [
+      "wordpress_disclosure_boxes",
+      "chat_application_exploits"
+    ],
+    "unique_aspects": [
+      "draft_post_contains_chat_registration",
+      "bot_file_reading_capability",
+      "subdomain_enumeration_required",
+      "polkit_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "WordPress Draft Post Disclosure (CVE-2019-17671)",
+        "success_reason": "WordPress 5.2.3 vulnerable to unauthenticated draft post viewing via static parameter manipulation",
+        "prerequisite_indicators": [
+          "wordpress_version_5.2.3_or_lower",
+          "draft_posts_exist",
+          "static_parameter_accepted"
+        ],
+        "recognition_patterns": [
+          "WordPress version in RSS feed generator",
+          "wpscan identifies CVE-2019-17671",
+          "comment hints at draft content",
+          "?static=1 parameter works"
+        ],
+        "failure_modes": [
+          "wordpress_version_patched",
+          "no_draft_posts_available",
+          "static_parameter_disabled"
+        ],
+        "environmental_factors": [
+          "unpatched_wordpress_installation",
+          "active_draft_content",
+          "default_wordpress_configuration"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Rocket.Chat Bot Directory Traversal",
+        "success_reason": "Bot accepts file read commands without proper path sanitization",
+        "prerequisite_indicators": [
+          "rocket_chat_instance_accessible",
+          "bot_responds_to_commands",
+          "file_read_functionality_exists"
+        ],
+        "recognition_patterns": [
+          "bot responds to 'recyclops help'",
+          "file <filename> command works",
+          "../ traversal not filtered",
+          "bot shows file contents"
+        ],
+        "failure_modes": [
+          "path_traversal_filtered",
+          "bot_permissions_restricted",
+          "file_read_disabled"
+        ],
+        "environmental_factors": [
+          "custom_bot_implementation",
+          "insufficient_input_validation",
+          "bot_running_with_file_access"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "PolKit CVE-2021 Privilege Escalation",
+        "success_reason": "Vulnerable PolKit version allows local privilege escalation",
+        "prerequisite_indicators": [
+          "polkit_version_vulnerable",
+          "local_shell_access",
+          "exploit_code_available"
+        ],
+        "recognition_patterns": [
+          "CentOS 8 system identified",
+          "PolKit service running",
+          "CVE-2021 exploit succeeds"
+        ],
+        "failure_modes": [
+          "polkit_patched",
+          "exploit_mitigations_active",
+          "insufficient_permissions"
+        ],
+        "environmental_factors": [
+          "centos_8_default_packages",
+          "unpatched_system",
+          "standard_polkit_configuration"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "X-Backend-Server header reveals office.paper domain",
+        "discovery_method": "HTTP header analysis",
+        "why_critical": "Led to WordPress site discovery and subsequent exploitation",
+        "how_to_recognize": [
+          "non-standard HTTP headers",
+          "domain names in headers",
+          "backend server information leakage"
+        ],
+        "follow_up_actions": [
+          "add_domain_to_hosts_file",
+          "enumerate_subdomains",
+          "test_virtual_host_routing"
+        ]
+      },
+      {
+        "discovery": "Rocket.Chat registration URL in draft post",
+        "discovery_method": "WordPress draft post disclosure vulnerability",
+        "why_critical": "Provided access to internal communication platform",
+        "how_to_recognize": [
+          "secret URLs in draft content",
+          "registration links",
+          "internal service references"
+        ],
+        "follow_up_actions": [
+          "register_account_on_platform",
+          "explore_chat_channels",
+          "identify_bot_functionality"
+        ]
+      },
+      {
+        "discovery": "Password in user environment file",
+        "discovery_method": "Directory traversal via Rocket.Chat bot",
+        "why_critical": "Enabled SSH access to system",
+        "how_to_recognize": [
+          "credentials in .env files",
+          "passwords in user directories",
+          "configuration files with secrets"
+        ],
+        "follow_up_actions": [
+          "test_ssh_access",
+          "check_password_reuse",
+          "enumerate_user_permissions"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_dwight",
+        "escalation_method": "PolKit_CVE_2021",
+        "why_possible": "Vulnerable PolKit version on CentOS 8 system",
+        "recognition_signs": [
+          "centos_8_identified",
+          "polkit_service_running",
+          "local_shell_access_available"
+        ],
+        "exploitation_path": "SSH Access → PolKit Exploit → Root Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,443 open on Linux host with Apache",
+        "decision": "Enumerate web services and check for virtual hosts",
+        "reasoning": "Limited attack surface suggests web application focus needed",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web fails"
+          },
+          {
+            "option": "ssl_certificate_analysis",
+            "when": "if https available"
+          }
+        ],
+        "success_indicators": [
+          "custom_headers_found",
+          "virtual_hosts_discovered",
+          "application_identified"
+        ],
+        "next_decision": "analyze_discovered_applications"
+      },
+      {
+        "step": 2,
+        "situation": "X-Backend-Server header reveals office.paper domain",
+        "decision": "Add to hosts file and enumerate subdomains",
+        "reasoning": "Header leak indicates virtual host routing in use",
+        "confidence": 0.95,
+        "prerequisites": [
+          "custom_header_found"
+        ],
+        "success_indicators": [
+          "additional_subdomains_found",
+          "different_applications_discovered"
+        ],
+        "failure_fallbacks": [
+          "directory_brute_force",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "WordPress 5.2.3 identified with 32 vulnerabilities",
+        "decision": "Prioritize unauthenticated draft post vulnerability (CVE-2019-17671)",
+        "reasoning": "Comment mentioned checking draft posts, perfect match for known vuln",
+        "confidence": 0.98,
+        "prerequisites": [
+          "wordpress_version_identified",
+          "wpscan_completed"
+        ],
+        "success_indicators": [
+          "draft_posts_accessible",
+          "sensitive_information_disclosed"
+        ],
+        "next_decision": "exploit_information_disclosure"
+      },
+      {
+        "step": 4,
+        "situation": "Found rocket.chat registration URL in draft post",
+        "decision": "Register account and explore chat application",
+        "reasoning": "Direct path to additional attack surface via leaked URL",
+        "confidence": 0.92,
+        "alternatives": [
+          {
+            "option": "credential_guessing",
+            "when": "if registration fails"
+          },
+          {
+            "option": "rocket_chat_vulns",
+            "when": "if unauthenticated access needed"
+          }
+        ],
+        "success_indicators": [
+          "account_registered",
+          "internal_communications_accessed"
+        ],
+        "next_decision": "enumerate_chat_functionality"
+      },
+      {
+        "step": 5,
+        "situation": "Discovered recyclops bot with file operations in chat",
+        "decision": "Test for directory traversal in bot commands",
+        "reasoning": "File listing functionality often vulnerable to path traversal",
+        "confidence": 0.85,
+        "prerequisites": [
+          "bot_commands_identified",
+          "file_operations_available"
+        ],
+        "success_indicators": [
+          "directory_traversal_confirmed",
+          "filesystem_access_gained"
+        ],
+        "next_decision": "escalate_file_access_to_credentials"
+      }
+    ],
+    "branching_logic": {
+      "if_wordpress_found": {
+        "action": "run_wpscan_with_api_token",
+        "tools": [
+          "wpscan"
+        ],
+        "next_phase": "prioritize_vulnerabilities_by_context"
+      },
+      "if_draft_post_vuln_confirmed": {
+        "action": "exploit_cve_2019_17671",
+        "method": "add_static_parameter_to_url",
+        "next_phase": "analyze_disclosed_information"
+      },
+      "if_chat_access_gained": {
+        "action": "enumerate_bot_functionality",
+        "focus": "file_operations_and_command_injection",
+        "tools": [
+          "manual_testing"
+        ]
+      },
+      "if_directory_traversal_found": {
+        "action": "search_for_credentials_and_config_files",
+        "targets": [
+          "/etc/passwd",
+          "/home/*/.ssh/*",
+          "config_files"
+        ],
+        "next_phase": "credential_harvesting"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_custom_http_headers",
+        "reasoning": "often_reveal_backend_infrastructure_and_virtual_hosts",
+        "applicability": "web_application_testing"
+      },
+      {
+        "rule": "prioritize_information_disclosure_vulns_when_hints_present",
+        "reasoning": "context_clues_indicate_specific_vulnerability_relevance",
+        "applicability": "wordpress_and_cms_testing"
+      },
+      {
+        "rule": "test_bot_commands_for_injection_and_traversal",
+        "reasoning": "automated_systems_often_lack_proper_input_validation",
+        "applicability": "chat_applications_with_bots"
+      },
+      {
+        "rule": "subdomain_enumeration_after_virtual_host_discovery",
+        "reasoning": "infrastructure_using_vhosts_likely_has_multiple_applications",
+        "applicability": "virtual_host_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "WordPress_Draft_Post_Disclosure",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "wordpress_detected",
+          "vulnerable_wp_version",
+          "draft_posts_exist"
+        ],
+        "success_indicators": [
+          "wp_json_api_accessible",
+          "draft_posts_returned",
+          "sensitive_info_in_drafts"
+        ],
+        "incompatible_with": [
+          "wp_json_api_disabled",
+          "authentication_required",
+          "no_draft_posts"
+        ],
+        "confidence_boosters": [
+          "wp_powered_by_footer",
+          "wp_json_link_header",
+          "default_wp_structure"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Directory_Traversal_Chat_Bot",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          3000,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "chat_application_detected",
+          "bot_functionality_present",
+          "file_read_commands_available"
+        ],
+        "success_indicators": [
+          "bot_responds_to_commands",
+          "file_contents_returned",
+          "path_traversal_successful"
+        ],
+        "incompatible_with": [
+          "input_sanitization_enabled",
+          "chroot_jail_active",
+          "bot_disabled"
+        ],
+        "confidence_boosters": [
+          "rocket_chat_detected",
+          "bot_help_commands",
+          "file_system_access_mentioned"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Virtual_Host_Discovery",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_detected",
+          "multiple_vhosts_configured",
+          "dns_names_leaked"
+        ],
+        "success_indicators": [
+          "x_backend_server_header",
+          "different_content_per_vhost",
+          "subdomain_enumeration_successful"
+        ],
+        "incompatible_with": [
+          "single_site_configuration",
+          "header_stripping_enabled",
+          "strict_host_validation"
+        ],
+        "confidence_boosters": [
+          "custom_headers_present",
+          "apache_default_pages",
+          "certificate_alt_names"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "wordpress": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "WordPress",
+          "wp-json",
+          "wp-content"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "chat_application": {
+        "port_indicators": [
+          3000,
+          8080,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "websocket"
+        ],
+        "technology_indicators": [
+          "rocket.chat",
+          "slack",
+          "mattermost"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "apache_server": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "centos",
+          "mod_fcgid"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "virtual_host_discovery",
+          "when": "custom_headers_detected",
+          "reason": "often_reveals_hidden_applications"
+        },
+        {
+          "attack": "wordpress_enumeration",
+          "when": "wordpress_detected",
+          "reason": "common_vulnerabilities_high_impact"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_traversal_testing",
+          "when": "chat_bot_detected",
+          "reason": "file_access_can_lead_to_credentials"
+        },
+        {
+          "attack": "subdomain_enumeration",
+          "when": "multiple_vhosts_suspected",
+          "reason": "expands_attack_surface"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "WordPress Draft Post Disclosure",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wpscan",
+            "command_template": "wpscan --url {url} --api-token {token}",
+            "actual_command": "wpscan --url http://office.paper --api-token $WPSCAN_API",
+            "output_pattern": "WordPress version 5.2.3 identified",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "manual_exploitation",
+            "command_template": "curl {url}/?static=1",
+            "actual_command": "curl http://office.paper/?static=1",
+            "success_factors": [
+              "vulnerable_wordpress_version",
+              "draft_posts_exist"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "wordpress_version_5.2.3_or_lower",
+          "draft_posts_exist",
+          "web_access_available"
+        ],
+        "success_indicators": [
+          "draft_posts_visible_in_response",
+          "private_content_disclosed",
+          "registration_urls_leaked"
+        ],
+        "common_failures": [
+          "no_draft_posts_available",
+          "wordpress_version_patched",
+          "posts_ordering_prevents_disclosure"
+        ],
+        "follow_up_techniques": [
+          "account_registration",
+          "application_access",
+          "further_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Directory Traversal via Chat Bot",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "recyclops_bot",
+            "command_template": "list {path}",
+            "actual_command": "list ../../../etc",
+            "output_pattern": "Directory listing with traversed path",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "recyclops_bot_file_read",
+            "command_template": "file {path}",
+            "actual_command": "file ../../../etc/passwd",
+            "success_factors": [
+              "bot_lacks_path_validation",
+              "readable_file_permissions"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "chat_application_access",
+          "bot_functionality_available",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "directory_contents_disclosed",
+          "sensitive_files_readable",
+          "credentials_discovered"
+        ],
+        "common_failures": [
+          "path_validation_implemented",
+          "insufficient_file_permissions",
+          "bot_functionality_restricted"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "system_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Credential Harvesting from Configuration Files",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "recyclops_bot",
+            "command_template": "file {config_path}",
+            "actual_command": "file ../hubot/.env",
+            "output_pattern": "Environment variables with credentials",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "file_system_access",
+          "configuration_files_present",
+          "readable_permissions"
+        ],
+        "success_indicators": [
+          "credentials_found_in_config",
+          "password_reuse_confirmed",
+          "system_access_obtained"
+        ],
+        "common_failures": [
+          "no_credential_reuse",
+          "encrypted_configuration_files",
+          "insufficient_file_permissions"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSH Authentication with Harvested Credentials",
+        "mitre_id": "T1078.003",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec ssh {ip} -u {username} -p '{password}'",
+            "actual_command": "crackmapexec ssh 10.10.11.143 -u dwight -p 'Queenofblad3s!23'",
+            "output_pattern": "[+] dwight:Queenofblad3s!23",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "sshpass",
+            "command_template": "sshpass -p '{password}' ssh {username}@{ip}",
+            "actual_command": "sshpass -p 'Queenofblad3s!23' ssh dwight@10.10.11.143",
+            "success_factors": [
+              "valid_credentials",
+              "ssh_service_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "valid_credentials_obtained",
+          "ssh_service_accessible",
+          "account_not_locked"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "shell_access_obtained",
+          "user_flag_accessible"
+        ],
+        "common_failures": [
+          "invalid_credentials",
+          "account_lockout",
+          "ssh_key_required"
+        ],
+        "follow_up_techniques": [
+          "system_enumeration",
+          "privilege_escalation",
+          "persistence"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wpscan",
+        "use_case": "wordpress_vulnerability_identification",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "wordpress_assessments"
+        ],
+        "alternatives": [
+          "manual_enumeration",
+          "nuclei"
+        ],
+        "best_practices": [
+          "use_api_token_for_vulnerability_data",
+          "enumerate_users_and_plugins",
+          "check_version_specific_vulnerabilities"
+        ]
+      },
+      {
+        "tool": "crackmapexec",
+        "use_case": "credential_validation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "credential_spraying",
+          "lateral_movement"
+        ],
+        "alternatives": [
+          "hydra",
+          "manual_testing"
+        ],
+        "best_practices": [
+          "test_multiple_protocols",
+          "use_for_quick_validation",
+          "combine_with_credential_harvesting"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "wordpress_to_system_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wpscan --url http://office.paper --api-token $WPSCAN_API",
+            "purpose": "Identify WordPress vulnerabilities",
+            "expected_output": "WordPress version 5.2.3 with CVE-2019-17671"
+          },
+          {
+            "step": 2,
+            "command": "curl http://office.paper/?static=1",
+            "purpose": "Exploit draft post disclosure",
+            "expected_output": "Draft post with registration URL"
+          },
+          {
+            "step": 3,
+            "command": "Register account at disclosed URL",
+            "purpose": "Gain chat application access",
+            "expected_output": "Active chat account"
+          },
+          {
+            "step": 4,
+            "command": "list ../../../etc",
+            "purpose": "Test directory traversal",
+            "expected_output": "System directory listing"
+          },
+          {
+            "step": 5,
+            "command": "file ../hubot/.env",
+            "purpose": "Extract credentials from config",
+            "expected_output": "Password: Queenofblad3s!23"
+          },
+          {
+            "step": 6,
+            "command": "sshpass -p 'Queenofblad3s!23' ssh dwight@10.10.11.143",
+            "purpose": "Authenticate with harvested credentials",
+            "expected_output": "SSH shell as dwight user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Paper",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2022-02-05",
+      "author": "secnigma",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_application",
+        "directory_traversal",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "wordpress_draft_disclosure",
+        "directory_traversal",
+        "polkit_cve"
+      ],
+      "environment_type": "web_server_linux",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "wordpress_enumeration",
+        "chat_bot_exploitation",
+        "polkit_vulnerabilities"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "linux_fundamentals",
+        "cve_exploitation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "cms_exploitation",
+        "directory_traversal",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "file_read",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_cms_configuration",
+        "input_validation",
+        "system_patching"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blocky",
+        "Lame",
+        "Shocker"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "straightforward_attack_path",
+        "cve_exploitation"
+      ],
+      "unique_aspects": [
+        "office_theme",
+        "rocket_chat_integration",
+        "bot_exploitation"
+      ],
+      "difficulty_factors": [
+        "clear_attack_progression",
+        "well_known_vulnerabilities",
+        "documented_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T21:39:05.087384",
+    "original_file": "0xdf_writeups/Htb Paper.md",
+    "content_length": 24711,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

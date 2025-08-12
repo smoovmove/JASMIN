@@ -1,0 +1,1147 @@
+{
+  "writeup_id": "Htb_Timelapse",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_smb_anonymous_access",
+    "primary_services": [
+      "dns",
+      "kerberos",
+      "ldap",
+      "smb",
+      "winrm"
+    ],
+    "port_signature": "53+88+389+445+5986",
+    "service_combination": "dns+kerberos+ldap+smb+winrm_ssl",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "smb_anonymous_access",
+    "privilege_path": "certificate_auth_to_laps_reader",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "smb_anonymous_share_access",
+      "certificate_based_authentication",
+      "laps_password_reader_permissions",
+      "powershell_history_credentials"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "winrm_ssl_port_5986",
+      "certificate_authentication_support",
+      "laps_deployment"
+    ],
+    "similar_scenarios": [
+      "forest_htb_easy",
+      "sauna_htb_easy"
+    ],
+    "unique_aspects": [
+      "zip_protected_certificates",
+      "evil_winrm_certificate_auth",
+      "laps_administrator_password_extraction"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SMB_null_authentication",
+        "success_reason": "SMB service allowed null authentication to access Shares directory",
+        "prerequisite_indicators": [
+          "smb_service_available",
+          "null_session_enabled",
+          "custom_shares_present"
+        ],
+        "recognition_patterns": [
+          "smbclient -N succeeds where crackmapexec fails",
+          "custom share names (Shares, Dev, HelpDesk)",
+          "different tools show different results"
+        ],
+        "failure_modes": [
+          "null_sessions_disabled",
+          "share_permissions_restricted",
+          "smb_service_unavailable"
+        ],
+        "environmental_factors": [
+          "default_smb_configuration",
+          "legacy_compatibility_settings",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "certificate_authentication_via_winrm",
+        "success_reason": "Found encrypted certificate files in SMB share, crackable password protection",
+        "prerequisite_indicators": [
+          "winrm_service_available",
+          "certificate_files_accessible",
+          "weak_encryption_passwords"
+        ],
+        "recognition_patterns": [
+          "winrm_backup.zip filename suggests certificates",
+          "pfx files contain private keys",
+          "zip password crackable with john/hashcat"
+        ],
+        "failure_modes": [
+          "strong_zip_passwords",
+          "certificate_revoked",
+          "winrm_disabled"
+        ],
+        "environmental_factors": [
+          "certificate_based_auth_enabled",
+          "backup_files_in_accessible_locations",
+          "weak_password_policies"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "powershell_history_credential_harvesting",
+        "success_reason": "PowerShell history contained plaintext credentials for privilege escalation",
+        "prerequisite_indicators": [
+          "powershell_history_file_exists",
+          "user_session_access",
+          "credentials_stored_in_history"
+        ],
+        "recognition_patterns": [
+          "ConsoleHost_history.txt in user profile",
+          "invoke-command with credential parameters",
+          "plaintext passwords in command history"
+        ],
+        "failure_modes": [
+          "history_cleared_regularly",
+          "no_sensitive_commands_logged",
+          "history_file_protected"
+        ],
+        "environmental_factors": [
+          "powershell_logging_enabled",
+          "poor_credential_hygiene",
+          "administrative_convenience_over_security"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "LAPS_password_extraction",
+        "success_reason": "User account had read permissions on LAPS administrator passwords",
+        "prerequisite_indicators": [
+          "laps_deployed_in_environment",
+          "user_has_laps_read_permissions",
+          "ldap_accessible"
+        ],
+        "recognition_patterns": [
+          "LAPS documentation in shares",
+          "ms-Mcs-AdmPwd attribute readable",
+          "user in LAPS readers group"
+        ],
+        "failure_modes": [
+          "laps_not_deployed",
+          "insufficient_permissions",
+          "laps_passwords_recently_rotated"
+        ],
+        "environmental_factors": [
+          "laps_misconfiguration",
+          "excessive_permissions_granted",
+          "active_directory_delegation_issues"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "3-8 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "winrm_backup.zip containing certificates",
+        "discovery_method": "SMB null session enumeration",
+        "why_critical": "Contained authentication certificates for WinRM access",
+        "how_to_recognize": [
+          "backup files in accessible shares",
+          "certificate-related filenames",
+          "winrm service available on target"
+        ],
+        "follow_up_actions": [
+          "crack_zip_password",
+          "extract_pfx_certificates",
+          "authenticate_via_evil_winrm"
+        ]
+      },
+      {
+        "discovery": "PowerShell history with credentials",
+        "discovery_method": "File system enumeration as authenticated user",
+        "why_critical": "Contained plaintext credentials for lateral movement",
+        "how_to_recognize": [
+          "ConsoleHost_history.txt file present",
+          "invoke-command usage patterns",
+          "credential parameters in history"
+        ],
+        "follow_up_actions": [
+          "extract_credentials_from_history",
+          "test_credential_validity",
+          "enumerate_new_user_permissions"
+        ]
+      },
+      {
+        "discovery": "LAPS read permissions",
+        "discovery_method": "Active Directory permission enumeration",
+        "why_critical": "Allowed reading local administrator passwords",
+        "how_to_recognize": [
+          "LAPS files in shares indicate deployment",
+          "user can read ms-Mcs-AdmPwd attribute",
+          "ldap queries return password values"
+        ],
+        "follow_up_actions": [
+          "query_laps_passwords",
+          "authenticate_as_local_admin",
+          "achieve_system_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "certificate_user",
+        "escalation_method": "powershell_history_credentials",
+        "why_possible": "PowerShell history contained credentials for higher privileged user",
+        "recognition_signs": [
+          "powershell_history_file_accessible",
+          "invoke_command_with_credentials",
+          "plaintext_passwords_in_commands"
+        ],
+        "exploitation_path": "Certificate Auth → History File → New User Credentials"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "LAPS_password_extraction",
+        "why_possible": "User had permissions to read LAPS administrator passwords",
+        "recognition_signs": [
+          "laps_deployed_in_environment",
+          "user_in_laps_readers_group",
+          "ms_mcs_admpwd_readable"
+        ],
+        "exploitation_path": "Domain User → LAPS Read → Local Administrator → System"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,135,139,389,445,464,593,636,3268,3269,5986,9389 open on Windows host",
+        "decision": "Identify as Domain Controller and enumerate SMB shares first",
+        "reasoning": "Port combination indicates AD DC, SMB often has accessible shares with credentials",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "kerberos_enumeration",
+            "when": "if smb fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous access available"
+          }
+        ],
+        "success_indicators": [
+          "smb_shares_accessible",
+          "domain_name_discovered",
+          "custom_shares_found"
+        ],
+        "next_decision": "enumerate_accessible_shares"
+      },
+      {
+        "step": 2,
+        "situation": "Found accessible SMB share 'Shares' with Dev and HelpDesk folders",
+        "decision": "Download all accessible files, prioritize authentication materials",
+        "reasoning": "Files in shares often contain credentials or keys for initial access",
+        "confidence": 0.9,
+        "prerequisites": [
+          "smb_read_access"
+        ],
+        "success_indicators": [
+          "authentication_files_found",
+          "credential_files_discovered"
+        ],
+        "failure_fallbacks": [
+          "ldap_enumeration",
+          "kerberos_attacks"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found password-protected winrm_backup.zip containing .pfx certificate",
+        "decision": "Crack zip password then extract and crack pfx certificate",
+        "reasoning": "PFX files contain private keys for WinRM authentication, zip name suggests backup credentials",
+        "confidence": 0.85,
+        "prerequisites": [
+          "zip_file_obtained"
+        ],
+        "success_indicators": [
+          "zip_password_cracked",
+          "pfx_file_extracted"
+        ],
+        "next_decision": "crack_pfx_certificate"
+      },
+      {
+        "step": 4,
+        "situation": "Obtained private key and certificate from cracked pfx file",
+        "decision": "Use Evil-WinRM with certificate authentication on port 5986",
+        "reasoning": "Port 5986 is WinRM over SSL, pfx suggests certificate-based auth is configured",
+        "confidence": 0.9,
+        "prerequisites": [
+          "private_key_extracted",
+          "certificate_extracted"
+        ],
+        "success_indicators": [
+          "winrm_connection_established",
+          "shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "try_different_usernames",
+          "check_certificate_validity"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_smb_enumeration_succeeds": {
+        "action": "download_all_accessible_files",
+        "tools": [
+          "smbclient",
+          "crackmapexec"
+        ],
+        "next_phase": "analyze_downloaded_files"
+      },
+      "if_encrypted_files_found": {
+        "action": "crack_passwords_sequentially",
+        "tools": [
+          "zip2john",
+          "pfx2john",
+          "hashcat",
+          "john"
+        ],
+        "decision_criteria": "start_with_weakest_encryption"
+      },
+      "if_certificates_obtained": {
+        "action": "attempt_certificate_authentication",
+        "tools": [
+          "evil-winrm",
+          "openssl"
+        ],
+        "target_services": [
+          "winrm_ssl_5986",
+          "winrm_5985"
+        ]
+      },
+      "if_initial_access_obtained": {
+        "action": "enumerate_for_privilege_escalation",
+        "focus": [
+          "powershell_history",
+          "laps_permissions",
+          "bloodhound_collection"
+        ],
+        "next_phase": "privilege_escalation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_enumerate_smb_shares_first_on_dc",
+        "reasoning": "high_success_rate_for_finding_credential_files",
+        "applicability": "domain_controller_environments"
+      },
+      {
+        "rule": "prioritize_certificate_files_over_text_credentials",
+        "reasoning": "certificates_often_lead_to_direct_shell_access",
+        "applicability": "winrm_enabled_environments"
+      },
+      {
+        "rule": "check_laps_when_mentioned_in_shares",
+        "reasoning": "laps_permissions_often_lead_to_admin_access",
+        "applicability": "laps_deployed_environments"
+      },
+      {
+        "rule": "use_certificate_auth_with_evil_winrm_ssl_port",
+        "reasoning": "certificate_auth_typically_requires_ssl_connection",
+        "applicability": "certificate_based_authentication"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_accessible",
+          "null_session_allowed"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "null_authentication_accepted",
+          "readable_shares_found"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "null_sessions_blocked",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "custom_shares_present",
+          "default_configuration",
+          "domain_controller_detected"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Certificate/Key File Extraction",
+        "mitre_id": "T1552.004",
+        "required_services": [
+          "smb",
+          "ftp",
+          "http"
+        ],
+        "required_ports": [
+          445,
+          21,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "file_share_accessible",
+          "certificate_files_present",
+          "weak_file_permissions"
+        ],
+        "success_indicators": [
+          "pfx_files_found",
+          "p12_files_found",
+          "private_key_files_found",
+          "zip_archives_with_certs"
+        ],
+        "incompatible_with": [
+          "strong_file_permissions",
+          "encrypted_storage",
+          "no_certificate_usage"
+        ],
+        "confidence_boosters": [
+          "backup_directories",
+          "development_environments",
+          "legacy_applications"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Evil-WinRM Certificate Authentication",
+        "mitre_id": "T1021.006",
+        "required_services": [
+          "winrm"
+        ],
+        "required_ports": [
+          5985,
+          5986
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "winrm_enabled",
+          "certificate_authentication_allowed",
+          "valid_client_certificate"
+        ],
+        "success_indicators": [
+          "winrm_service_responding",
+          "certificate_accepted",
+          "shell_obtained"
+        ],
+        "incompatible_with": [
+          "winrm_disabled",
+          "certificate_auth_disabled",
+          "invalid_certificates"
+        ],
+        "confidence_boosters": [
+          "domain_joined_machine",
+          "certificate_templates_available",
+          "pki_infrastructure_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "PowerShell History Mining",
+        "mitre_id": "T1552.003",
+        "required_services": [
+          "winrm",
+          "smb",
+          "rdp"
+        ],
+        "required_ports": [
+          5985,
+          5986,
+          445,
+          3389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "powershell_history_enabled",
+          "user_shell_access",
+          "history_file_readable"
+        ],
+        "success_indicators": [
+          "consolehost_history_found",
+          "credentials_in_history",
+          "command_history_accessible"
+        ],
+        "incompatible_with": [
+          "history_disabled",
+          "history_cleared",
+          "restricted_file_access"
+        ],
+        "confidence_boosters": [
+          "active_powershell_usage",
+          "administrative_users",
+          "automation_scripts_present"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "LAPS Password Extraction",
+        "mitre_id": "T1552.002",
+        "required_services": [
+          "ldap"
+        ],
+        "required_ports": [
+          389,
+          636,
+          3268,
+          3269
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "laps_deployed",
+          "read_access_to_laps_attributes"
+        ],
+        "success_indicators": [
+          "laps_attributes_readable",
+          "ms_mcs_admpwd_accessible",
+          "local_admin_password_retrieved"
+        ],
+        "incompatible_with": [
+          "laps_not_deployed",
+          "insufficient_permissions",
+          "laps_attributes_protected"
+        ],
+        "confidence_boosters": [
+          "domain_admin_groups",
+          "laps_readers_group_membership",
+          "enterprise_environment"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "kpasswd5"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "globalcatLDAP"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          636,
+          3268,
+          3269
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "ldap",
+          "globalcatLDAP"
+        ],
+        "banner_indicators": [
+          "DC01",
+          "domain controller",
+          "NETLOGON",
+          "SYSVOL"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "winrm_service": {
+        "port_indicators": [
+          5985,
+          5986
+        ],
+        "service_indicators": [
+          "wsmans",
+          "winrm"
+        ],
+        "banner_indicators": [
+          "Microsoft-HTTPAPI",
+          "WinRM"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "smb_service": {
+        "port_indicators": [
+          445,
+          139
+        ],
+        "service_indicators": [
+          "microsoft-ds",
+          "netbios-ssn"
+        ],
+        "banner_indicators": [
+          "SMB",
+          "CIFS",
+          "Samba"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_shares_and_files_no_creds_needed"
+        },
+        {
+          "attack": "certificate_extraction",
+          "when": "file_shares_accessible",
+          "reason": "certificates_enable_strong_authentication"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "winrm_certificate_auth",
+          "when": "winrm_detected_and_certificates_found",
+          "reason": "reliable_shell_access_with_valid_certs"
+        },
+        {
+          "attack": "powershell_history_mining",
+          "when": "user_shell_obtained",
+          "reason": "frequently_contains_credentials"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "laps_extraction",
+          "when": "domain_user_access_and_laps_deployed",
+          "reason": "requires_specific_permissions_but_high_value"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SMB Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -L //{target} -N",
+            "actual_command": "smbclient -L //dc01.timelapse.htb -N",
+            "output_pattern": "Sharename       Type      Comment",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec smb {target} --shares -u {username} -p ''",
+            "actual_command": "crackmapexec smb dc01.timelapse.htb --shares -u 0xdf -p ''",
+            "success_factors": [
+              "null_authentication_allowed",
+              "empty_password_string"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "smb_service_accessible",
+          "null_authentication_enabled"
+        ],
+        "success_indicators": [
+          "shares_enumerated_successfully",
+          "readable_shares_identified",
+          "custom_shares_discovered"
+        ],
+        "common_failures": [
+          "null_authentication_disabled",
+          "network_connectivity_issues",
+          "smb_signing_enforcement"
+        ],
+        "follow_up_techniques": [
+          "smb_file_enumeration",
+          "credential_harvesting",
+          "certificate_extraction"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "ZIP Password Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "zip2john",
+            "command_template": "zip2john {zip_file}",
+            "actual_command": "zip2john winrm_backup.zip",
+            "output_pattern": "$pkzip$1*1*2*0*",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "john",
+            "command_template": "john --wordlist={wordlist} {hash_file}",
+            "actual_command": "john --wordlist=rockyou.txt zip_hash.txt",
+            "success_factors": [
+              "weak_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "password_protected_zip_file",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "hash_extracted_successfully",
+          "password_cracked_within_reasonable_time",
+          "zip_contents_accessible"
+        ],
+        "common_failures": [
+          "strong_password_used",
+          "custom_password_not_in_wordlist",
+          "encryption_method_unsupported"
+        ],
+        "follow_up_techniques": [
+          "certificate_extraction",
+          "private_key_analysis",
+          "winrm_authentication"
+        ],
+        "time_investment": "5-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "PKCS#12 Certificate Extraction",
+        "mitre_id": "T1552.004",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "openssl",
+            "command_template": "openssl pkcs12 -in {pfx_file} -nocerts -out {key_file}",
+            "actual_command": "openssl pkcs12 -in legacyy_dev_auth.pfx -nocerts -out private.key",
+            "output_pattern": "Enter Import Password:",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "pfx2john",
+            "command_template": "pfx2john {pfx_file}",
+            "actual_command": "pfx2john legacyy_dev_auth.pfx",
+            "success_factors": [
+              "pfx_file_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "pfx_file_available",
+          "openssl_installed"
+        ],
+        "success_indicators": [
+          "private_key_extracted",
+          "certificate_extracted",
+          "authentication_material_obtained"
+        ],
+        "common_failures": [
+          "pfx_password_protected",
+          "corrupted_certificate_file",
+          "unsupported_encryption_algorithm"
+        ],
+        "follow_up_techniques": [
+          "winrm_certificate_authentication",
+          "certificate_based_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "WinRM Certificate Authentication",
+        "mitre_id": "T1021.006",
+        "category": "lateral_movement",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "evil-winrm",
+            "command_template": "evil-winrm -i {target} -c {cert_file} -k {key_file} -S",
+            "actual_command": "evil-winrm -i 10.10.11.152 -c cert.pem -k private.key -S",
+            "output_pattern": "Evil-WinRM shell",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "winrm_service_accessible",
+          "valid_certificate_and_key",
+          "certificate_authentication_enabled"
+        ],
+        "success_indicators": [
+          "remote_shell_obtained",
+          "domain_user_access_achieved",
+          "powershell_session_established"
+        ],
+        "common_failures": [
+          "certificate_not_trusted",
+          "winrm_service_disabled",
+          "certificate_expired_or_invalid"
+        ],
+        "follow_up_techniques": [
+          "powershell_history_analysis",
+          "laps_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "PowerShell History Analysis",
+        "mitre_id": "T1552.003",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "powershell",
+            "command_template": "Get-Content $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt",
+            "actual_command": "Get-Content $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt",
+            "output_pattern": "invoke-command -computername",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "powershell_access_available",
+          "history_file_exists",
+          "user_has_used_powershell"
+        ],
+        "success_indicators": [
+          "credentials_found_in_history",
+          "command_history_reveals_passwords",
+          "additional_user_accounts_discovered"
+        ],
+        "common_failures": [
+          "history_file_cleared",
+          "no_sensitive_commands_in_history",
+          "history_file_access_denied"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "lateral_movement",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "LAPS Password Extraction",
+        "mitre_id": "T1552.002",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "powershell",
+            "command_template": "Get-ADComputer -Filter * -Properties ms-Mcs-AdmPwd",
+            "actual_command": "Get-ADComputer -Filter * -Properties ms-Mcs-AdmPwd",
+            "output_pattern": "ms-Mcs-AdmPwd",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "laps_deployed_in_environment",
+          "user_has_laps_read_permissions",
+          "active_directory_access"
+        ],
+        "success_indicators": [
+          "administrator_password_retrieved",
+          "laps_passwords_accessible",
+          "local_admin_credentials_obtained"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "laps_not_deployed",
+          "passwords_recently_rotated"
+        ],
+        "follow_up_techniques": [
+          "local_administrator_authentication",
+          "system_level_access",
+          "domain_admin_escalation"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "evil-winrm",
+        "use_case": "certificate_based_authentication",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "winrm_environments",
+          "certificate_authentication"
+        ],
+        "alternatives": [
+          "powershell_remoting",
+          "custom_winrm_clients"
+        ],
+        "best_practices": [
+          "use_ssl_flag_for_https",
+          "verify_certificate_validity",
+          "test_authentication_before_exploitation"
+        ]
+      },
+      {
+        "tool": "smbclient",
+        "use_case": "smb_share_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments",
+          "smb_accessible_systems"
+        ],
+        "alternatives": [
+          "crackmapexec",
+          "smbmap",
+          "enum4linux"
+        ],
+        "best_practices": [
+          "try_null_authentication_first",
+          "enumerate_all_accessible_shares",
+          "download_interesting_files_immediately"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "smb_to_winrm_via_certificates",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbclient -L //dc01.timelapse.htb -N",
+            "purpose": "Enumerate SMB shares",
+            "expected_output": "List of available shares including custom Shares"
+          },
+          {
+            "step": 2,
+            "command": "smbclient -N //dc01.timelapse.htb/Shares",
+            "purpose": "Access custom share",
+            "expected_output": "Access to Dev and HelpDesk directories"
+          },
+          {
+            "step": 3,
+            "command": "get winrm_backup.zip",
+            "purpose": "Download certificate archive",
+            "expected_output": "ZIP file containing PFX certificate"
+          },
+          {
+            "step": 4,
+            "command": "zip2john winrm_backup.zip",
+            "purpose": "Extract hash for password cracking",
+            "expected_output": "John-compatible hash format"
+          },
+          {
+            "step": 5,
+            "command": "john --wordlist=rockyou.txt zip_hash.txt",
+            "purpose": "Crack ZIP password",
+            "expected_output": "Password for ZIP archive"
+          },
+          {
+            "step": 6,
+            "command": "openssl pkcs12 -in legacyy_dev_auth.pfx -nocerts -out private.key",
+            "purpose": "Extract private key",
+            "expected_output": "Private key file for authentication"
+          },
+          {
+            "step": 7,
+            "command": "evil-winrm -i 10.10.11.152 -c cert.pem -k private.key -S",
+            "purpose": "Authenticate via WinRM with certificate",
+            "expected_output": "Remote PowerShell session as legacyy user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "powershell_history_to_laps_admin",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Get-Content $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt",
+            "purpose": "Examine PowerShell command history",
+            "expected_output": "Historical commands including credentials"
+          },
+          {
+            "step": 2,
+            "command": "evil-winrm -i 10.10.11.152 -u svc_deploy -p E3R$Q62^12p7PLlC%KWaxuaV",
+            "purpose": "Authenticate with discovered credentials",
+            "expected_output": "Remote shell as svc_deploy user"
+          },
+          {
+            "step": 3,
+            "command": "Get-ADComputer -Filter * -Properties ms-Mcs-AdmPwd",
+            "purpose": "Extract LAPS administrator passwords",
+            "expected_output": "Local administrator password for domain computers"
+          },
+          {
+            "step": 4,
+            "command": "evil-winrm -i 10.10.11.152 -u administrator -p [LAPS_PASSWORD]",
+            "purpose": "Authenticate as local administrator",
+            "expected_output": "Administrative shell access"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Timelapse",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2022-03-26",
+      "author": "ctrlzero",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "smb_enumeration",
+        "certificate_authentication",
+        "laps_abuse"
+      ],
+      "key_vulnerabilities": [
+        "exposed_certificates",
+        "powershell_history_exposure",
+        "laps_read_permissions"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "certificate_based_auth",
+        "laps_exploitation",
+        "powershell_forensics"
+      ],
+      "prerequisite_knowledge": [
+        "basic_ad_concepts",
+        "smb_enumeration",
+        "certificate_authentication"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "certificate_attacks",
+        "credential_harvesting",
+        "laps_abuse"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "secure_certificate_storage",
+        "powershell_logging",
+        "laps_permission_auditing"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Sauna",
+        "Resolute"
+      ],
+      "similarity_reasons": [
+        "ad_environment",
+        "credential_harvesting",
+        "service_enumeration"
+      ],
+      "unique_aspects": [
+        "certificate_authentication",
+        "laps_exploitation",
+        "zip_cracking"
+      ],
+      "difficulty_factors": [
+        "straightforward_enumeration",
+        "clear_attack_path",
+        "well_documented_laps"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T21:03:12.857964",
+    "original_file": "0xdf_writeups/Htb Timelapse.md",
+    "content_length": 36160,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

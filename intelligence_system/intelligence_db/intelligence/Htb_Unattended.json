@@ -1,0 +1,821 @@
+{
+  "writeup_id": "Htb_Unattended",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_sqli_to_lfi_rce",
+    "primary_services": [
+      "http",
+      "https",
+      "nginx"
+    ],
+    "port_signature": "80+443",
+    "service_combination": "nginx+ssl",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "sql_injection",
+    "privilege_path": "web_sqli_to_lfi_to_rce_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "nginx_source_disclosure",
+      "sqli_with_lfi_chain",
+      "php_session_poisoning",
+      "initrd_password_extraction"
+    ],
+    "environmental_clues": [
+      "custom_domain_certificate",
+      "nginx_1.10.3_version",
+      "filtered_ports_except_web"
+    ],
+    "similar_scenarios": [
+      "hackback_htb_insane",
+      "zipper_htb_hard"
+    ],
+    "unique_aspects": [
+      "database_command_injection",
+      "initrd_backdoor_analysis",
+      "nginx_vulnerability_source_leak"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "NGINX_off_by_slash",
+        "success_reason": "NGINX misconfiguration allowed path traversal to access source code",
+        "prerequisite_indicators": [
+          "nginx_server_detected",
+          "directory_enumeration_shows_dev_path",
+          "path_traversal_patterns_work"
+        ],
+        "recognition_patterns": [
+          "nginx version in headers",
+          "301 redirects to directories",
+          "different responses for trailing slash"
+        ],
+        "failure_modes": [
+          "proper_nginx_configuration",
+          "path_sanitization_enabled",
+          "source_code_not_accessible"
+        ],
+        "environmental_factors": [
+          "default_nginx_config",
+          "development_paths_exposed",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "SQL_injection_with_source_code",
+        "success_reason": "Source code leak revealed exploitable SQLI parameters and structure",
+        "prerequisite_indicators": [
+          "php_application_detected",
+          "database_interaction_present",
+          "source_code_accessible"
+        ],
+        "recognition_patterns": [
+          "index.php responds differently than index.html",
+          "gobuster finds php files",
+          "database error messages"
+        ],
+        "failure_modes": [
+          "parameterized_queries_used",
+          "input_validation_present",
+          "source_code_not_leaked"
+        ],
+        "environmental_factors": [
+          "legacy_php_application",
+          "direct_sql_concatenation",
+          "minimal_input_filtering"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "45-90 minutes"
+      },
+      {
+        "technique": "LFI_to_RCE_via_sessions",
+        "success_reason": "LFI combined with PHP session poisoning enabled code execution",
+        "prerequisite_indicators": [
+          "lfi_vulnerability_confirmed",
+          "php_sessions_enabled",
+          "session_files_accessible"
+        ],
+        "recognition_patterns": [
+          "file inclusion in source code",
+          "session cookies present",
+          "tmp directory accessible"
+        ],
+        "failure_modes": [
+          "session_files_not_accessible",
+          "input_filtering_blocks_payloads",
+          "sessions_stored_elsewhere"
+        ],
+        "environmental_factors": [
+          "default_php_session_config",
+          "web_root_permissions",
+          "tmp_directory_accessible"
+        ],
+        "success_probability": 0.72,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "NGINX path traversal vulnerability",
+        "discovery_method": "Manual testing of /dev path with trailing slash manipulation",
+        "why_critical": "Exposed source code revealing SQL injection vectors",
+        "how_to_recognize": [
+          "nginx server headers",
+          "different responses for path variations",
+          "301 redirects to directories"
+        ],
+        "follow_up_actions": [
+          "test_off_by_slash_patterns",
+          "enumerate_accessible_files",
+          "download_source_code"
+        ]
+      },
+      {
+        "discovery": "PHP source code exposure",
+        "discovery_method": "NGINX misconfiguration exploitation",
+        "why_critical": "Revealed SQL injection points and application logic",
+        "how_to_recognize": [
+          "source code in HTTP responses",
+          "database connection strings",
+          "unfiltered user input handling"
+        ],
+        "follow_up_actions": [
+          "analyze_sql_injection_points",
+          "identify_file_inclusion_vectors",
+          "map_application_flow"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_shell",
+        "escalation_method": "command_injection_via_database",
+        "why_possible": "Application executed database content as system commands",
+        "recognition_signs": [
+          "database_driven_functionality",
+          "system_command_execution",
+          "user_controlled_database_content"
+        ],
+        "exploitation_path": "SQLI → Database poisoning → Command injection → User shell"
+      },
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "initrd_password_extraction",
+        "why_possible": "Root password stored in initrd boot files",
+        "recognition_signs": [
+          "initrd_files_accessible",
+          "boot_configuration_readable",
+          "password_generation_binaries"
+        ],
+        "exploitation_path": "File system access → initrd analysis → Root password → Root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 80,443 open on Linux host with nginx",
+        "decision": "Focus on web application enumeration and vulnerability discovery",
+        "reasoning": "Limited attack surface requires deep web application analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "subdomain_enumeration",
+            "when": "if certificate reveals domains"
+          },
+          {
+            "option": "directory_brute_force",
+            "when": "after initial site analysis"
+          }
+        ],
+        "success_indicators": [
+          "certificate_domain_found",
+          "hidden_directories_discovered",
+          "application_functionality_identified"
+        ],
+        "next_decision": "analyze_web_application_structure"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered certificate with domain www.nestedflanders.htb and found index.php with id parameter",
+        "decision": "Test for SQL injection in id parameter",
+        "reasoning": "URL parameters are common injection points, especially with numeric IDs",
+        "confidence": 0.85,
+        "prerequisites": [
+          "domain_name_resolved",
+          "web_application_accessible"
+        ],
+        "success_indicators": [
+          "different_responses_with_quotes",
+          "blind_sqli_behavior_confirmed"
+        ],
+        "failure_fallbacks": [
+          "directory_traversal",
+          "file_inclusion",
+          "other_parameters"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Confirmed blind SQL injection but extraction is slow",
+        "decision": "Look for alternative information disclosure before continuing with slow SQLi",
+        "reasoning": "Blind SQLi can take hours/days, other vulnerabilities might provide faster access",
+        "confidence": 0.75,
+        "prerequisites": [
+          "blind_sqli_confirmed"
+        ],
+        "success_indicators": [
+          "nginx_vulnerability_found",
+          "source_code_disclosure"
+        ],
+        "failure_fallbacks": [
+          "continue_with_blind_sqli",
+          "automated_sqli_tools"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_sqli_too_slow": {
+        "action": "search_for_nginx_vulnerabilities",
+        "tools": [
+          "searchsploit",
+          "cve_databases"
+        ],
+        "next_phase": "source_code_disclosure_attempt"
+      },
+      "if_source_code_obtained": {
+        "action": "analyze_code_for_faster_sqli_method",
+        "purpose": "find_more_efficient_exploitation_path",
+        "tools": [
+          "static_analysis",
+          "code_review"
+        ]
+      },
+      "if_lfi_achieved": {
+        "action": "attempt_rce_via_session_files",
+        "method": "php_session_poisoning",
+        "tools": [
+          "burp_suite",
+          "custom_scripts"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_certificate_for_domains_first",
+        "reasoning": "certificates_often_reveal_additional_attack_surface",
+        "applicability": "https_enabled_targets"
+      },
+      {
+        "rule": "test_sqli_but_dont_commit_if_blind_and_slow",
+        "reasoning": "time_management_critical_in_pentests",
+        "applicability": "time_constrained_assessments"
+      },
+      {
+        "rule": "look_for_service_specific_vulnerabilities_when_stuck",
+        "reasoning": "version_specific_exploits_often_faster_than_application_bugs",
+        "applicability": "identified_service_versions"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_detected",
+          "database_backend_present",
+          "user_input_parameters"
+        ],
+        "success_indicators": [
+          "error_messages_revealed",
+          "time_delays_observed",
+          "data_extraction_possible"
+        ],
+        "incompatible_with": [
+          "prepared_statements_only",
+          "strict_input_validation",
+          "waf_blocking_payloads"
+        ],
+        "confidence_boosters": [
+          "php_application_detected",
+          "mysql_error_messages",
+          "legacy_application_patterns"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "30-120 minutes"
+      },
+      {
+        "technique": "Local File Inclusion",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_detected",
+          "file_parameter_present",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "local_files_readable",
+          "path_traversal_successful",
+          "system_files_accessible"
+        ],
+        "incompatible_with": [
+          "strict_file_path_validation",
+          "chroot_jail_active",
+          "file_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "php_application_detected",
+          "include_functions_used",
+          "file_parameter_naming"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Source Code Disclosure",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "nginx_server_detected",
+          "misconfigured_location_blocks",
+          "backup_files_accessible"
+        ],
+        "success_indicators": [
+          "source_code_retrieved",
+          "configuration_files_readable",
+          "sensitive_data_exposed"
+        ],
+        "incompatible_with": [
+          "proper_nginx_configuration",
+          "file_access_restrictions",
+          "source_code_protection"
+        ],
+        "confidence_boosters": [
+          "nginx_version_detected",
+          "default_configurations",
+          "backup_file_patterns"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "PHP Session Poisoning",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "php_application_detected",
+          "session_files_readable",
+          "lfi_vulnerability_present"
+        ],
+        "success_indicators": [
+          "session_file_inclusion_successful",
+          "code_execution_achieved",
+          "shell_access_obtained"
+        ],
+        "incompatible_with": [
+          "session_files_protected",
+          "custom_session_handlers",
+          "strict_file_permissions"
+        ],
+        "confidence_boosters": [
+          "default_session_storage",
+          "predictable_session_paths",
+          "writable_session_data"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "10-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "nginx_server": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "nginx"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          "session",
+          "cookie"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "database_backend": {
+        "port_indicators": [
+          3306,
+          5432,
+          1433
+        ],
+        "service_indicators": [
+          "mysql",
+          "postgresql",
+          "mssql"
+        ],
+        "error_indicators": [
+          "sql",
+          "database",
+          "query"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "sql_injection",
+          "when": "web_application_detected",
+          "reason": "common_vulnerability_high_impact"
+        },
+        {
+          "attack": "nginx_source_disclosure",
+          "when": "nginx_server_detected",
+          "reason": "reveals_application_logic_and_vulnerabilities"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "local_file_inclusion",
+          "when": "php_application_detected",
+          "reason": "enables_further_exploitation_chains"
+        },
+        {
+          "attack": "session_poisoning",
+          "when": "lfi_and_php_detected",
+          "reason": "reliable_rce_method"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Blind SQL Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "sqlmap",
+            "command_template": "sqlmap -u {url} --level=5 --risk=2 --batch",
+            "actual_command": "sqlmap -u https://www.nestedflanders.htb/index.php?id=587 --level=5 --risk=2 --batch",
+            "output_pattern": "Type: boolean-based blind",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -k -s \"{url}?id={payload}\" | grep -q {error_string}",
+            "actual_command": "curl -k -s \"https://www.nestedflanders.htb/index.php?id=587'+and+substring(@@version,1,1)='1'--+-\" | grep -q 2001",
+            "success_factors": [
+              "error_based_detection",
+              "boolean_response_differentiation"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_database",
+          "injectable_parameter_identified",
+          "error_response_differentiation"
+        ],
+        "success_indicators": [
+          "different_responses_for_true_false_conditions",
+          "database_version_extracted",
+          "sqlmap_confirms_injection_type"
+        ],
+        "common_failures": [
+          "no_response_differentiation",
+          "waf_blocking_requests",
+          "rate_limiting_active"
+        ],
+        "follow_up_techniques": [
+          "database_enumeration",
+          "data_exfiltration",
+          "file_read_via_sqli"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster -k -u {url} -w {wordlist} -x {extensions} -o {output}",
+            "actual_command": "gobuster -k -u https://www.nestedflanders.htb -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -x php -o scans/gobuster_443_root_php",
+            "output_pattern": "/index.php (Status: 200)",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "proper_host_header_configuration"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "additional_file_extensions_found",
+          "status_codes_reveal_accessible_paths"
+        ],
+        "common_failures": [
+          "rate_limiting_blocks_requests",
+          "too_many_threads_cause_errors",
+          "waf_interference"
+        ],
+        "follow_up_techniques": [
+          "parameter_fuzzing",
+          "source_code_analysis",
+          "vulnerability_assessment"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "TLS Certificate Analysis",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "openssl",
+            "command_template": "echo | openssl s_client -showcerts -servername {ip} -connect {ip}:443 2>/dev/null | openssl x509 -inform pem -noout -text",
+            "actual_command": "echo | openssl s_client -showcerts -servername 10.10.10.126 -connect 10.10.10.126:443 2>/dev/null | openssl x509 -inform pem -noout -text",
+            "output_pattern": "Subject: commonName=",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "nmap",
+            "command_template": "nmap -p 443 -sV -sC {target}",
+            "actual_command": "nmap -p 80,443 -sV -sC -oA scans/nmap-scripts 10.10.10.126",
+            "success_factors": [
+              "ssl_cert_script_execution"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "https_service_available",
+          "valid_ssl_certificate"
+        ],
+        "success_indicators": [
+          "domain_names_extracted",
+          "certificate_validity_confirmed",
+          "subject_alternative_names_identified"
+        ],
+        "common_failures": [
+          "self_signed_certificates",
+          "certificate_parsing_errors",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "subdomain_enumeration",
+          "virtual_host_discovery",
+          "dns_reconnaissance"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "sqlmap",
+        "use_case": "automated_sql_injection_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "manual_injection",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "start_with_level_5_risk_2_for_thorough_testing",
+          "use_batch_mode_for_automation",
+          "verify_findings_manually"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_reconnaissance"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "reduce_threads_if_getting_errors",
+          "include_common_extensions_like_php",
+          "use_ssl_skip_verification_for_https"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_reconnaissance_to_sqli",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p 80,443 -sV -sC 10.10.10.126",
+            "purpose": "Identify web services and extract certificate info",
+            "expected_output": "Domain name from SSL certificate"
+          },
+          {
+            "step": 2,
+            "command": "gobuster -k -u https://www.nestedflanders.htb -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -x php",
+            "purpose": "Enumerate web directories and files",
+            "expected_output": "Discovery of /index.php and /dev paths"
+          },
+          {
+            "step": 3,
+            "command": "curl -k -s \"https://www.nestedflanders.htb/index.php?id=587'\" | grep -q 2001",
+            "purpose": "Test for SQL injection vulnerability",
+            "expected_output": "Different response indicating SQL injection"
+          },
+          {
+            "step": 4,
+            "command": "sqlmap -u https://www.nestedflanders.htb/index.php?id=587 --level=5 --risk=2 --batch",
+            "purpose": "Confirm and exploit SQL injection",
+            "expected_output": "Boolean-based blind SQL injection confirmed"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Unattended",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2019-04-13",
+      "author": "guly",
+      "estimated_time": "4-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "nginx_vulnerability",
+        "lfi"
+      ],
+      "key_vulnerabilities": [
+        "blind_sqli",
+        "nginx_off_by_one",
+        "php_session_poisoning"
+      ],
+      "environment_type": "web_application",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "advanced_sqli_techniques",
+        "nginx_exploitation",
+        "session_poisoning",
+        "initrd_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "sql_injection",
+        "web_exploitation",
+        "php_sessions",
+        "linux_internals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "sql_injection",
+        "local_file_inclusion",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "nginx_configuration",
+        "secure_session_handling",
+        "initrd_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bankrobber",
+        "Jasmin",
+        "Help"
+      ],
+      "similarity_reasons": [
+        "complex_sqli",
+        "web_source_disclosure",
+        "multi_stage_exploitation"
+      ],
+      "unique_aspects": [
+        "nginx_off_by_one",
+        "initrd_password_extraction",
+        "database_command_injection"
+      ],
+      "difficulty_factors": [
+        "time_consuming_sqli",
+        "nginx_vulnerability_knowledge",
+        "initrd_analysis_skills"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T17:39:52.625906",
+    "original_file": "0xdf_writeups/Htb Unattended.md",
+    "content_length": 64360,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

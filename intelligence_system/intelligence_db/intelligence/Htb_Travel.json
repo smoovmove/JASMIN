@@ -1,0 +1,909 @@
+{
+  "writeup_id": "Htb_Travel",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_app_deserialization_ldap_privesc",
+    "primary_services": [
+      "http",
+      "https",
+      "ssh",
+      "ldap"
+    ],
+    "port_signature": "22+80+443",
+    "service_combination": "ssh+http+https",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "deserialization_via_ssrf",
+    "privilege_path": "container_escape_to_ldap_admin",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "exposed_git_repository",
+      "memcache_deserialization",
+      "custom_rss_feed_implementation",
+      "ldap_ssh_integration"
+    ],
+    "environmental_clues": [
+      "multiple_vhosts",
+      "containerized_application",
+      "wordpress_blog_presence",
+      "ssl_certificate_with_subdomains"
+    ],
+    "similar_scenarios": [
+      "travel_htb_hard"
+    ],
+    "unique_aspects": [
+      "ssrf_to_memcache_poisoning",
+      "php_deserialization_webshell",
+      "ldap_user_attribute_manipulation",
+      "ssh_ldap_authentication_bypass"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Git Repository Exposure",
+        "success_reason": "Exposed .git folder on vhost provided source code access",
+        "prerequisite_indicators": [
+          "multiple_vhosts_available",
+          "development_environments_accessible",
+          "git_version_control_in_use"
+        ],
+        "recognition_patterns": [
+          "/.git/ directory accessible",
+          "development subdomain naming (dev-, -dev)",
+          "403 errors on dev environments"
+        ],
+        "failure_modes": [
+          "git_folder_properly_restricted",
+          "no_development_environments_exposed",
+          "source_code_sanitized"
+        ],
+        "environmental_factors": [
+          "development_to_production_migration",
+          "improper_deployment_procedures",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "PHP Deserialization via Memcache Poisoning",
+        "success_reason": "Custom RSS feed cached in memcache with unsafe deserialization",
+        "prerequisite_indicators": [
+          "php_application_present",
+          "caching_mechanism_in_use",
+          "custom_serialization_code"
+        ],
+        "recognition_patterns": [
+          "memcache references in source code",
+          "serialize/unserialize functions",
+          "RSS feed caching mechanisms"
+        ],
+        "failure_modes": [
+          "input_validation_on_cache_keys",
+          "safe_serialization_methods",
+          "memcache_not_accessible"
+        ],
+        "environmental_factors": [
+          "custom_php_applications",
+          "performance_optimization_caching",
+          "insufficient_input_sanitization"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "45-90 minutes"
+      },
+      {
+        "technique": "LDAP Privilege Escalation",
+        "success_reason": "User had LDAP admin privileges with SSH configured for LDAP authentication",
+        "prerequisite_indicators": [
+          "ldap_authentication_configured",
+          "administrative_ldap_access",
+          "ssh_ldap_integration"
+        ],
+        "recognition_patterns": [
+          "LDAP admin credentials found",
+          "SSH configuration references LDAP",
+          "ability to modify user attributes"
+        ],
+        "failure_modes": [
+          "ldap_permissions_restricted",
+          "ssh_not_using_ldap",
+          "sudo_group_restrictions"
+        ],
+        "environmental_factors": [
+          "centralized_authentication_systems",
+          "linux_ldap_integration",
+          "administrative_credential_reuse"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Exposed .git repository on blog-dev.travel.htb",
+        "discovery_method": "Virtual host enumeration and directory traversal",
+        "why_critical": "Provided source code revealing memcache deserialization vulnerability",
+        "how_to_recognize": [
+          "403 errors on development subdomains",
+          "git repository indicators in responses",
+          "development environment naming patterns"
+        ],
+        "follow_up_actions": [
+          "download_git_repository",
+          "analyze_source_code",
+          "identify_custom_functionality"
+        ]
+      },
+      {
+        "discovery": "Custom RSS feed with memcache integration",
+        "discovery_method": "Source code analysis from git repository",
+        "why_critical": "Unsafe deserialization leading to RCE via SSRF",
+        "how_to_recognize": [
+          "custom caching implementations",
+          "serialize/unserialize in PHP code",
+          "external data source processing"
+        ],
+        "follow_up_actions": [
+          "craft_ssrf_payload",
+          "poison_memcache_with_serialized_object",
+          "trigger_deserialization"
+        ]
+      },
+      {
+        "discovery": "Database credentials and LDAP admin access",
+        "discovery_method": "Container enumeration and credential extraction",
+        "why_critical": "Led to LDAP administrative control and arbitrary user privilege escalation",
+        "how_to_recognize": [
+          "database configuration files",
+          "password hash cracking success",
+          "LDAP administrative tools available"
+        ],
+        "follow_up_actions": [
+          "crack_password_hashes",
+          "test_credential_reuse",
+          "enumerate_ldap_permissions"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_rce",
+        "escalation_method": "Container_to_Host_via_Credential_Reuse",
+        "why_possible": "Database password reused for host user account",
+        "recognition_signs": [
+          "containerized_application_environment",
+          "shared_credentials_across_systems",
+          "database_access_from_container"
+        ],
+        "exploitation_path": "RCE → Container Shell → Database Access → Password Crack → Host Access"
+      },
+      {
+        "privilege_level": "standard_user",
+        "escalation_method": "LDAP_Admin_to_Root",
+        "why_possible": "LDAP admin can modify user attributes including sudo group membership",
+        "recognition_signs": [
+          "ldap_administrative_privileges",
+          "ssh_ldap_authentication_enabled",
+          "sudo_group_membership_via_ldap"
+        ],
+        "exploitation_path": "LDAP Admin → Modify User Attributes → Add Sudo Group → SSH Login → Root"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,443 open on Linux host with multiple vhosts",
+        "decision": "Enumerate all virtual hosts and web applications first",
+        "reasoning": "Multiple vhosts in SSL cert indicate complex web application structure",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "ssl_certificate_analysis",
+            "when": "for additional domains"
+          }
+        ],
+        "success_indicators": [
+          "additional_vhosts_discovered",
+          "different_applications_identified",
+          "exposed_directories_found"
+        ],
+        "next_decision": "prioritize_most_promising_vhost"
+      },
+      {
+        "step": 2,
+        "situation": "Found WordPress blog and dev environment references",
+        "decision": "Focus on dev environment over production WordPress",
+        "reasoning": "Dev environments typically have weaker security and exposed files",
+        "confidence": 0.85,
+        "prerequisites": [
+          "vhost_enumeration_complete",
+          "wordpress_identified"
+        ],
+        "success_indicators": [
+          "dev_files_accessible",
+          "source_code_exposed"
+        ],
+        "failure_fallbacks": [
+          "wordpress_exploitation",
+          "directory_bruteforce",
+          "rss_feed_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found exposed .git directory on dev vhost",
+        "decision": "Extract git repository for source code analysis",
+        "reasoning": "Git repositories contain complete source code and development history",
+        "confidence": 0.95,
+        "prerequisites": [
+          "git_directory_accessible"
+        ],
+        "success_indicators": [
+          "source_code_extracted",
+          "configuration_files_found"
+        ],
+        "next_phase": "source_code_vulnerability_analysis"
+      },
+      {
+        "step": 4,
+        "situation": "Source code reveals memcache deserialization vulnerability",
+        "decision": "Exploit deserialization via SSRF to poison memcache",
+        "reasoning": "Deserialization vulnerabilities provide direct code execution",
+        "confidence": 0.9,
+        "prerequisites": [
+          "source_code_analyzed",
+          "memcache_interaction_understood"
+        ],
+        "success_indicators": [
+          "memcache_poisoned",
+          "webshell_written",
+          "code_execution_achieved"
+        ],
+        "next_phase": "container_escape_or_credential_hunting"
+      }
+    ],
+    "branching_logic": {
+      "if_git_repository_found": {
+        "action": "extract_and_analyze_source_code",
+        "tools": [
+          "git",
+          "grep",
+          "code_analysis"
+        ],
+        "next_phase": "vulnerability_identification"
+      },
+      "if_deserialization_vuln_found": {
+        "action": "craft_ssrf_memcache_poison_exploit",
+        "tools": [
+          "custom_php_payload",
+          "ssrf_techniques"
+        ],
+        "next_phase": "gain_initial_access"
+      },
+      "if_container_access_gained": {
+        "action": "enumerate_for_credentials_and_escape",
+        "alternatives": [
+          "database_credential_extraction",
+          "host_enumeration"
+        ],
+        "decision_criteria": "based_on_container_capabilities"
+      },
+      "if_ldap_admin_found": {
+        "action": "modify_ldap_for_privilege_escalation",
+        "purpose": "add_ssh_keys_and_sudo_privileges",
+        "tools": [
+          "ldap_modification_commands"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_dev_environments_first",
+        "reasoning": "dev_environments_have_higher_vulnerability_exposure",
+        "applicability": "web_applications_with_dev_references"
+      },
+      {
+        "rule": "prioritize_git_repositories_over_directory_bruteforce",
+        "reasoning": "git_repos_provide_complete_source_code_access",
+        "applicability": "when_git_directories_discovered"
+      },
+      {
+        "rule": "analyze_custom_code_for_deserialization_vulns",
+        "reasoning": "custom_applications_often_have_unsafe_deserialization",
+        "applicability": "when_source_code_available"
+      },
+      {
+        "rule": "check_ldap_integration_for_privilege_escalation",
+        "reasoning": "ldap_admin_access_allows_arbitrary_user_modification",
+        "applicability": "when_ldap_credentials_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Virtual Host Discovery",
+        "mitre_id": "T1590.005",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "multiple_vhosts_configured",
+          "dns_names_in_certificates"
+        ],
+        "success_indicators": [
+          "different_response_sizes",
+          "ssl_certificate_san_entries",
+          "different_http_status_codes"
+        ],
+        "incompatible_with": [
+          "single_site_configuration",
+          "strict_host_header_validation"
+        ],
+        "confidence_boosters": [
+          "ssl_certificate_multiple_domains",
+          "varying_content_lengths",
+          "403_forbidden_responses"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Git Repository Exposure",
+        "mitre_id": "T1213.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "git_folder_exposed",
+          "directory_listing_enabled_or_predictable_paths"
+        ],
+        "success_indicators": [
+          "git_folder_accessible",
+          "source_code_retrieval",
+          "commit_history_available"
+        ],
+        "incompatible_with": [
+          "proper_web_server_configuration",
+          "git_folder_blocked"
+        ],
+        "confidence_boosters": [
+          "development_subdomain_detected",
+          "staging_environment_indicators",
+          "403_on_dev_endpoints"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "PHP Deserialization",
+        "mitre_id": "T1203",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_application_detected",
+          "serialized_data_handling",
+          "user_controlled_input_to_unserialize"
+        ],
+        "success_indicators": [
+          "php_serialized_objects_in_responses",
+          "memcache_or_redis_backend",
+          "custom_php_classes_identified"
+        ],
+        "incompatible_with": [
+          "input_sanitization_present",
+          "safe_deserialization_methods"
+        ],
+        "confidence_boosters": [
+          "memcache_backend_detected",
+          "custom_serialization_code",
+          "rss_feed_functionality"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "30-120 minutes"
+      },
+      {
+        "technique": "LDAP Privilege Escalation",
+        "mitre_id": "T1078.003",
+        "required_services": [
+          "ldap",
+          "ssh"
+        ],
+        "required_ports": [
+          389,
+          636,
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ldap_authentication_enabled",
+          "ssh_ldap_integration",
+          "ldap_admin_credentials_obtained"
+        ],
+        "success_indicators": [
+          "ldap_modify_permissions",
+          "ssh_accepts_ldap_users",
+          "sudo_group_modification_possible"
+        ],
+        "incompatible_with": [
+          "ldap_write_restrictions",
+          "ssh_key_only_authentication"
+        ],
+        "confidence_boosters": [
+          "ldap_admin_user_identified",
+          "ssh_ldap_configuration_detected",
+          "sudo_group_enumerated"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "apache",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          "wordpress",
+          "memcache"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "ldap_environment": {
+        "port_indicators": [
+          389,
+          636
+        ],
+        "service_indicators": [
+          "ldap",
+          "ldaps"
+        ],
+        "banner_indicators": [
+          "OpenLDAP",
+          "Active Directory"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "containerized_environment": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "docker",
+          "container"
+        ],
+        "technology_indicators": [
+          "docker",
+          "kubernetes"
+        ],
+        "confidence_threshold": 0.7
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "virtual_host_discovery",
+          "when": "multiple_domains_in_ssl_cert",
+          "reason": "often_reveals_development_environments"
+        },
+        {
+          "attack": "git_repository_exposure",
+          "when": "development_subdomain_detected",
+          "reason": "frequently_exposes_source_code_and_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "php_deserialization",
+          "when": "php_and_caching_detected",
+          "reason": "complex_but_high_impact_when_successful"
+        },
+        {
+          "attack": "ldap_privilege_escalation",
+          "when": "ldap_admin_access_obtained",
+          "reason": "reliable_path_to_root_access"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Git Repository Enumeration",
+        "mitre_id": "T1213.003",
+        "category": "collection",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p {port} -sC -sV {target}",
+            "actual_command": "nmap -p 80 -sC -sV blog-dev.travel.htb",
+            "output_pattern": "Git repository found!",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/.git/{file}",
+            "actual_command": "curl http://blog-dev.travel.htb/.git/HEAD",
+            "success_factors": [
+              "exposed_git_directory",
+              "directory_listing_enabled"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "exposed_git_directory",
+          "web_server_misconfiguration",
+          "directory_traversal_allowed"
+        ],
+        "success_indicators": [
+          "git_repository_structure_accessible",
+          "commit_history_readable",
+          "source_code_recoverable"
+        ],
+        "common_failures": [
+          "git_directory_properly_protected",
+          "403_forbidden_on_git_paths",
+          "incomplete_repository_exposure"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "git_log_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -w {wordlist} -u http://{ip} -H \"Host: FUZZ.{domain}\" --hh {default_size}",
+            "actual_command": "wfuzz -c -w /usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt -u http://10.10.10.189 -H \"Host: FUZZ.travel.htb\" --hh 5093",
+            "output_pattern": "Response   Lines    Word     Chars",
+            "effectiveness_rating": 4,
+            "reliability": 0.92
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -s http://{target} | wc",
+            "actual_command": "curl -s http://10.10.10.189 | wc",
+            "success_factors": [
+              "different_response_sizes",
+              "unique_content_per_vhost"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "target_uses_virtual_hosts",
+          "different_content_per_vhost",
+          "web_server_responds_to_host_headers"
+        ],
+        "success_indicators": [
+          "multiple_vhosts_discovered",
+          "different_response_sizes",
+          "unique_applications_per_vhost"
+        ],
+        "common_failures": [
+          "all_vhosts_return_same_content",
+          "default_vhost_catches_all_requests",
+          "rate_limiting_blocks_enumeration"
+        ],
+        "follow_up_techniques": [
+          "individual_vhost_enumeration",
+          "directory_brute_forcing",
+          "technology_stack_identification"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSL Certificate Analysis",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p {port} -sV -sC {target}",
+            "actual_command": "nmap -p 22,80,443 -sV -sC -oA scans/nmap-tcpscripts 10.10.10.189",
+            "output_pattern": "Subject Alternative Name: DNS:",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "ssl_certificate_present",
+          "certificate_contains_san_entries"
+        ],
+        "success_indicators": [
+          "additional_domains_discovered",
+          "subject_alternative_names_enumerated",
+          "certificate_details_extracted"
+        ],
+        "common_failures": [
+          "certificate_contains_no_useful_info",
+          "self_signed_certificate_with_defaults"
+        ],
+        "follow_up_techniques": [
+          "virtual_host_discovery",
+          "subdomain_enumeration",
+          "certificate_transparency_logs"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "nmap",
+        "use_case": "git_repository_detection",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_reconnaissance"
+        ],
+        "alternatives": [
+          "manual_directory_enumeration",
+          "gobuster"
+        ],
+        "best_practices": [
+          "run_script_scans_against_each_vhost",
+          "check_for_common_misconfigurations",
+          "validate_findings_manually"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "virtual_host_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.92,
+        "learning_curve": "medium",
+        "essential_for": [
+          "multi_tenant_applications"
+        ],
+        "alternatives": [
+          "ffuf",
+          "gobuster_vhost_mode"
+        ],
+        "best_practices": [
+          "determine_default_response_size_first",
+          "use_comprehensive_subdomain_wordlists",
+          "filter_by_response_characteristics"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "comprehensive_web_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p 22,80,443 -sV -sC 10.10.10.189",
+            "purpose": "Initial port scan and SSL certificate analysis",
+            "expected_output": "Open ports and certificate SAN entries"
+          },
+          {
+            "step": 2,
+            "command": "curl -s http://10.10.10.189 | wc",
+            "purpose": "Determine default response size",
+            "expected_output": "Baseline response characteristics"
+          },
+          {
+            "step": 3,
+            "command": "wfuzz -c -w /usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt -u http://10.10.10.189 -H \"Host: FUZZ.travel.htb\" --hh 5093",
+            "purpose": "Discover virtual hosts",
+            "expected_output": "List of active subdomains"
+          },
+          {
+            "step": 4,
+            "command": "nmap -p 80 -sC -sV blog-dev.travel.htb",
+            "purpose": "Check each vhost for misconfigurations",
+            "expected_output": "Git repository or other exposures"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "git_repository_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://blog-dev.travel.htb/.git/HEAD",
+            "purpose": "Verify git repository access",
+            "expected_output": "ref: refs/heads/master"
+          },
+          {
+            "step": 2,
+            "command": "curl http://blog-dev.travel.htb/.git/logs/HEAD",
+            "purpose": "Extract commit history and user info",
+            "expected_output": "Commit logs with usernames and emails"
+          },
+          {
+            "step": 3,
+            "command": "curl http://blog-dev.travel.htb/.git/config",
+            "purpose": "Get repository configuration",
+            "expected_output": "Repository settings and remote origins"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Travel",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2020-05-16",
+      "author": "xct, jkr",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "deserialization",
+        "ssrf",
+        "ldap_manipulation"
+      ],
+      "key_vulnerabilities": [
+        "php_deserialization",
+        "memcache_poisoning",
+        "ldap_privilege_escalation"
+      ],
+      "environment_type": "containerized_web_application",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "php_deserialization",
+        "ssrf_exploitation",
+        "ldap_attacks",
+        "container_escape"
+      ],
+      "prerequisite_knowledge": [
+        "php_serialization",
+        "web_application_security",
+        "ldap_fundamentals",
+        "container_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "deserialization",
+        "ssrf",
+        "ldap_attacks",
+        "container_security"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "secure_deserialization",
+        "input_validation",
+        "ldap_hardening",
+        "container_isolation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Arkham",
+        "Chainsaw",
+        "Craft"
+      ],
+      "similarity_reasons": [
+        "deserialization_attacks",
+        "complex_web_exploitation",
+        "multi_stage_attacks"
+      ],
+      "unique_aspects": [
+        "memcache_poisoning",
+        "ldap_ssh_integration",
+        "git_source_disclosure"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "custom_application_analysis",
+        "advanced_exploitation_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:20:27.171724",
+    "original_file": "0xdf_writeups/Htb Travel.md",
+    "content_length": 70812,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

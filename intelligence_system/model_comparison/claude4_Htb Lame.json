@@ -1,0 +1,94 @@
+{
+  "writeup": "Htb Lame.md",
+  "extraction": {
+    "scenario_fingerprint": {
+      "scenario_name": "legacy_linux_multi_service_exploitation",
+      "primary_services": [
+        "vsftpd",
+        "samba",
+        "distccd"
+      ],
+      "port_signature": "21+139+445+3632",
+      "os_family": "linux",
+      "environment_type": "legacy_server",
+      "entry_vector": "samba_usermap_script",
+      "privilege_path": "direct_root_shell",
+      "attack_complexity": "easy",
+      "estimated_time": "5-15_minutes",
+      "scenario_confidence": 0.95
+    },
+    "success_patterns": {
+      "primary_technique": {
+        "technique": "samba_usermap_script_cve_2007_2447",
+        "success_reason": "vulnerable_samba_version_allows_command_injection",
+        "success_probability": 0.9,
+        "recognition_signs": [
+          "samba_3.0.20_debian",
+          "anonymous_smb_access",
+          "tmp_share_writable"
+        ],
+        "prerequisites": [
+          "samba_3.0.20_to_3.0.25rc3",
+          "usermap_script_enabled"
+        ]
+      },
+      "key_discovery": {
+        "discovery": "multiple_vulnerable_services_on_legacy_ubuntu",
+        "discovery_method": "nmap_service_enumeration",
+        "why_critical": "old_ubuntu_8.04_with_multiple_rce_vulnerabilities"
+      }
+    },
+    "technique_commands": [
+      {
+        "command": "nmap -p 21,22,139,445,3632 -sV -sC -oA scans/tcpscripts 10.10.10.3",
+        "tool": "nmap",
+        "purpose": "service_version_detection_and_script_scanning",
+        "success_indicator": "samba_3.0.20_debian_identified"
+      },
+      {
+        "command": "smbmap -H 10.10.10.3",
+        "tool": "smbmap",
+        "purpose": "enumerate_smb_shares_and_permissions",
+        "success_indicator": "tmp_share_with_read_write_access"
+      },
+      {
+        "command": "smbclient -N //10.10.10.3/tmp --option='client min protocol=NT1'",
+        "tool": "smbclient",
+        "purpose": "connect_to_smb_share_with_legacy_protocol",
+        "success_indicator": "anonymous_login_successful"
+      },
+      {
+        "command": "searchsploit samba 3.0",
+        "tool": "searchsploit",
+        "purpose": "find_known_exploits_for_samba_version",
+        "success_indicator": "usermap_script_command_execution_found"
+      }
+    ],
+    "applicability_rules": {
+      "when_applicable": [
+        "samba_3.0.20_to_3.0.25rc3_detected",
+        "smb_ports_139_445_open",
+        "legacy_linux_system"
+      ],
+      "success_indicators": [
+        "anonymous_smb_access_allowed",
+        "writable_tmp_share",
+        "old_ubuntu_version"
+      ],
+      "failure_modes": [
+        "smb_protocol_negotiation_failed",
+        "usermap_script_disabled",
+        "modern_samba_version"
+      ]
+    }
+  },
+  "quality_scores": {
+    "completeness": 1.0,
+    "accuracy": 1.0,
+    "actionability": 1.0,
+    "specificity": 1.0,
+    "overall": 1.0
+  },
+  "model": "claude-sonnet-4",
+  "timestamp": "2025-07-03T14:52:45.527338"
+}

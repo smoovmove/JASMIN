@@ -1,0 +1,911 @@
+{
+  "writeup_id": "Htb_Holiday",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_app_multi_stage_injection",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+8000",
+    "service_combination": "ssh+nodejs_http",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "sql_injection_to_xss_to_command_injection",
+    "privilege_path": "web_user_to_root_via_npm_sudo",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "nodejs_express_framework",
+      "user_agent_filtering",
+      "multi_stage_injection_chain",
+      "npm_sudo_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "booking_management_application",
+      "login_form_user_enumeration",
+      "javascript_frameworks_loaded",
+      "ubuntu_openssh_version"
+    ],
+    "similar_scenarios": [
+      "node_htb_medium",
+      "celestial_htb_medium"
+    ],
+    "unique_aspects": [
+      "user_agent_string_validation",
+      "sqli_to_xss_to_rce_chain",
+      "npm_install_sudo_abuse"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection",
+        "success_reason": "Application used double quotes in SQL query without proper sanitization",
+        "prerequisite_indicators": [
+          "web_application_with_login",
+          "database_backend_present",
+          "error_messages_exposed"
+        ],
+        "recognition_patterns": [
+          "different error messages for single vs double quotes",
+          "error message changes from 'Invalid User' to 'Error Occurred'",
+          "username field gets prefilled with database value"
+        ],
+        "failure_modes": [
+          "proper_input_sanitization",
+          "parameterized_queries_used",
+          "generic_error_messages"
+        ],
+        "environmental_factors": [
+          "node_js_application",
+          "verbose_error_reporting",
+          "lack_of_input_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "User_Agent_Filtering_Bypass",
+        "success_reason": "Application blocked directory enumeration based on User-Agent but used weak pattern matching",
+        "prerequisite_indicators": [
+          "directory_enumeration_tools_failing",
+          "different_responses_with_different_user_agents",
+          "web_application_accessible"
+        ],
+        "recognition_patterns": [
+          "gobuster returns nothing but dirsearch finds paths",
+          "404 responses with tool user-agents",
+          "200 responses with browser-like user-agents"
+        ],
+        "failure_modes": [
+          "proper_access_controls",
+          "authentication_required_for_all_paths",
+          "no_user_agent_filtering"
+        ],
+        "environmental_factors": [
+          "custom_security_middleware",
+          "basic_bot_protection_implemented",
+          "pattern_matching_on_windows_nt_versions"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "RickA username via SQL injection",
+        "discovery_method": "UNION-based SQL injection with double quotes",
+        "why_critical": "Provides valid username and confirms SQL injection vulnerability",
+        "how_to_recognize": [
+          "username field prefilled after SQLi attempt",
+          "error message changes to 'Incorrect Password'",
+          "database output visible in response"
+        ],
+        "follow_up_actions": [
+          "enumerate_additional_usernames",
+          "attempt_union_based_data_extraction",
+          "test_password_bypass_techniques"
+        ]
+      },
+      {
+        "discovery": "Node.js application on port 8000",
+        "discovery_method": "nmap service detection",
+        "why_critical": "Indicates potential for command injection and npm-based privilege escalation",
+        "how_to_recognize": [
+          "nmap shows Node.js Express framework",
+          "javascript frameworks loaded in simple pages",
+          "typical node.js application structure"
+        ],
+        "follow_up_actions": [
+          "test_for_command_injection",
+          "look_for_npm_related_vulnerabilities",
+          "check_for_node_specific_attack_vectors"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_user",
+        "escalation_method": "SQLi_to_XSS_to_Command_Injection",
+        "why_possible": "Chained vulnerabilities in web application stack",
+        "recognition_signs": [
+          "sql_injection_confirmed",
+          "user_input_reflected_in_responses",
+          "node_js_backend_processing"
+        ],
+        "exploitation_path": "SQLi → Data Extraction → XSS → Command Injection → Shell"
+      },
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "sudo_npm_install_privilege_escalation",
+        "why_possible": "Node.js applications often have npm-related sudo permissions",
+        "recognition_signs": [
+          "node_js_application_identified",
+          "sudo_permissions_on_npm_commands",
+          "ability_to_install_malicious_packages"
+        ],
+        "exploitation_path": "Shell Access → sudo npm install → Malicious Package → Root"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22 (SSH) and 8000 (Node.js HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration since SSH typically requires credentials",
+        "reasoning": "Limited attack surface with only two ports, web app more likely to yield initial access",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if specific vulnerabilities found"
+          }
+        ],
+        "success_indicators": [
+          "web_content_discovered",
+          "login_forms_found",
+          "directory_enumeration_results"
+        ],
+        "next_decision": "web_application_analysis"
+      },
+      {
+        "step": 2,
+        "situation": "Web enumeration reveals login form and admin redirects",
+        "decision": "Test for SQL injection on login form",
+        "reasoning": "Login forms are common SQLi targets, especially with user enumeration hints",
+        "confidence": 0.85,
+        "prerequisites": [
+          "login_form_identified",
+          "error_messages_observed"
+        ],
+        "success_indicators": [
+          "different_error_messages",
+          "database_errors",
+          "data_leakage"
+        ],
+        "failure_fallbacks": [
+          "credential_brute_force",
+          "default_credentials",
+          "other_injection_types"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "SQL injection confirmed with UNION-based data extraction",
+        "decision": "Extract database contents systematically (users, credentials, sensitive data)",
+        "reasoning": "UNION injection allows complete database enumeration",
+        "confidence": 0.95,
+        "prerequisites": [
+          "union_injection_working",
+          "column_count_determined"
+        ],
+        "success_indicators": [
+          "table_names_extracted",
+          "user_credentials_found",
+          "additional_data_discovered"
+        ],
+        "failure_fallbacks": [
+          "blind_sqli_techniques",
+          "time_based_injection"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Database credentials extracted but need application access",
+        "decision": "Attempt authentication with extracted credentials",
+        "reasoning": "Valid credentials should provide authenticated access to application",
+        "confidence": 0.8,
+        "prerequisites": [
+          "credentials_extracted",
+          "login_mechanism_understood"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "new_functionality_access"
+        ],
+        "failure_fallbacks": [
+          "password_cracking",
+          "session_manipulation",
+          "other_attack_vectors"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_sqli_succeeds": {
+        "action": "extract_all_database_contents",
+        "tools": [
+          "burp_suite",
+          "sqlmap",
+          "manual_injection"
+        ],
+        "next_phase": "credential_utilization"
+      },
+      "if_sqli_fails": {
+        "action": "try_alternative_web_attacks",
+        "alternatives": [
+          "xss_testing",
+          "command_injection",
+          "file_inclusion"
+        ],
+        "decision_criteria": "based_on_application_functionality"
+      },
+      "if_credentials_obtained": {
+        "action": "authenticate_and_explore_application",
+        "purpose": "find_additional_attack_vectors",
+        "tools": [
+          "browser",
+          "burp_suite"
+        ]
+      },
+      "if_web_access_gained": {
+        "action": "look_for_command_injection_opportunities",
+        "purpose": "achieve_code_execution",
+        "tools": [
+          "payload_testing",
+          "reverse_shells"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_both_single_and_double_quotes_for_sqli",
+        "reasoning": "different_database_configurations_use_different_quote_types",
+        "applicability": "all_sql_injection_testing"
+      },
+      {
+        "rule": "use_realistic_user_agent_strings_for_web_enumeration",
+        "reasoning": "some_applications_filter_based_on_user_agent",
+        "applicability": "web_application_testing"
+      },
+      {
+        "rule": "systematically_enumerate_database_structure_before_data_extraction",
+        "reasoning": "understanding_schema_improves_data_extraction_efficiency",
+        "applicability": "union_based_sql_injection"
+      },
+      {
+        "rule": "chain_multiple_web_vulnerabilities_for_complete_compromise",
+        "reasoning": "single_vulnerabilities_may_not_provide_full_access",
+        "applicability": "complex_web_applications"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL_Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8000,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_database",
+          "user_input_fields_present",
+          "dynamic_content_generation"
+        ],
+        "success_indicators": [
+          "error_messages_reveal_database_info",
+          "different_responses_for_valid_invalid_users",
+          "login_forms_present",
+          "search_functionality_available"
+        ],
+        "incompatible_with": [
+          "static_html_only",
+          "properly_parameterized_queries",
+          "comprehensive_input_validation"
+        ],
+        "confidence_boosters": [
+          "error_based_responses",
+          "user_enumeration_possible",
+          "legacy_web_frameworks",
+          "custom_authentication_systems"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Cross_Site_Scripting",
+        "mitre_id": "T1059.007",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8000,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_user_input",
+          "dynamic_content_reflection",
+          "insufficient_output_encoding"
+        ],
+        "success_indicators": [
+          "user_input_reflected_in_response",
+          "javascript_frameworks_loaded",
+          "admin_panels_accessible",
+          "stored_content_functionality"
+        ],
+        "incompatible_with": [
+          "content_security_policy_strict",
+          "proper_output_encoding",
+          "input_sanitization_comprehensive"
+        ],
+        "confidence_boosters": [
+          "admin_functionality_present",
+          "user_generated_content",
+          "legacy_web_technologies",
+          "custom_web_applications"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Command_Injection",
+        "mitre_id": "T1059",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8000,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "unix",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_executes_system_commands",
+          "user_input_passed_to_system_calls",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "file_upload_functionality",
+          "system_administration_features",
+          "data_processing_capabilities",
+          "integration_with_system_utilities"
+        ],
+        "incompatible_with": [
+          "sandboxed_execution_environment",
+          "proper_input_sanitization",
+          "whitelist_based_validation"
+        ],
+        "confidence_boosters": [
+          "nodejs_express_framework",
+          "custom_system_integration",
+          "file_processing_features",
+          "administrative_interfaces"
+        ],
+        "typical_success_rate": 0.58,
+        "estimated_time": "30-90 minutes"
+      },
+      {
+        "technique": "Directory_Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8000,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_serves_files",
+          "user_controlled_file_paths",
+          "insufficient_path_validation"
+        ],
+        "success_indicators": [
+          "file_serving_functionality",
+          "static_resource_access",
+          "download_features_present",
+          "path_parameters_in_urls"
+        ],
+        "incompatible_with": [
+          "chrooted_environment",
+          "proper_path_canonicalization",
+          "whitelist_based_file_access"
+        ],
+        "confidence_boosters": [
+          "custom_file_serving_logic",
+          "legacy_web_applications",
+          "minimal_security_controls",
+          "direct_file_system_access"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "10-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "nodejs_web_application": {
+        "port_indicators": [
+          8000,
+          3000,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "Node.js Express framework"
+        ],
+        "banner_indicators": [
+          "Node.js",
+          "Express"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application_with_database": {
+        "port_indicators": [
+          80,
+          443,
+          8000,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "login_forms",
+          "dynamic_content",
+          "user_authentication"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "sql_injection",
+          "when": "login_form_with_user_enumeration_detected",
+          "reason": "different_responses_indicate_backend_database_queries"
+        },
+        {
+          "attack": "directory_bruteforce_with_proper_user_agent",
+          "when": "nodejs_application_detected",
+          "reason": "user_agent_filtering_suggests_hidden_endpoints"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "cross_site_scripting",
+          "when": "admin_panels_and_javascript_frameworks_detected",
+          "reason": "admin_functionality_often_vulnerable_to_xss"
+        },
+        {
+          "attack": "command_injection",
+          "when": "nodejs_application_with_system_features_detected",
+          "reason": "nodejs_applications_often_integrate_with_system_commands"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Injection - SQLite UNION-based",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "Manual testing via proxy",
+            "actual_command": "username: \")) UNION SELECT 1,group_concat(username),3,4 FROM users-- -",
+            "output_pattern": "Database content in username field",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_login",
+          "sqlite_database_backend",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "error_message_changes_with_quotes",
+          "union_select_returns_data",
+          "database_schema_extracted"
+        ],
+        "common_failures": [
+          "incorrect_column_count_in_union",
+          "wrong_database_syntax",
+          "input_filtering_blocks_payloads"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "password_hash_cracking",
+          "application_authentication"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Cross-Site Scripting (XSS) - Filter Bypass",
+        "mitre_id": "T1059.007",
+        "category": "execution",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "Manual payload crafting",
+            "command_template": "<img src=\"x` `<script>{payload}</script>\"` `>",
+            "actual_command": "<img src=\"x` `<script>javascript:alert(1)</script>\"` `>",
+            "output_pattern": "Script execution in admin context",
+            "effectiveness_rating": 4,
+            "reliability": 0.7
+          }
+        ],
+        "prerequisites": [
+          "user_input_reflection",
+          "admin_review_process",
+          "insufficient_xss_filtering"
+        ],
+        "success_indicators": [
+          "http_requests_to_attacker_server",
+          "script_tags_preserved_in_output",
+          "admin_session_compromise"
+        ],
+        "common_failures": [
+          "aggressive_input_filtering",
+          "csp_headers_blocking_execution",
+          "no_admin_interaction"
+        ],
+        "follow_up_techniques": [
+          "session_hijacking",
+          "csrf_attacks",
+          "admin_functionality_abuse"
+        ],
+        "time_investment": "60-120 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Command Injection via Node.js",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Manual injection",
+            "command_template": "Inject into vulnerable parameter",
+            "actual_command": "Context-dependent based on application",
+            "output_pattern": "System command execution",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "nodejs_application",
+          "user_controlled_input",
+          "unsafe_command_execution"
+        ],
+        "success_indicators": [
+          "system_commands_execute",
+          "reverse_shell_connection",
+          "file_system_access"
+        ],
+        "common_failures": [
+          "input_sanitization",
+          "restricted_execution_context",
+          "network_filtering"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "persistence_mechanisms"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "NPM Package Manager Privilege Escalation",
+        "mitre_id": "T1548.003",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "npm",
+            "command_template": "sudo npm install {malicious_package}",
+            "actual_command": "sudo npm install malicious-package-with-preinstall-script",
+            "output_pattern": "Root command execution during install",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "sudo_access_to_npm",
+          "ability_to_create_malicious_package",
+          "npm_preinstall_scripts_enabled"
+        ],
+        "success_indicators": [
+          "preinstall_script_executes_as_root",
+          "root_shell_obtained",
+          "full_system_compromise"
+        ],
+        "common_failures": [
+          "npm_security_restrictions",
+          "script_execution_disabled",
+          "insufficient_sudo_permissions"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "web_application_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_penetration_testing"
+        ],
+        "alternatives": [
+          "OWASP ZAP",
+          "manual_curl_requests"
+        ],
+        "best_practices": [
+          "use_repeater_for_payload_refinement",
+          "proxy_all_traffic_for_analysis",
+          "save_successful_payloads_for_reuse"
+        ]
+      },
+      {
+        "tool": "dirsearch",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_reconnaissance"
+        ],
+        "alternatives": [
+          "gobuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_realistic_user_agent_strings",
+          "test_multiple_tools_for_coverage",
+          "check_for_user_agent_filtering"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sqlite_injection_to_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "username: \" OR \"1\"=\"1",
+            "purpose": "Test for SQL injection vulnerability",
+            "expected_output": "Different error message or behavior"
+          },
+          {
+            "step": 2,
+            "command": "username: \")) UNION SELECT 1,2,3,4 -- -",
+            "purpose": "Determine number of columns",
+            "expected_output": "No error, data in response"
+          },
+          {
+            "step": 3,
+            "command": "username: \")) UNION SELECT 1,sqlite_version(),3,4-- -",
+            "purpose": "Identify database type and version",
+            "expected_output": "SQLite version number"
+          },
+          {
+            "step": 4,
+            "command": "username: \")) UNION SELECT 1,group_concat(tbl_name),3,4 FROM sqlite_master WHERE type='table'-- -",
+            "purpose": "Extract table names",
+            "expected_output": "List of database tables"
+          },
+          {
+            "step": 5,
+            "command": "username: \")) UNION SELECT 1,group_concat(username),3,4 FROM users-- -",
+            "purpose": "Extract usernames",
+            "expected_output": "Valid usernames from users table"
+          },
+          {
+            "step": 6,
+            "command": "username: \")) UNION SELECT 1,password,3,4 FROM users-- -",
+            "purpose": "Extract password hashes",
+            "expected_output": "Password hash for cracking"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "45-90 minutes"
+      },
+      {
+        "sequence_name": "xss_filter_bypass_to_admin_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "<img src='http://attacker-ip/test.jpg' />",
+            "purpose": "Test for XSS and admin interaction",
+            "expected_output": "HTTP request to attacker server"
+          },
+          {
+            "step": 2,
+            "command": "<script>alert('XSS')</script>",
+            "purpose": "Test basic XSS payload",
+            "expected_output": "Filtered or mangled output"
+          },
+          {
+            "step": 3,
+            "command": "<img src=\"x` `<script>javascript:alert(1)</script>\"` `>",
+            "purpose": "Bypass XSS filters using backticks",
+            "expected_output": "Script tags preserved in output"
+          }
+        ],
+        "success_rate": 0.6,
+        "typical_duration": "60-120 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Holiday",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2017-06-02",
+      "author": "g0blin",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_application",
+        "injection_attacks",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "sql_injection",
+        "cross_site_scripting",
+        "command_injection",
+        "sudo_misconfiguration"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "chained_web_exploits",
+        "nodejs_security",
+        "package_manager_abuse"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "sql_injection",
+        "xss",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "injection_attacks",
+        "privilege_escalation",
+        "nodejs"
+      ],
+      "attack_types": [
+        "sql_injection",
+        "xss",
+        "command_injection",
+        "sudo_abuse"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "output_encoding",
+        "sudo_hardening",
+        "package_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Node",
+        "Celestial",
+        "Canape"
+      ],
+      "similarity_reasons": [
+        "nodejs_application",
+        "chained_web_exploits",
+        "package_manager_abuse"
+      ],
+      "unique_aspects": [
+        "multi_stage_injection_chain",
+        "npm_privilege_escalation"
+      ],
+      "difficulty_factors": [
+        "complex_exploit_chain",
+        "multiple_injection_types",
+        "advanced_web_security"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:20:49.974018",
+    "original_file": "0xdf_writeups/Htb Holiday.md",
+    "content_length": 23799,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

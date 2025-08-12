@@ -1,0 +1,897 @@
+{
+  "writeup_id": "Htb_Mischief",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_snmp_credential_disclosure",
+    "primary_services": [
+      "ssh",
+      "http",
+      "snmp"
+    ],
+    "port_signature": "22+161+3366",
+    "service_combination": "ssh+snmp+python_webserver",
+    "os_family": "linux",
+    "environment_type": "standalone_server",
+    "entry_vector": "snmp_enumeration",
+    "privilege_path": "credential_disclosure_to_web_access",
+    "attack_complexity": "medium",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "snmp_public_community",
+      "python_webserver_non_standard_port",
+      "process_list_credential_exposure",
+      "ipv6_dual_stack"
+    ],
+    "environmental_clues": [
+      "ubuntu_18_04_fingerprint",
+      "python_basehttpserver",
+      "http_basic_auth",
+      "mysql_localhost_binding"
+    ],
+    "similar_scenarios": [
+      "networked_htb_easy",
+      "valentine_htb_easy"
+    ],
+    "unique_aspects": [
+      "snmp_process_enumeration",
+      "ipv6_secondary_services",
+      "python_simplehttpserver_creds"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SNMP_enumeration",
+        "success_reason": "SNMP service exposed with default public community string",
+        "prerequisite_indicators": [
+          "udp_161_open",
+          "snmp_service_responding",
+          "default_community_strings_accepted"
+        ],
+        "recognition_patterns": [
+          "UDP 161 open in nmap scan",
+          "snmp-info script returns data",
+          "public community string works"
+        ],
+        "failure_modes": [
+          "snmp_disabled",
+          "custom_community_strings",
+          "snmp_access_restricted"
+        ],
+        "environmental_factors": [
+          "default_snmp_configuration",
+          "network_monitoring_requirements",
+          "insufficient_snmp_hardening"
+        ],
+        "success_probability": 0.73,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "process_enumeration_via_snmp",
+        "success_reason": "SNMP hrSWRunParameters exposed command line arguments with credentials",
+        "prerequisite_indicators": [
+          "snmp_access_available",
+          "process_table_readable",
+          "services_running_with_credentials"
+        ],
+        "recognition_patterns": [
+          "hrSWRunName shows interesting processes",
+          "hrSWRunParameters contains credentials",
+          "python SimpleHTTPAuthServer with auth string"
+        ],
+        "failure_modes": [
+          "process_table_restricted",
+          "no_credentials_in_cmdline",
+          "processes_use_config_files"
+        ],
+        "environmental_factors": [
+          "services_started_with_inline_credentials",
+          "lack_of_process_monitoring_awareness",
+          "development_or_testing_environment"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "ipv6_discovery_via_snmp",
+        "success_reason": "SNMP ipAddressTable revealed IPv6 addresses for additional attack surface",
+        "prerequisite_indicators": [
+          "snmp_access_available",
+          "ipv6_configured_on_target",
+          "services_listening_on_ipv6"
+        ],
+        "recognition_patterns": [
+          "ipAddressAddrType shows IPv6 entries",
+          "apache processes running but not on IPv4",
+          "additional services on IPv6 only"
+        ],
+        "failure_modes": [
+          "ipv6_disabled",
+          "same_services_on_both_stacks",
+          "ipv6_properly_firewalled"
+        ],
+        "environmental_factors": [
+          "dual_stack_configuration",
+          "ipv6_security_oversight",
+          "services_bound_to_specific_interfaces"
+        ],
+        "success_probability": 0.62,
+        "typical_timeframe": "15-25 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "loki:godofmischiefisloki credentials",
+        "discovery_method": "SNMP hrSWRunParameters enumeration",
+        "why_critical": "Provided authentication to SimpleHTTPAuthServer on port 3366",
+        "how_to_recognize": [
+          "python process with authentication parameters",
+          "SimpleHTTPAuthServer module usage",
+          "username:password format in command line"
+        ],
+        "follow_up_actions": [
+          "authenticate_to_web_service",
+          "enumerate_hosted_directory",
+          "look_for_additional_credentials"
+        ]
+      },
+      {
+        "discovery": "IPv6 address via SNMP",
+        "discovery_method": "snmpwalk ipAddressAddrType enumeration",
+        "why_critical": "Revealed additional attack surface with Apache running on IPv6 only",
+        "how_to_recognize": [
+          "ipAddressAddrType returns IPv6 entries",
+          "processes running but not visible on IPv4",
+          "dual-stack network configuration"
+        ],
+        "follow_up_actions": [
+          "nmap_ipv6_address",
+          "enumerate_ipv6_services",
+          "test_same_credentials_on_new_services"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_external",
+        "escalation_method": "SNMP_to_service_credentials",
+        "why_possible": "Default SNMP configuration exposed process command lines with embedded credentials",
+        "recognition_signs": [
+          "snmp_community_public_works",
+          "process_table_accessible",
+          "services_with_inline_auth"
+        ],
+        "exploitation_path": "SNMP enum → process cmdline → extract creds → authenticate to services"
+      },
+      {
+        "privilege_level": "service_access",
+        "escalation_method": "IPv6_service_discovery",
+        "why_possible": "Additional services running on IPv6 with same credential reuse",
+        "recognition_signs": [
+          "ipv6_addresses_discovered",
+          "additional_processes_running",
+          "credential_reuse_patterns"
+        ],
+        "exploitation_path": "IPv6 discovery → service enumeration → credential reuse → expanded access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Limited TCP ports (22, 3366) but UDP 161 (SNMP) open",
+        "decision": "Enumerate SNMP for additional information and IPv6 addresses",
+        "reasoning": "SNMP often reveals process lists, network interfaces, and IPv6 addresses that may expose additional attack surface",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_enumeration_port_3366",
+            "when": "if snmp fails or requires auth"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if no other vectors found"
+          }
+        ],
+        "success_indicators": [
+          "snmp_responds_to_public_community",
+          "process_list_retrieved",
+          "ipv6_addresses_found"
+        ],
+        "next_decision": "analyze_snmp_process_list"
+      },
+      {
+        "step": 2,
+        "situation": "SNMP reveals python process with command line parameters containing credentials",
+        "decision": "Extract credentials from hrSWRunParameters for web service authentication",
+        "reasoning": "Process command lines often contain hardcoded credentials, especially for simple HTTP auth servers",
+        "confidence": 0.95,
+        "prerequisites": [
+          "snmp_access_granted",
+          "process_list_enumerated"
+        ],
+        "success_indicators": [
+          "credentials_found_in_process_args"
+        ],
+        "next_decision": "authenticate_to_web_service"
+      },
+      {
+        "step": 3,
+        "situation": "Apache processes found in SNMP but not visible on IPv4 scan",
+        "decision": "Enumerate IPv6 addresses and scan for services only listening on IPv6",
+        "reasoning": "Services may be bound only to IPv6 interfaces to avoid detection",
+        "confidence": 0.85,
+        "prerequisites": [
+          "ipv6_addresses_discovered"
+        ],
+        "success_indicators": [
+          "additional_services_found_on_ipv6"
+        ],
+        "failure_fallbacks": [
+          "focus_on_known_services",
+          "credential_reuse_testing"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Valid credentials obtained for web service",
+        "decision": "Test for command injection in web application functionality",
+        "reasoning": "Simple HTTP servers often have minimal input validation",
+        "confidence": 0.75,
+        "prerequisites": [
+          "web_service_access_granted"
+        ],
+        "success_indicators": [
+          "command_execution_achieved",
+          "reverse_shell_obtained"
+        ],
+        "next_decision": "privilege_escalation_enumeration"
+      }
+    ],
+    "branching_logic": {
+      "if_snmp_accessible": {
+        "action": "enumerate_processes_and_network_interfaces",
+        "tools": [
+          "snmpwalk",
+          "enyx"
+        ],
+        "next_phase": "credential_extraction_from_processes"
+      },
+      "if_credentials_found_in_processes": {
+        "action": "authenticate_to_discovered_services",
+        "purpose": "gain_initial_access",
+        "tools": [
+          "curl",
+          "browser",
+          "custom_scripts"
+        ]
+      },
+      "if_ipv6_services_found": {
+        "action": "enumerate_ipv6_only_services",
+        "tools": [
+          "nmap_ipv6",
+          "custom_scanners"
+        ],
+        "next_phase": "test_additional_attack_vectors"
+      },
+      "if_web_access_obtained": {
+        "action": "test_for_command_injection",
+        "purpose": "achieve_code_execution",
+        "tools": [
+          "burp",
+          "manual_testing",
+          "payload_lists"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_enumerate_snmp_process_lists_for_credentials",
+        "reasoning": "process_command_lines_frequently_contain_hardcoded_credentials",
+        "applicability": "snmp_publicly_accessible"
+      },
+      {
+        "rule": "check_ipv6_when_processes_dont_match_open_ports",
+        "reasoning": "services_may_be_ipv6_only_to_avoid_detection",
+        "applicability": "process_list_shows_more_services_than_port_scan"
+      },
+      {
+        "rule": "test_simple_http_servers_for_command_injection",
+        "reasoning": "minimal_frameworks_often_lack_input_validation",
+        "applicability": "custom_or_simple_web_servers_identified"
+      },
+      {
+        "rule": "enumerate_bash_history_after_user_compromise",
+        "reasoning": "users_often_type_passwords_in_command_line",
+        "applicability": "shell_access_as_non_root_user"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SNMP Enumeration",
+        "mitre_id": "T1040",
+        "required_services": [
+          "snmp"
+        ],
+        "required_ports": [
+          161
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "snmp_service_enabled",
+          "default_community_strings",
+          "network_accessible_snmp"
+        ],
+        "success_indicators": [
+          "snmpwalk_returns_data",
+          "process_list_accessible",
+          "network_interfaces_enumerated"
+        ],
+        "incompatible_with": [
+          "snmp_disabled",
+          "custom_community_strings_only",
+          "snmp_filtered_by_firewall"
+        ],
+        "confidence_boosters": [
+          "default_public_community",
+          "verbose_process_information",
+          "credential_exposure_in_cmdline"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "HTTP Basic Auth Bruteforce",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          3366,
+          8080
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "http_basic_auth_enabled",
+          "web_service_accessible",
+          "weak_credentials_likely"
+        ],
+        "success_indicators": [
+          "401_unauthorized_response",
+          "basic_realm_header_present",
+          "credential_pair_accepted"
+        ],
+        "incompatible_with": [
+          "account_lockout_enabled",
+          "rate_limiting_aggressive",
+          "certificate_auth_required"
+        ],
+        "confidence_boosters": [
+          "credentials_found_via_snmp",
+          "default_service_installation",
+          "development_environment_indicators"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "IPv6 Service Discovery",
+        "mitre_id": "T1046",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [
+          "any"
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "ipv6_enabled",
+          "dual_stack_configuration",
+          "ipv6_addresses_discoverable"
+        ],
+        "success_indicators": [
+          "ipv6_addresses_respond",
+          "services_on_ipv6_only",
+          "different_service_exposure"
+        ],
+        "incompatible_with": [
+          "ipv6_disabled",
+          "ipv6_firewalled",
+          "ipv4_only_environment"
+        ],
+        "confidence_boosters": [
+          "snmp_reveals_ipv6_interfaces",
+          "modern_os_deployment",
+          "cloud_environment_indicators"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "15-25 minutes"
+      },
+      {
+        "technique": "Command Injection",
+        "mitre_id": "T1059.004",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_input_processed",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "command_output_reflected",
+          "time_delays_observable",
+          "system_commands_executed"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "sandboxed_execution",
+          "command_filtering_comprehensive"
+        ],
+        "confidence_boosters": [
+          "custom_web_application",
+          "development_environment",
+          "minimal_security_controls"
+        ],
+        "typical_success_rate": 0.35,
+        "estimated_time": "20-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "snmp_service": {
+        "port_indicators": [
+          161
+        ],
+        "service_indicators": [
+          "snmp"
+        ],
+        "banner_indicators": [
+          "net-snmp"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          3366,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "caldav"
+        ],
+        "technology_indicators": [
+          "python",
+          "basehttpserver",
+          "radicale"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ipv6_enabled": {
+        "port_indicators": [
+          "any"
+        ],
+        "service_indicators": [
+          "ipv6"
+        ],
+        "banner_indicators": [
+          "inet6"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "basic_auth": {
+        "port_indicators": [
+          80,
+          443,
+          3366,
+          8080
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "banner_indicators": [
+          "401 Unauthorized",
+          "Basic realm"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "snmp_enumeration",
+          "when": "snmp_service_detected",
+          "reason": "often_reveals_sensitive_information_and_credentials"
+        },
+        {
+          "attack": "ipv6_service_discovery",
+          "when": "ipv6_interfaces_found_via_snmp",
+          "reason": "may_expose_additional_services_not_on_ipv4"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "http_basic_auth_bruteforce",
+          "when": "basic_auth_detected_and_creds_found",
+          "reason": "credentials_already_discovered_via_snmp"
+        },
+        {
+          "attack": "command_injection_testing",
+          "when": "web_application_accessible",
+          "reason": "custom_applications_often_vulnerable"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SNMP Enumeration",
+        "mitre_id": "T1040",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "snmpwalk",
+            "command_template": "snmpwalk -v 2c -c public {target_ip}",
+            "actual_command": "snmpwalk -v 2c -c public 10.10.10.92",
+            "output_pattern": "HOST-RESOURCES-MIB::hrSWRunParameters.*",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "snmpwalk_processes",
+            "command_template": "snmpwalk -v 2c -c public {target_ip} hrSWRunTable | grep {process_id}",
+            "actual_command": "snmpwalk -v 2c -c public 10.10.10.92 hrSWRunTable | grep 617",
+            "success_factors": [
+              "default_community_string",
+              "snmp_service_exposed"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "Enyx",
+            "command_template": "python /opt/Enyx/enyx.py 2c public {target_ip}",
+            "actual_command": "python /opt/Enyx/enyx.py 2c public 10.10.10.92",
+            "success_factors": [
+              "snmp_accessible",
+              "ipv6_configured"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "snmp_service_accessible",
+          "default_community_string_public",
+          "udp_161_open"
+        ],
+        "success_indicators": [
+          "process_list_retrieved",
+          "command_line_parameters_exposed",
+          "ipv6_addresses_discovered",
+          "credentials_found_in_process_args"
+        ],
+        "common_failures": [
+          "custom_community_string",
+          "snmp_service_disabled",
+          "firewall_blocking_udp_161"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "ipv6_port_scanning",
+          "web_application_testing"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "IPv6 Network Discovery",
+        "mitre_id": "T1018",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap_ipv6",
+            "command_template": "nmap -6 -sT -p- --min-rate 5000 {ipv6_address}",
+            "actual_command": "nmap -6 -sT -p- --min-rate 5000 dead:beef:0000:0000:0250:56ff:fe8f:ddd4",
+            "output_pattern": "PORT.*STATE.*SERVICE",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "snmpwalk_ipv6",
+            "command_template": "snmpwalk -v 2c -c public {target_ip} ipAddressType",
+            "actual_command": "snmpwalk -v 2c -c public 10.10.10.92 ipAddressType",
+            "success_factors": [
+              "snmp_accessible",
+              "ipv6_stack_enabled"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "ipv6_address_discovered",
+          "target_has_ipv6_services",
+          "network_connectivity_to_ipv6"
+        ],
+        "success_indicators": [
+          "additional_services_discovered",
+          "ipv6_only_services_identified",
+          "expanded_attack_surface"
+        ],
+        "common_failures": [
+          "no_ipv6_connectivity",
+          "ipv6_services_firewalled",
+          "dynamic_ipv6_addresses"
+        ],
+        "follow_up_techniques": [
+          "service_enumeration",
+          "web_application_testing",
+          "credential_testing"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Credential Extraction from Process Arguments",
+        "mitre_id": "T1555",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "snmpwalk_process_params",
+            "command_template": "snmpwalk -v 2c -c public {target_ip} hrSWRunParameters",
+            "actual_command": "snmpwalk -v 2c -c public 10.10.10.92 hrSWRunParameters",
+            "output_pattern": "STRING: \".*username:password.*\"",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "snmp_access_available",
+          "processes_running_with_credentials",
+          "hrSWRunParameters_accessible"
+        ],
+        "success_indicators": [
+          "credentials_found_in_command_line",
+          "authentication_parameters_exposed",
+          "service_credentials_discovered"
+        ],
+        "common_failures": [
+          "credentials_not_in_command_line",
+          "process_parameters_filtered",
+          "encrypted_or_encoded_credentials"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "snmpwalk",
+        "use_case": "network_reconnaissance_and_credential_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "snmp_enabled_environments"
+        ],
+        "alternatives": [
+          "snmp-check",
+          "onesixtyone",
+          "snmpenum"
+        ],
+        "best_practices": [
+          "install_snmp_mibs_downloader_for_readable_output",
+          "comment_out_mibs_line_in_etc_snmp_snmp_conf",
+          "check_hrSWRunParameters_for_credentials",
+          "enumerate_ipAddressType_for_ipv6_discovery"
+        ]
+      },
+      {
+        "tool": "Enyx",
+        "use_case": "ipv6_enumeration_via_snmp",
+        "effectiveness_rating": 4,
+        "reliability": 0.8,
+        "learning_curve": "low",
+        "essential_for": [
+          "ipv6_network_discovery"
+        ],
+        "alternatives": [
+          "manual_snmpwalk_ipAddressType",
+          "custom_snmp_scripts"
+        ],
+        "best_practices": [
+          "disable_mibs_before_running",
+          "run_after_confirming_snmp_access",
+          "validate_discovered_ipv6_addresses"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "snmp_to_credential_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sU -p 161 -sC 10.10.10.92",
+            "purpose": "Confirm SNMP service availability",
+            "expected_output": "161/udp open snmp"
+          },
+          {
+            "step": 2,
+            "command": "snmpwalk -v 2c -c public 10.10.10.92 hrSWRunName | grep python",
+            "purpose": "Identify target process",
+            "expected_output": "HOST-RESOURCES-MIB::hrSWRunName.617 = STRING: \"python\""
+          },
+          {
+            "step": 3,
+            "command": "snmpwalk -v 2c -c public 10.10.10.92 hrSWRunTable | grep 617",
+            "purpose": "Extract process parameters with credentials",
+            "expected_output": "hrSWRunParameters.617 = STRING: \"-m SimpleHTTPAuthServer 3366 loki:godofmischiefisloki\""
+          },
+          {
+            "step": 4,
+            "command": "snmpwalk -v 2c -c public 10.10.10.92 ipAddressType",
+            "purpose": "Discover IPv6 addresses",
+            "expected_output": "IPv6 addresses including dead:beef:0000:0000:0250:56ff:fe8f:ddd4"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "10-25 minutes"
+      },
+      {
+        "sequence_name": "ipv6_service_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "python /opt/Enyx/enyx.py 2c public 10.10.10.92",
+            "purpose": "Extract IPv6 addresses via specialized tool",
+            "expected_output": "Unique-Local -> dead:beef:0000:0000:0250:56ff:fe8f:ddd4"
+          },
+          {
+            "step": 2,
+            "command": "nmap -6 -sT -p- --min-rate 5000 dead:beef:0000:0000:0250:56ff:fe8f:ddd4",
+            "purpose": "Scan IPv6 address for additional services",
+            "expected_output": "22/tcp open ssh, 80/tcp open http"
+          },
+          {
+            "step": 3,
+            "command": "nmap -6 -sT -p 22,80 -sV -sC dead:beef:0000:0000:0250:56ff:fe8f:ddd4",
+            "purpose": "Detailed service enumeration on IPv6",
+            "expected_output": "Apache httpd 2.4.29 on port 80"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Mischief",
+      "difficulty": "Insane",
+      "os": "Linux Ubuntu 18.04",
+      "platform": "HackTheBox",
+      "release_date": "2018-07-07",
+      "author": "trickster0",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "snmp_enumeration",
+        "ipv6_exploitation",
+        "command_injection"
+      ],
+      "key_vulnerabilities": [
+        "snmp_information_disclosure",
+        "command_injection",
+        "weak_credentials",
+        "acl_bypass"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ipv6_networking",
+        "snmp_enumeration",
+        "command_injection",
+        "acl_bypass"
+      ],
+      "prerequisite_knowledge": [
+        "ipv6_fundamentals",
+        "snmp_protocol",
+        "web_exploitation",
+        "linux_permissions"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "network_enumeration",
+        "ipv6_exploitation",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "command_injection",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "secure_snmp_configuration",
+        "input_validation",
+        "proper_acl_implementation",
+        "ipv6_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Sneaky",
+        "Poison",
+        "Node"
+      ],
+      "similarity_reasons": [
+        "ipv6_networking",
+        "web_command_injection",
+        "credential_reuse"
+      ],
+      "unique_aspects": [
+        "snmp_ipv6_discovery",
+        "acl_bypass_techniques",
+        "dual_stack_networking"
+      ],
+      "difficulty_factors": [
+        "ipv6_complexity",
+        "multiple_enumeration_phases",
+        "acl_understanding_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:23:43.276060",
+    "original_file": "0xdf_writeups/Htb Mischief.md",
+    "content_length": 47330,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

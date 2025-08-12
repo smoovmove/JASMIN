@@ -1,0 +1,953 @@
+{
+  "writeup_id": "Htb_Book",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_app_sql_truncation_xss_privesc",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "sql_truncation_attack",
+    "privilege_path": "web_admin_to_ssh_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "sql_truncation_vulnerability",
+      "xss_in_pdf_generation",
+      "logrotate_privilege_escalation",
+      "dual_login_portals"
+    ],
+    "environmental_clues": [
+      "library_management_system",
+      "admin_panel_separate_from_user_portal",
+      "pdf_export_functionality",
+      "file_upload_features"
+    ],
+    "similar_scenarios": [
+      "book_htb_medium"
+    ],
+    "unique_aspects": [
+      "xss_against_pdf_generator_not_user",
+      "logrotten_timing_attack",
+      "ssh_key_extraction_via_xss"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL Truncation Attack",
+        "success_reason": "Database field length limit allowed duplicate admin account creation with truncated email",
+        "prerequisite_indicators": [
+          "user_registration_available",
+          "email_enumeration_possible",
+          "database_field_length_limits",
+          "truncation_behavior_enabled"
+        ],
+        "recognition_patterns": [
+          "user exists error for known accounts",
+          "registration accepts overly long inputs",
+          "successful registration with padded strings",
+          "login works with original identifier"
+        ],
+        "failure_modes": [
+          "proper_input_validation",
+          "unique_constraints_enforced",
+          "field_length_validation",
+          "no_automatic_truncation"
+        ],
+        "environmental_factors": [
+          "legacy_database_configuration",
+          "insufficient_input_validation",
+          "default_sql_truncation_behavior",
+          "weak_duplicate_checking"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "XSS to Local File Read",
+        "success_reason": "PDF generation software processed XSS payloads allowing file system access",
+        "prerequisite_indicators": [
+          "pdf_export_functionality",
+          "user_controlled_content_in_pdfs",
+          "server_side_pdf_generation",
+          "no_xss_filtering"
+        ],
+        "recognition_patterns": [
+          "dynamic PDF generation from user input",
+          "HTML/JavaScript processing in PDFs",
+          "file inclusion capabilities",
+          "server-side rendering engines"
+        ],
+        "failure_modes": [
+          "proper_input_sanitization",
+          "sandboxed_pdf_generation",
+          "no_file_system_access",
+          "content_security_policies"
+        ],
+        "environmental_factors": [
+          "vulnerable_pdf_libraries",
+          "unrestricted_file_access",
+          "server_side_processing",
+          "insufficient_sandboxing"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "Logrotate Race Condition (logrotten)",
+        "success_reason": "Timing vulnerability in logrotate cron execution allowed privilege escalation",
+        "prerequisite_indicators": [
+          "regular_logrotate_execution",
+          "writable_log_directories",
+          "predictable_cron_timing",
+          "vulnerable_logrotate_version"
+        ],
+        "recognition_patterns": [
+          "logrotate cron jobs present",
+          "user writable log files",
+          "timing-based exploitation possible",
+          "race condition windows"
+        ],
+        "failure_modes": [
+          "updated_logrotate_version",
+          "proper_file_permissions",
+          "no_predictable_timing",
+          "sandboxed_execution"
+        ],
+        "environmental_factors": [
+          "legacy_system_components",
+          "predictable_cron_scheduling",
+          "insufficient_permission_controls",
+          "vulnerable_logrotate_implementation"
+        ],
+        "success_probability": 0.55,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "admin@book.htb account enumeration",
+        "discovery_method": "Registration form user enumeration",
+        "why_critical": "Enabled SQL truncation attack for admin access",
+        "how_to_recognize": [
+          "user exists error messages",
+          "different responses for existing vs new users",
+          "email enumeration capability"
+        ],
+        "follow_up_actions": [
+          "attempt_sql_truncation_attack",
+          "test_field_length_limits",
+          "try_account_takeover_methods"
+        ]
+      },
+      {
+        "discovery": "PDF export functionality with user input",
+        "discovery_method": "Admin panel exploration after SQL truncation success",
+        "why_critical": "Allowed XSS-based local file inclusion for SSH key extraction",
+        "how_to_recognize": [
+          "dynamic PDF generation features",
+          "user content included in exports",
+          "server-side PDF processing"
+        ],
+        "follow_up_actions": [
+          "test_xss_in_pdf_generation",
+          "attempt_file_inclusion_payloads",
+          "target_sensitive_system_files"
+        ]
+      },
+      {
+        "discovery": "SSH private key via XSS file read",
+        "discovery_method": "XSS payload in PDF export targeting /home/reader/.ssh/id_rsa",
+        "why_critical": "Provided direct shell access as reader user",
+        "how_to_recognize": [
+          "successful file inclusion in PDF",
+          "SSH key format in output",
+          "readable private key permissions"
+        ],
+        "follow_up_actions": [
+          "extract_and_format_ssh_key",
+          "test_ssh_access",
+          "enumerate_system_for_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web_user",
+        "escalation_method": "SQL_truncation_to_admin_panel",
+        "why_possible": "Database field truncation allowed duplicate admin account creation",
+        "recognition_signs": [
+          "user_enumeration_available",
+          "registration_accepts_long_inputs",
+          "database_truncation_behavior",
+          "weak_duplicate_validation"
+        ],
+        "exploitation_path": "User enumeration → SQL truncation → Admin panel access"
+      },
+      {
+        "privilege_level": "admin_web_user",
+        "escalation_method": "XSS_to_file_read_to_SSH",
+        "why_possible": "PDF generation processed XSS payloads with file system access",
+        "recognition_signs": [
+          "pdf_export_with_user_content",
+          "server_side_pdf_processing",
+          "no_input_sanitization",
+          "file_system_access_available"
+        ],
+        "exploitation_path": "Admin access → XSS in PDF → File read → SSH key → Shell"
+      },
+      {
+        "privilege_level": "reader_user",
+        "escalation_method": "logrotate_race_condition",
+        "why_possible": "Timing vulnerability in logrotate cron execution",
+        "recognition_signs": [
+          "regular_logrotate_crons",
+          "predictable_execution_timing",
+          "writable_log_locations",
+          "vulnerable_logrotate_version"
+        ],
+        "exploitation_path": "Shell access → logrotten exploit → Root privileges"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and exploitation",
+        "reasoning": "Limited attack surface requires deep web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web exploitation fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "admin_panel_discovered",
+          "login_forms_found",
+          "file_upload_functionality"
+        ],
+        "next_decision": "analyze_authentication_mechanisms"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered admin panel with separate authentication",
+        "decision": "Attempt SQL truncation attack against registration",
+        "reasoning": "Admin email enumeration successful, suggests vulnerable user management",
+        "confidence": 0.75,
+        "prerequisites": [
+          "admin_email_enumerated",
+          "registration_form_available"
+        ],
+        "success_indicators": [
+          "duplicate_user_created",
+          "admin_login_successful"
+        ],
+        "failure_fallbacks": [
+          "sql_injection",
+          "password_brute_force",
+          "session_attacks"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Admin panel access obtained with PDF generation functionality",
+        "decision": "Test XSS in PDF generation for local file read",
+        "reasoning": "PDF generators often vulnerable to XSS leading to file disclosure",
+        "confidence": 0.8,
+        "prerequisites": [
+          "admin_access",
+          "pdf_export_feature"
+        ],
+        "success_indicators": [
+          "xss_payload_rendered",
+          "local_files_accessible"
+        ],
+        "failure_fallbacks": [
+          "file_upload_attacks",
+          "path_traversal",
+          "template_injection"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_sql_truncation_succeeds": {
+        "action": "exploit_admin_functionality",
+        "tools": [
+          "burp_suite",
+          "browser"
+        ],
+        "next_phase": "search_for_file_disclosure_vectors"
+      },
+      "if_pdf_xss_succeeds": {
+        "action": "extract_ssh_keys_and_credentials",
+        "targets": [
+          "/home/*/.ssh/id_rsa",
+          "/etc/passwd",
+          "/var/www/html/db.php"
+        ],
+        "next_phase": "ssh_access_with_discovered_keys"
+      },
+      "if_file_read_obtained": {
+        "action": "enumerate_system_files",
+        "purpose": "find_ssh_keys_or_credentials",
+        "tools": [
+          "xss_payload",
+          "pdf_generator"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "test_sql_truncation_on_registration_forms",
+        "reasoning": "common_vulnerability_in_user_management_systems",
+        "applicability": "web_apps_with_user_registration"
+      },
+      {
+        "rule": "test_xss_in_pdf_generators",
+        "reasoning": "pdf_libraries_often_vulnerable_to_script_injection",
+        "applicability": "applications_with_pdf_export_features"
+      },
+      {
+        "rule": "enumerate_admin_emails_first",
+        "reasoning": "admin_accounts_provide_highest_privilege_access",
+        "applicability": "multi_tier_authentication_systems"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL Truncation Attack",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_registration",
+          "mysql_backend_database",
+          "user_input_validation_bypass",
+          "email_field_length_limit"
+        ],
+        "success_indicators": [
+          "registration_form_accepts_long_input",
+          "duplicate_user_creation_possible",
+          "admin_account_exists",
+          "mysql_sql_mode_permissive"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "postgresql_backend",
+          "modern_orm_frameworks",
+          "sql_strict_mode_enabled"
+        ],
+        "confidence_boosters": [
+          "php_mysql_stack_detected",
+          "legacy_web_application",
+          "custom_authentication_system",
+          "no_prepared_statements"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "XSS to Local File Read",
+        "mitre_id": "T1055",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "pdf_generation_functionality",
+          "server_side_pdf_rendering",
+          "user_controlled_content_in_pdf",
+          "file_system_access_from_pdf_engine"
+        ],
+        "success_indicators": [
+          "pdf_export_feature_present",
+          "javascript_execution_in_pdf",
+          "wkhtmltopdf_or_similar_detected",
+          "user_content_rendered_in_pdf"
+        ],
+        "incompatible_with": [
+          "sandboxed_pdf_generation",
+          "client_side_pdf_creation",
+          "strict_content_filtering",
+          "headless_chrome_with_restrictions"
+        ],
+        "confidence_boosters": [
+          "wkhtmltopdf_version_vulnerable",
+          "admin_panel_pdf_exports",
+          "dynamic_content_in_pdfs",
+          "server_side_rendering_detected"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "SSH Private Key Extraction",
+        "mitre_id": "T1552.004",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_running",
+          "private_keys_in_standard_locations",
+          "file_read_vulnerability_available",
+          "user_home_directories_accessible"
+        ],
+        "success_indicators": [
+          "ssh_service_detected",
+          "file_read_primitive_available",
+          "standard_key_paths_readable",
+          "user_enumeration_possible"
+        ],
+        "incompatible_with": [
+          "encrypted_private_keys",
+          "non_standard_key_locations",
+          "file_system_restrictions",
+          "ssh_key_authentication_disabled"
+        ],
+        "confidence_boosters": [
+          "default_ssh_configuration",
+          "multiple_user_accounts",
+          "web_application_file_read",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Logrotate Race Condition (Logrotten)",
+        "mitre_id": "T1053.003",
+        "required_services": [
+          "cron"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "logrotate_cron_job_present",
+          "writable_log_directory",
+          "vulnerable_logrotate_version",
+          "predictable_rotation_timing"
+        ],
+        "success_indicators": [
+          "logrotate_version_3.11.0_or_older",
+          "cron_jobs_enumerated",
+          "log_files_in_writable_directories",
+          "timing_attack_feasible"
+        ],
+        "incompatible_with": [
+          "logrotate_version_3.15_or_newer",
+          "non_writable_log_directories",
+          "custom_logrotate_configuration",
+          "selinux_enforcing_mode"
+        ],
+        "confidence_boosters": [
+          "ubuntu_18.04_detected",
+          "default_logrotate_configuration",
+          "regular_cron_execution",
+          "application_log_rotation"
+        ],
+        "typical_success_rate": 0.71,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "mysql_backend": {
+        "port_indicators": [
+          3306
+        ],
+        "service_indicators": [
+          "mysql"
+        ],
+        "technology_indicators": [
+          "php",
+          "phpmyadmin",
+          "mysql"
+        ],
+        "confidence_threshold": 0.75
+      },
+      "pdf_generation": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "feature_indicators": [
+          "pdf_export",
+          "download.php",
+          "wkhtmltopdf"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "sql_truncation",
+          "when": "registration_form_and_mysql_detected",
+          "reason": "bypasses_authentication_directly"
+        },
+        {
+          "attack": "ssh_key_extraction",
+          "when": "file_read_and_ssh_service_detected",
+          "reason": "direct_system_access_high_success_rate"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "xss_to_file_read",
+          "when": "pdf_generation_feature_detected",
+          "reason": "reliable_but_requires_admin_access"
+        },
+        {
+          "attack": "logrotate_race_condition",
+          "when": "linux_system_and_user_access_available",
+          "reason": "privilege_escalation_timing_dependent"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Truncation Attack",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "Intercept POST request and modify email parameter",
+            "actual_command": "name=0xdf&email=admin%40book.htb++++++.&password=0xdf",
+            "output_pattern": "302 redirect on successful registration",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "known_admin_email",
+          "registration_form_available",
+          "sql_field_length_limitation"
+        ],
+        "success_indicators": [
+          "user_exists_error_bypassed",
+          "successful_registration_with_duplicate_email",
+          "admin_login_successful"
+        ],
+        "common_failures": [
+          "field_length_too_long",
+          "proper_input_validation",
+          "unique_constraints_enforced"
+        ],
+        "follow_up_techniques": [
+          "admin_panel_access",
+          "privilege_escalation",
+          "data_exfiltration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "XSS to Local File Read",
+        "mitre_id": "T1055.012",
+        "category": "defense_evasion",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "JavaScript XMLHttpRequest",
+            "command_template": "<script>x=new XMLHttpRequest;x.onload=function(){document.write(this.responseText)};x.open(\"GET\",\"file:///{filepath}\");x.send();</script>",
+            "actual_command": "<script>x=new XMLHttpRequest;x.onload=function(){document.write(this.responseText)};x.open(\"GET\",\"file:///etc/passwd\");x.send();</script>",
+            "output_pattern": "File contents displayed in PDF",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "pdf_generation_functionality",
+          "server_side_rendering",
+          "javascript_execution_enabled"
+        ],
+        "success_indicators": [
+          "file_contents_visible_in_pdf",
+          "server_filesystem_accessible",
+          "sensitive_files_readable"
+        ],
+        "common_failures": [
+          "javascript_disabled",
+          "file_permissions_restrictive",
+          "input_sanitization_present"
+        ],
+        "follow_up_techniques": [
+          "ssh_key_extraction",
+          "configuration_file_reading",
+          "source_code_analysis"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "SSH Key Extraction",
+        "mitre_id": "T1552.004",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "XSS File Read",
+            "command_template": "<script>x=new XMLHttpRequest;x.onload=function(){document.write(this.responseText)};x.open(\"GET\",\"file:///{ssh_key_path}\");x.send();</script>",
+            "actual_command": "<script>x=new XMLHttpRequest;x.onload=function(){document.write(this.responseText)};x.open(\"GET\",\"file:///home/reader/.ssh/id_rsa\");x.send();</script>",
+            "output_pattern": "-----BEGIN RSA PRIVATE KEY-----",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "file_read_capability",
+          "known_user_accounts",
+          "ssh_keys_present"
+        ],
+        "success_indicators": [
+          "private_key_extracted",
+          "key_format_valid",
+          "ssh_authentication_successful"
+        ],
+        "common_failures": [
+          "keys_not_present",
+          "permission_denied",
+          "encrypted_private_keys"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Logrotate Race Condition",
+        "mitre_id": "T1068",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "logrotten",
+            "command_template": "./logrotten -p {payload_file} {log_file}",
+            "actual_command": "./logrotten -p ./payloadfile /home/reader/backups/access.log",
+            "output_pattern": "Waiting for rotating /home/reader/backups/access.log...",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "logrotate_running_as_root",
+          "writable_log_directory",
+          "predictable_rotation_schedule"
+        ],
+        "success_indicators": [
+          "payload_executed_as_root",
+          "root_shell_obtained",
+          "privilege_escalation_successful"
+        ],
+        "common_failures": [
+          "timing_issues",
+          "logrotate_not_vulnerable",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "sql_truncation_attack",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "manual_curl_requests",
+          "custom_python_scripts"
+        ],
+        "best_practices": [
+          "intercept_all_form_submissions",
+          "test_field_length_limitations",
+          "validate_response_codes"
+        ]
+      },
+      {
+        "tool": "JavaScript XMLHttpRequest",
+        "use_case": "server_side_file_read",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "pdf_generation_exploitation"
+        ],
+        "alternatives": [
+          "iframe_techniques",
+          "object_embedding"
+        ],
+        "best_practices": [
+          "test_multiple_file_paths",
+          "enumerate_common_system_files",
+          "extract_configuration_files"
+        ]
+      },
+      {
+        "tool": "logrotten",
+        "use_case": "logrotate_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "high",
+        "essential_for": [
+          "linux_privilege_escalation"
+        ],
+        "alternatives": [
+          "manual_race_condition_exploitation"
+        ],
+        "best_practices": [
+          "identify_logrotate_schedule",
+          "prepare_payload_in_advance",
+          "monitor_for_rotation_events"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sql_truncation_to_admin_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Test admin email: admin@book.htb",
+            "purpose": "Confirm admin account exists",
+            "expected_output": "User exists error message"
+          },
+          {
+            "step": 2,
+            "command": "POST: name=0xdf&email=admin%40book.htb++++++.&password=0xdf",
+            "purpose": "Register duplicate admin account",
+            "expected_output": "302 redirect indicating success"
+          },
+          {
+            "step": 3,
+            "command": "Login with admin@book.htb / 0xdf",
+            "purpose": "Access admin panel",
+            "expected_output": "Admin dashboard access"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-15 minutes"
+      },
+      {
+        "sequence_name": "xss_to_ssh_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Submit XSS payload in book title field",
+            "purpose": "Test XSS execution in PDF",
+            "expected_output": "Modified PDF content"
+          },
+          {
+            "step": 2,
+            "command": "<script>x=new XMLHttpRequest;x.onload=function(){document.write(this.responseText)};x.open(\"GET\",\"file:///etc/passwd\");x.send();</script>",
+            "purpose": "Read /etc/passwd file",
+            "expected_output": "User accounts in PDF"
+          },
+          {
+            "step": 3,
+            "command": "<script>x=new XMLHttpRequest;x.onload=function(){document.write(this.responseText)};x.open(\"GET\",\"file:///home/reader/.ssh/id_rsa\");x.send();</script>",
+            "purpose": "Extract SSH private key",
+            "expected_output": "RSA private key in PDF"
+          },
+          {
+            "step": 4,
+            "command": "ssh -i id_rsa reader@10.10.10.176",
+            "purpose": "SSH authentication with extracted key",
+            "expected_output": "Shell access as reader user"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "20-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Book",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2020-02-22",
+      "author": "MrR3boot",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "file_system"
+      ],
+      "key_vulnerabilities": [
+        "sql_truncation",
+        "xss_pdf_generation",
+        "logrotate_race_condition"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "sql_truncation_attacks",
+        "xss_exploitation",
+        "timing_attacks",
+        "logrotate_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "sql_injection",
+        "xss_concepts",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "sql_injection",
+        "xss",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "secure_pdf_generation",
+        "proper_logrotate_configuration",
+        "file_permissions"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Craft",
+        "Obscurity",
+        "OpenAdmin"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "file_read_techniques",
+        "linux_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "sql_truncation_attack",
+        "xss_against_pdf_generator",
+        "logrotten_exploit"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "timing_based_exploitation",
+        "multiple_vulnerability_types"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:54:49.542569",
+    "original_file": "0xdf_writeups/Htb Book.md",
+    "content_length": 33322,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

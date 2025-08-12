@@ -1,0 +1,795 @@
+{
+  "writeup_id": "Htb_Sherlock_Noxious",
+  "scenario_fingerprint": {
+    "scenario_name": "llmnr_poisoning_attack",
+    "primary_services": [
+      "llmnr",
+      "smb",
+      "ntlm",
+      "netbios"
+    ],
+    "port_signature": "137+139+445+5355",
+    "service_combination": "llmnr+smb+ntlm",
+    "os_family": "windows",
+    "environment_type": "active_directory",
+    "entry_vector": "llmnr_poisoning",
+    "privilege_path": "credential_capture_to_offline_crack",
+    "attack_complexity": "easy",
+    "estimated_time": "15-30 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "hostname_typo_exploitation",
+      "rogue_responder_device",
+      "ntlm_hash_capture"
+    ],
+    "environmental_clues": [
+      "llmnr_traffic_anomaly",
+      "smb_share_access_attempts",
+      "ntlm_authentication_relaying"
+    ],
+    "similar_scenarios": [
+      "responder_ntlm_relay",
+      "smb_credential_capture"
+    ],
+    "unique_aspects": [
+      "typo_based_poisoning",
+      "network_forensics_focus",
+      "pcap_analysis_required"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "LLMNR_Poisoning",
+        "success_reason": "User made typo in hostname (DCC01 instead of DC01) causing LLMNR fallback",
+        "prerequisite_indicators": [
+          "llmnr_enabled_on_network",
+          "dns_resolution_failures",
+          "smb_share_access_attempts",
+          "ntlm_authentication_enabled"
+        ],
+        "recognition_patterns": [
+          "llmnr queries for non-existent hosts",
+          "multiple responses to same llmnr query",
+          "rogue device responding with own IP",
+          "immediate SMB connection after llmnr response"
+        ],
+        "failure_modes": [
+          "llmnr_disabled",
+          "no_user_typos",
+          "dns_resolution_successful",
+          "kerberos_only_authentication"
+        ],
+        "environmental_factors": [
+          "windows_active_directory_environment",
+          "legacy_name_resolution_protocols",
+          "insufficient_network_segmentation",
+          "default_windows_configurations"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "immediate upon typo"
+      },
+      {
+        "technique": "NetNTLMv2_Hash_Capture",
+        "success_reason": "NTLM fallback authentication after Kerberos failure exposed challenge-response",
+        "prerequisite_indicators": [
+          "ntlm_authentication_enabled",
+          "kerberos_service_unavailable",
+          "smb_connection_established",
+          "domain_authentication_required"
+        ],
+        "recognition_patterns": [
+          "kerberos_authentication_failure",
+          "ntlm_type1_type2_type3_messages",
+          "server_challenge_in_type2",
+          "ntproofstring_in_type3_response"
+        ],
+        "failure_modes": [
+          "kerberos_only_environment",
+          "no_authentication_required",
+          "connection_refused",
+          "encrypted_smb_traffic"
+        ],
+        "environmental_factors": [
+          "mixed_authentication_methods",
+          "legacy_smb_configurations",
+          "domain_joined_machines",
+          "automatic_authentication_fallback"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "seconds after SMB connection"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Rogue device at 172.17.79.135 responding to LLMNR queries",
+        "discovery_method": "LLMNR traffic analysis in Wireshark",
+        "why_critical": "Enabled credential harvesting through hostname spoofing",
+        "how_to_recognize": [
+          "unexpected IP responding to LLMNR queries",
+          "multiple devices claiming same hostname",
+          "non-authoritative LLMNR responses",
+          "timing analysis of responses"
+        ],
+        "follow_up_actions": [
+          "analyze_smb_traffic_to_rogue_device",
+          "extract_ntlm_authentication_data",
+          "identify_compromised_credentials",
+          "trace_attack_timeline"
+        ]
+      },
+      {
+        "discovery": "john.deacon domain credentials captured via NetNTLMv2",
+        "discovery_method": "SMB authentication packet analysis",
+        "why_critical": "Exposed domain user credentials for offline cracking",
+        "how_to_recognize": [
+          "ntlm_type3_message_with_response",
+          "domain_username_in_authentication",
+          "server_challenge_and_client_response_pair",
+          "ipv6_smb_connection_to_attacker"
+        ],
+        "follow_up_actions": [
+          "extract_server_challenge_value",
+          "extract_ntproofstring_value",
+          "reconstruct_hashcat_format",
+          "attempt_password_cracking"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "credential_harvesting_via_typo_exploitation",
+        "why_possible": "User typo triggered LLMNR fallback to malicious responder",
+        "recognition_signs": [
+          "llmnr_queries_for_similar_hostnames",
+          "dns_resolution_failures",
+          "user_attempting_smb_share_access",
+          "automatic_authentication_to_rogue_device"
+        ],
+        "exploitation_path": "User Typo → LLMNR Query → Malicious Response → SMB Auth → NetNTLMv2 Capture → Offline Cracking"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Network capture shows LLMNR traffic in Active Directory environment",
+        "decision": "Filter for LLMNR traffic to identify poisoning attack",
+        "reasoning": "LLMNR poisoning is common AD attack vector that doesn't require credentials",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if no LLMNR traffic found"
+          },
+          {
+            "option": "kerberos_analysis",
+            "when": "if authentication failures present"
+          }
+        ],
+        "success_indicators": [
+          "llmnr_queries_present",
+          "multiple_responses_to_same_query",
+          "rogue_ip_responding"
+        ],
+        "next_decision": "identify_rogue_responder"
+      },
+      {
+        "step": 2,
+        "situation": "LLMNR queries for hostname with suspicious responses",
+        "decision": "Identify rogue device responding to LLMNR queries",
+        "reasoning": "Attacker responds to typo'd hostname queries to capture credentials",
+        "confidence": 0.95,
+        "prerequisites": [
+          "llmnr_traffic_identified",
+          "multiple_responses_seen"
+        ],
+        "success_indicators": [
+          "non_authoritative_responses",
+          "typo_in_hostname"
+        ],
+        "failure_fallbacks": [
+          "dns_analysis",
+          "arp_poisoning_check"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Victim connects to rogue device after LLMNR poisoning",
+        "decision": "Analyze SMB authentication to extract NetNTLMv2 hash",
+        "reasoning": "LLMNR poisoning leads to credential capture via NTLM challenge-response",
+        "confidence": 0.85,
+        "prerequisites": [
+          "smb_connection_to_attacker",
+          "ntlm_authentication_present"
+        ],
+        "success_indicators": [
+          "ntlm_challenge_response_captured",
+          "username_identified"
+        ],
+        "next_decision": "extract_hash_components"
+      }
+    ],
+    "branching_logic": {
+      "if_llmnr_poisoning_confirmed": {
+        "action": "analyze_subsequent_smb_traffic",
+        "tools": [
+          "wireshark",
+          "packet_analysis"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_ntlm_auth_captured": {
+        "action": "extract_hash_components",
+        "components": [
+          "username",
+          "domain",
+          "server_challenge",
+          "ntproofstring",
+          "response"
+        ],
+        "purpose": "reconstruct_crackable_hash"
+      },
+      "if_hash_reconstructed": {
+        "action": "attempt_password_cracking",
+        "tools": [
+          "hashcat",
+          "john"
+        ],
+        "next_phase": "assess_credential_strength"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "filter_llmnr_first_in_ad_environments",
+        "reasoning": "high_success_rate_attack_requiring_no_initial_access",
+        "applicability": "active_directory_network_analysis"
+      },
+      {
+        "rule": "look_for_hostname_typos_in_llmnr_queries",
+        "reasoning": "common_trigger_for_successful_llmnr_poisoning",
+        "applicability": "llmnr_traffic_analysis"
+      },
+      {
+        "rule": "reconstruct_netntlmv2_from_smb_auth",
+        "reasoning": "enables_offline_password_cracking_assessment",
+        "applicability": "ntlm_authentication_captured"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "LLMNR Poisoning",
+        "mitre_id": "T1557.001",
+        "required_services": [
+          "llmnr",
+          "smb"
+        ],
+        "required_ports": [
+          5355,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "llmnr_enabled",
+          "smb_authentication_required",
+          "victim_makes_hostname_typo"
+        ],
+        "success_indicators": [
+          "llmnr_query_for_nonexistent_host",
+          "attacker_responds_to_llmnr_query",
+          "smb_authentication_to_attacker_ip",
+          "ntlm_challenge_response_captured"
+        ],
+        "incompatible_with": [
+          "llmnr_disabled",
+          "network_segmentation_strict",
+          "dns_resolution_working_perfectly"
+        ],
+        "confidence_boosters": [
+          "typos_in_hostname_queries",
+          "multiple_llmnr_responses_from_same_ip",
+          "smb_traffic_following_llmnr_response",
+          "ntlm_hash_capture_visible"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "immediate_on_victim_typo"
+      },
+      {
+        "technique": "SMB Relay Attack",
+        "mitre_id": "T1557.001",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_signing_disabled",
+          "ntlm_authentication_enabled",
+          "victim_connects_to_attacker_smb"
+        ],
+        "success_indicators": [
+          "smb_negotiate_protocol_success",
+          "ntlm_type1_type2_type3_exchange",
+          "authentication_relayed_successfully"
+        ],
+        "incompatible_with": [
+          "smb_signing_required",
+          "kerberos_only_authentication",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_windows_smb_config",
+          "domain_joined_machines",
+          "file_share_access_patterns"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "seconds_after_connection"
+      },
+      {
+        "technique": "NTLM Hash Capture",
+        "mitre_id": "T1003.001",
+        "required_services": [
+          "smb",
+          "http",
+          "ldap"
+        ],
+        "required_ports": [
+          445,
+          80,
+          443,
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ntlm_authentication_enabled",
+          "victim_authenticates_to_attacker",
+          "challenge_response_protocol_used"
+        ],
+        "success_indicators": [
+          "ntlm_type2_challenge_sent",
+          "ntlm_type3_response_received",
+          "ntproofstr_value_captured",
+          "server_challenge_captured"
+        ],
+        "incompatible_with": [
+          "kerberos_only_environment",
+          "certificate_based_auth_only",
+          "modern_authentication_enforced"
+        ],
+        "confidence_boosters": [
+          "legacy_applications_present",
+          "mixed_authentication_environment",
+          "default_ntlm_fallback_enabled"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "immediate_on_auth_attempt"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          135
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "rpc"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "DC01",
+          "domain controller"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "llmnr_vulnerable": {
+        "port_indicators": [
+          5355
+        ],
+        "service_indicators": [
+          "llmnr"
+        ],
+        "traffic_indicators": [
+          "multicast_queries",
+          "hostname_resolution_attempts"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "smb_environment": {
+        "port_indicators": [
+          445,
+          139
+        ],
+        "service_indicators": [
+          "smb",
+          "netbios"
+        ],
+        "share_indicators": [
+          "IPC$",
+          "ADMIN$",
+          "C$"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "llmnr_poisoning",
+          "when": "active_directory_detected_and_llmnr_enabled",
+          "reason": "high_success_rate_captures_credentials_immediately"
+        },
+        {
+          "attack": "smb_relay",
+          "when": "smb_service_detected_and_signing_disabled",
+          "reason": "often_leads_to_credential_capture_or_lateral_movement"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ntlm_hash_capture",
+          "when": "ntlm_authentication_detected",
+          "reason": "reliable_credential_capture_method"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "LLMNR Poisoning",
+        "mitre_id": "T1557.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "Responder",
+            "command_template": "responder -I {interface} -wrf",
+            "actual_command": "responder -I eth0 -wrf",
+            "output_pattern": "NetNTLMv2 hash captured for {username}",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "same_network_segment_as_victim",
+          "llmnr_enabled_on_target_network",
+          "victim_makes_hostname_typo_or_invalid_request"
+        ],
+        "success_indicators": [
+          "llmnr_query_received_and_responded",
+          "smb_connection_established_from_victim",
+          "ntlm_challenge_response_captured"
+        ],
+        "common_failures": [
+          "dns_resolves_before_llmnr_fallback",
+          "network_segmentation_prevents_response",
+          "victim_notices_certificate_warnings"
+        ],
+        "follow_up_techniques": [
+          "netntlmv2_hash_cracking",
+          "credential_spraying",
+          "lateral_movement"
+        ],
+        "time_investment": "passive - waits for victim typos",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "NetNTLMv2 Hash Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 5600 {hash_file} {wordlist}",
+            "actual_command": "hashcat john.deacon.hash /opt/SecLists/Passwords/Leaked-Databases/rockyou.txt",
+            "output_pattern": "{username}::{domain}:{server_challenge}:{ntproofstr}:{response}:{password}",
+            "effectiveness_rating": 4,
+            "reliability": 0.85,
+            "success_factors": [
+              "weak_password",
+              "common_wordlist_hit"
+            ],
+            "crack_time": "4 seconds"
+          }
+        ],
+        "prerequisites": [
+          "captured_netntlmv2_challenge_response",
+          "properly_formatted_hash_for_hashcat"
+        ],
+        "success_indicators": [
+          "password_recovered_successfully",
+          "credentials_validate_against_target"
+        ],
+        "common_failures": [
+          "strong_password_policy_enforced",
+          "password_not_in_wordlist",
+          "insufficient_compute_resources"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "rdp_access",
+          "smb_enumeration"
+        ],
+        "time_investment": "seconds to hours depending on password strength",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "RDP Access with Compromised Credentials",
+        "mitre_id": "T1021.001",
+        "category": "lateral_movement",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "rdesktop",
+            "command_template": "rdesktop -u {username} -p {password} {target_ip}",
+            "actual_command": "rdesktop -u john.deacon -p 'NotMyPassword0k?' 172.17.79.136",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "xfreerdp",
+            "command_template": "xfreerdp /u:{username} /p:{password} /v:{target_ip}",
+            "actual_command": "xfreerdp /u:john.deacon /p:'NotMyPassword0k?' /v:172.17.79.136",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "valid_domain_credentials",
+          "rdp_enabled_on_target",
+          "network_connectivity_to_target"
+        ],
+        "success_indicators": [
+          "successful_rdp_session_established",
+          "desktop_access_achieved",
+          "user_context_confirmed"
+        ],
+        "common_failures": [
+          "rdp_disabled_or_blocked",
+          "network_level_authentication_required",
+          "account_lockout_policies"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "persistence_mechanisms",
+          "data_exfiltration"
+        ],
+        "time_investment": "immediate once credentials obtained",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Responder",
+        "use_case": "llmnr_nbns_poisoning",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "inveigh",
+          "metasploit_auxiliary_modules"
+        ],
+        "best_practices": [
+          "run_on_same_network_segment_as_targets",
+          "monitor_for_victim_hostname_typos",
+          "capture_and_immediately_attempt_hash_cracking"
+        ]
+      },
+      {
+        "tool": "Wireshark",
+        "use_case": "network_forensics_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "medium",
+        "essential_for": [
+          "network_traffic_analysis",
+          "incident_response"
+        ],
+        "alternatives": [
+          "tcpdump",
+          "tshark"
+        ],
+        "best_practices": [
+          "use_display_filters_for_protocol_isolation",
+          "analyze_protocol_hierarchy_for_overview",
+          "examine_endpoints_for_network_mapping"
+        ]
+      },
+      {
+        "tool": "hashcat",
+        "use_case": "netntlmv2_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "password_recovery",
+          "credential_attacks"
+        ],
+        "alternatives": [
+          "john_the_ripper",
+          "hydra"
+        ],
+        "best_practices": [
+          "use_mode_5600_for_netntlmv2",
+          "start_with_common_wordlists",
+          "properly_format_hash_components"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "llmnr_poisoning_to_rdp_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "responder -I eth0 -wrf",
+            "purpose": "Start LLMNR/NBT-NS poisoning",
+            "expected_output": "Listening for LLMNR queries"
+          },
+          {
+            "step": 2,
+            "command": "# Wait for victim typo - DCC01 instead of DC01",
+            "purpose": "Capture NetNTLMv2 hash when victim connects",
+            "expected_output": "NetNTLMv2 hash captured for john.deacon"
+          },
+          {
+            "step": 3,
+            "command": "hashcat -m 5600 captured_hash.txt /usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack captured NetNTLMv2 hash",
+            "expected_output": "Password: NotMyPassword0k?"
+          },
+          {
+            "step": 4,
+            "command": "xfreerdp /u:john.deacon /p:'NotMyPassword0k?' /v:172.17.79.136",
+            "purpose": "Access victim machine via RDP",
+            "expected_output": "Remote desktop session established"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "minutes to hours depending on password strength"
+      },
+      {
+        "sequence_name": "netntlmv2_hash_reconstruction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "# Extract from PCAP: username, domain, server_challenge",
+            "purpose": "Gather hash components from network capture",
+            "expected_output": "john.deacon, FORELA, 601019d191f054f1"
+          },
+          {
+            "step": 2,
+            "command": "# Extract NTProofStr and modified response",
+            "purpose": "Get remaining hash components",
+            "expected_output": "c0cc803a6d9fb5a9082253a04dbd4cd4, 010100000000000080e4d59406c6da01..."
+          },
+          {
+            "step": 3,
+            "command": "# Format: username::domain:server_challenge:ntproofstr:response",
+            "purpose": "Create hashcat-compatible hash format",
+            "expected_output": "john.deacon::FORELA:601019d191f054f1:c0cc803a6d9fb5a9082253a04dbd4cd4:010100000000000080e4d59406c6da01..."
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Noxious",
+      "difficulty": "Very Easy",
+      "os": "Windows Active Directory",
+      "platform": "HackTheBox Sherlock",
+      "release_date": "2024-08-01",
+      "author": "CyberJunkie",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "llmnr_poisoning",
+        "credential_harvesting"
+      ],
+      "key_vulnerabilities": [
+        "llmnr_enabled",
+        "weak_passwords",
+        "user_typos"
+      ],
+      "environment_type": "corporate_active_directory",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "llmnr_poisoning",
+        "ntlm_analysis",
+        "network_forensics"
+      ],
+      "prerequisite_knowledge": [
+        "basic_networking",
+        "wireshark_basics",
+        "ntlm_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "network_forensics",
+      "subcategories": [
+        "llmnr_poisoning",
+        "credential_harvesting",
+        "pcap_analysis"
+      ],
+      "attack_types": [
+        "credential_access",
+        "man_in_the_middle"
+      ],
+      "defensive_lessons": [
+        "disable_llmnr",
+        "monitor_network_traffic",
+        "user_awareness_training"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Responder",
+        "Active",
+        "Sauna"
+      ],
+      "similarity_reasons": [
+        "ad_environment",
+        "credential_harvesting",
+        "network_attacks"
+      ],
+      "unique_aspects": [
+        "sherlock_format",
+        "pcap_analysis_focus",
+        "llmnr_specific"
+      ],
+      "difficulty_factors": [
+        "guided_questions",
+        "clear_attack_pattern",
+        "beginner_friendly"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:33:33.136794",
+    "original_file": "0xdf_writeups/Htb Sherlock Noxious.md",
+    "content_length": 14949,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

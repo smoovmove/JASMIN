@@ -1,0 +1,933 @@
+{
+  "writeup_id": "Htb_Flustered",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_glusterfs_squid_proxy_ssti",
+    "primary_services": [
+      "http",
+      "squid-proxy",
+      "rpcbind",
+      "glusterfs",
+      "ssh"
+    ],
+    "port_signature": "22+80+111+3128+24007+49152+49153",
+    "service_combination": "ssh+http+rpcbind+squid+glusterfs",
+    "os_family": "linux",
+    "environment_type": "distributed_storage",
+    "entry_vector": "unauthenticated_glusterfs_mount",
+    "privilege_path": "glusterfs_to_ssti_to_docker_escape",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "glusterfs_volumes_without_auth",
+      "mysql_data_in_mounted_volume",
+      "squid_proxy_credentials_in_database",
+      "server_side_template_injection",
+      "docker_azure_storage_emulation"
+    ],
+    "environmental_clues": [
+      "multiple_rpc_ports",
+      "ssl_cert_on_high_port",
+      "squid_proxy_blocking_access",
+      "coming_soon_webpage",
+      "debian_10_buster"
+    ],
+    "similar_scenarios": [
+      "storage_based_htb_boxes",
+      "proxy_bypass_scenarios"
+    ],
+    "unique_aspects": [
+      "glusterfs_distributed_storage",
+      "mysql_database_files_accessible",
+      "azure_storage_emulation_container",
+      "multi_stage_volume_access"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "GlusterFS_Volume_Enumeration",
+        "success_reason": "GlusterFS service exposed without authentication allowing volume discovery and mounting",
+        "prerequisite_indicators": [
+          "rpc_ports_open",
+          "glusterfs_service_running",
+          "no_authentication_required"
+        ],
+        "recognition_patterns": [
+          "ports 111, 24007, 49152, 49153 open",
+          "rpcbind service on multiple ports",
+          "gluster volume list succeeds",
+          "showmount -e returns volumes"
+        ],
+        "failure_modes": [
+          "authentication_required",
+          "firewall_blocking_rpc",
+          "no_volumes_exported",
+          "mount_permissions_denied"
+        ],
+        "environmental_factors": [
+          "default_glusterfs_configuration",
+          "internal_network_assumptions",
+          "lack_of_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "MySQL_Data_Directory_Access",
+        "success_reason": "Mounted GlusterFS volume contained MySQL data files with readable database contents",
+        "prerequisite_indicators": [
+          "mysql_data_directory_accessible",
+          "database_files_readable",
+          "no_encryption_at_rest"
+        ],
+        "recognition_patterns": [
+          "mysql directory structure",
+          "*.frm, *.MYD, *.MYI files present",
+          "ibdata files for InnoDB",
+          "readable table structures"
+        ],
+        "failure_modes": [
+          "encrypted_database_files",
+          "file_permissions_restrictive",
+          "database_corruption",
+          "missing_critical_files"
+        ],
+        "environmental_factors": [
+          "shared_storage_for_databases",
+          "backup_storage_exposed",
+          "default_mysql_permissions"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Squid_Proxy_Authentication",
+        "success_reason": "MySQL database contained Squid proxy credentials enabling authenticated proxy access",
+        "prerequisite_indicators": [
+          "squid_proxy_available",
+          "credentials_found_in_database",
+          "basic_auth_configured"
+        ],
+        "recognition_patterns": [
+          "squid service on port 3128",
+          "authentication required errors",
+          "credentials in application database",
+          "proxy access after auth"
+        ],
+        "failure_modes": [
+          "credentials_encrypted",
+          "proxy_misconfigured",
+          "network_restrictions",
+          "credential_rotation"
+        ],
+        "environmental_factors": [
+          "shared_credential_storage",
+          "proxy_for_internal_access",
+          "weak_credential_management"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Server_Side_Template_Injection",
+        "success_reason": "Application source code accessible via proxy revealed SSTI vulnerability in template rendering",
+        "prerequisite_indicators": [
+          "template_engine_in_use",
+          "user_input_in_templates",
+          "source_code_accessible"
+        ],
+        "recognition_patterns": [
+          "template syntax in responses",
+          "user input reflected in templates",
+          "template engine error messages",
+          "code review shows unsafe rendering"
+        ],
+        "failure_modes": [
+          "input_sanitization_present",
+          "template_sandboxing_enabled",
+          "no_user_input_in_templates",
+          "template_engine_secured"
+        ],
+        "environmental_factors": [
+          "development_application",
+          "insufficient_input_validation",
+          "template_engine_defaults"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "20-40 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "GlusterFS volumes without authentication",
+        "discovery_method": "Port enumeration and RPC service identification",
+        "why_critical": "Provided access to MySQL database files containing application credentials",
+        "how_to_recognize": [
+          "multiple RPC ports open (111, 24007, 49152, 49153)",
+          "gluster volume list command succeeds",
+          "mount operations succeed without credentials"
+        ],
+        "follow_up_actions": [
+          "enumerate_all_volumes",
+          "mount_accessible_volumes",
+          "search_for_sensitive_files",
+          "analyze_database_contents"
+        ]
+      },
+      {
+        "discovery": "MySQL database with Squid credentials",
+        "discovery_method": "File system analysis of mounted GlusterFS volume",
+        "why_critical": "Enabled authenticated access to Squid proxy revealing internal application",
+        "how_to_recognize": [
+          "mysql data directory structure",
+          "readable database files",
+          "credential tables in database",
+          "proxy authentication configured"
+        ],
+        "follow_up_actions": [
+          "extract_all_credentials",
+          "test_proxy_authentication",
+          "enumerate_internal_services",
+          "analyze_application_source"
+        ]
+      },
+      {
+        "discovery": "Application source code via authenticated proxy",
+        "discovery_method": "Squid proxy access with extracted credentials",
+        "why_critical": "Source code review revealed SSTI vulnerability for code execution",
+        "how_to_recognize": [
+          "proxy authentication successful",
+          "internal application accessible",
+          "source code or git repositories exposed",
+          "template engine usage in code"
+        ],
+        "follow_up_actions": [
+          "download_complete_source",
+          "identify_template_engines",
+          "find_user_input_paths",
+          "test_ssti_payloads"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_external",
+        "escalation_method": "GlusterFS_to_Database_Access",
+        "why_possible": "GlusterFS volumes mounted without authentication containing sensitive data",
+        "recognition_signs": [
+          "rpc_services_exposed",
+          "gluster_commands_succeed",
+          "database_files_accessible",
+          "no_access_controls"
+        ],
+        "exploitation_path": "Port Scan → RPC Enum → Volume Mount → Database Access"
+      },
+      {
+        "privilege_level": "database_access",
+        "escalation_method": "Credential_Extraction_to_Proxy_Access",
+        "why_possible": "Database contained plaintext credentials for Squid proxy authentication",
+        "recognition_signs": [
+          "credential_tables_readable",
+          "proxy_requires_authentication",
+          "credentials_work_for_proxy",
+          "internal_services_accessible"
+        ],
+        "exploitation_path": "Database Files → Credential Extraction → Proxy Auth → Internal Access"
+      },
+      {
+        "privilege_level": "internal_network_access",
+        "escalation_method": "SSTI_to_Code_Execution",
+        "why_possible": "Application source code revealed unsafe template rendering allowing SSTI",
+        "recognition_signs": [
+          "template_engine_identified",
+          "user_input_in_templates",
+          "no_input_sanitization",
+          "ssti_payloads_execute"
+        ],
+        "exploitation_path": "Source Code Review → SSTI Identification → Payload Crafting → RCE"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,111,3128,24007,49152,49153 open on Linux host",
+        "decision": "Identify GlusterFS based on port combination and prioritize volume enumeration",
+        "reasoning": "Ports 111,24007,49152,49153 strongly indicate GlusterFS distributed storage system",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "squid_proxy_enumeration",
+            "when": "if glusterfs fails"
+          },
+          {
+            "option": "web_application_testing",
+            "when": "if other services fail"
+          }
+        ],
+        "success_indicators": [
+          "gluster_volumes_discovered",
+          "volume_mount_successful",
+          "file_system_access_gained"
+        ],
+        "next_decision": "enumerate_gluster_volumes"
+      },
+      {
+        "step": 2,
+        "situation": "GlusterFS volumes discovered but mount authentication required",
+        "decision": "Search mounted volumes for credential material and configuration files",
+        "reasoning": "GlusterFS often contains application data including databases and config files",
+        "confidence": 0.85,
+        "prerequisites": [
+          "gluster_volume_access",
+          "file_system_readable"
+        ],
+        "success_indicators": [
+          "database_files_found",
+          "credentials_discovered",
+          "application_configs_found"
+        ],
+        "failure_fallbacks": [
+          "squid_proxy_testing",
+          "web_fuzzing",
+          "service_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found MySQL database files in GlusterFS volume",
+        "decision": "Extract and analyze database contents for credentials",
+        "reasoning": "Database files often contain user credentials and application secrets",
+        "confidence": 0.9,
+        "prerequisites": [
+          "mysql_data_files_accessible"
+        ],
+        "success_indicators": [
+          "user_credentials_extracted",
+          "squid_proxy_credentials_found"
+        ],
+        "next_decision": "test_extracted_credentials"
+      },
+      {
+        "step": 4,
+        "situation": "Obtained Squid proxy credentials from database",
+        "decision": "Use proxy access to discover internal applications and services",
+        "reasoning": "Authenticated proxy access reveals internal network and applications",
+        "confidence": 0.85,
+        "prerequisites": [
+          "squid_credentials_valid"
+        ],
+        "success_indicators": [
+          "internal_applications_discovered",
+          "source_code_accessible"
+        ],
+        "next_decision": "analyze_internal_applications"
+      },
+      {
+        "step": 5,
+        "situation": "Found application source code through authenticated proxy",
+        "decision": "Analyze source code for template injection vulnerabilities",
+        "reasoning": "Source code review reveals implementation flaws and injection points",
+        "confidence": 0.8,
+        "prerequisites": [
+          "application_source_accessible"
+        ],
+        "success_indicators": [
+          "template_injection_identified",
+          "payload_crafted"
+        ],
+        "next_decision": "exploit_template_injection"
+      }
+    ],
+    "branching_logic": {
+      "if_glusterfs_volumes_accessible": {
+        "action": "mount_and_enumerate_file_contents",
+        "tools": [
+          "gluster",
+          "mount",
+          "find",
+          "grep"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_database_files_found": {
+        "action": "extract_and_analyze_database",
+        "tools": [
+          "mysql",
+          "sqlite3",
+          "strings"
+        ],
+        "purpose": "find_stored_credentials"
+      },
+      "if_squid_credentials_obtained": {
+        "action": "enumerate_internal_network_through_proxy",
+        "tools": [
+          "curl",
+          "proxychains",
+          "burp"
+        ],
+        "next_phase": "internal_application_discovery"
+      },
+      "if_source_code_accessible": {
+        "action": "code_review_for_vulnerabilities",
+        "focus": [
+          "template_injection",
+          "sql_injection",
+          "file_inclusion"
+        ],
+        "next_phase": "vulnerability_exploitation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_glusterfs_when_ports_111_24007_49152_present",
+        "reasoning": "distinctive_port_combination_indicates_distributed_storage",
+        "applicability": "linux_hosts_with_rpc_services"
+      },
+      {
+        "rule": "always_check_database_files_for_credentials",
+        "reasoning": "databases_commonly_store_user_authentication_data",
+        "applicability": "when_database_files_accessible"
+      },
+      {
+        "rule": "use_authenticated_proxy_for_internal_network_discovery",
+        "reasoning": "proxy_access_reveals_internal_services_and_applications",
+        "applicability": "when_squid_or_proxy_credentials_obtained"
+      },
+      {
+        "rule": "perform_source_code_review_when_available",
+        "reasoning": "source_code_reveals_exact_vulnerabilities_and_exploitation_methods",
+        "applicability": "when_application_source_accessible"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "GlusterFS_Volume_Mount",
+        "mitre_id": "T1021.002",
+        "required_services": [
+          "glusterfs",
+          "rpcbind"
+        ],
+        "required_ports": [
+          111,
+          24007,
+          49152,
+          49153
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "glusterfs_service_running",
+          "rpc_services_accessible",
+          "unauthenticated_volume_access"
+        ],
+        "success_indicators": [
+          "showmount_lists_volumes",
+          "mount_succeeds_without_auth",
+          "readable_files_in_volume"
+        ],
+        "incompatible_with": [
+          "authentication_required",
+          "network_isolation",
+          "mount_permissions_restricted"
+        ],
+        "confidence_boosters": [
+          "multiple_rpc_ports_open",
+          "gluster_default_configuration",
+          "ssl_cert_indicates_gluster"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Squid_Proxy_Exploitation",
+        "mitre_id": "T1090.002",
+        "required_services": [
+          "squid",
+          "http-proxy"
+        ],
+        "required_ports": [
+          3128
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "squid_proxy_running",
+          "credential_access_available",
+          "internal_network_access"
+        ],
+        "success_indicators": [
+          "proxy_accepts_credentials",
+          "internal_services_accessible",
+          "source_code_retrieval"
+        ],
+        "incompatible_with": [
+          "proxy_fully_locked_down",
+          "no_valid_credentials",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "squid_banner_detected",
+          "unauthorized_error_received",
+          "credentials_found_elsewhere"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "SSTI_Flask_Jinja2",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "flask_application_detected",
+          "user_input_reflected",
+          "template_engine_accessible"
+        ],
+        "success_indicators": [
+          "template_syntax_executed",
+          "code_execution_achieved",
+          "error_messages_reveal_flask"
+        ],
+        "incompatible_with": [
+          "input_sanitization_enabled",
+          "template_sandboxing_active",
+          "waf_blocking_payloads"
+        ],
+        "confidence_boosters": [
+          "jinja2_error_messages",
+          "flask_debug_mode",
+          "python_stack_traces"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "20-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "glusterfs": {
+        "port_indicators": [
+          111,
+          24007,
+          49152,
+          49153
+        ],
+        "service_indicators": [
+          "rpcbind",
+          "glusterfs"
+        ],
+        "banner_indicators": [
+          "GlusterFS",
+          "rpc"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "squid_proxy": {
+        "port_indicators": [
+          3128,
+          8080
+        ],
+        "service_indicators": [
+          "squid",
+          "http-proxy"
+        ],
+        "banner_indicators": [
+          "squid",
+          "proxy"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "flask_application": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8000
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "flask",
+          "jinja2",
+          "python"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "glusterfs_volume_enumeration",
+          "when": "multiple_rpc_ports_detected",
+          "reason": "often_provides_unauthenticated_file_access"
+        },
+        {
+          "attack": "ssti_exploitation",
+          "when": "flask_application_detected",
+          "reason": "high_success_rate_direct_code_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "squid_proxy_bypass",
+          "when": "squid_service_detected",
+          "reason": "requires_credentials_but_enables_internal_access"
+        },
+        {
+          "attack": "mysql_data_extraction",
+          "when": "database_files_accessible",
+          "reason": "reliable_credential_source"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "GlusterFS Volume Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gluster",
+            "command_template": "sudo gluster --remote-host={target_ip} volume list",
+            "actual_command": "sudo gluster --remote-host=10.10.11.131 volume list",
+            "output_pattern": "vol1\nvol2",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 {target_ip}",
+            "actual_command": "nmap -p- --min-rate 10000 10.10.11.131",
+            "success_factors": [
+              "glusterfs_ports_identified",
+              "port_24007_open",
+              "port_111_rpc_open"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "glusterfs_service_running",
+          "ports_24007_111_accessible",
+          "glusterfs_client_installed"
+        ],
+        "success_indicators": [
+          "volume_names_enumerated",
+          "multiple_volumes_discovered",
+          "ssl_configuration_identified"
+        ],
+        "common_failures": [
+          "ssl_certificate_requirements",
+          "dns_resolution_failures",
+          "authentication_required"
+        ],
+        "follow_up_techniques": [
+          "volume_mounting",
+          "certificate_extraction",
+          "file_system_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Squid Proxy Enumeration",
+        "mitre_id": "T1090.002",
+        "category": "command_and_control",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl --proxy http://{target_ip}:3128 {test_url}",
+            "actual_command": "curl --proxy http://10.10.11.131:3128 http://10.10.14.6/test.html",
+            "output_pattern": "Cache Access Denied",
+            "effectiveness_rating": 3,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "squid_proxy_accessible",
+          "port_3128_open"
+        ],
+        "success_indicators": [
+          "proxy_response_received",
+          "authentication_requirement_identified",
+          "error_messages_reveal_configuration"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "access_control_restrictions",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "credential_discovery",
+          "proxy_authentication",
+          "internal_network_access"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Web Application Reconnaissance",
+        "mitre_id": "T1595.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u http://{domain}",
+            "actual_command": "feroxbuster -u http://flustered.htb",
+            "output_pattern": "found:0 errors:0",
+            "effectiveness_rating": 2,
+            "reliability": 0.9
+          },
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u http://{target_ip} -H \"Host: FUZZ.{domain}\" -w {wordlist} --hh {hide_chars}",
+            "actual_command": "wfuzz -u http://10.10.11.131 -H \"Host: FUZZ.flustered.htb\" -w /usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt --hh 245",
+            "success_factors": [
+              "subdomain_enumeration",
+              "vhost_discovery"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "domain_names_identified"
+        ],
+        "success_indicators": [
+          "directory_structure_mapped",
+          "subdomains_discovered",
+          "technology_stack_identified"
+        ],
+        "common_failures": [
+          "no_hidden_directories",
+          "no_subdomains_configured",
+          "minimal_attack_surface"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "technology_specific_attacks",
+          "credential_discovery"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gluster",
+        "use_case": "distributed_filesystem_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "glusterfs_environments"
+        ],
+        "alternatives": [
+          "manual_rpc_enumeration",
+          "showmount"
+        ],
+        "best_practices": [
+          "run_as_root_to_avoid_errors",
+          "install_glusterfs_server_package",
+          "check_ssl_requirements_before_mounting"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "service_identification",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "initial_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "use_high_min_rate_for_full_scans",
+          "follow_up_with_service_detection",
+          "correlate_ports_with_known_services"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "glusterfs_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.131",
+            "purpose": "Identify GlusterFS ports",
+            "expected_output": "Ports 111, 24007, 49152, 49153 open"
+          },
+          {
+            "step": 2,
+            "command": "sudo apt install glusterfs-server",
+            "purpose": "Install GlusterFS client tools",
+            "expected_output": "Package installation successful"
+          },
+          {
+            "step": 3,
+            "command": "sudo gluster --remote-host=10.10.11.131 volume list",
+            "purpose": "Enumerate available volumes",
+            "expected_output": "vol1 and vol2 discovered"
+          },
+          {
+            "step": 4,
+            "command": "echo '10.10.11.131 flustered' >> /etc/hosts",
+            "purpose": "Resolve hostname for SSL connections",
+            "expected_output": "DNS resolution configured"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "proxy_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p 3128 -sCV 10.10.11.131",
+            "purpose": "Identify Squid proxy service",
+            "expected_output": "Squid 4.6 identified"
+          },
+          {
+            "step": 2,
+            "command": "curl --proxy http://10.10.11.131:3128 http://127.0.0.1",
+            "purpose": "Test proxy access to localhost",
+            "expected_output": "Cache Access Denied error"
+          },
+          {
+            "step": 3,
+            "command": "curl --proxy http://10.10.11.131:3128 http://10.10.14.6/test.html",
+            "purpose": "Test proxy access to external hosts",
+            "expected_output": "Authentication required message"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Flustered",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2022-01-31",
+      "author": "polarbearer",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "glusterfs",
+        "ssti",
+        "proxy_bypass"
+      ],
+      "key_vulnerabilities": [
+        "unauthenticated_glusterfs_mount",
+        "server_side_template_injection",
+        "exposed_credentials"
+      ],
+      "environment_type": "linux_web_application",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "glusterfs_exploitation",
+        "ssti_exploitation",
+        "proxy_configuration",
+        "docker_container_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "linux_fundamentals",
+        "web_application_security",
+        "template_engines",
+        "file_system_mounting"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "template_injection",
+        "file_system_exploitation",
+        "proxy_bypass"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_glusterfs_configuration",
+        "input_validation",
+        "template_sandboxing",
+        "proxy_access_controls"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bucket",
+        "Pikaboo",
+        "Forge"
+      ],
+      "similarity_reasons": [
+        "proxy_bypass_techniques",
+        "file_system_exploitation",
+        "template_injection"
+      ],
+      "unique_aspects": [
+        "glusterfs_mounting",
+        "azure_storage_emulation",
+        "mysql_data_extraction"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "complex_privilege_escalation_chain",
+        "docker_container_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:13:55.122451",
+    "original_file": "0xdf_writeups/Htb Flustered.md",
+    "content_length": 48343,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

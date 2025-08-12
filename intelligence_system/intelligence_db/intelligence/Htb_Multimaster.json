@@ -1,0 +1,1007 @@
+{
+  "writeup_id": "Htb_Multimaster",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_complex_sqli_privesc",
+    "primary_services": [
+      "http",
+      "kerberos",
+      "ldap",
+      "smb",
+      "dns",
+      "mssql"
+    ],
+    "port_signature": "53+80+88+389+445+1433",
+    "service_combination": "dns+http+kerberos+ldap+smb+mssql",
+    "os_family": "windows_server_2016",
+    "environment_type": "active_directory",
+    "entry_vector": "sql_injection_with_waf_bypass",
+    "privilege_path": "sqli_to_cef_debug_to_genericwrite_to_server_operators",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "waf_protected_sql_injection",
+      "visual_studio_code_cef_debugging",
+      "genericwrite_ad_permissions",
+      "server_operators_group_membership"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "employee_directory_web_app",
+      "json_api_endpoints",
+      "iis_web_server"
+    ],
+    "similar_scenarios": [
+      "forest_htb_insane",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "colleague_finder_sqli",
+      "cef_debugging_socket_exploitation",
+      "multiple_privilege_escalation_paths",
+      "sebackup_restore_privileges"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection_WAF_Bypass",
+        "success_reason": "WAF had character-based filtering that could be bypassed with encoding/alternative syntax",
+        "prerequisite_indicators": [
+          "web_application_with_database",
+          "json_api_endpoints",
+          "waf_blocking_common_payloads"
+        ],
+        "recognition_patterns": [
+          "403 responses to special characters",
+          "JSON API endpoints (/api/*)",
+          "inconsistent blocking patterns",
+          "some characters allowed while others blocked"
+        ],
+        "failure_modes": [
+          "comprehensive_waf_rules",
+          "parameterized_queries",
+          "input_validation_at_application_level",
+          "nosql_backend_instead_of_sql"
+        ],
+        "environmental_factors": [
+          "legacy_waf_configuration",
+          "incomplete_character_blacklisting",
+          "json_input_processing_vulnerabilities"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-90 minutes"
+      },
+      {
+        "technique": "MSSQL_Domain_Enumeration",
+        "success_reason": "SQL injection allowed execution of xp_cmdshell and domain enumeration commands",
+        "prerequisite_indicators": [
+          "mssql_backend_database",
+          "elevated_database_privileges",
+          "xp_cmdshell_enabled_or_enableable"
+        ],
+        "recognition_patterns": [
+          "MSSQL error messages",
+          "domain controller environment",
+          "database service account with domain access",
+          "ability to execute system commands via SQL"
+        ],
+        "failure_modes": [
+          "xp_cmdshell_disabled_and_locked",
+          "database_service_account_restricted",
+          "network_segmentation_blocking_domain_queries"
+        ],
+        "environmental_factors": [
+          "domain_controller_environment",
+          "service_account_over_privileged",
+          "default_mssql_configuration"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "45-120 minutes"
+      },
+      {
+        "technique": "Visual_Studio_Code_CEF_Debug_Socket",
+        "success_reason": "VS Code left CEF debugging socket open allowing remote code execution",
+        "prerequisite_indicators": [
+          "visual_studio_code_running",
+          "cef_debug_port_accessible",
+          "developer_workstation_environment"
+        ],
+        "recognition_patterns": [
+          "port 9222 or similar debug ports open",
+          "CEF/Chrome debug protocol responses",
+          "developer tools accessible remotely",
+          "Runtime.evaluate API available"
+        ],
+        "failure_modes": [
+          "debug_ports_bound_to_localhost_only",
+          "vs_code_not_running",
+          "firewall_blocking_debug_ports"
+        ],
+        "environmental_factors": [
+          "developer_workstation",
+          "insecure_development_practices",
+          "remote_debugging_enabled"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "20-60 minutes"
+      },
+      {
+        "technique": "GenericWrite_Privilege_Abuse",
+        "success_reason": "User had GenericWrite permissions allowing password reset or SPN modification",
+        "prerequisite_indicators": [
+          "active_directory_environment",
+          "genericwrite_permissions_on_target",
+          "ability_to_modify_user_attributes"
+        ],
+        "recognition_patterns": [
+          "bloodhound shows GenericWrite edges",
+          "Set-DomainUserPassword succeeds",
+          "ability to modify servicePrincipalName",
+          "PowerView enumeration shows write permissions"
+        ],
+        "failure_modes": [
+          "no_genericwrite_permissions",
+          "target_account_protected",
+          "password_policy_preventing_changes"
+        ],
+        "environmental_factors": [
+          "default_active_directory_permissions",
+          "over_privileged_service_accounts",
+          "insufficient_delegation_controls"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Server_Operators_Service_Modification",
+        "success_reason": "Server Operators group membership allowed service modification for privilege escalation",
+        "prerequisite_indicators": [
+          "server_operators_group_membership",
+          "service_control_manager_access",
+          "ability_to_modify_service_binpath"
+        ],
+        "recognition_patterns": [
+          "whoami /groups shows Server Operators",
+          "sc config commands succeed",
+          "service modification permissions available",
+          "SeServiceLogonRight privilege"
+        ],
+        "failure_modes": [
+          "not_in_server_operators_group",
+          "service_hardening_preventing_modification",
+          "insufficient_privileges_for_service_control"
+        ],
+        "environmental_factors": [
+          "default_server_operators_permissions",
+          "legacy_service_configurations",
+          "over_privileged_group_memberships"
+        ],
+        "success_probability": 0.91,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SQL injection in /api/getColleagues endpoint",
+        "discovery_method": "Manual testing with WAF bypass techniques",
+        "why_critical": "Led to database credential extraction and domain enumeration",
+        "how_to_recognize": [
+          "JSON API endpoints with database queries",
+          "WAF blocking patterns indicating SQL injection attempts",
+          "Error messages revealing database backend"
+        ],
+        "follow_up_actions": [
+          "enumerate_waf_bypass_techniques",
+          "extract_database_credentials",
+          "use_xp_cmdshell_for_domain_enumeration"
+        ]
+      },
+      {
+        "discovery": "Visual Studio Code CEF debug socket",
+        "discovery_method": "Port enumeration and service identification",
+        "why_critical": "Provided code execution context for user privilege escalation",
+        "how_to_recognize": [
+          "Debug ports (9222, etc.) accessible remotely",
+          "CEF/Chrome DevTools Protocol responses",
+          "Developer workstation indicators"
+        ],
+        "follow_up_actions": [
+          "connect_to_debug_protocol",
+          "use_runtime_evaluate_for_code_execution",
+          "establish_reverse_shell"
+        ]
+      },
+      {
+        "discovery": "Server Operators group membership",
+        "discovery_method": "whoami /groups enumeration",
+        "why_critical": "Direct path to SYSTEM via service modification",
+        "how_to_recognize": [
+          "Server Operators in group membership",
+          "Service control permissions available",
+          "Windows Server environment"
+        ],
+        "follow_up_actions": [
+          "identify_modifiable_services",
+          "change_service_binpath_to_payload",
+          "restart_service_for_system_shell"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "sql_injection",
+        "escalation_method": "Database_Credential_Extraction",
+        "why_possible": "MSSQL backend with elevated privileges and xp_cmdshell access",
+        "recognition_signs": [
+          "mssql_error_messages",
+          "xp_cmdshell_available",
+          "database_service_account_domain_access"
+        ],
+        "exploitation_path": "SQLi → xp_cmdshell → Domain Enumeration → Credential Extraction"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "GenericWrite_to_Password_Reset",
+        "why_possible": "GenericWrite permissions on target user account",
+        "recognition_signs": [
+          "bloodhound_genericwrite_edges",
+          "powerview_write_permissions",
+          "ability_to_modify_user_attributes"
+        ],
+        "exploitation_path": "GenericWrite → Set-DomainUserPassword → User Impersonation"
+      },
+      {
+        "privilege_level": "server_operators_member",
+        "escalation_method": "Service_Modification_to_SYSTEM",
+        "why_possible": "Server Operators group has service modification privileges",
+        "recognition_signs": [
+          "server_operators_group_membership",
+          "service_control_manager_access",
+          "sc_config_command_success"
+        ],
+        "exploitation_path": "Server Operators → Service Modification → SYSTEM Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445 open on Windows host",
+        "decision": "Identify as Domain Controller and prioritize web application enumeration",
+        "reasoning": "Port combination indicates AD DC, but port 80 suggests additional attack surface through web app",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "kerberos_enumeration",
+            "when": "if web app fails"
+          },
+          {
+            "option": "smb_enumeration",
+            "when": "if anonymous access available"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous bind allowed"
+          }
+        ],
+        "success_indicators": [
+          "web_application_accessible",
+          "domain_name_discovered",
+          "user_enumeration_possible"
+        ],
+        "next_decision": "enumerate_web_application_attack_vectors"
+      },
+      {
+        "step": 2,
+        "situation": "Web application with user search functionality found",
+        "decision": "Test for SQL injection in API endpoints",
+        "reasoning": "User search forms commonly vulnerable to SQLi, JSON API suggests backend database",
+        "confidence": 0.85,
+        "prerequisites": [
+          "web_app_accessible",
+          "user_input_forms_found"
+        ],
+        "success_indicators": [
+          "sql_error_messages",
+          "different_response_behaviors",
+          "waf_detection"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "parameter_fuzzing",
+          "nosql_injection"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "WAF detected blocking SQL injection attempts",
+        "decision": "Enumerate WAF rules and find bypass techniques",
+        "reasoning": "WAF enumeration essential before SQLi exploitation",
+        "confidence": 0.8,
+        "prerequisites": [
+          "waf_blocking_detected"
+        ],
+        "success_indicators": [
+          "blocked_characters_identified",
+          "bypass_method_found"
+        ],
+        "failure_fallbacks": [
+          "alternative_endpoints",
+          "different_attack_vectors"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "SQL injection confirmed with WAF bypass",
+        "decision": "Extract database credentials and domain user information",
+        "reasoning": "Database likely contains domain credentials for privilege escalation",
+        "confidence": 0.9,
+        "prerequisites": [
+          "sqli_working",
+          "waf_bypass_functional"
+        ],
+        "success_indicators": [
+          "database_credentials_extracted",
+          "domain_users_enumerated"
+        ],
+        "failure_fallbacks": [
+          "file_system_access",
+          "command_execution"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_web_sqli_succeeds": {
+        "action": "extract_domain_credentials_and_users",
+        "tools": [
+          "custom_sqli_script",
+          "sqlmap_with_waf_bypass"
+        ],
+        "next_phase": "credential_validation_and_lateral_movement"
+      },
+      "if_domain_credentials_obtained": {
+        "action": "enumerate_domain_with_bloodhound",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "bloodhound-python",
+          "evil-winrm"
+        ]
+      },
+      "if_initial_access_gained": {
+        "action": "enumerate_running_services_and_processes",
+        "purpose": "find_additional_attack_vectors",
+        "focus": [
+          "visual_studio_code",
+          "debugging_ports",
+          "writable_dlls"
+        ]
+      },
+      "if_server_operators_membership": {
+        "action": "abuse_service_modification_privileges",
+        "purpose": "escalate_to_system",
+        "tools": [
+          "sc_command",
+          "service_manipulation"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_web_apps_over_kerberos_on_mixed_environments",
+        "reasoning": "web_applications_often_easier_initial_access_vector",
+        "applicability": "domain_controllers_with_web_services"
+      },
+      {
+        "rule": "always_enumerate_waf_before_sqli_exploitation",
+        "reasoning": "waf_bypass_essential_for_successful_injection",
+        "applicability": "web_applications_with_waf_protection"
+      },
+      {
+        "rule": "check_for_alternative_debugging_services_after_initial_access",
+        "reasoning": "development_environments_often_have_exposed_debugging_interfaces",
+        "applicability": "development_or_staging_environments"
+      },
+      {
+        "rule": "enumerate_group_memberships_for_privilege_escalation",
+        "reasoning": "server_operators_and_backup_operators_provide_system_access",
+        "applicability": "domain_user_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "database_backend_exists",
+          "user_input_processing"
+        ],
+        "success_indicators": [
+          "error_messages_revealed",
+          "response_time_variations",
+          "data_extraction_possible"
+        ],
+        "incompatible_with": [
+          "strict_waf_blocking",
+          "parameterized_queries_only",
+          "no_database_backend"
+        ],
+        "confidence_boosters": [
+          "json_api_endpoints",
+          "search_functionality",
+          "legacy_applications"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "30-120 minutes"
+      },
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.87,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "SMB Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb",
+          "netbios-ssn"
+        ],
+        "required_ports": [
+          139,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "network_shares_exist"
+        ],
+        "success_indicators": [
+          "anonymous_access_allowed",
+          "share_enumeration_successful",
+          "file_listing_possible"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "strict_authentication_required",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "domain_controller_present",
+          "windows_server_detected",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Kerberoasting",
+        "mitre_id": "T1558.003",
+        "required_services": [
+          "kerberos",
+          "ldap"
+        ],
+        "required_ports": [
+          88,
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "service_accounts_with_spn",
+          "domain_credentials_available"
+        ],
+        "success_indicators": [
+          "service_tickets_extracted",
+          "spn_accounts_identified",
+          "hash_cracking_successful"
+        ],
+        "incompatible_with": [
+          "no_service_accounts",
+          "strong_service_passwords",
+          "kerberos_disabled"
+        ],
+        "confidence_boosters": [
+          "exchange_services_present",
+          "sql_server_services",
+          "legacy_service_accounts"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "10-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          636,
+          3269
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "globalcatLDAP"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "MEGACORP.LOCAL"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "iis"
+        ],
+        "technology_indicators": [
+          "Microsoft-IIS",
+          "json_api",
+          "employee_portal"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "ldap",
+          "adws",
+          "kpasswd5"
+        ],
+        "banner_indicators": [
+          "Domain Controller",
+          "Windows Server 2016"
+        ],
+        "confidence_threshold": 0.98
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "sql_injection",
+          "when": "web_application_detected_with_search",
+          "reason": "direct_path_to_data_extraction"
+        },
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected",
+          "reason": "high_success_rate_no_creds_needed"
+        },
+        {
+          "attack": "smb_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_usernames_and_shares"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "kerberoasting",
+          "when": "domain_credentials_obtained",
+          "reason": "requires_initial_access_but_reliable"
+        },
+        {
+          "attack": "ldap_enumeration",
+          "when": "ldap_service_accessible",
+          "reason": "user_enumeration_possible"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected_with_waf",
+          "reason": "waf_blocking_makes_ineffective"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Injection with WAF Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -u {url} -w {wordlist} -d '{data}' -H '{headers}' -t 1 --hc 200",
+            "actual_command": "wfuzz -c -u http://10.10.10.179/api/getColleagues -w /usr/share/seclists/Fuzzing/special-chars.txt -d '{\"name\":\"FUZZ\"}' -H 'Content-Type: application/json;charset=utf-8' -t 1 --hc 200",
+            "output_pattern": "403 responses indicate WAF blocking",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "sqlmap",
+            "command_template": "sqlmap -r {request_file} --tamper=charunicodeescape --delay {seconds} --level 5 --risk 3 --batch --proxy {proxy}",
+            "actual_command": "sqlmap -r colleagues.request --tamper=charunicodeescape --delay 5 --level 5 --risk 3 --batch --proxy http://127.0.0.1:8080",
+            "success_factors": [
+              "unicode_encoding_bypass",
+              "time_delays_avoid_rate_limiting",
+              "json_parameter_injection"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_database_backend",
+          "json_api_endpoint",
+          "waf_present_but_bypassable"
+        ],
+        "success_indicators": [
+          "500_errors_on_escape_characters",
+          "time_delays_confirm_injection",
+          "boolean_based_blind_injection_confirmed"
+        ],
+        "common_failures": [
+          "waf_blocks_all_special_characters",
+          "rate_limiting_prevents_enumeration",
+          "unicode_encoding_not_processed"
+        ],
+        "follow_up_techniques": [
+          "database_enumeration",
+          "credential_extraction",
+          "privilege_escalation"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "WAF Bypass via Unicode Encoding",
+        "mitre_id": "T1027",
+        "category": "defense_evasion",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "manual_testing",
+            "command_template": "curl -X POST {url} -H 'Content-Type: application/json;charset=utf-8' -d '{\"name\":\"\\u{hex_value}\"}'",
+            "actual_command": "curl -X POST http://10.10.10.179/api/getColleagues -H 'Content-Type: application/json;charset=utf-8' -d '{\"name\":\"\\u27\"}'",
+            "output_pattern": "SQL error messages indicate successful bypass",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "waf_blocking_standard_sql_characters",
+          "application_processes_unicode_encoding",
+          "json_content_type_with_utf8_charset"
+        ],
+        "success_indicators": [
+          "sql_error_messages_returned",
+          "different_response_than_blocked_requests",
+          "application_processes_unicode_characters"
+        ],
+        "common_failures": [
+          "application_doesnt_decode_unicode",
+          "waf_also_blocks_unicode_encoded_payloads",
+          "incorrect_unicode_encoding_format"
+        ],
+        "follow_up_techniques": [
+          "automated_sql_injection_with_tamper_scripts",
+          "database_enumeration",
+          "credential_extraction"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Domain Controller Reconnaissance",
+        "mitre_id": "T1018",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 -oA {output_prefix} {target}",
+            "actual_command": "nmap -p- --min-rate 10000 -oA .\\scans\\alltcp 10.10.10.179",
+            "output_pattern": "Multiple AD services: 53,88,389,636,3268,3269,9389",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "nmap_scripts",
+            "command_template": "nmap -p {ports} -sC -sV -oA {output_prefix} {target}",
+            "actual_command": "nmap -p 53,80,88,135,139,389,445,464,593,636,3268,3269,5985,9389 -sC -sV -oA .\\scans\\tcpscripts 10.10.10.179",
+            "success_factors": [
+              "domain_name_identified",
+              "os_version_detected",
+              "service_versions_enumerated"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "network_connectivity_to_target",
+          "target_responds_to_tcp_probes"
+        ],
+        "success_indicators": [
+          "domain_name_megacorp_local_identified",
+          "windows_server_2016_detected",
+          "kerberos_ldap_services_confirmed"
+        ],
+        "common_failures": [
+          "firewall_blocks_port_scans",
+          "rate_limiting_prevents_full_enumeration",
+          "services_require_authentication"
+        ],
+        "follow_up_techniques": [
+          "smb_enumeration",
+          "ldap_enumeration",
+          "web_application_testing"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "sqlmap",
+        "use_case": "automated_sql_injection_with_waf_bypass",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "complex_sql_injection_scenarios"
+        ],
+        "alternatives": [
+          "manual_injection",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_charunicodeescape_tamper_for_waf_bypass",
+          "add_delays_to_avoid_rate_limiting",
+          "save_requests_from_burp_for_accurate_replication",
+          "use_proxy_to_monitor_progress"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "waf_character_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "waf_bypass_development"
+        ],
+        "alternatives": [
+          "burp_intruder",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_single_thread_to_avoid_rate_limiting",
+          "test_special_characters_systematically",
+          "filter_expected_responses_to_identify_blocks"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "waf_bypass_sql_injection_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wfuzz -c -u http://10.10.10.179/api/getColleagues -w /usr/share/seclists/Fuzzing/special-chars.txt -d '{\"name\":\"FUZZ\"}' -H 'Content-Type: application/json;charset=utf-8' -t 1 --hc 200",
+            "purpose": "Identify WAF blocked characters",
+            "expected_output": "403 responses for blocked chars: #'<>"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST http://10.10.10.179/api/getColleagues -H 'Content-Type: application/json;charset=utf-8' -d '{\"name\":\"\\u27\"}'",
+            "purpose": "Test unicode encoding bypass",
+            "expected_output": "SQL error message indicating successful bypass"
+          },
+          {
+            "step": 3,
+            "command": "sqlmap -r colleagues.request --tamper=charunicodeescape --delay 5 --level 5 --risk 3 --batch",
+            "purpose": "Automated SQL injection exploitation",
+            "expected_output": "Multiple injection types confirmed: boolean-based blind, stacked queries, time-based blind"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-90 minutes"
+      },
+      {
+        "sequence_name": "domain_controller_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 -oA scans/alltcp 10.10.10.179",
+            "purpose": "Discover all open ports",
+            "expected_output": "22 open ports including AD services"
+          },
+          {
+            "step": 2,
+            "command": "nmap -p 53,80,88,135,139,389,445,464,593,636,3268,3269,5985,9389 -sC -sV -oA scans/tcpscripts 10.10.10.179",
+            "purpose": "Enumerate services and versions",
+            "expected_output": "Domain: MEGACORP.LOCAL, Windows Server 2016"
+          },
+          {
+            "step": 3,
+            "command": "net view 10.10.10.179",
+            "purpose": "Test SMB access without credentials",
+            "expected_output": "Access denied - credentials required"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Multimaster",
+      "difficulty": "Insane",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2020-03-07",
+      "author": "MinatoTW & egre55",
+      "estimated_time": "6-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "waf_bypass",
+        "visual_studio_code_exploit",
+        "active_directory"
+      ],
+      "key_vulnerabilities": [
+        "sql_injection_with_waf",
+        "cef_debugging_socket",
+        "genericwrite_privilege",
+        "server_operators_group"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_sql_injection",
+        "waf_evasion",
+        "vs_code_exploitation",
+        "ad_privilege_escalation",
+        "sebackupprivilege",
+        "zerologon"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_sql_injection",
+        "active_directory_attacks",
+        "windows_privilege_escalation",
+        "mssql_exploitation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "web_exploitation",
+        "sql_injection",
+        "privilege_escalation",
+        "service_exploitation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "waf_configuration",
+        "secure_development_practices",
+        "service_hardening",
+        "privilege_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blackfield",
+        "Cascade",
+        "Monteverde"
+      ],
+      "similarity_reasons": [
+        "complex_ad_environment",
+        "multiple_privilege_escalation_paths",
+        "advanced_windows_exploitation"
+      ],
+      "unique_aspects": [
+        "visual_studio_code_exploitation",
+        "cef_debugging_abuse",
+        "zerologon_alternative",
+        "multi_step_sql_to_domain_admin"
+      ],
+      "difficulty_factors": [
+        "waf_bypass_required",
+        "multiple_complex_pivots",
+        "advanced_ad_attacks",
+        "service_operator_abuse"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:30:59.043867",
+    "original_file": "0xdf_writeups/Htb Multimaster.md",
+    "content_length": 70688,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

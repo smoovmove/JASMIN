@@ -1,0 +1,988 @@
+{
+  "writeup_id": "Htb_Overgraph",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_graphql_xss_chain",
+    "primary_services": [
+      "http",
+      "ssh",
+      "graphql"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx+apache+graphql",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "xss_csti_csrf_chain",
+    "privilege_path": "web_exploit_to_ffmpeg_lfi_to_ssh",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "graphql_api_endpoint",
+      "reflective_xss_vulnerability",
+      "client_side_template_injection",
+      "csrf_token_leak",
+      "ffmpeg_exploitation"
+    ],
+    "environmental_clues": [
+      "nginx_reverse_proxy",
+      "apache_backend_server",
+      "subdomain_enumeration_required",
+      "graphql_mutation_queries",
+      "video_upload_functionality"
+    ],
+    "similar_scenarios": [
+      "web_graphql_injection",
+      "xss_chain_exploitation"
+    ],
+    "unique_aspects": [
+      "multi_stage_web_exploit_chain",
+      "ffmpeg_local_file_read",
+      "arbitrary_file_write_privilege_escalation",
+      "internal_api_subdomain"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "XSS_CSTI_CSRF_Chain",
+        "success_reason": "Client-side template injection in AngularJS combined with reflective XSS and CSRF to steal admin token",
+        "prerequisite_indicators": [
+          "angularjs_application_detected",
+          "client_side_template_processing",
+          "admin_functionality_exists",
+          "csrf_protection_missing"
+        ],
+        "recognition_patterns": [
+          "angular.js in page source",
+          "template expressions {{}} processed",
+          "XSS reflects in DOM context",
+          "admin token in GraphQL responses"
+        ],
+        "failure_modes": [
+          "csp_blocks_inline_scripts",
+          "template_injection_sanitized",
+          "csrf_tokens_implemented",
+          "admin_not_accessible"
+        ],
+        "environmental_factors": [
+          "legacy_angularjs_version",
+          "insufficient_input_validation",
+          "missing_security_headers",
+          "admin_user_activity"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "2-4 hours"
+      },
+      {
+        "technique": "FFmpeg_LFI_Exploitation",
+        "success_reason": "FFmpeg video processing allows local file read through HLS playlist manipulation",
+        "prerequisite_indicators": [
+          "file_upload_functionality",
+          "ffmpeg_processing_backend",
+          "video_conversion_features",
+          "admin_token_available"
+        ],
+        "recognition_patterns": [
+          "video upload endpoints",
+          "ffmpeg in error messages",
+          "HLS playlist support",
+          "file processing delays"
+        ],
+        "failure_modes": [
+          "ffmpeg_version_patched",
+          "file_path_restrictions",
+          "upload_filtering_strict",
+          "processing_sandboxed"
+        ],
+        "environmental_factors": [
+          "vulnerable_ffmpeg_version",
+          "unrestricted_file_access",
+          "predictable_processing_paths"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Binary_Arbitrary_File_Write",
+        "success_reason": "Custom binary with file write capability bypassing heap exploitation complexity",
+        "prerequisite_indicators": [
+          "custom_suid_binary",
+          "file_write_functionality",
+          "input_validation_weak",
+          "privilege_escalation_possible"
+        ],
+        "recognition_patterns": [
+          "unusual binaries in PATH",
+          "file manipulation features",
+          "buffer overflow potential",
+          "arbitrary write primitives"
+        ],
+        "failure_modes": [
+          "modern_exploit_mitigations",
+          "input_validation_strict",
+          "file_permissions_restricted"
+        ],
+        "environmental_factors": [
+          "older_system_protections",
+          "custom_vulnerable_code",
+          "predictable_memory_layout"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "45-90 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "AngularJS Client-Side Template Injection",
+        "discovery_method": "Source code analysis and template expression testing",
+        "why_critical": "Enables XSS payload execution in admin context",
+        "how_to_recognize": [
+          "angular.js library loaded",
+          "template expressions {{}} in responses",
+          "client-side rendering patterns",
+          "DOM-based XSS potential"
+        ],
+        "follow_up_actions": [
+          "craft_csti_payload",
+          "chain_with_csrf_attack",
+          "target_admin_functionality",
+          "extract_admin_tokens"
+        ]
+      },
+      {
+        "discovery": "GraphQL API with admin token exposure",
+        "discovery_method": "Network traffic analysis and API endpoint discovery",
+        "why_critical": "Admin token provides elevated access to video upload functionality",
+        "how_to_recognize": [
+          "graphql endpoint responses",
+          "adminToken field in mutations",
+          "privileged user data exposure",
+          "authentication bypass potential"
+        ],
+        "follow_up_actions": [
+          "enumerate_graphql_schema",
+          "test_admin_endpoints",
+          "exploit_upload_functionality"
+        ]
+      },
+      {
+        "discovery": "FFmpeg video processing vulnerability",
+        "discovery_method": "File upload testing and error message analysis",
+        "why_critical": "Allows local file read to extract SSH keys",
+        "how_to_recognize": [
+          "ffmpeg error messages",
+          "video processing endpoints",
+          "HLS playlist support",
+          "file path manipulation possible"
+        ],
+        "follow_up_actions": [
+          "craft_malicious_video_files",
+          "target_sensitive_files",
+          "extract_ssh_keys",
+          "establish_shell_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_user",
+        "escalation_method": "XSS_CSTI_CSRF_to_admin_token",
+        "why_possible": "AngularJS template injection combined with admin interaction",
+        "recognition_signs": [
+          "client_side_template_processing",
+          "xss_reflection_points",
+          "admin_user_activity",
+          "missing_csrf_protection"
+        ],
+        "exploitation_path": "CSTI payload → XSS execution → CSRF admin token theft → Admin access"
+      },
+      {
+        "privilege_level": "admin_web_user",
+        "escalation_method": "FFmpeg_LFI_to_SSH_access",
+        "why_possible": "Video processing allows arbitrary file read including SSH keys",
+        "recognition_signs": [
+          "video_upload_functionality",
+          "ffmpeg_backend_processing",
+          "file_read_capabilities",
+          "ssh_keys_accessible"
+        ],
+        "exploitation_path": "Admin token → Video upload → FFmpeg LFI → SSH key extraction → Shell access"
+      },
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "Binary_exploitation_file_write",
+        "why_possible": "Custom binary with arbitrary file write bypassing complex heap exploitation",
+        "recognition_signs": [
+          "custom_suid_binaries",
+          "file_write_primitives",
+          "weak_input_validation",
+          "privilege_escalation_vectors"
+        ],
+        "exploitation_path": "Shell access → Binary analysis → Arbitrary file write → Root privilege escalation"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with HTTP redirect to graph.htb",
+        "decision": "Enumerate subdomains and virtual hosts first",
+        "reasoning": "DNS-based routing indicates multiple services/applications",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_web_enumeration",
+            "when": "if subdomain_enum_fails"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if_web_fails"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "different_applications_found",
+          "additional_attack_surface"
+        ],
+        "next_decision": "analyze_discovered_services"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered internal.graph.htb with GraphQL login and registration",
+        "decision": "Attempt to register account and explore GraphQL endpoints",
+        "reasoning": "Registration may provide authenticated access to explore further",
+        "confidence": 0.85,
+        "prerequisites": [
+          "subdomain_enumeration_complete",
+          "graphql_endpoint_identified"
+        ],
+        "success_indicators": [
+          "account_created",
+          "graphql_schema_accessible",
+          "authenticated_requests_possible"
+        ],
+        "failure_fallbacks": [
+          "graphql_introspection",
+          "parameter_fuzzing",
+          "xss_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found AngularJS application with client-side routing",
+        "decision": "Focus on client-side vulnerabilities (XSS, CSTI) rather than directory brute force",
+        "reasoning": "Angular apps with wildcard routing break traditional enumeration but are prone to client-side attacks",
+        "confidence": 0.8,
+        "prerequisites": [
+          "angular_app_identified",
+          "client_side_rendering_confirmed"
+        ],
+        "success_indicators": [
+          "xss_payload_executes",
+          "template_injection_found",
+          "admin_token_accessible"
+        ],
+        "failure_fallbacks": [
+          "graphql_mutations_testing",
+          "file_upload_testing",
+          "csrf_attacks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_subdomain_enum_succeeds": {
+        "action": "enumerate_each_subdomain_separately",
+        "tools": [
+          "wfuzz",
+          "gobuster",
+          "feroxbuster"
+        ],
+        "next_phase": "application_specific_testing"
+      },
+      "if_graphql_found": {
+        "action": "test_graphql_specific_attacks",
+        "alternatives": [
+          "introspection_queries",
+          "mutation_testing",
+          "injection_attempts"
+        ],
+        "decision_criteria": "based_on_authentication_requirements"
+      },
+      "if_angular_app_identified": {
+        "action": "focus_on_client_side_attacks",
+        "purpose": "exploit_client_side_template_injection_and_xss",
+        "tools": [
+          "burp_suite",
+          "custom_payloads",
+          "browser_dev_tools"
+        ]
+      },
+      "if_registration_available": {
+        "action": "create_account_and_explore_authenticated_features",
+        "purpose": "access_additional_functionality",
+        "next_steps": [
+          "token_analysis",
+          "privilege_escalation_enum"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_enumerate_subdomains_when_dns_routing_detected",
+        "reasoning": "dns_based_routing_indicates_multiple_services",
+        "applicability": "web_applications_with_domain_redirects"
+      },
+      {
+        "rule": "test_client_side_attacks_on_spa_applications",
+        "reasoning": "single_page_apps_prone_to_xss_and_template_injection",
+        "applicability": "angular_react_vue_applications"
+      },
+      {
+        "rule": "explore_graphql_introspection_and_mutations",
+        "reasoning": "graphql_often_exposes_more_functionality_than_intended",
+        "applicability": "graphql_endpoints_discovered"
+      },
+      {
+        "rule": "chain_xss_with_csrf_for_admin_token_theft",
+        "reasoning": "admin_functionality_often_accessible_via_token_theft",
+        "applicability": "multi_user_web_applications"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "GraphQL Introspection",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "graphql_endpoint_detected",
+          "introspection_enabled",
+          "web_application_present"
+        ],
+        "success_indicators": [
+          "graphql_schema_returned",
+          "mutation_queries_discovered",
+          "type_definitions_exposed"
+        ],
+        "incompatible_with": [
+          "introspection_disabled",
+          "graphql_not_present",
+          "authentication_required"
+        ],
+        "confidence_boosters": [
+          "graphql_path_detected",
+          "json_content_type",
+          "query_mutation_structure"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Cross-Site Scripting (XSS)",
+        "mitre_id": "T1059.007",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_input_reflected",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "javascript_execution_confirmed",
+          "dom_manipulation_successful",
+          "payload_reflected_unescaped"
+        ],
+        "incompatible_with": [
+          "csp_headers_strict",
+          "input_properly_sanitized",
+          "xss_filters_enabled"
+        ],
+        "confidence_boosters": [
+          "user_input_forms_present",
+          "dynamic_content_generation",
+          "legacy_web_framework"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Client-Side Template Injection (CSTI)",
+        "mitre_id": "T1059.007",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "client_side_templating_detected",
+          "template_syntax_injectable",
+          "javascript_framework_present"
+        ],
+        "success_indicators": [
+          "template_expressions_evaluated",
+          "javascript_context_access",
+          "dom_manipulation_via_template"
+        ],
+        "incompatible_with": [
+          "server_side_rendering_only",
+          "template_sandboxing_enabled",
+          "strict_template_validation"
+        ],
+        "confidence_boosters": [
+          "angular_vue_react_detected",
+          "template_delimiters_visible",
+          "dynamic_content_binding"
+        ],
+        "typical_success_rate": 0.55,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "FFmpeg Exploitation",
+        "mitre_id": "T1203",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ffmpeg_processing_detected",
+          "file_upload_functionality",
+          "media_processing_service"
+        ],
+        "success_indicators": [
+          "local_file_read_achieved",
+          "ffmpeg_error_messages",
+          "media_processing_confirmed"
+        ],
+        "incompatible_with": [
+          "ffmpeg_not_present",
+          "file_upload_disabled",
+          "strict_file_validation"
+        ],
+        "confidence_boosters": [
+          "video_audio_upload_forms",
+          "media_conversion_features",
+          "ffmpeg_version_disclosure"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "graphql_endpoint": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "path_indicators": [
+          "/graphql",
+          "/api/graphql",
+          "/v1/graphql"
+        ],
+        "content_indicators": [
+          "query",
+          "mutation",
+          "subscription",
+          "__schema"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "media_processing": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "feature_indicators": [
+          "upload",
+          "convert",
+          "process",
+          "ffmpeg"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "graphql_introspection",
+          "when": "graphql_endpoint_detected",
+          "reason": "reveals_complete_api_schema_and_mutations"
+        },
+        {
+          "attack": "subdomain_enumeration",
+          "when": "dns_based_routing_detected",
+          "reason": "often_reveals_internal_services"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "xss_chain_exploitation",
+          "when": "complex_web_application_detected",
+          "reason": "enables_privilege_escalation_via_admin_token_theft"
+        },
+        {
+          "attack": "ffmpeg_exploitation",
+          "when": "media_upload_functionality_detected",
+          "reason": "reliable_local_file_read_primitive"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "static_content_detected",
+          "reason": "limited_attack_surface_on_static_sites"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "GraphQL Introspection",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "GraphQL Playground",
+            "command_template": "Navigate to {target}/graphql and use introspection query",
+            "actual_command": "Copy introspection query from GraphQL Voyager and paste into playground",
+            "output_pattern": "JSON schema with mutations, queries, and types",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "GraphQLVoyager",
+            "command_template": "Paste introspection results into https://ivangoncharov.github.io/graphql-voyager/",
+            "actual_command": "Visual schema analysis of GraphQL API",
+            "success_factors": [
+              "introspection_enabled",
+              "schema_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "graphql_endpoint_accessible",
+          "introspection_enabled"
+        ],
+        "success_indicators": [
+          "schema_structure_revealed",
+          "mutations_and_queries_identified",
+          "sensitive_fields_discovered"
+        ],
+        "common_failures": [
+          "introspection_disabled",
+          "authentication_required",
+          "rate_limiting_active"
+        ],
+        "follow_up_techniques": [
+          "graphql_injection",
+          "mutation_abuse",
+          "information_disclosure"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Reflective XSS Chain",
+        "mitre_id": "T1189",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "Browser Developer Tools",
+            "command_template": "Inject XSS payload in vulnerable parameter",
+            "actual_command": "Chain XSS -> CSTI -> CSRF to leak admin token",
+            "output_pattern": "Admin token extracted via chained exploitation",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "xss_vulnerability_present",
+          "admin_user_interaction",
+          "csrf_protection_absent"
+        ],
+        "success_indicators": [
+          "javascript_execution_confirmed",
+          "admin_token_leaked",
+          "elevated_access_obtained"
+        ],
+        "common_failures": [
+          "csp_blocking_execution",
+          "input_sanitization",
+          "admin_not_active"
+        ],
+        "follow_up_techniques": [
+          "authenticated_file_upload",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "30-120 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "FFmpeg Local File Read",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "FFmpeg HLS Exploit",
+            "command_template": "Create malicious HLS playlist to read local files",
+            "actual_command": "Upload crafted video file exploiting FFmpeg to read SSH keys",
+            "output_pattern": "Local file contents extracted line by line",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "ffmpeg_processing_user_input",
+          "file_upload_functionality",
+          "hls_playlist_processing"
+        ],
+        "success_indicators": [
+          "local_file_contents_retrieved",
+          "ssh_keys_extracted",
+          "sensitive_data_accessed"
+        ],
+        "common_failures": [
+          "ffmpeg_version_patched",
+          "file_path_restrictions",
+          "processing_sandboxed"
+        ],
+        "follow_up_techniques": [
+          "ssh_key_authentication",
+          "privilege_escalation",
+          "persistence"
+        ],
+        "time_investment": "45-90 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Arbitrary File Write Exploitation",
+        "mitre_id": "T1574.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "Custom Binary Exploit",
+            "command_template": "Exploit binary with arbitrary file write capability",
+            "actual_command": "Use file write to overwrite sensitive system files",
+            "output_pattern": "Root access obtained via file system manipulation",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_binary_present",
+          "arbitrary_write_primitive",
+          "target_files_writable"
+        ],
+        "success_indicators": [
+          "system_files_modified",
+          "root_access_achieved",
+          "privilege_escalation_complete"
+        ],
+        "common_failures": [
+          "file_permissions_blocking",
+          "binary_protections_active",
+          "heap_exploitation_required"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "GraphQL Playground",
+        "use_case": "api_reconnaissance",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "graphql_applications"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "postman"
+        ],
+        "best_practices": [
+          "always_try_introspection_first",
+          "analyze_mutations_for_privilege_escalation",
+          "look_for_sensitive_fields_in_schema"
+        ]
+      },
+      {
+        "tool": "GraphQLVoyager",
+        "use_case": "schema_visualization",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "complex_graphql_schemas"
+        ],
+        "alternatives": [
+          "manual_schema_analysis"
+        ],
+        "best_practices": [
+          "use_after_introspection_query",
+          "focus_on_admin_related_fields",
+          "identify_mutation_chains"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_enumeration",
+        "effectiveness_rating": 3,
+        "reliability": 0.7,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "handle_wildcard_responses_carefully",
+          "try_multiple_http_methods",
+          "adjust_filters_for_spa_applications"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "graphql_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Navigate to http://internal-api.graph.htb/graphql",
+            "purpose": "Access GraphQL playground",
+            "expected_output": "GraphQL query interface"
+          },
+          {
+            "step": 2,
+            "command": "Copy introspection query from GraphQLVoyager",
+            "purpose": "Obtain schema introspection query",
+            "expected_output": "Introspection query text"
+          },
+          {
+            "step": 3,
+            "command": "Execute introspection query in playground",
+            "purpose": "Extract complete GraphQL schema",
+            "expected_output": "JSON schema with User object, login mutation, admin fields"
+          },
+          {
+            "step": 4,
+            "command": "Paste results into GraphQLVoyager",
+            "purpose": "Visualize schema relationships",
+            "expected_output": "Visual schema showing adminToken and admin fields"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "xss_to_admin_token",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Identify XSS vulnerability in application",
+            "purpose": "Find reflective XSS entry point",
+            "expected_output": "JavaScript execution in admin context"
+          },
+          {
+            "step": 2,
+            "command": "Chain XSS with CSTI payload",
+            "purpose": "Exploit client-side template injection",
+            "expected_output": "Template processing in admin session"
+          },
+          {
+            "step": 3,
+            "command": "Execute CSRF to leak admin token",
+            "purpose": "Extract admin authentication token",
+            "expected_output": "Admin token value retrieved"
+          }
+        ],
+        "success_rate": 0.65,
+        "typical_duration": "60-180 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Overgraph",
+      "difficulty": "Hard",
+      "os": "Linux Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2022-04-30",
+      "author": "Xclow3n",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "client_side_attacks",
+        "binary_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "xss",
+        "csti",
+        "csrf",
+        "ffmpeg_lfi",
+        "arbitrary_file_write"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_web_exploitation",
+        "attack_chaining",
+        "ffmpeg_exploitation",
+        "binary_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_security",
+        "javascript",
+        "template_injection",
+        "binary_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "client_side_attacks",
+        "file_upload",
+        "binary_exploitation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "initial_access"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "csp_implementation",
+        "secure_file_upload",
+        "ffmpeg_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bucket",
+        "Pikaboo",
+        "Timing"
+      ],
+      "similarity_reasons": [
+        "complex_web_exploitation",
+        "attack_chaining",
+        "advanced_techniques"
+      ],
+      "unique_aspects": [
+        "xss_csti_csrf_chain",
+        "ffmpeg_lfi_exploitation",
+        "video_upload_abuse"
+      ],
+      "difficulty_factors": [
+        "multiple_exploit_chaining",
+        "advanced_web_techniques",
+        "complex_attack_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T18:41:51.701586",
+    "original_file": "0xdf_writeups/Htb Overgraph.md",
+    "content_length": 65260,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

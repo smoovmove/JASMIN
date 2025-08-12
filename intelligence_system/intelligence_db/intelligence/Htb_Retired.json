@@ -1,0 +1,958 @@
+{
+  "writeup_id": "Htb_Retired",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_buffer_overflow_lfi",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "file_upload_buffer_overflow",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.85,
+    "distinguishing_factors": [
+      "php_lfi_vulnerability",
+      "file_upload_functionality",
+      "binary_buffer_overflow",
+      "rop_chain_exploitation"
+    ],
+    "environmental_clues": [
+      "nginx_web_server",
+      "debian_11_bullseye",
+      "php_page_parameter",
+      "beta_testing_upload_form"
+    ],
+    "similar_scenarios": [
+      "buffer_overflow_web_apps",
+      "lfi_to_rce_scenarios"
+    ],
+    "unique_aspects": [
+      "symlink_backup_directory_abuse",
+      "binfmt_misc_privilege_escalation",
+      "rop_stack_execution",
+      "emuemu_license_application"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "File Read via PHP Parameter",
+        "success_reason": "index.php used readfile() with insufficient input validation",
+        "prerequisite_indicators": [
+          "php_application_present",
+          "url_parameter_includes_files",
+          "readfile_function_used"
+        ],
+        "recognition_patterns": [
+          "URL pattern: index.php?page=filename",
+          "302 redirects on invalid input",
+          "PHP source visible when reading .php files"
+        ],
+        "failure_modes": [
+          "proper_input_validation",
+          "whitelist_based_filtering",
+          "file_extension_restrictions"
+        ],
+        "environmental_factors": [
+          "weak_regex_validation",
+          "single_pass_sanitization",
+          "developer_inexperience"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Directory Traversal Bypass",
+        "success_reason": "Sanitization function only performed single-pass replacement",
+        "prerequisite_indicators": [
+          "string_replacement_sanitization",
+          "single_pass_filtering",
+          "regex_allows_stacking"
+        ],
+        "recognition_patterns": [
+          "str_replace used for ../ filtering",
+          "no recursive sanitization",
+          "payload: ...../// becomes ../ after filtering"
+        ],
+        "failure_modes": [
+          "recursive_sanitization",
+          "proper_path_canonicalization",
+          "chroot_restrictions"
+        ],
+        "environmental_factors": [
+          "common_php_antipattern",
+          "insufficient_security_review",
+          "copy_paste_security_code"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Buffer Overflow in Custom Binary",
+        "success_reason": "activate_license binary had unchecked strcpy operations",
+        "prerequisite_indicators": [
+          "custom_compiled_binary",
+          "file_processing_functionality",
+          "no_modern_protections"
+        ],
+        "recognition_patterns": [
+          "segmentation fault on large input",
+          "binary analysis shows strcpy usage",
+          "stack canaries disabled"
+        ],
+        "failure_modes": [
+          "stack_canaries_enabled",
+          "aslr_enabled",
+          "input_length_validation"
+        ],
+        "environmental_factors": [
+          "legacy_compilation_flags",
+          "developer_unfamiliarity_with_secure_coding",
+          "insufficient_testing"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "45-90 minutes"
+      },
+      {
+        "technique": "ROP Chain Exploitation",
+        "success_reason": "Binary had sufficient ROP gadgets and no ASLR",
+        "prerequisite_indicators": [
+          "buffer_overflow_present",
+          "rop_gadgets_available",
+          "no_aslr_protection"
+        ],
+        "recognition_patterns": [
+          "ropper/ROPgadget finds useful gadgets",
+          "mprotect available in binary",
+          "predictable memory layout"
+        ],
+        "failure_modes": [
+          "insufficient_gadgets",
+          "aslr_enabled",
+          "stack_pivot_unavailable"
+        ],
+        "environmental_factors": [
+          "older_compilation_environment",
+          "static_linking_patterns",
+          "predictable_stack_layout"
+        ],
+        "success_probability": 0.55,
+        "typical_timeframe": "60-120 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "activate_license binary via file read",
+        "discovery_method": "Directory traversal to read /usr/bin/activate_license",
+        "why_critical": "Binary contained exploitable buffer overflow",
+        "how_to_recognize": [
+          "custom binary in standard locations",
+          "file processing functionality",
+          "mentioned in web application context"
+        ],
+        "follow_up_actions": [
+          "download_binary_for_analysis",
+          "test_with_large_inputs",
+          "analyze_with_ghidra_or_ida"
+        ]
+      },
+      {
+        "discovery": "File upload processes through activate_license",
+        "discovery_method": "Correlation between upload form and binary discovery",
+        "why_critical": "Provided attack vector for buffer overflow exploitation",
+        "how_to_recognize": [
+          "upload form with no visible response",
+          "backend processing of uploaded files",
+          "custom license validation mentioned"
+        ],
+        "follow_up_actions": [
+          "test_upload_with_malicious_payloads",
+          "monitor_system_responses",
+          "craft_buffer_overflow_exploit"
+        ]
+      },
+      {
+        "discovery": "SSH key via symlink in backup directory",
+        "discovery_method": "Symlink attack on automated backup process",
+        "why_critical": "Provided user-level access escalation",
+        "how_to_recognize": [
+          "automated_backup_processes",
+          "writable_backup_source_directory",
+          "symlink_following_enabled"
+        ],
+        "follow_up_actions": [
+          "create_symlink_to_ssh_keys",
+          "wait_for_backup_process",
+          "extract_private_keys"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "symlink_attack_on_backup",
+        "why_possible": "Automated backup process followed symlinks from writable directory",
+        "recognition_signs": [
+          "cron_jobs_running_backups",
+          "writable_source_directories",
+          "backup_process_runs_as_different_user"
+        ],
+        "exploitation_path": "Create symlink → Wait for backup → Extract SSH keys → User access"
+      },
+      {
+        "privilege_level": "user",
+        "escalation_method": "binfmt_misc_abuse",
+        "why_possible": "User could register custom binary formats and execute as root",
+        "recognition_signs": [
+          "binfmt_misc_filesystem_writable",
+          "custom_binary_format_registration",
+          "root_execution_context"
+        ],
+        "exploitation_path": "Register malicious binary format → Trigger execution → Root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with nginx",
+        "decision": "Enumerate web application for vulnerabilities",
+        "reasoning": "Limited attack surface suggests web app is primary entry point",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "directory_traversal_found",
+          "file_upload_functionality",
+          "php_parameter_injection"
+        ],
+        "next_decision": "exploit_file_read_vulnerability"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered PHP file read via index.php?page= parameter",
+        "decision": "Bypass sanitization to achieve directory traversal",
+        "reasoning": "Weak sanitization allows bypass with stacked characters",
+        "confidence": 0.95,
+        "prerequisites": [
+          "php_source_code_readable",
+          "sanitization_logic_understood"
+        ],
+        "success_indicators": [
+          "etc_passwd_readable",
+          "arbitrary_file_access"
+        ],
+        "failure_fallbacks": [
+          "ear_vulnerability",
+          "alternative_parameters"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "File read achieved, found binary application mentioned",
+        "decision": "Extract binary for reverse engineering",
+        "reasoning": "Binary likely processes uploaded files and may have vulnerabilities",
+        "confidence": 0.8,
+        "prerequisites": [
+          "file_read_working",
+          "binary_path_known"
+        ],
+        "success_indicators": [
+          "binary_downloaded",
+          "buffer_overflow_identified"
+        ],
+        "next_decision": "develop_buffer_overflow_exploit"
+      },
+      {
+        "step": 4,
+        "situation": "Buffer overflow identified in binary",
+        "decision": "Develop ROP chain exploit via file upload",
+        "reasoning": "File upload processes through vulnerable binary",
+        "confidence": 0.85,
+        "prerequisites": [
+          "buffer_overflow_confirmed",
+          "rop_gadgets_found"
+        ],
+        "success_indicators": [
+          "reverse_shell_obtained",
+          "www-data_access"
+        ],
+        "next_decision": "enumerate_for_privilege_escalation"
+      }
+    ],
+    "branching_logic": {
+      "if_file_read_succeeds": {
+        "action": "enumerate_system_files_and_binaries",
+        "tools": [
+          "curl",
+          "custom_script"
+        ],
+        "next_phase": "binary_analysis"
+      },
+      "if_binary_vulnerable": {
+        "action": "develop_exploit_payload",
+        "alternatives": [
+          "rop_chain",
+          "shellcode_injection"
+        ],
+        "decision_criteria": "based_on_stack_protections"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_privilege_escalation",
+        "purpose": "find_path_to_root",
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_php_include_parameters_for_lfi",
+        "reasoning": "common_vulnerability_pattern_in_php_applications",
+        "applicability": "php_applications_with_page_parameters"
+      },
+      {
+        "rule": "extract_binaries_when_file_read_available",
+        "reasoning": "binaries_often_contain_exploitable_vulnerabilities",
+        "applicability": "file_read_vulnerability_confirmed"
+      },
+      {
+        "rule": "test_ear_vulnerability_on_redirect_responses",
+        "reasoning": "execute_after_redirect_often_overlooked",
+        "applicability": "applications_with_redirect_logic"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_file_inclusion",
+          "url_parameter_accepts_file_paths",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "file_contents_returned_in_response",
+          "error_messages_reveal_file_paths",
+          "different_response_codes_for_valid_invalid_files"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "chroot_jail_enabled",
+          "web_application_firewall_blocking"
+        ],
+        "confidence_boosters": [
+          "php_file_inclusion_patterns",
+          "page_parameter_in_url",
+          "template_based_applications"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Buffer Overflow Exploitation",
+        "mitre_id": "T1055",
+        "required_services": [
+          "custom_binary_service"
+        ],
+        "required_ports": [
+          "varies"
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "vulnerable_binary_accessible",
+          "user_controlled_input_to_binary",
+          "stack_execution_possible"
+        ],
+        "success_indicators": [
+          "segmentation_fault_on_long_input",
+          "control_of_instruction_pointer",
+          "successful_rop_chain_execution"
+        ],
+        "incompatible_with": [
+          "stack_canaries_enabled",
+          "aslr_full_randomization",
+          "nx_bit_enforced_strictly"
+        ],
+        "confidence_boosters": [
+          "legacy_binary_compilation",
+          "custom_file_processing_applications",
+          "minimal_security_mitigations"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "2-6 hours"
+      },
+      {
+        "technique": "File Upload Vulnerability",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality_present",
+          "insufficient_file_type_validation",
+          "uploaded_files_processed_by_system"
+        ],
+        "success_indicators": [
+          "file_upload_accepts_malicious_content",
+          "uploaded_file_executed_by_backend",
+          "file_contents_processed_without_sanitization"
+        ],
+        "incompatible_with": [
+          "strict_file_type_validation",
+          "sandboxed_file_processing",
+          "antivirus_scanning_uploads"
+        ],
+        "confidence_boosters": [
+          "beta_testing_applications",
+          "file_processing_services",
+          "minimal_upload_restrictions"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "30-90 minutes"
+      },
+      {
+        "technique": "SSH Key Extraction",
+        "mitre_id": "T1552.004",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_running",
+          "file_system_access_available",
+          "user_home_directories_accessible"
+        ],
+        "success_indicators": [
+          "private_key_files_readable",
+          "ssh_authentication_successful",
+          "authorized_keys_files_found"
+        ],
+        "incompatible_with": [
+          "encrypted_private_keys",
+          "strict_file_permissions",
+          "key_based_auth_disabled"
+        ],
+        "confidence_boosters": [
+          "backup_directories_present",
+          "symlink_creation_possible",
+          "automated_backup_processes"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "Apache",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          "index.php",
+          "page parameter"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Debian",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "file_upload_service": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "upload form",
+          "beta testing",
+          "file processing"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_traversal",
+          "when": "php_file_inclusion_detected",
+          "reason": "quick_wins_for_file_access_and_reconnaissance"
+        },
+        {
+          "attack": "file_upload_exploitation",
+          "when": "upload_functionality_present",
+          "reason": "direct_path_to_code_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "buffer_overflow",
+          "when": "custom_binary_identified",
+          "reason": "high_impact_but_time_intensive"
+        },
+        {
+          "attack": "ssh_key_extraction",
+          "when": "file_system_access_gained",
+          "reason": "reliable_privilege_escalation_method"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Directory Traversal via Filter Bypass",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/index.php?page=css/.....///.....///.....///.....///{file_path}",
+            "actual_command": "curl http://10.10.11.154/index.php?page=css/.....///.....///.....///.....///etc/passwd",
+            "output_pattern": "File contents displayed in response",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_php_readfile_implementation",
+          "weak_input_sanitization",
+          "accessible_web_application"
+        ],
+        "success_indicators": [
+          "file_contents_returned",
+          "system_files_accessible",
+          "no_error_messages"
+        ],
+        "common_failures": [
+          "path_blocked_by_regex",
+          "file_permissions_deny_access",
+          "file_does_not_exist"
+        ],
+        "follow_up_techniques": [
+          "binary_extraction",
+          "source_code_analysis",
+          "service_enumeration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Execute After Redirect (EAR)",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "burp_suite",
+            "command_template": "GET /index.php?page=../../../../../../{file_path}",
+            "actual_command": "GET /index.php?page=../../../../../../etc/passwd",
+            "output_pattern": "302 redirect with file contents in response body",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "missing_exit_after_header_redirect",
+          "continued_code_execution_after_redirect",
+          "accessible_web_application"
+        ],
+        "success_indicators": [
+          "302_response_with_file_contents",
+          "bypass_of_input_validation",
+          "access_to_restricted_files"
+        ],
+        "common_failures": [
+          "proper_exit_after_redirect",
+          "browser_follows_redirect_automatically",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "binary_extraction",
+          "service_discovery"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Binary Extraction via File Read",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u http://{target}/index.php?page=css/.....///.....///.....///.....///FUZZ/{binary_name} -w {wordlist}",
+            "actual_command": "wfuzz -u http://10.10.11.154/index.php?page=css/.....///.....///.....///.....///FUZZ/activate_license -w path",
+            "output_pattern": "Non-zero response length indicates file found",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "file_read_vulnerability",
+          "knowledge_of_target_binary_name",
+          "common_system_paths_accessible"
+        ],
+        "success_indicators": [
+          "binary_file_downloaded",
+          "non_zero_response_length",
+          "valid_executable_format"
+        ],
+        "common_failures": [
+          "binary_not_in_expected_paths",
+          "insufficient_file_permissions",
+          "binary_name_unknown"
+        ],
+        "follow_up_techniques": [
+          "reverse_engineering",
+          "buffer_overflow_analysis",
+          "exploit_development"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Socket Communication Analysis",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "source_code_analysis",
+            "command_template": "curl http://{target}/index.php?page={php_file}",
+            "actual_command": "curl http://10.10.11.154/index.php?page=activate_license.php",
+            "output_pattern": "PHP source code revealing socket communication",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "php_source_code_accessible",
+          "file_read_vulnerability",
+          "target_application_identified"
+        ],
+        "success_indicators": [
+          "socket_communication_protocol_identified",
+          "target_port_discovered",
+          "data_format_understood"
+        ],
+        "common_failures": [
+          "source_code_obfuscated",
+          "file_not_accessible",
+          "complex_protocol_implementation"
+        ],
+        "follow_up_techniques": [
+          "buffer_overflow_exploitation",
+          "binary_analysis",
+          "payload_crafting"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "file_read_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "directory_traversal_attacks"
+        ],
+        "alternatives": [
+          "wget",
+          "burp_suite",
+          "browser"
+        ],
+        "best_practices": [
+          "script_repetitive_commands",
+          "url_encode_special_characters",
+          "verify_file_integrity_after_download"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "path_enumeration_via_lfi",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "medium",
+        "essential_for": [
+          "automated_file_discovery"
+        ],
+        "alternatives": [
+          "ffuf",
+          "gobuster",
+          "manual_testing"
+        ],
+        "best_practices": [
+          "use_targeted_wordlists",
+          "filter_by_response_characteristics",
+          "validate_positive_results_manually"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_reconnaissance"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "dirb"
+        ],
+        "best_practices": [
+          "include_relevant_file_extensions",
+          "adjust_thread_count_for_target",
+          "use_appropriate_wordlists"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "directory_traversal_to_binary_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://10.10.11.154/index.php?page=index.php",
+            "purpose": "Read PHP source to understand filtering",
+            "expected_output": "PHP source code with sanitization logic"
+          },
+          {
+            "step": 2,
+            "command": "curl http://10.10.11.154/index.php?page=css/.....///.....///.....///.....///etc/passwd",
+            "purpose": "Test directory traversal bypass",
+            "expected_output": "Contents of /etc/passwd file"
+          },
+          {
+            "step": 3,
+            "command": "curl http://10.10.11.154/index.php?page=activate_license.php",
+            "purpose": "Analyze upload handler logic",
+            "expected_output": "PHP code showing socket communication to port 1337"
+          },
+          {
+            "step": 4,
+            "command": "wfuzz -u http://10.10.11.154/index.php?page=css/.....///.....///.....///.....///FUZZ/activate_license -w path",
+            "purpose": "Locate target binary in system paths",
+            "expected_output": "Non-zero responses indicating binary locations"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-40 minutes"
+      },
+      {
+        "sequence_name": "ear_vulnerability_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "GET /index.php?page=../../../../../../etc/passwd HTTP/1.1",
+            "purpose": "Trigger EAR vulnerability",
+            "expected_output": "302 redirect with file contents in body"
+          },
+          {
+            "step": 2,
+            "command": "Intercept response in Burp Suite",
+            "purpose": "Capture file contents before redirect",
+            "expected_output": "File contents visible in response body"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Retired",
+      "difficulty": "Medium",
+      "os": "Linux (Debian 11)",
+      "platform": "HackTheBox",
+      "release_date": "2022-04-02",
+      "author": "uco2KFh",
+      "estimated_time": "2-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "file_read",
+        "directory_traversal",
+        "buffer_overflow"
+      ],
+      "key_vulnerabilities": [
+        "lfi",
+        "path_traversal",
+        "stack_overflow",
+        "binfmt_misc_abuse"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "binary_exploitation",
+        "rop_chains",
+        "symlink_attacks",
+        "linux_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "buffer_overflows",
+        "rop_techniques",
+        "linux_file_systems",
+        "binary_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "binary_exploitation",
+      "subcategories": [
+        "web_exploitation",
+        "privilege_escalation",
+        "file_system_attacks"
+      ],
+      "attack_types": [
+        "initial_access",
+        "execution",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "stack_protection",
+        "file_upload_restrictions",
+        "binfmt_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Rope",
+        "Jeeves",
+        "Brainfuck"
+      ],
+      "similarity_reasons": [
+        "buffer_overflow_exploitation",
+        "rop_techniques",
+        "binary_analysis_required"
+      ],
+      "unique_aspects": [
+        "binfmt_misc_escalation",
+        "symlink_backup_abuse",
+        "rop_stack_execution"
+      ],
+      "difficulty_factors": [
+        "complex_rop_chain",
+        "binary_reverse_engineering",
+        "advanced_linux_concepts"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T17:05:01.290566",
+    "original_file": "0xdf_writeups/Htb Retired.md",
+    "content_length": 65485,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

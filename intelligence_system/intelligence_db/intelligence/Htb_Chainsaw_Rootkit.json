@@ -1,0 +1,750 @@
+{
+  "writeup_id": "Htb_Chainsaw_Rootkit",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_ld_preload_rootkit_analysis",
+    "primary_services": [
+      "ssh",
+      "ftp",
+      "dns",
+      "custom_blockchain"
+    ],
+    "port_signature": "21+22+53+9810+63991",
+    "service_combination": "ssh+ftp+dns+ganache_cli+hidden_nodejs",
+    "os_family": "linux",
+    "environment_type": "hackthebox_ctf",
+    "entry_vector": "rootkit_detection",
+    "privilege_path": "post_exploitation_analysis",
+    "attack_complexity": "advanced",
+    "estimated_time": "120-180 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "ld_preload_rootkit",
+      "hidden_processes_in_netstat",
+      "missing_pid_program_names",
+      "readdir_function_hooking",
+      "tcpdump_library_errors"
+    ],
+    "environmental_clues": [
+      "etc_ld_so_preload_file",
+      "chainsaw_so_library",
+      "ganache_cli_blockchain_service",
+      "nodejs_process_hiding",
+      "solidity_smart_contracts"
+    ],
+    "similar_scenarios": [
+      "linux_rootkit_detection",
+      "process_hiding_analysis"
+    ],
+    "unique_aspects": [
+      "blockchain_service_hiding",
+      "dual_architecture_rootkit",
+      "smart_contract_infrastructure",
+      "readdir64_hooking"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "LD_PRELOAD_rootkit_detection",
+        "success_reason": "Rootkit failed to handle all system calls consistently, revealing itself through error messages",
+        "prerequisite_indicators": [
+          "root_access_available",
+          "system_administration_tools_accessible",
+          "network_services_running"
+        ],
+        "recognition_patterns": [
+          "netstat shows dashes for PID/Program name",
+          "processes missing from ps output",
+          "LD_PRELOAD error messages in tcpdump",
+          "/etc/ld.so.preload file exists"
+        ],
+        "failure_modes": [
+          "rootkit_handles_all_syscalls_consistently",
+          "no_root_access_for_investigation",
+          "rootkit_removes_preload_file"
+        ],
+        "environmental_factors": [
+          "linux_system_with_ld_preload_support",
+          "rootkit_implementation_incomplete",
+          "system_tools_trigger_hooked_functions"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "function_hooking_analysis",
+        "success_reason": "Rootkit only hooked readdir/readdir64 functions, leaving other discovery methods available",
+        "prerequisite_indicators": [
+          "shared_library_accessible",
+          "analysis_tools_available",
+          "understanding_of_system_calls"
+        ],
+        "recognition_patterns": [
+          "nm shows exported readdir functions",
+          "ltrace reveals hooked function calls",
+          "inconsistent process visibility"
+        ],
+        "failure_modes": [
+          "comprehensive_syscall_hooking",
+          "library_files_hidden_or_encrypted",
+          "anti_analysis_techniques"
+        ],
+        "environmental_factors": [
+          "unstripped_shared_library",
+          "standard_linux_debugging_tools",
+          "rootkit_focuses_on_process_hiding"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "/etc/ld.so.preload configuration",
+        "discovery_method": "tcpdump error message analysis",
+        "why_critical": "Reveals presence of LD_PRELOAD rootkit mechanism",
+        "how_to_recognize": [
+          "error messages mentioning ld.so preload",
+          "inconsistent process visibility",
+          "network services without visible processes"
+        ],
+        "follow_up_actions": [
+          "examine_ld_so_preload_file",
+          "locate_rootkit_library_files",
+          "analyze_hooked_functions"
+        ]
+      },
+      {
+        "discovery": "chainsaw.so rootkit library",
+        "discovery_method": "find command and file analysis",
+        "why_critical": "Contains the actual rootkit implementation hiding NodeJS processes",
+        "how_to_recognize": [
+          "shared library in system directories",
+          "exports common libc functions",
+          "32-bit and 64-bit versions present"
+        ],
+        "follow_up_actions": [
+          "reverse_engineer_library",
+          "identify_hooked_functions",
+          "understand_hiding_mechanisms"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "root_access_required",
+        "escalation_method": "rootkit_detection_and_analysis",
+        "why_possible": "Already had root access to investigate system inconsistencies",
+        "recognition_signs": [
+          "netstat_pid_dashes",
+          "missing_processes_in_ps",
+          "system_tool_errors"
+        ],
+        "exploitation_path": "System inconsistencies → LD_PRELOAD investigation → Rootkit discovery"
+      },
+      {
+        "privilege_level": "system_analysis",
+        "escalation_method": "function_hooking_bypass",
+        "why_possible": "Rootkit only hooked specific functions, other analysis methods remained available",
+        "recognition_signs": [
+          "limited_function_hooking",
+          "debugging_tools_partially_functional",
+          "library_analysis_possible"
+        ],
+        "exploitation_path": "Identify hooked functions → Use alternative discovery methods → Bypass rootkit hiding"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "netstat shows listening ports but no associated PID/Program name (shows dash)",
+        "decision": "Investigate for LD_PRELOAD rootkit presence",
+        "reasoning": "Missing process information for active ports indicates potential rootkit hiding processes",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "check_proc_filesystem",
+            "when": "if netstat unreliable"
+          },
+          {
+            "option": "use_ss_command",
+            "when": "if netstat compromised"
+          }
+        ],
+        "success_indicators": [
+          "ld_so_preload_file_exists",
+          "suspicious_library_loaded",
+          "process_enumeration_inconsistent"
+        ],
+        "next_decision": "analyze_preload_library"
+      },
+      {
+        "step": 2,
+        "situation": "Found /etc/ld.so.preload with suspicious library",
+        "decision": "Extract and analyze the rootkit library",
+        "reasoning": "Understanding rootkit functionality reveals what is being hidden and how to bypass",
+        "confidence": 0.95,
+        "prerequisites": [
+          "ld_so_preload_confirmed",
+          "suspicious_so_file_found"
+        ],
+        "success_indicators": [
+          "library_extracted",
+          "hooked_functions_identified"
+        ],
+        "failure_fallbacks": [
+          "direct_proc_analysis",
+          "alternative_process_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Rootkit hooks readdir/readdir64 to hide processes",
+        "decision": "Use direct /proc filesystem access or unhook library",
+        "reasoning": "Bypass rootkit by avoiding hooked system calls or removing the hook",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "remove_ld_preload",
+            "when": "if write access available"
+          },
+          {
+            "option": "direct_proc_read",
+            "when": "if removal not possible"
+          },
+          {
+            "option": "use_unhooked_tools",
+            "when": "if alternative tools available"
+          }
+        ],
+        "success_indicators": [
+          "hidden_processes_revealed",
+          "full_process_list_obtained"
+        ],
+        "next_decision": "analyze_hidden_services"
+      }
+    ],
+    "branching_logic": {
+      "if_rootkit_detected": {
+        "action": "analyze_hooked_functions",
+        "tools": [
+          "nm",
+          "objdump",
+          "ghidra",
+          "ltrace"
+        ],
+        "next_phase": "bypass_rootkit_hiding"
+      },
+      "if_processes_hidden": {
+        "action": "enumerate_via_proc_direct",
+        "alternatives": [
+          "cat /proc/*/cmdline",
+          "ls /proc/[0-9]*",
+          "lsof -i"
+        ],
+        "decision_criteria": "based_on_available_tools_and_permissions"
+      },
+      "if_rootkit_bypassed": {
+        "action": "enumerate_hidden_services",
+        "purpose": "discover_additional_attack_surface",
+        "tools": [
+          "netstat",
+          "ss",
+          "lsof"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "check_ld_preload_when_process_enumeration_inconsistent",
+        "reasoning": "common_rootkit_technique_for_process_hiding",
+        "applicability": "linux_systems_with_missing_process_info"
+      },
+      {
+        "rule": "analyze_hooked_functions_to_understand_what_is_hidden",
+        "reasoning": "reveals_scope_of_compromise_and_bypass_methods",
+        "applicability": "ld_preload_rootkit_confirmed"
+      },
+      {
+        "rule": "remove_ld_preload_entry_to_disable_rootkit",
+        "reasoning": "immediate_rootkit_neutralization_if_write_access_available",
+        "applicability": "root_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "LD_PRELOAD_Rootkit_Detection",
+        "mitre_id": "T1014",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "root_access_obtained",
+          "system_call_hooking_present",
+          "ld_preload_file_exists"
+        ],
+        "success_indicators": [
+          "netstat_shows_dash_for_processes",
+          "ps_missing_expected_processes",
+          "ld_so_preload_file_present",
+          "tcpdump_ld_preload_errors",
+          "library_files_in_usr_lib"
+        ],
+        "incompatible_with": [
+          "ld_preload_disabled",
+          "selinux_enforcing_mode",
+          "container_environment"
+        ],
+        "confidence_boosters": [
+          "readdir_function_hooks",
+          "multiple_architecture_libraries",
+          "process_hiding_behavior"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Process_Enumeration_Evasion",
+        "mitre_id": "T1055",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "rootkit_installed",
+          "system_call_interception",
+          "hidden_processes_running"
+        ],
+        "success_indicators": [
+          "netstat_pid_column_empty",
+          "ps_output_incomplete",
+          "listening_ports_without_processes",
+          "ltrace_shows_readdir_calls"
+        ],
+        "incompatible_with": [
+          "static_binaries",
+          "alternative_process_viewers",
+          "kernel_level_monitoring"
+        ],
+        "confidence_boosters": [
+          "nodejs_ganache_processes",
+          "smart_contract_services",
+          "port_9810_63991_listeners"
+        ],
+        "typical_success_rate": 0.88,
+        "estimated_time": "1-3 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "ld_preload_rootkit": {
+        "port_indicators": [],
+        "service_indicators": [
+          "any"
+        ],
+        "banner_indicators": [
+          "ld.so: object",
+          "cannot be preloaded"
+        ],
+        "file_indicators": [
+          "/etc/ld.so.preload",
+          "/usr/lib*/chainsaw.so"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "hidden_processes": {
+        "port_indicators": [
+          9810,
+          63991
+        ],
+        "service_indicators": [
+          "ganache-cli",
+          "nodejs"
+        ],
+        "banner_indicators": [
+          "smart contract",
+          "ethereum"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ld_preload_detection",
+          "when": "root_access_obtained",
+          "reason": "reveals_hidden_processes_and_services"
+        },
+        {
+          "attack": "library_analysis",
+          "when": "ld_preload_detected",
+          "reason": "understand_rootkit_capabilities"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "alternative_process_enumeration",
+          "when": "process_hiding_detected",
+          "reason": "bypass_rootkit_limitations"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "LD_PRELOAD Rootkit Analysis",
+        "mitre_id": "T1014",
+        "category": "defense_evasion",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "netstat",
+            "command_template": "netstat -tnlp",
+            "actual_command": "netstat -tnlp",
+            "output_pattern": "PID/Program name shows '-' for hidden processes",
+            "effectiveness_rating": 3,
+            "reliability": 0.85
+          },
+          {
+            "name": "ps",
+            "command_template": "ps auxww | grep {process_name}",
+            "actual_command": "ps auxww | grep node",
+            "success_factors": [
+              "rootkit_active",
+              "process_filtering_enabled"
+            ],
+            "effectiveness_rating": 3
+          },
+          {
+            "name": "tcpdump",
+            "command_template": "tcpdump",
+            "actual_command": "tcpdump",
+            "output_pattern": "ERROR: ld.so: object '/usr/$LIB/chainsaw.so' from /etc/ld.so.preload cannot be preloaded",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "find",
+            "command_template": "find / -name {rootkit_name}.so 2>/dev/null",
+            "actual_command": "find / -name chainsaw.so 2>/dev/null",
+            "success_factors": [
+              "filesystem_access",
+              "rootkit_not_hidden_from_filesystem"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "nm",
+            "command_template": "nm --defined-only --extern-only {library_file}",
+            "actual_command": "nm --defined-only --extern-only chainsaw.so",
+            "output_pattern": "Shows hooked functions like readdir, readdir64",
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "ltrace",
+            "command_template": "ltrace {command}",
+            "actual_command": "ltrace netstat -tnlp",
+            "success_factors": [
+              "library_calls_visible",
+              "process_execution_allowed"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "file",
+            "command_template": "file {library_path}",
+            "actual_command": "file /usr/lib32/chainsaw.so /usr/lib/x86_64-linux-gnu/chainsaw.so",
+            "output_pattern": "ELF 32-bit/64-bit LSB pie executable",
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "root_access_obtained",
+          "ld_preload_file_exists",
+          "suspicious_process_behavior_observed"
+        ],
+        "success_indicators": [
+          "processes_missing_from_ps_output",
+          "netstat_shows_dash_for_pid",
+          "ld_preload_errors_in_application_output",
+          "library_files_found_in_standard_locations"
+        ],
+        "common_failures": [
+          "rootkit_not_using_ld_preload",
+          "insufficient_privileges_for_analysis",
+          "rootkit_hiding_own_files"
+        ],
+        "follow_up_techniques": [
+          "reverse_engineering_analysis",
+          "rootkit_removal",
+          "forensic_artifact_collection"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Rootkit Removal",
+        "mitre_id": "T1070.004",
+        "category": "defense_evasion",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "mv",
+            "command_template": "mv /etc/ld.so.preload /tmp/",
+            "actual_command": "mv /etc/ld.so.preload /tmp/",
+            "output_pattern": "Immediate removal of rootkit functionality",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "root_access",
+          "ld_preload_rootkit_identified"
+        ],
+        "success_indicators": [
+          "hidden_processes_now_visible_in_ps",
+          "netstat_shows_actual_pid_program_names",
+          "applications_run_without_ld_preload_errors"
+        ],
+        "common_failures": [
+          "rootkit_reinstalls_itself",
+          "multiple_persistence_mechanisms",
+          "system_instability_after_removal"
+        ],
+        "follow_up_techniques": [
+          "system_integrity_verification",
+          "log_analysis",
+          "network_monitoring"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "tcpdump",
+        "use_case": "rootkit_detection",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "ld_preload_rootkit_detection"
+        ],
+        "alternatives": [
+          "other_applications_with_library_dependencies"
+        ],
+        "best_practices": [
+          "run_various_system_utilities_to_trigger_errors",
+          "look_for_ld_preload_error_messages",
+          "check_applications_that_use_many_libraries"
+        ]
+      },
+      {
+        "tool": "Ghidra",
+        "use_case": "malware_reverse_engineering",
+        "effectiveness_rating": 5,
+        "reliability": 0.92,
+        "learning_curve": "high",
+        "essential_for": [
+          "binary_analysis",
+          "rootkit_functionality_understanding"
+        ],
+        "alternatives": [
+          "IDA Pro",
+          "radare2",
+          "Binary Ninja"
+        ],
+        "best_practices": [
+          "analyze_exported_functions_first",
+          "look_for_dlsym_calls_to_identify_hooked_functions",
+          "examine_string_references_for_filtering_logic"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ld_preload_rootkit_detection_and_removal",
+        "steps": [
+          {
+            "step": 1,
+            "command": "netstat -tnlp",
+            "purpose": "Identify processes showing as dash in PID/Program column",
+            "expected_output": "Listening ports with '-' instead of PID/program"
+          },
+          {
+            "step": 2,
+            "command": "ps auxww | grep {suspected_process}",
+            "purpose": "Verify processes are missing from process list",
+            "expected_output": "Expected processes not visible"
+          },
+          {
+            "step": 3,
+            "command": "tcpdump",
+            "purpose": "Trigger LD_PRELOAD error to confirm rootkit presence",
+            "expected_output": "ERROR: ld.so: object '/usr/$LIB/chainsaw.so' from /etc/ld.so.preload cannot be preloaded"
+          },
+          {
+            "step": 4,
+            "command": "cat /etc/ld.so.preload",
+            "purpose": "Identify rootkit library path",
+            "expected_output": "Path to malicious library file"
+          },
+          {
+            "step": 5,
+            "command": "find / -name {rootkit_name}.so 2>/dev/null",
+            "purpose": "Locate all instances of rootkit library",
+            "expected_output": "Paths to 32-bit and 64-bit versions"
+          },
+          {
+            "step": 6,
+            "command": "mv /etc/ld.so.preload /tmp/",
+            "purpose": "Remove rootkit by disabling LD_PRELOAD",
+            "expected_output": "File moved successfully"
+          },
+          {
+            "step": 7,
+            "command": "netstat -tnlp",
+            "purpose": "Verify rootkit removal - processes should now be visible",
+            "expected_output": "All listening ports show actual PID/program names"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "rootkit_library_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "file {library_path}",
+            "purpose": "Identify library architecture and type",
+            "expected_output": "ELF executable information"
+          },
+          {
+            "step": 2,
+            "command": "nm --defined-only --extern-only {library_path}",
+            "purpose": "Identify hooked system functions",
+            "expected_output": "List of exported functions like readdir, readdir64"
+          },
+          {
+            "step": 3,
+            "command": "ltrace {system_command}",
+            "purpose": "Observe how rootkit intercepts library calls",
+            "expected_output": "Trace showing modified readdir behavior"
+          },
+          {
+            "step": 4,
+            "command": "scp {library_path} analyst_machine:/tmp/",
+            "purpose": "Extract library for detailed reverse engineering",
+            "expected_output": "Library file transferred for analysis"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "20-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Chainsaw",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2019",
+      "author": "Unknown",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "smart_contracts",
+        "blockchain",
+        "rootkit_analysis"
+      ],
+      "key_vulnerabilities": [
+        "solidity_vulnerabilities",
+        "ld_preload_rootkit",
+        "process_hiding"
+      ],
+      "environment_type": "blockchain_development",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "rootkit_detection",
+        "blockchain_security",
+        "reverse_engineering"
+      ],
+      "prerequisite_knowledge": [
+        "linux_internals",
+        "solidity_basics",
+        "reverse_engineering"
+      ]
+    },
+    "categorization": {
+      "primary_category": "reverse_engineering",
+      "subcategories": [
+        "rootkit_analysis",
+        "blockchain_security",
+        "malware_analysis"
+      ],
+      "attack_types": [
+        "defense_evasion",
+        "persistence",
+        "process_hiding"
+      ],
+      "defensive_lessons": [
+        "rootkit_detection",
+        "ld_preload_monitoring",
+        "process_auditing"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Rope",
+        "Craft",
+        "Obscurity"
+      ],
+      "similarity_reasons": [
+        "reverse_engineering_focus",
+        "steganography_elements",
+        "advanced_evasion"
+      ],
+      "unique_aspects": [
+        "blockchain_integration",
+        "ld_preload_rootkit",
+        "smart_contract_exploitation"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "rootkit_analysis",
+        "blockchain_knowledge_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T13:31:14.467786",
+    "original_file": "0xdf_writeups/Htb Chainsaw Rootkit.md",
+    "content_length": 15226,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

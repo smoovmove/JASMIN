@@ -1,0 +1,862 @@
+{
+  "writeup_id": "Htb_Bountyhunter",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_xxe_to_ssh_privesc",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "xxe_injection",
+    "privilege_path": "file_read_to_ssh_to_python_eval",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "xml_form_submission",
+      "base64_encoded_xml_data",
+      "php_backend_processing",
+      "python_script_sudo_permissions"
+    ],
+    "environmental_clues": [
+      "bug_bounty_themed_website",
+      "development_portal_functionality",
+      "xml_bug_report_form",
+      "ubuntu_20.04_stack"
+    ],
+    "similar_scenarios": [
+      "markup_htb_easy",
+      "paper_htb_easy"
+    ],
+    "unique_aspects": [
+      "base64_url_encoded_xml_payload",
+      "ticket_validation_script_privesc",
+      "python_eval_injection_root"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "XXE_File_Read",
+        "success_reason": "XML parser allowed external entity processing without proper input validation",
+        "prerequisite_indicators": [
+          "xml_input_accepted",
+          "xml_parser_processes_entities",
+          "user_data_reflected_in_response",
+          "no_input_sanitization"
+        ],
+        "recognition_patterns": [
+          "base64 encoded XML in POST data",
+          "XML structure in form submissions",
+          "user input displayed back in response",
+          "DOCTYPE declarations accepted"
+        ],
+        "failure_modes": [
+          "xml_entities_disabled",
+          "input_sanitization_present",
+          "no_data_reflection",
+          "libxml_external_entities_disabled"
+        ],
+        "environmental_factors": [
+          "default_xml_parser_configuration",
+          "php_libxml_default_settings",
+          "no_security_hardening",
+          "development_environment_settings"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Credential_Discovery_via_File_Read",
+        "success_reason": "Database credentials stored in plaintext PHP configuration file",
+        "prerequisite_indicators": [
+          "file_read_capability_established",
+          "php_application_present",
+          "database_connection_files_exist",
+          "credentials_stored_in_config"
+        ],
+        "recognition_patterns": [
+          "db.php file discovered in directory enumeration",
+          "PHP database connection patterns",
+          "plaintext credentials in source code",
+          "reused credentials across services"
+        ],
+        "failure_modes": [
+          "credentials_encrypted_or_hashed",
+          "environment_variables_used",
+          "no_credential_reuse",
+          "file_permissions_prevent_read"
+        ],
+        "environmental_factors": [
+          "development_practices_poor",
+          "hardcoded_credentials_common",
+          "no_secrets_management",
+          "same_user_for_multiple_services"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "Python_Eval_Injection",
+        "success_reason": "Root script used eval() on user-controllable input without sanitization",
+        "prerequisite_indicators": [
+          "python_script_runs_as_root",
+          "user_input_processed_by_script",
+          "eval_or_exec_functions_used",
+          "insufficient_input_validation"
+        ],
+        "recognition_patterns": [
+          "sudo permissions for specific script",
+          "python script in privileged context",
+          "eval() function in source code",
+          "user input directly processed"
+        ],
+        "failure_modes": [
+          "input_properly_sanitized",
+          "ast_literal_eval_used_instead",
+          "no_sudo_permissions",
+          "script_runs_in_sandbox"
+        ],
+        "environmental_factors": [
+          "custom_administrative_scripts",
+          "insecure_coding_practices",
+          "root_privileges_for_automation",
+          "no_code_review_process"
+        ],
+        "success_probability": 0.91,
+        "typical_timeframe": "15-25 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "XML input processing vulnerability",
+        "discovery_method": "POST request analysis and base64 decoding",
+        "why_critical": "Enabled file system access and credential discovery",
+        "how_to_recognize": [
+          "base64 encoded data in POST requests",
+          "XML structure in decoded data",
+          "form data reflected in response",
+          "no XXE protection headers"
+        ],
+        "follow_up_actions": [
+          "test_xxe_with_etc_passwd",
+          "enumerate_php_config_files",
+          "extract_database_credentials",
+          "test_credential_reuse"
+        ]
+      },
+      {
+        "discovery": "Database credentials in db.php",
+        "discovery_method": "XXE file read exploitation",
+        "why_critical": "Provided SSH access through credential reuse",
+        "how_to_recognize": [
+          "db.php file in directory enumeration",
+          "plaintext credentials in PHP files",
+          "development user accounts",
+          "password reuse patterns"
+        ],
+        "follow_up_actions": [
+          "test_ssh_with_discovered_credentials",
+          "enumerate_system_users",
+          "check_sudo_permissions",
+          "identify_privilege_escalation_paths"
+        ]
+      },
+      {
+        "discovery": "Root script with eval injection",
+        "discovery_method": "sudo -l enumeration and source code analysis",
+        "why_critical": "Direct path to root privileges through code injection",
+        "how_to_recognize": [
+          "sudo permissions for specific scripts",
+          "python scripts with eval functions",
+          "user input processing in privileged context",
+          "ticket validation or similar functionality"
+        ],
+        "follow_up_actions": [
+          "analyze_script_source_code",
+          "identify_injection_points",
+          "craft_python_payload",
+          "execute_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web_user",
+        "escalation_method": "XXE_to_file_read",
+        "why_possible": "XML parser processed external entities without restriction",
+        "recognition_signs": [
+          "xml_input_accepted_by_application",
+          "user_data_reflected_in_response",
+          "no_xxe_protection_implemented",
+          "default_parser_configuration"
+        ],
+        "exploitation_path": "XXE payload → file system access → credential discovery"
+      },
+      {
+        "privilege_level": "file_read_capability",
+        "escalation_method": "credential_reuse_ssh_access",
+        "why_possible": "Database credentials reused for SSH authentication",
+        "recognition_signs": [
+          "plaintext_credentials_in_config_files",
+          "development_user_accounts_present",
+          "poor_credential_management_practices",
+          "same_password_multiple_services"
+        ],
+        "exploitation_path": "File read → db.php credentials → SSH access"
+      },
+      {
+        "privilege_level": "standard_user",
+        "escalation_method": "python_eval_injection_to_root",
+        "why_possible": "Root script used eval() on user input without sanitization",
+        "recognition_signs": [
+          "sudo_permissions_for_custom_scripts",
+          "python_eval_in_privileged_context",
+          "user_controllable_input_processing",
+          "insufficient_input_validation"
+        ],
+        "exploitation_path": "sudo script → eval injection → root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with Apache web server",
+        "decision": "Enumerate web application for vulnerabilities before attempting SSH brute force",
+        "reasoning": "Web applications often provide easier initial access than SSH brute force on modern systems",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web app yields no results"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if outdated versions found"
+          }
+        ],
+        "success_indicators": [
+          "interesting_endpoints_found",
+          "forms_or_input_fields_discovered",
+          "technology_stack_identified"
+        ],
+        "next_decision": "analyze_web_application_attack_surface"
+      },
+      {
+        "step": 2,
+        "situation": "Found XML data being submitted via POST request (base64 encoded)",
+        "decision": "Test for XXE vulnerability immediately",
+        "reasoning": "XML input is high-probability target for XXE attacks, especially when data is processed and displayed back",
+        "confidence": 0.95,
+        "prerequisites": [
+          "xml_input_identified",
+          "data_reflection_confirmed"
+        ],
+        "success_indicators": [
+          "file_contents_displayed",
+          "entity_processing_confirmed"
+        ],
+        "failure_fallbacks": [
+          "parameter_tampering",
+          "injection_attacks",
+          "directory_traversal"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "XXE vulnerability confirmed with /etc/passwd read",
+        "decision": "Enumerate system users and look for application configuration files",
+        "reasoning": "Need valid credentials for SSH access, configuration files often contain passwords",
+        "confidence": 0.85,
+        "prerequisites": [
+          "xxe_file_read_working"
+        ],
+        "success_indicators": [
+          "valid_users_identified",
+          "config_files_found",
+          "credentials_discovered"
+        ],
+        "failure_fallbacks": [
+          "web_shell_upload",
+          "other_file_inclusion_methods"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Found credentials in PHP configuration file via XXE",
+        "decision": "Attempt SSH login with discovered credentials",
+        "reasoning": "Developers often reuse passwords across services",
+        "confidence": 0.8,
+        "prerequisites": [
+          "credentials_extracted",
+          "valid_username_known"
+        ],
+        "success_indicators": [
+          "ssh_authentication_successful"
+        ],
+        "failure_fallbacks": [
+          "credential_spraying",
+          "web_application_login",
+          "other_services"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_xxe_succeeds": {
+        "action": "systematic_file_enumeration",
+        "targets": [
+          "/etc/passwd",
+          "/var/www/html/db.php",
+          "/var/www/html/index.php",
+          "application_config_files"
+        ],
+        "next_phase": "credential_extraction_and_authentication"
+      },
+      "if_xxe_fails": {
+        "action": "try_alternative_web_attacks",
+        "alternatives": [
+          "sql_injection",
+          "command_injection",
+          "file_upload",
+          "directory_traversal"
+        ],
+        "decision_criteria": "based_on_input_validation_weaknesses"
+      },
+      "if_credentials_obtained": {
+        "action": "authenticate_and_establish_foothold",
+        "methods": [
+          "ssh_login",
+          "web_application_login"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_ssh_access_gained": {
+        "action": "enumerate_privilege_escalation_vectors",
+        "tools": [
+          "sudo_check",
+          "suid_binaries",
+          "custom_scripts",
+          "cron_jobs"
+        ],
+        "focus": "custom_applications_and_sudo_permissions"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_xxe_on_xml_input",
+        "reasoning": "high_success_rate_and_immediate_file_access",
+        "applicability": "any_xml_processing_endpoint"
+      },
+      {
+        "rule": "use_php_filters_for_source_code_reading",
+        "reasoning": "bypasses_parsing_issues_with_php_content",
+        "applicability": "xxe_on_php_applications"
+      },
+      {
+        "rule": "prioritize_config_files_over_system_files",
+        "reasoning": "more_likely_to_contain_credentials_and_sensitive_data",
+        "applicability": "file_read_vulnerabilities"
+      },
+      {
+        "rule": "check_sudo_permissions_immediately_after_user_access",
+        "reasoning": "custom_scripts_often_have_privilege_escalation_vulnerabilities",
+        "applicability": "initial_user_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "XXE_File_Read",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "xml_input_accepted",
+          "xml_parser_processes_external_entities",
+          "web_application_present"
+        ],
+        "success_indicators": [
+          "xml_data_in_post_requests",
+          "base64_encoded_xml_payloads",
+          "file_contents_returned_in_response"
+        ],
+        "incompatible_with": [
+          "xml_external_entities_disabled",
+          "input_validation_blocks_entities",
+          "xml_parser_hardened"
+        ],
+        "confidence_boosters": [
+          "php_application_detected",
+          "xml_content_type_accepted",
+          "error_messages_reveal_parser_info"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "directory_listing_disabled"
+        ],
+        "success_indicators": [
+          "hidden_files_discovered",
+          "admin_panels_found",
+          "backup_files_located"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "waf_blocking_requests",
+          "complete_directory_restrictions"
+        ],
+        "confidence_boosters": [
+          "apache_server_detected",
+          "php_extensions_present",
+          "standard_web_structure"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "SSH_Password_Authentication",
+        "mitre_id": "T1078.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_running",
+          "password_authentication_enabled",
+          "valid_credentials_obtained"
+        ],
+        "success_indicators": [
+          "ssh_banner_accessible",
+          "password_prompt_appears",
+          "successful_authentication"
+        ],
+        "incompatible_with": [
+          "key_only_authentication",
+          "account_lockout_policies",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "ubuntu_openssh_detected",
+          "default_ssh_configuration",
+          "credentials_found_in_files"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Python_Eval_Injection",
+        "mitre_id": "T1059.006",
+        "required_services": [
+          "python"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "python_script_with_eval_function",
+          "user_input_processed_by_eval",
+          "script_runs_with_elevated_privileges"
+        ],
+        "success_indicators": [
+          "python_eval_in_source_code",
+          "user_controlled_input_to_eval",
+          "script_execution_as_root"
+        ],
+        "incompatible_with": [
+          "input_sanitization_present",
+          "eval_function_disabled",
+          "restricted_python_environment"
+        ],
+        "confidence_boosters": [
+          "ticket_validation_scripts",
+          "sudo_permissions_on_python_scripts",
+          "legacy_code_patterns"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "xml_processing": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          "xml",
+          "base64_encoded_data"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "xxe_file_read",
+          "when": "xml_input_detected",
+          "reason": "direct_file_access_no_authentication_needed"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_files_and_endpoints"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_password_auth",
+          "when": "credentials_obtained_and_ssh_detected",
+          "reason": "reliable_shell_access_with_valid_creds"
+        },
+        {
+          "attack": "python_eval_injection",
+          "when": "python_scripts_with_sudo_found",
+          "reason": "direct_privilege_escalation_opportunity"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "XXE File Read",
+        "mitre_id": "T1203",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "burp_suite",
+            "command_template": "Manual request modification in Repeater",
+            "actual_command": "POST /tracker_diRbPr00f314.php with XXE payload",
+            "output_pattern": "File contents displayed in response",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "base64_encoding",
+            "command_template": "base64 -w0 {payload_file}",
+            "actual_command": "base64 -w0 xxe-passwd",
+            "success_factors": [
+              "proper_xml_structure",
+              "valid_entity_reference"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "xml_input_accepted",
+          "xml_parser_processes_entities",
+          "file_system_access_available"
+        ],
+        "success_indicators": [
+          "file_contents_returned_in_response",
+          "base64_encoded_data_when_using_php_filter",
+          "error_messages_reveal_file_paths"
+        ],
+        "common_failures": [
+          "xml_parser_blocks_external_entities",
+          "file_permissions_deny_access",
+          "php_code_breaks_xml_parsing"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction_from_config_files",
+          "source_code_analysis",
+          "ssh_authentication"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {target_url} -x {extensions}",
+            "actual_command": "feroxbuster -u http://10.10.11.100 -x php",
+            "output_pattern": "HTTP status codes and discovered paths",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "appropriate_wordlist_available"
+        ],
+        "success_indicators": [
+          "hidden_files_discovered",
+          "admin_panels_found",
+          "configuration_files_identified"
+        ],
+        "common_failures": [
+          "rate_limiting_blocks_requests",
+          "wordlist_insufficient_coverage",
+          "false_positives_in_results"
+        ],
+        "follow_up_techniques": [
+          "file_content_analysis",
+          "parameter_fuzzing",
+          "authentication_bypass"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "include_relevant_file_extensions",
+          "use_appropriate_wordlists",
+          "monitor_for_rate_limiting"
+        ]
+      },
+      {
+        "tool": "burp_suite",
+        "use_case": "web_application_security_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_penetration_testing"
+        ],
+        "alternatives": [
+          "owasp_zap",
+          "manual_curl_requests"
+        ],
+        "best_practices": [
+          "use_repeater_for_payload_testing",
+          "leverage_decoder_for_encoding_operations",
+          "intercept_and_modify_requests_systematically"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "xxe_file_read_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "feroxbuster -u http://10.10.11.100 -x php",
+            "purpose": "Discover hidden PHP files and directories",
+            "expected_output": "List of accessible files including db.php"
+          },
+          {
+            "step": 2,
+            "command": "Create XXE payload: <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><!DOCTYPE foo [<!ELEMENT bar ANY ><!ENTITY xxe SYSTEM \"file:///etc/passwd\" >]><bugreport><title>&xxe;</title><cwe>CWE</cwe><cvss>9.8</cvss><reward>1,000,000</reward></bugreport>",
+            "purpose": "Craft XML External Entity payload for file read",
+            "expected_output": "Valid XML with entity reference"
+          },
+          {
+            "step": 3,
+            "command": "base64 -w0 xxe_payload.xml",
+            "purpose": "Encode payload for HTTP transmission",
+            "expected_output": "Base64 encoded XML payload"
+          },
+          {
+            "step": 4,
+            "command": "POST to /tracker_diRbPr00f314.php with encoded payload",
+            "purpose": "Submit XXE payload via web form",
+            "expected_output": "File contents displayed in title field"
+          },
+          {
+            "step": 5,
+            "command": "Use PHP filter: php://filter/convert.base64-encode/resource=/var/www/html/db.php",
+            "purpose": "Read PHP source code without execution",
+            "expected_output": "Base64 encoded PHP source code"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "15-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "BountyHunter",
+      "difficulty": "Easy",
+      "os": "Ubuntu 20.04 Focal",
+      "platform": "HackTheBox",
+      "release_date": "2021-07-24",
+      "author": "ejedev",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "xxe_injection",
+        "file_disclosure",
+        "python_injection"
+      ],
+      "key_vulnerabilities": [
+        "xxe_vulnerability",
+        "credential_exposure",
+        "eval_injection"
+      ],
+      "environment_type": "web_application_linux",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "xxe_exploitation",
+        "file_inclusion",
+        "python_code_injection"
+      ],
+      "prerequisite_knowledge": [
+        "xml_basics",
+        "web_exploitation",
+        "python_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "xxe_injection",
+        "privilege_escalation",
+        "code_injection"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "disable_external_entities",
+        "input_validation",
+        "secure_coding_practices"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Tabby",
+        "Poison",
+        "Nineveh"
+      ],
+      "similarity_reasons": [
+        "xxe_exploitation",
+        "file_disclosure",
+        "web_to_system"
+      ],
+      "unique_aspects": [
+        "python_eval_injection",
+        "ticket_validation_script",
+        "straightforward_xxe"
+      ],
+      "difficulty_factors": [
+        "simple_attack_chain",
+        "well_known_vulnerabilities",
+        "clear_escalation_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:42:23.661990",
+    "original_file": "0xdf_writeups/Htb Bountyhunter.md",
+    "content_length": 24215,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

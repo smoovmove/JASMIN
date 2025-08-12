@@ -1,0 +1,771 @@
+{
+  "writeup_id": "Htb_Scanned",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_application_chroot_escape",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "chroot_jail_escape",
+    "privilege_path": "web_to_root_via_setuid",
+    "attack_complexity": "insane",
+    "estimated_time": "8-12 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "malware_analysis_sandbox",
+      "chroot_jail_implementation",
+      "django_web_framework",
+      "custom_c_sandbox_binary",
+      "sqlite_database_exposure"
+    ],
+    "environmental_clues": [
+      "file_upload_functionality",
+      "syscall_tracing_output",
+      "source_code_available",
+      "debian_linux_host",
+      "nginx_web_server"
+    ],
+    "similar_scenarios": [
+      "sandbox_escape_challenges",
+      "web_app_privilege_escalation"
+    ],
+    "unique_aspects": [
+      "binary_execution_in_chroot",
+      "setuid_library_hijacking",
+      "malware_scanner_theme",
+      "dual_stage_chroot_escape"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "chroot_jail_escape",
+        "success_reason": "Sandbox implementation had two critical flaws: accessible /proc filesystem and ability to create hard links to files outside jail",
+        "prerequisite_indicators": [
+          "custom_sandbox_implementation",
+          "chroot_jail_without_proper_isolation",
+          "proc_filesystem_accessible",
+          "hard_link_creation_allowed"
+        ],
+        "recognition_patterns": [
+          "custom C sandbox code available",
+          "chroot() used without proper setup",
+          "/proc mounted inside jail",
+          "no restriction on link() syscall"
+        ],
+        "failure_modes": [
+          "proper_namespace_isolation",
+          "proc_filesystem_unmounted",
+          "hard_links_restricted",
+          "seccomp_filters_applied"
+        ],
+        "environmental_factors": [
+          "custom_security_implementation",
+          "insufficient_sandbox_hardening",
+          "developer_security_inexperience"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "setuid_binary_hijacking",
+        "success_reason": "SetUID binary executed from outside jail while malicious library loaded inside jail during sleep window",
+        "prerequisite_indicators": [
+          "setuid_binaries_accessible",
+          "library_loading_controllable",
+          "timing_window_exploitable",
+          "ld_library_path_influence"
+        ],
+        "recognition_patterns": [
+          "setuid binaries in /usr/bin",
+          "ability to control library paths",
+          "sleep/timing functions available",
+          "shared library loading mechanism"
+        ],
+        "failure_modes": [
+          "no_setuid_binaries",
+          "library_paths_restricted",
+          "timing_window_too_small",
+          "proper_privilege_separation"
+        ],
+        "environmental_factors": [
+          "standard_linux_setuid_binaries",
+          "dynamic_library_loading",
+          "insufficient_privilege_isolation"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "45-90 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Django admin password in database",
+        "discovery_method": "chroot escape to read malscanner.db",
+        "why_critical": "Same password used for SSH access to gain initial foothold",
+        "how_to_recognize": [
+          "sqlite database accessible",
+          "django admin configured",
+          "password reuse patterns",
+          "MD5 hash storage"
+        ],
+        "follow_up_actions": [
+          "crack_md5_hash",
+          "test_ssh_login",
+          "enumerate_user_privileges",
+          "search_for_privilege_escalation"
+        ]
+      },
+      {
+        "discovery": "Sandbox source code availability",
+        "discovery_method": "Download from /static/source.tar.gz",
+        "why_critical": "Revealed implementation flaws enabling jail escape and privilege escalation",
+        "how_to_recognize": [
+          "source code download links",
+          "custom security implementations",
+          "chroot jail usage",
+          "setuid binary interactions"
+        ],
+        "follow_up_actions": [
+          "analyze_sandbox_implementation",
+          "identify_escape_vectors",
+          "craft_exploit_binaries",
+          "test_privilege_escalation_paths"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "setuid_binary_library_hijacking",
+        "why_possible": "Sandbox allowed execution of SetUID binaries while controlling library loading environment",
+        "recognition_signs": [
+          "custom_sandbox_with_setuid_access",
+          "controllable_library_paths",
+          "timing_based_exploitation_possible",
+          "insufficient_privilege_separation"
+        ],
+        "exploitation_path": "Upload malicious binary → Sleep + library hijack → SetUID execution → Root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with web application",
+        "decision": "Analyze web application and download source code if available",
+        "reasoning": "Source code provides complete attack surface analysis",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "if source not available"
+          },
+          {
+            "option": "web_vulnerability_scanning",
+            "when": "if black box testing needed"
+          }
+        ],
+        "success_indicators": [
+          "source_code_downloaded",
+          "application_architecture_understood",
+          "custom_components_identified"
+        ],
+        "next_decision": "analyze_custom_sandbox_implementation"
+      },
+      {
+        "step": 2,
+        "situation": "Django application with custom C sandbox and chroot jails",
+        "decision": "Focus on chroot jail escape vulnerabilities",
+        "reasoning": "Custom sandbox implementations often have escape vulnerabilities",
+        "confidence": 0.9,
+        "prerequisites": [
+          "source_code_analyzed",
+          "sandbox_logic_understood"
+        ],
+        "success_indicators": [
+          "jail_escape_method_identified",
+          "file_system_access_gained"
+        ],
+        "failure_fallbacks": [
+          "web_application_vulnerabilities",
+          "django_admin_bruteforce"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Chroot jail escape achieved, database access possible",
+        "decision": "Extract Django admin credentials from database",
+        "reasoning": "Django admin passwords often reused for SSH access",
+        "confidence": 0.85,
+        "prerequisites": [
+          "jail_escape_working",
+          "database_file_accessible"
+        ],
+        "success_indicators": [
+          "admin_hash_extracted",
+          "password_cracked"
+        ],
+        "failure_fallbacks": [
+          "enumerate_other_config_files",
+          "look_for_ssh_keys"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_source_available": {
+        "action": "deep_code_analysis",
+        "focus_areas": [
+          "custom_security_implementations",
+          "file_handling",
+          "privilege_boundaries"
+        ],
+        "next_phase": "exploit_development"
+      },
+      "if_chroot_escape_succeeds": {
+        "action": "extract_sensitive_data",
+        "targets": [
+          "database_files",
+          "configuration_files",
+          "ssh_keys"
+        ],
+        "next_phase": "credential_reuse_testing"
+      },
+      "if_credentials_obtained": {
+        "action": "ssh_access_attempt",
+        "purpose": "establish_foothold",
+        "next_phase": "privilege_escalation_via_sandbox"
+      },
+      "if_foothold_established": {
+        "action": "abuse_sandbox_with_setuid_exploitation",
+        "method": "library_hijacking_during_sleep",
+        "target": "setuid_binaries_outside_jail"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_analyze_custom_security_implementations_first",
+        "reasoning": "custom_code_more_likely_to_have_vulnerabilities_than_standard_components",
+        "applicability": "applications_with_custom_sandboxing_or_security_features"
+      },
+      {
+        "rule": "test_credential_reuse_across_services",
+        "reasoning": "django_admin_passwords_commonly_reused_for_system_access",
+        "applicability": "web_application_credentials_obtained"
+      },
+      {
+        "rule": "exploit_same_vulnerability_for_privilege_escalation",
+        "reasoning": "sandbox_escape_techniques_can_often_be_enhanced_for_root_access",
+        "applicability": "initial_access_via_sandbox_escape"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Web Application File Upload",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_detected",
+          "file_upload_functionality",
+          "source_code_available"
+        ],
+        "success_indicators": [
+          "upload_form_present",
+          "file_processing_occurs",
+          "custom_sandbox_implementation"
+        ],
+        "incompatible_with": [
+          "no_file_upload",
+          "strict_file_validation",
+          "isolated_processing_environment"
+        ],
+        "confidence_boosters": [
+          "django_framework_detected",
+          "custom_c_sandbox",
+          "chroot_jail_implementation"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Chroot Jail Escape",
+        "mitre_id": "T1611",
+        "required_services": [
+          "custom_sandbox"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "chroot_environment_present",
+          "file_execution_allowed",
+          "sandbox_source_available"
+        ],
+        "success_indicators": [
+          "chroot_setup_detected",
+          "binary_execution_permitted",
+          "filesystem_access_possible"
+        ],
+        "incompatible_with": [
+          "proper_chroot_hardening",
+          "seccomp_filters",
+          "namespace_isolation"
+        ],
+        "confidence_boosters": [
+          "custom_sandbox_implementation",
+          "missing_security_controls",
+          "development_environment"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "60-120 minutes"
+      },
+      {
+        "technique": "Database Credential Extraction",
+        "mitre_id": "T1555.001",
+        "required_services": [
+          "sqlite",
+          "database"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "database_file_accessible",
+          "weak_password_hashing",
+          "filesystem_read_access"
+        ],
+        "success_indicators": [
+          "sqlite_database_found",
+          "md5_password_hashes",
+          "admin_credentials_present"
+        ],
+        "incompatible_with": [
+          "strong_password_hashing",
+          "database_encryption",
+          "file_permissions_hardened"
+        ],
+        "confidence_boosters": [
+          "django_admin_enabled",
+          "md5_hasher_configured",
+          "development_configuration"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "django_application": {
+        "port_indicators": [
+          80,
+          443,
+          8000,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Django",
+          "python"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "custom_sandbox": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "technology_indicators": [
+          "file_upload",
+          "malware_analysis",
+          "sandbox"
+        ],
+        "confidence_threshold": 0.75
+      },
+      "sqlite_database": {
+        "port_indicators": [],
+        "service_indicators": [
+          "sqlite"
+        ],
+        "file_indicators": [
+          ".db",
+          "sqlite"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "source_code_analysis",
+          "when": "source_code_available",
+          "reason": "reveals_implementation_flaws_and_attack_vectors"
+        },
+        {
+          "attack": "file_upload_exploitation",
+          "when": "upload_functionality_detected",
+          "reason": "direct_code_execution_potential"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "chroot_escape",
+          "when": "sandbox_environment_detected",
+          "reason": "privilege_escalation_opportunity"
+        },
+        {
+          "attack": "database_extraction",
+          "when": "sqlite_database_accessible",
+          "reason": "credential_harvesting_potential"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Chroot Jail Escape",
+        "mitre_id": "T1611",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "custom_binary",
+            "command_template": "gcc -o escape escape.c && ./sandbox /path/to/escape {hash}",
+            "actual_command": "gcc -o escape escape.c && ./sandbox /var/www/malscanner/uploads/escape hash123",
+            "output_pattern": "database_contents_or_file_access",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "chroot_jail_misconfiguration",
+          "ability_to_upload_executables",
+          "sandbox_source_code_access"
+        ],
+        "success_indicators": [
+          "access_to_files_outside_jail",
+          "database_content_extraction",
+          "credential_discovery"
+        ],
+        "common_failures": [
+          "proper_jail_configuration",
+          "restricted_syscalls",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse",
+          "ssh_authentication",
+          "setuid_binary_abuse"
+        ],
+        "time_investment": "2-4 hours",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "SetUID Binary Hijacking",
+        "mitre_id": "T1574.006",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "malicious_library",
+            "command_template": "gcc -shared -fPIC -o lib.so hijack.c && LD_PRELOAD=./lib.so {setuid_binary}",
+            "actual_command": "gcc -shared -fPIC -o libc.so.6 hijack.c && sleep 10 && /bin/setuid_binary",
+            "output_pattern": "root_shell_execution",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "setuid_binary_accessible",
+          "ability_to_load_libraries_in_jail",
+          "timing_window_for_library_placement"
+        ],
+        "success_indicators": [
+          "library_loaded_successfully",
+          "execution_as_root_user",
+          "privilege_escalation_complete"
+        ],
+        "common_failures": [
+          "timing_issues",
+          "library_path_restrictions",
+          "setuid_protections"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "1-3 hours",
+        "skill_level": "expert"
+      },
+      {
+        "name": "Django Admin Password Extraction",
+        "mitre_id": "T1555.005",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "sqlite3",
+            "command_template": "sqlite3 {database_path} \"SELECT * FROM auth_user;\"",
+            "actual_command": "sqlite3 /var/www/malscanner/malscanner.db \"SELECT * FROM auth_user;\"",
+            "output_pattern": "username|password_hash|email",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "database_file_access",
+          "django_application_identified",
+          "chroot_escape_successful"
+        ],
+        "success_indicators": [
+          "database_accessible",
+          "user_table_readable",
+          "password_hashes_extracted"
+        ],
+        "common_failures": [
+          "database_file_permissions",
+          "encrypted_database",
+          "missing_database_file"
+        ],
+        "follow_up_techniques": [
+          "password_cracking",
+          "credential_reuse_testing",
+          "admin_panel_access"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Custom C Binary",
+        "use_case": "chroot_jail_escape",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "high",
+        "essential_for": [
+          "sandbox_escape_scenarios"
+        ],
+        "alternatives": [
+          "existing_escape_binaries",
+          "scripted_exploits"
+        ],
+        "best_practices": [
+          "analyze_sandbox_source_thoroughly",
+          "identify_syscall_restrictions",
+          "test_locally_before_deployment"
+        ]
+      },
+      {
+        "tool": "LD_PRELOAD",
+        "use_case": "library_hijacking_setuid_binaries",
+        "effectiveness_rating": 5,
+        "reliability": 0.85,
+        "learning_curve": "high",
+        "essential_for": [
+          "setuid_exploitation"
+        ],
+        "alternatives": [
+          "direct_binary_exploitation",
+          "kernel_exploits"
+        ],
+        "best_practices": [
+          "ensure_timing_synchronization",
+          "verify_library_path_accessibility",
+          "test_hijack_function_compatibility"
+        ]
+      },
+      {
+        "tool": "Django Source Analysis",
+        "use_case": "web_application_vulnerability_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "django_applications"
+        ],
+        "alternatives": [
+          "dynamic_testing",
+          "automated_scanners"
+        ],
+        "best_practices": [
+          "focus_on_settings_py_configuration",
+          "trace_user_input_handling",
+          "identify_file_system_interactions"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "chroot_escape_to_database_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gcc -o escape escape.c",
+            "purpose": "Compile chroot escape binary",
+            "expected_output": "Successful compilation"
+          },
+          {
+            "step": 2,
+            "command": "Upload escape binary via web interface",
+            "purpose": "Deploy escape binary to target",
+            "expected_output": "Binary executed in sandbox"
+          },
+          {
+            "step": 3,
+            "command": "sqlite3 /var/www/malscanner/malscanner.db \"SELECT * FROM auth_user;\"",
+            "purpose": "Extract Django admin credentials",
+            "expected_output": "Username and password hash"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "2-4 hours"
+      },
+      {
+        "sequence_name": "setuid_hijack_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gcc -shared -fPIC -o libc.so.6 hijack.c",
+            "purpose": "Create malicious library",
+            "expected_output": "Shared library created"
+          },
+          {
+            "step": 2,
+            "command": "Upload sleep binary that calls setuid program",
+            "purpose": "Create timing window",
+            "expected_output": "Binary starts execution with delay"
+          },
+          {
+            "step": 3,
+            "command": "Place malicious library in jail during sleep",
+            "purpose": "Hijack library loading",
+            "expected_output": "Root shell execution"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "1-3 hours"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Scanned",
+      "difficulty": "Insane",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2022-01-29",
+      "author": "clubby789",
+      "estimated_time": "4-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "web_application",
+        "chroot_escape",
+        "library_hijacking"
+      ],
+      "key_vulnerabilities": [
+        "sandbox_escape",
+        "setuid_abuse",
+        "malicious_library_injection"
+      ],
+      "environment_type": "web_application_sandbox",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "chroot_jail_escape",
+        "binary_exploitation",
+        "library_preloading",
+        "django_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_linux_internals",
+        "binary_analysis",
+        "web_application_security",
+        "c_programming"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "sandbox_escape",
+        "privilege_escalation",
+        "binary_exploitation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "defense_evasion"
+      ],
+      "defensive_lessons": [
+        "secure_sandbox_design",
+        "proper_chroot_implementation",
+        "library_path_security",
+        "setuid_binary_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Jail",
+        "Rope",
+        "Unbalanced"
+      ],
+      "similarity_reasons": [
+        "sandbox_escape",
+        "chroot_breakout",
+        "advanced_exploitation"
+      ],
+      "unique_aspects": [
+        "malware_scanner_theme",
+        "django_application",
+        "library_hijacking_escalation"
+      ],
+      "difficulty_factors": [
+        "complex_exploitation_chain",
+        "advanced_binary_techniques",
+        "custom_sandbox_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T17:29:32.065022",
+    "original_file": "0xdf_writeups/Htb Scanned.md",
+    "content_length": 48328,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

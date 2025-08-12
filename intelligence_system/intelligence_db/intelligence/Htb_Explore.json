@@ -1,0 +1,754 @@
+{
+  "writeup_id": "Htb_Explore",
+  "scenario_fingerprint": {
+    "scenario_name": "android_es_file_explorer_vulnerability",
+    "primary_services": [
+      "ssh",
+      "http",
+      "es_file_explorer"
+    ],
+    "port_signature": "2222+42135+59777",
+    "service_combination": "ssh+es_file_explorer+adb",
+    "os_family": "android",
+    "environment_type": "mobile_device",
+    "entry_vector": "file_read_vulnerability",
+    "privilege_path": "file_disclosure_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "20-30 minutes",
+    "scenario_confidence": 0.98,
+    "distinguishing_factors": [
+      "es_file_explorer_cve_2019_6447",
+      "ssh_on_port_2222",
+      "android_debug_bridge_port_5555",
+      "banana_studio_ssh_banner"
+    ],
+    "environmental_clues": [
+      "android_os_detection",
+      "es_file_explorer_service_ports",
+      "filtered_adb_port",
+      "mobile_device_fingerprint"
+    ],
+    "similar_scenarios": [
+      "android_mobile_pentesting",
+      "es_file_manager_exploits"
+    ],
+    "unique_aspects": [
+      "first_android_htb_box",
+      "json_api_file_access",
+      "image_password_disclosure",
+      "adb_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "ES File Explorer CVE-2019-6447",
+        "success_reason": "ES File Explorer service exposed on port 59777 with unauthenticated file access",
+        "prerequisite_indicators": [
+          "port_59777_open",
+          "es_file_explorer_service_running",
+          "json_api_accepting_commands"
+        ],
+        "recognition_patterns": [
+          "port 59777 responds to HTTP requests",
+          "JSON POST commands accepted",
+          "listFiles/listPics commands work",
+          "FORBIDDEN: No directory listing on GET"
+        ],
+        "failure_modes": [
+          "service_not_exposed",
+          "authentication_required",
+          "patched_version"
+        ],
+        "environmental_factors": [
+          "android_device",
+          "es_file_explorer_installed",
+          "default_service_configuration",
+          "no_network_filtering"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "SSH with discovered credentials",
+        "success_reason": "Password found in image accessible via file read vulnerability",
+        "prerequisite_indicators": [
+          "ssh_service_available",
+          "credentials_discovered",
+          "valid_user_account_exists"
+        ],
+        "recognition_patterns": [
+          "SSH on non-standard port 2222",
+          "Banana Studio SSH server",
+          "password visible in image files",
+          "kristi user account"
+        ],
+        "failure_modes": [
+          "no_credentials_in_files",
+          "ssh_disabled",
+          "key_based_auth_only"
+        ],
+        "environmental_factors": [
+          "android_ssh_server",
+          "user_stored_passwords_in_images",
+          "weak_security_practices"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "ES File Explorer vulnerable service",
+        "discovery_method": "nmap port scan and service enumeration",
+        "why_critical": "Provides unauthenticated file system access including sensitive files",
+        "how_to_recognize": [
+          "port 59777 open",
+          "ES File Explorer Name Response httpd",
+          "JSON command interface",
+          "file listing capabilities"
+        ],
+        "follow_up_actions": [
+          "enumerate_with_listFiles",
+          "check_listPics_for_sensitive_data",
+          "look_for_credentials_in_files",
+          "map_file_system_structure"
+        ]
+      },
+      {
+        "discovery": "Password in image file",
+        "discovery_method": "listPics command via ES File Explorer API",
+        "why_critical": "Provides SSH access credentials for user account",
+        "how_to_recognize": [
+          "image files accessible via listPics",
+          "concept.jpg or similar files",
+          "credentials visible in screenshots",
+          "user documentation in images"
+        ],
+        "follow_up_actions": [
+          "download_all_accessible_images",
+          "examine_images_for_text",
+          "test_discovered_credentials",
+          "attempt_ssh_login"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_ssh_access",
+        "escalation_method": "ADB_port_forwarding_to_root",
+        "why_possible": "Android Debug Bridge accessible via port forwarding from SSH session",
+        "recognition_signs": [
+          "port_5555_filtered_externally",
+          "adb_service_running_locally",
+          "ssh_port_forwarding_available",
+          "android_debug_enabled"
+        ],
+        "exploitation_path": "SSH → Port Forward 5555 → ADB Connect → Root Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 2222,38925,42135,59777 open on Android host",
+        "decision": "Identify ES File Explorer service and exploit CVE-2019-6447",
+        "reasoning": "Port 42135 and 59777 indicate ES File Explorer with known vulnerability",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if file explorer fails"
+          },
+          {
+            "option": "adb_enumeration",
+            "when": "if port 5555 becomes accessible"
+          }
+        ],
+        "success_indicators": [
+          "json_api_responds_on_59777",
+          "file_listing_accessible",
+          "es_file_explorer_confirmed"
+        ],
+        "next_decision": "enumerate_sensitive_files"
+      },
+      {
+        "step": 2,
+        "situation": "ES File Explorer API accessible via JSON commands",
+        "decision": "Use listPics command to find credential files",
+        "reasoning": "Images often contain screenshots of credentials on mobile devices",
+        "confidence": 0.8,
+        "prerequisites": [
+          "es_file_explorer_accessible",
+          "json_api_working"
+        ],
+        "success_indicators": [
+          "credential_files_found",
+          "creds.jpg_discovered"
+        ],
+        "failure_fallbacks": [
+          "listFiles",
+          "listVideos",
+          "listApps"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found creds.jpg with SSH credentials",
+        "decision": "Extract image and use credentials for SSH access",
+        "reasoning": "Direct credential disclosure provides authenticated access",
+        "confidence": 0.95,
+        "prerequisites": [
+          "credential_image_found"
+        ],
+        "success_indicators": [
+          "ssh_authentication_successful"
+        ],
+        "next_decision": "privilege_escalation_enumeration"
+      }
+    ],
+    "branching_logic": {
+      "if_es_file_explorer_found": {
+        "action": "exploit_cve_2019_6447",
+        "tools": [
+          "curl",
+          "custom_python_script"
+        ],
+        "next_phase": "file_enumeration"
+      },
+      "if_credential_files_found": {
+        "action": "extract_and_analyze_credentials",
+        "purpose": "obtain_authentication_material",
+        "tools": [
+          "wget",
+          "image_viewer"
+        ]
+      },
+      "if_ssh_access_obtained": {
+        "action": "enumerate_android_privilege_escalation",
+        "purpose": "find_adb_access_or_root_paths",
+        "tools": [
+          "adb",
+          "android_enumeration_scripts"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_listPics_on_mobile_devices",
+        "reasoning": "mobile_users_frequently_screenshot_credentials",
+        "applicability": "android_or_mobile_targets"
+      },
+      {
+        "rule": "enumerate_adb_port_5555_after_initial_access",
+        "reasoning": "adb_provides_root_access_on_android",
+        "applicability": "android_systems_with_ssh_access"
+      },
+      {
+        "rule": "use_json_api_commands_systematically",
+        "reasoning": "different_commands_reveal_different_sensitive_data",
+        "applicability": "es_file_explorer_vulnerability"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ES File Explorer CVE-2019-6447",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          59777,
+          42135
+        ],
+        "os_requirements": [
+          "android"
+        ],
+        "environmental_prerequisites": [
+          "es_file_explorer_installed",
+          "remote_access_enabled",
+          "network_accessible"
+        ],
+        "success_indicators": [
+          "json_api_responds",
+          "file_listing_returns_data",
+          "forbidden_directory_listing_error"
+        ],
+        "incompatible_with": [
+          "service_disabled",
+          "network_isolation",
+          "patched_version"
+        ],
+        "confidence_boosters": [
+          "es_file_explorer_name_response_httpd",
+          "bukkit_jsonapi_service_banner",
+          "android_os_detection"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "SSH Brute Force",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22,
+          2222
+        ],
+        "os_requirements": [
+          "linux",
+          "android",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_accessible",
+          "weak_credentials_present"
+        ],
+        "success_indicators": [
+          "ssh_banner_detected",
+          "authentication_accepted",
+          "shell_access_gained"
+        ],
+        "incompatible_with": [
+          "key_only_authentication",
+          "account_lockout_enabled",
+          "strong_password_policy"
+        ],
+        "confidence_boosters": [
+          "custom_ssh_banner",
+          "non_standard_port",
+          "mobile_device_context"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Android Debug Bridge (ADB) Access",
+        "mitre_id": "T1059.001",
+        "required_services": [
+          "adb"
+        ],
+        "required_ports": [
+          5555
+        ],
+        "os_requirements": [
+          "android"
+        ],
+        "environmental_prerequisites": [
+          "adb_service_enabled",
+          "developer_options_enabled",
+          "network_adb_allowed"
+        ],
+        "success_indicators": [
+          "adb_connect_successful",
+          "device_listed",
+          "shell_command_execution"
+        ],
+        "incompatible_with": [
+          "adb_disabled",
+          "authentication_required",
+          "network_filtered"
+        ],
+        "confidence_boosters": [
+          "port_5555_filtered_initially",
+          "android_device_detected",
+          "developer_mode_indicators"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "1-3 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "android_device": {
+        "port_indicators": [
+          2222,
+          5555,
+          42135,
+          59777
+        ],
+        "service_indicators": [
+          "ssh",
+          "adb",
+          "es_file_explorer"
+        ],
+        "banner_indicators": [
+          "SSH Server - Banana Studio",
+          "ES File Explorer",
+          "Android"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "es_file_explorer": {
+        "port_indicators": [
+          42135,
+          59777
+        ],
+        "service_indicators": [
+          "ES File Explorer Name Response httpd",
+          "Bukkit JSONAPI httpd"
+        ],
+        "response_indicators": [
+          "FORBIDDEN: No directory listing",
+          "listFiles",
+          "listPics"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "mobile_ssh": {
+        "port_indicators": [
+          2222
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "Banana Studio",
+          "mobile",
+          "android"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "es_file_explorer_cve_2019_6447",
+          "when": "es_file_explorer_detected",
+          "reason": "high_success_rate_immediate_file_access"
+        },
+        {
+          "attack": "adb_connection",
+          "when": "android_device_and_adb_port_detected",
+          "reason": "direct_root_shell_access"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_credential_attack",
+          "when": "ssh_service_detected",
+          "reason": "reliable_shell_access_if_creds_found"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "ES File Explorer CVE-2019-6447 Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl {target_ip}:59777 -d '{\"command\": \"{command}\"}'",
+            "actual_command": "curl 10.10.10.247:59777 -d '{\"command\": \"listPics\"}'",
+            "output_pattern": "[{\"name\":\"{filename}\", \"time\":\"{timestamp}\", \"location\":\"{path}\", \"size\":\"{size}\"}]",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "ESFileExplorerOpenPortVuln.py",
+            "command_template": "python poc.py --get-file {file_path} --host {target_ip}",
+            "actual_command": "python poc.py --get-file /storage/emulated/0/DCIM/creds.jpg --host 10.10.10.247",
+            "success_factors": [
+              "port_59777_accessible",
+              "vulnerable_es_file_explorer_version"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "es_file_explorer_running",
+          "port_59777_accessible",
+          "vulnerable_version_installed"
+        ],
+        "success_indicators": [
+          "file_listing_returned",
+          "sensitive_files_accessible",
+          "credentials_extracted_from_images"
+        ],
+        "common_failures": [
+          "port_filtered_or_closed",
+          "patched_version_installed",
+          "no_sensitive_files_present"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "credential_reuse_testing",
+          "android_privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Android Debug Bridge (ADB) Privilege Escalation",
+        "mitre_id": "T1068",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "adb",
+            "command_template": "adb connect {target_ip}:5555",
+            "actual_command": "adb connect localhost:5555",
+            "output_pattern": "connected to {ip}:5555",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "adb shell",
+            "command_template": "adb shell",
+            "actual_command": "adb shell",
+            "success_factors": [
+              "adb_port_accessible",
+              "debug_mode_enabled",
+              "no_authentication_required"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "adb_port_accessible",
+          "ssh_tunnel_or_local_access",
+          "android_debug_enabled",
+          "no_adb_authentication"
+        ],
+        "success_indicators": [
+          "adb_connection_established",
+          "shell_access_as_root",
+          "full_system_access_achieved"
+        ],
+        "common_failures": [
+          "adb_authentication_required",
+          "port_not_accessible",
+          "debug_mode_disabled"
+        ],
+        "follow_up_techniques": [
+          "android_persistence",
+          "data_exfiltration",
+          "lateral_movement"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSH Port Forwarding for Internal Service Access",
+        "mitre_id": "T1572",
+        "category": "command_and_control",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "ssh",
+            "command_template": "ssh -L {local_port}:localhost:{remote_port} -p {ssh_port} {username}@{target_ip}",
+            "actual_command": "ssh -L 5555:localhost:5555 -p 2222 kristi@10.10.10.247",
+            "output_pattern": "Local port forwarding established",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "ssh_access_established",
+          "internal_service_identified",
+          "service_bound_to_localhost"
+        ],
+        "success_indicators": [
+          "tunnel_established_successfully",
+          "internal_service_accessible_locally",
+          "no_connection_errors"
+        ],
+        "common_failures": [
+          "port_already_in_use",
+          "ssh_connection_drops",
+          "service_not_running"
+        ],
+        "follow_up_techniques": [
+          "internal_service_exploitation",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "1-3 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ES File Explorer Vulnerability Scanner",
+        "use_case": "android_initial_access",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "android_penetration_testing"
+        ],
+        "alternatives": [
+          "manual_curl_requests",
+          "custom_exploit_scripts"
+        ],
+        "best_practices": [
+          "enumerate_all_available_commands",
+          "focus_on_listPics_and_listFiles",
+          "look_for_credential_containing_files"
+        ]
+      },
+      {
+        "tool": "Android Debug Bridge (adb)",
+        "use_case": "android_privilege_escalation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "android_security_testing"
+        ],
+        "alternatives": [
+          "direct_shell_exploitation",
+          "kernel_exploits"
+        ],
+        "best_practices": [
+          "always_check_port_5555_accessibility",
+          "use_ssh_tunneling_for_filtered_ports",
+          "verify_root_access_after_connection"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "android_es_file_explorer_to_root",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.247",
+            "purpose": "Identify open ports including ES File Explorer",
+            "expected_output": "Ports 2222, 5555, 42135, 59777 discovered"
+          },
+          {
+            "step": 2,
+            "command": "curl 10.10.10.247:59777 -d '{\"command\": \"listPics\"}'",
+            "purpose": "Enumerate pictures via ES File Explorer vulnerability",
+            "expected_output": "List of images including creds.jpg"
+          },
+          {
+            "step": 3,
+            "command": "python poc.py --get-file /storage/emulated/0/DCIM/creds.jpg --host 10.10.10.247",
+            "purpose": "Extract credential image",
+            "expected_output": "Image file containing SSH password"
+          },
+          {
+            "step": 4,
+            "command": "ssh -L 5555:localhost:5555 -p 2222 kristi@10.10.10.247",
+            "purpose": "SSH access with port forwarding for ADB",
+            "expected_output": "SSH shell with ADB port forwarded"
+          },
+          {
+            "step": 5,
+            "command": "adb connect localhost:5555",
+            "purpose": "Connect to Android Debug Bridge",
+            "expected_output": "Connected to localhost:5555"
+          },
+          {
+            "step": 6,
+            "command": "adb shell",
+            "purpose": "Obtain root shell via ADB",
+            "expected_output": "Root shell on Android device"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Explore",
+      "difficulty": "Easy",
+      "os": "Android",
+      "platform": "HackTheBox",
+      "release_date": "2021-06-26",
+      "author": "bertolis",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "file_read_vulnerability",
+        "service_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "es_file_explorer_cve",
+        "adb_service_exposure"
+      ],
+      "environment_type": "mobile_android_device",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "mobile_penetration_testing",
+        "android_exploitation",
+        "adb_usage"
+      ],
+      "prerequisite_knowledge": [
+        "basic_networking",
+        "file_system_navigation",
+        "ssh_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "mobile_security",
+      "subcategories": [
+        "android_exploitation",
+        "file_disclosure",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "mobile_app_security",
+        "service_hardening",
+        "credential_protection"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "ScriptKiddie",
+        "Knife",
+        "Backdoor"
+      ],
+      "similarity_reasons": [
+        "simple_exploit_chain",
+        "service_vulnerability",
+        "straightforward_escalation"
+      ],
+      "unique_aspects": [
+        "first_android_box",
+        "mobile_platform",
+        "adb_exploitation"
+      ],
+      "difficulty_factors": [
+        "clear_attack_path",
+        "well_known_vulnerability",
+        "minimal_enumeration_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T17:02:34.966388",
+    "original_file": "0xdf_writeups/Htb Explore.md",
+    "content_length": 15760,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

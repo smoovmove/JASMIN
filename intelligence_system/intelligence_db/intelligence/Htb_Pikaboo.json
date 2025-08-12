@@ -1,0 +1,928 @@
+{
+  "writeup_id": "Htb_Pikaboo",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_nginx_apache_proxy_lfi_ftp_log_poisoning",
+    "primary_services": [
+      "http",
+      "ftp",
+      "ssh"
+    ],
+    "port_signature": "21+22+80",
+    "service_combination": "ftp+ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "web_server",
+    "entry_vector": "nginx_apache_proxy_bypass",
+    "privilege_path": "www_data_to_root_via_cron",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "nginx_reverse_proxy_to_apache",
+      "off_by_slash_vulnerability",
+      "ftp_log_poisoning_via_lfi",
+      "perl_diamond_operator_injection",
+      "ldap_credential_discovery"
+    ],
+    "environmental_clues": [
+      "nginx_frontend_apache_backend",
+      "staging_server_access",
+      "php_application_with_lfi",
+      "vsftpd_service",
+      "debian_10_buster"
+    ],
+    "similar_scenarios": [
+      "htb_hard_multi_stage",
+      "proxy_bypass_scenarios"
+    ],
+    "unique_aspects": [
+      "pokemon_themed_application",
+      "multi_stage_enumeration_heavy",
+      "ftp_file_drop_for_privilege_escalation",
+      "cron_perl_script_vulnerability"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "NGINX_Apache_Off-by-Slash",
+        "success_reason": "NGINX reverse proxy misconfiguration allowed access to staging server via path manipulation",
+        "prerequisite_indicators": [
+          "nginx_reverse_proxy_detected",
+          "apache_backend_visible_in_errors",
+          "different_ports_in_error_messages"
+        ],
+        "recognition_patterns": [
+          "nginx frontend with apache backend (127.0.0.1:81)",
+          "unauthorized pages showing apache details",
+          "path-based access controls"
+        ],
+        "failure_modes": [
+          "proper_nginx_configuration",
+          "consistent_path_handling",
+          "no_backend_exposure"
+        ],
+        "environmental_factors": [
+          "reverse_proxy_setup",
+          "staging_environment_accessible",
+          "misconfigured_path_routing"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "FTP_Log_Poisoning_via_LFI",
+        "success_reason": "LFI vulnerability combined with FTP log poisoning allowed PHP code execution",
+        "prerequisite_indicators": [
+          "lfi_vulnerability_present",
+          "ftp_service_running",
+          "log_files_accessible",
+          "php_execution_context"
+        ],
+        "recognition_patterns": [
+          "file inclusion parameters in URLs",
+          "ftp service on port 21",
+          "php application stack",
+          "log file paths predictable"
+        ],
+        "failure_modes": [
+          "logs_not_accessible",
+          "input_sanitization_present",
+          "ftp_logs_not_writable",
+          "php_execution_disabled"
+        ],
+        "environmental_factors": [
+          "default_log_locations",
+          "ftp_logging_enabled",
+          "web_server_file_access"
+        ],
+        "success_probability": 0.68,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "Perl_Diamond_Operator_Injection",
+        "success_reason": "Perl script using diamond operator vulnerable to command injection via filename manipulation",
+        "prerequisite_indicators": [
+          "perl_scripts_in_cron",
+          "file_processing_scripts",
+          "user_controlled_filenames",
+          "diamond_operator_usage"
+        ],
+        "recognition_patterns": [
+          "perl scripts processing files",
+          "cron jobs running as root",
+          "file upload/creation capabilities",
+          "predictable file processing"
+        ],
+        "failure_modes": [
+          "input_validation_present",
+          "safe_file_handling",
+          "restricted_file_creation",
+          "sandboxed_execution"
+        ],
+        "environmental_factors": [
+          "legacy_perl_scripts",
+          "automated_file_processing",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-25 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "NGINX-Apache reverse proxy misconfiguration",
+        "discovery_method": "Error message analysis and path manipulation",
+        "why_critical": "Exposed staging environment with different security controls",
+        "how_to_recognize": [
+          "apache details in nginx error pages",
+          "different server signatures in responses",
+          "backend server details in error messages"
+        ],
+        "follow_up_actions": [
+          "test_path_traversal_techniques",
+          "enumerate_backend_directories",
+          "identify_staging_vs_production_differences"
+        ]
+      },
+      {
+        "discovery": "LFI vulnerability in staging environment",
+        "discovery_method": "Parameter manipulation after gaining staging access",
+        "why_critical": "Enabled log poisoning attack vector for code execution",
+        "how_to_recognize": [
+          "file inclusion parameters",
+          "path traversal possibilities",
+          "error messages revealing file paths"
+        ],
+        "follow_up_actions": [
+          "test_log_file_inclusion",
+          "attempt_log_poisoning",
+          "identify_writable_log_locations"
+        ]
+      },
+      {
+        "discovery": "Root cron job processing user-controlled files",
+        "discovery_method": "Process enumeration and cron analysis",
+        "why_critical": "Direct path to root privilege escalation",
+        "how_to_recognize": [
+          "cron jobs running as root",
+          "file processing scripts",
+          "user-writable directories in processing path"
+        ],
+        "follow_up_actions": [
+          "analyze_script_vulnerabilities",
+          "test_filename_injection",
+          "create_malicious_files"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "nginx_apache_bypass_to_staging",
+        "why_possible": "Reverse proxy configuration allowed path manipulation to access staging server",
+        "recognition_signs": [
+          "nginx_frontend_apache_backend",
+          "error_pages_showing_backend_details",
+          "path_based_access_controls"
+        ],
+        "exploitation_path": "Path manipulation → Staging access → LFI discovery"
+      },
+      {
+        "privilege_level": "staging_access",
+        "escalation_method": "lfi_to_log_poisoning_rce",
+        "why_possible": "LFI vulnerability combined with accessible FTP logs and PHP execution",
+        "recognition_signs": [
+          "file_inclusion_parameters",
+          "ftp_service_available",
+          "php_execution_context",
+          "predictable_log_paths"
+        ],
+        "exploitation_path": "LFI → FTP log poisoning → PHP execution → www-data shell"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "perl_diamond_operator_injection",
+        "why_possible": "Root cron job used vulnerable Perl diamond operator with user-controlled filenames",
+        "recognition_signs": [
+          "perl_scripts_in_cron",
+          "root_file_processing",
+          "user_file_creation_capability",
+          "diamond_operator_usage"
+        ],
+        "exploitation_path": "File creation → Filename injection → Command execution as root"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,80 open on Linux host with nginx",
+        "decision": "Focus on web application enumeration and identify reverse proxy setup",
+        "reasoning": "Limited attack surface with FTP requiring creds and SSH likely hardened",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ftp_bruteforce",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "web_application_accessible",
+          "reverse_proxy_detected",
+          "admin_panel_found"
+        ],
+        "next_decision": "analyze_web_architecture"
+      },
+      {
+        "step": 2,
+        "situation": "Nginx reverse proxy to Apache detected with admin panel protected",
+        "decision": "Test for off-by-slash vulnerability in nginx configuration",
+        "reasoning": "Common misconfiguration in nginx proxy_pass directives",
+        "confidence": 0.85,
+        "prerequisites": [
+          "nginx_reverse_proxy_confirmed",
+          "admin_paths_return_401"
+        ],
+        "success_indicators": [
+          "admin_panel_bypass_successful",
+          "different_response_codes"
+        ],
+        "failure_fallbacks": [
+          "directory_traversal",
+          "parameter_fuzzing",
+          "auth_bypass"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Admin panel access gained via off-by-slash",
+        "decision": "Enumerate admin functionality for file upload or LFI vulnerabilities",
+        "reasoning": "Admin panels typically have file management capabilities",
+        "confidence": 0.8,
+        "prerequisites": [
+          "admin_panel_accessible"
+        ],
+        "success_indicators": [
+          "file_upload_found",
+          "lfi_parameter_discovered"
+        ],
+        "failure_fallbacks": [
+          "credential_extraction",
+          "configuration_file_access"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "LFI vulnerability discovered in admin panel",
+        "decision": "Attempt log poisoning via FTP logs",
+        "reasoning": "FTP service available and logs typically writable by service",
+        "confidence": 0.75,
+        "prerequisites": [
+          "lfi_confirmed",
+          "ftp_service_accessible"
+        ],
+        "success_indicators": [
+          "ftp_log_inclusion_successful",
+          "php_code_execution"
+        ],
+        "failure_fallbacks": [
+          "other_log_files",
+          "proc_environ",
+          "session_files"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_off_by_slash_succeeds": {
+        "action": "enumerate_admin_panel_thoroughly",
+        "tools": [
+          "burp_suite",
+          "feroxbuster",
+          "manual_testing"
+        ],
+        "next_phase": "find_file_inclusion_vulnerabilities"
+      },
+      "if_lfi_found": {
+        "action": "attempt_log_poisoning",
+        "alternatives": [
+          "ftp_logs",
+          "apache_logs",
+          "nginx_logs"
+        ],
+        "decision_criteria": "based_on_log_file_accessibility"
+      },
+      "if_log_poisoning_succeeds": {
+        "action": "establish_reverse_shell",
+        "purpose": "gain_initial_foothold",
+        "tools": [
+          "php_reverse_shell",
+          "netcat"
+        ]
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_for_privilege_escalation",
+        "focus_areas": [
+          "cron_jobs",
+          "suid_binaries",
+          "configuration_files"
+        ],
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "test_off_by_slash_on_nginx_reverse_proxy",
+        "reasoning": "common_misconfiguration_with_high_success_rate",
+        "applicability": "nginx_proxy_pass_configurations"
+      },
+      {
+        "rule": "prioritize_log_poisoning_when_lfi_and_services_available",
+        "reasoning": "reliable_path_to_code_execution",
+        "applicability": "lfi_with_accessible_log_files"
+      },
+      {
+        "rule": "enumerate_cron_jobs_thoroughly_on_linux",
+        "reasoning": "common_privilege_escalation_vector",
+        "applicability": "linux_systems_with_web_user_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "NGINX_Apache_Off_By_Slash",
+        "mitre_id": "T1190",
+        "required_services": [
+          "nginx",
+          "apache"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "nginx_reverse_proxy_to_apache",
+          "different_path_handling_between_servers",
+          "apache_backend_accessible"
+        ],
+        "success_indicators": [
+          "nginx_frontend_detected",
+          "apache_backend_detected_in_errors",
+          "path_traversal_bypasses_auth",
+          "different_responses_with_slash_manipulation"
+        ],
+        "incompatible_with": [
+          "single_web_server",
+          "consistent_path_handling",
+          "proper_proxy_configuration"
+        ],
+        "confidence_boosters": [
+          "nginx_proxy_pass_misconfiguration",
+          "apache_documentroot_accessible",
+          "auth_bypass_via_path_manipulation"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "FTP_Log_Poisoning",
+        "mitre_id": "T1190",
+        "required_services": [
+          "ftp",
+          "http"
+        ],
+        "required_ports": [
+          21,
+          80
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_accessible",
+          "ftp_logs_readable_via_lfi",
+          "web_server_processes_php",
+          "log_file_location_predictable"
+        ],
+        "success_indicators": [
+          "ftp_authentication_attempts_logged",
+          "lfi_vulnerability_confirmed",
+          "php_execution_in_logs",
+          "writable_log_directory"
+        ],
+        "incompatible_with": [
+          "ftp_logging_disabled",
+          "log_rotation_too_frequent",
+          "php_execution_disabled",
+          "log_files_not_accessible"
+        ],
+        "confidence_boosters": [
+          "vsftpd_default_logging",
+          "predictable_log_paths",
+          "php_include_functions_available"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Perl_Diamond_Operator_Injection",
+        "mitre_id": "T1059.006",
+        "required_services": [
+          "cron",
+          "perl"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "perl_script_runs_as_root",
+          "diamond_operator_used_unsafely",
+          "user_controlled_input_to_script",
+          "cron_job_accessible"
+        ],
+        "success_indicators": [
+          "perl_script_found_in_cron",
+          "diamond_operator_in_source",
+          "file_input_controllable",
+          "root_execution_confirmed"
+        ],
+        "incompatible_with": [
+          "input_sanitization_present",
+          "safe_file_handling",
+          "restricted_file_access",
+          "perl_taint_mode_enabled"
+        ],
+        "confidence_boosters": [
+          "legacy_perl_scripts",
+          "unsanitized_file_processing",
+          "root_cron_jobs"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "directory_listing_disabled",
+          "hidden_directories_present"
+        ],
+        "success_indicators": [
+          "non_404_responses_found",
+          "different_status_codes",
+          "authentication_prompts",
+          "accessible_endpoints_discovered"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "ip_blocking_enabled",
+          "waf_protection_active"
+        ],
+        "confidence_boosters": [
+          "standard_web_frameworks",
+          "default_installations",
+          "common_cms_patterns"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "nginx_apache_proxy": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "Apache"
+        ],
+        "error_indicators": [
+          "127.0.0.1:81",
+          "backend_server"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          ".php",
+          "PHP"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ftp_service": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp",
+          "vsftpd"
+        ],
+        "banner_indicators": [
+          "vsFTPd",
+          "FTP"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Debian",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "nginx_apache_off_by_slash",
+          "when": "nginx_apache_proxy_detected",
+          "reason": "often_bypasses_authentication_and_access_controls"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_discovery_method_for_hidden_endpoints"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ftp_log_poisoning",
+          "when": "ftp_and_web_services_detected",
+          "reason": "effective_when_lfi_vulnerability_present"
+        },
+        {
+          "attack": "perl_diamond_operator_injection",
+          "when": "linux_system_with_perl_detected",
+          "reason": "high_impact_but_requires_specific_conditions"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Off-by-Slash Path Traversal",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -I http://{target}/admin../server-status",
+            "actual_command": "curl -I http://10.10.10.249/admin../server-status",
+            "output_pattern": "HTTP/1.1 200 OK",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u http://{target} -x php -C 401",
+            "actual_command": "feroxbuster -u http://10.10.10.249 -x php -C 401",
+            "success_factors": [
+              "nginx_apache_proxy_misconfiguration",
+              "admin_path_protection"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "nginx_reverse_proxy_to_apache",
+          "misconfigured_location_directive",
+          "admin_path_without_trailing_slash"
+        ],
+        "success_indicators": [
+          "access_to_server_status_page",
+          "bypass_authentication_requirements",
+          "discovery_of_staging_environments"
+        ],
+        "common_failures": [
+          "proper_nginx_configuration",
+          "no_apache_backend",
+          "path_normalization_prevents_bypass"
+        ],
+        "follow_up_techniques": [
+          "apache_server_status_enumeration",
+          "staging_environment_discovery",
+          "lfi_exploitation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "FTP Log Poisoning via LFI",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "ftp_client",
+            "command_template": "ftp {target}",
+            "actual_command": "ftp 10.10.10.249",
+            "output_pattern": "530 Login incorrect",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "lfi_vulnerability_present",
+          "ftp_service_accessible",
+          "ftp_logs_readable_via_lfi",
+          "php_execution_in_logs"
+        ],
+        "success_indicators": [
+          "php_code_injected_in_ftp_logs",
+          "code_execution_via_log_inclusion",
+          "reverse_shell_obtained"
+        ],
+        "common_failures": [
+          "ftp_logs_not_accessible",
+          "log_rotation_clears_payload",
+          "php_execution_disabled"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation_enumeration",
+          "cron_job_discovery",
+          "credential_harvesting"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Perl Diamond Operator Command Injection",
+        "mitre_id": "T1059.006",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "ftp_client",
+            "command_template": "ftp {target}",
+            "actual_command": "ftp 10.10.10.249",
+            "output_pattern": "230 Login successful",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "perl_script_running_as_root",
+          "diamond_operator_vulnerability",
+          "file_upload_capability_to_processed_directory",
+          "cron_job_processing_files"
+        ],
+        "success_indicators": [
+          "malicious_filename_uploaded",
+          "command_execution_as_root",
+          "root_shell_obtained"
+        ],
+        "common_failures": [
+          "filename_sanitization",
+          "restricted_file_upload",
+          "cron_job_not_running"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "credential_dumping",
+          "lateral_movement"
+        ],
+        "time_investment": "20-40 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "filter_out_expected_error_codes",
+          "include_relevant_file_extensions",
+          "adjust_thread_count_for_target_stability"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "http_request_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing",
+          "api_testing"
+        ],
+        "alternatives": [
+          "wget",
+          "httpie",
+          "burp_suite"
+        ],
+        "best_practices": [
+          "use_head_requests_for_quick_status_checks",
+          "follow_redirects_when_appropriate",
+          "examine_response_headers_for_information_disclosure"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nginx_apache_bypass_to_staging",
+        "steps": [
+          {
+            "step": 1,
+            "command": "feroxbuster -u http://10.10.10.249 -x php -C 401",
+            "purpose": "Enumerate accessible paths while filtering auth-protected ones",
+            "expected_output": "Discovery of admin.php returning 403 instead of 401"
+          },
+          {
+            "step": 2,
+            "command": "curl -I http://10.10.10.249/admin../server-status",
+            "purpose": "Exploit off-by-slash to access Apache server status",
+            "expected_output": "HTTP/1.1 200 OK with server status information"
+          },
+          {
+            "step": 3,
+            "command": "curl http://10.10.10.249/admin../admin_staging/",
+            "purpose": "Access staging environment via path traversal",
+            "expected_output": "Access to staging admin panel"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "15-25 minutes"
+      },
+      {
+        "sequence_name": "lfi_to_ftp_log_poisoning",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ftp 10.10.10.249",
+            "purpose": "Attempt FTP connection to poison logs",
+            "expected_output": "Connection established, login fails but username logged"
+          },
+          {
+            "step": 2,
+            "command": "curl 'http://target/lfi.php?file=/var/log/vsftpd.log'",
+            "purpose": "Include FTP logs via LFI vulnerability",
+            "expected_output": "FTP log contents with injected PHP code"
+          },
+          {
+            "step": 3,
+            "command": "curl 'http://target/lfi.php?file=/var/log/vsftpd.log&cmd=id'",
+            "purpose": "Execute commands via poisoned log inclusion",
+            "expected_output": "Command output showing www-data user"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "20-35 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Pikaboo",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2021-07-17",
+      "author": "pwnmeow, polarbearer",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_application",
+        "log_poisoning",
+        "command_injection"
+      ],
+      "key_vulnerabilities": [
+        "nginx_apache_off_by_slash",
+        "lfi_log_poisoning",
+        "perl_diamond_operator"
+      ],
+      "environment_type": "web_server_multi_service",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "reverse_proxy_misconfig",
+        "log_poisoning_techniques",
+        "perl_injection",
+        "ftp_log_manipulation"
+      ],
+      "prerequisite_knowledge": [
+        "web_enumeration",
+        "lfi_exploitation",
+        "log_poisoning",
+        "perl_scripting",
+        "ldap_enumeration"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "log_poisoning",
+        "command_injection",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "secure_proxy_configuration",
+        "input_validation",
+        "log_file_permissions",
+        "cron_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Poison",
+        "Nineveh",
+        "Cronos"
+      ],
+      "similarity_reasons": [
+        "log_poisoning",
+        "lfi_exploitation",
+        "cron_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "nginx_apache_off_by_slash",
+        "perl_diamond_operator",
+        "multi_stage_enumeration"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "multiple_enumeration_phases",
+        "advanced_web_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:12:00.201907",
+    "original_file": "0xdf_writeups/Htb Pikaboo.md",
+    "content_length": 38348,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

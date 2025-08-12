@@ -1,0 +1,922 @@
+{
+  "writeup_id": "Htb_Fighter",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_iis_sql_injection_applocker_bypass",
+    "primary_services": [
+      "http",
+      "iis",
+      "mssql"
+    ],
+    "port_signature": "80",
+    "service_combination": "iis+asp_net+mssql",
+    "os_family": "windows_server",
+    "environment_type": "web_application",
+    "entry_vector": "sql_injection",
+    "privilege_path": "web_to_system_via_driver_exploit",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "applocker_restrictions",
+      "capcom_driver_vulnerability",
+      "bat_script_hijacking",
+      "subdomain_enumeration_required"
+    ],
+    "environmental_clues": [
+      "iis_8_5_server",
+      "asp_net_application",
+      "members_subdomain_403",
+      "street_fighter_theme"
+    ],
+    "similar_scenarios": [
+      "bastard_htb_medium",
+      "bounty_htb_easy"
+    ],
+    "unique_aspects": [
+      "applocker_bypass_techniques",
+      "capcom_driver_exploitation",
+      "juicypotato_origin_box",
+      "metasploit_modification_required"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection",
+        "success_reason": "Login form vulnerable to SQL injection in verify.asp",
+        "prerequisite_indicators": [
+          "asp_application_detected",
+          "login_form_present",
+          "database_backend_likely"
+        ],
+        "recognition_patterns": [
+          "ASP.NET application with login",
+          "POST to verify.asp endpoint",
+          "typical authentication bypass patterns"
+        ],
+        "failure_modes": [
+          "parameterized_queries_used",
+          "input_validation_present",
+          "waf_blocking_injection"
+        ],
+        "environmental_factors": [
+          "legacy_asp_application",
+          "insufficient_input_validation",
+          "direct_sql_query_construction"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "AppLocker_Bypass",
+        "success_reason": "Restrictive AppLocker policy with exploitable bypass paths",
+        "prerequisite_indicators": [
+          "applocker_policy_active",
+          "code_execution_achieved",
+          "writable_directories_available"
+        ],
+        "recognition_patterns": [
+          "execution_blocked_errors",
+          "policy_enforcement_messages",
+          "whitelisted_directories_exist"
+        ],
+        "failure_modes": [
+          "comprehensive_applocker_rules",
+          "no_writable_bypass_paths",
+          "application_whitelisting_complete"
+        ],
+        "environmental_factors": [
+          "windows_server_2012r2",
+          "incomplete_applocker_configuration",
+          "legacy_application_requirements"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Capcom_Driver_Exploit",
+        "success_reason": "Vulnerable Capcom.sys driver installed and accessible",
+        "prerequisite_indicators": [
+          "capcom_driver_present",
+          "seloaddriverprivilege_available",
+          "kernel_exploitation_possible"
+        ],
+        "recognition_patterns": [
+          "capcom.sys in system32/drivers",
+          "driver_loading_capabilities",
+          "privilege_escalation_context"
+        ],
+        "failure_modes": [
+          "driver_not_installed",
+          "insufficient_privileges",
+          "driver_signing_enforcement"
+        ],
+        "environmental_factors": [
+          "legacy_gaming_software",
+          "vulnerable_driver_persistence",
+          "inadequate_driver_management"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "15-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "members.streetfighterclub.htb subdomain",
+        "discovery_method": "subdomain enumeration with wfuzz",
+        "why_critical": "Hidden application with authentication bypass vulnerability",
+        "how_to_recognize": [
+          "403 forbidden on subdomain root",
+          "references to member areas in main site",
+          "directory enumeration reveals /old/ path"
+        ],
+        "follow_up_actions": [
+          "enumerate_directories_on_subdomain",
+          "test_sql_injection_on_forms",
+          "analyze_application_structure"
+        ]
+      },
+      {
+        "discovery": "SQL injection in verify.asp",
+        "discovery_method": "manual testing of login form",
+        "why_critical": "Authentication bypass leading to application access",
+        "how_to_recognize": [
+          "ASP application with database backend",
+          "login form posting to verify endpoint",
+          "error messages revealing SQL context"
+        ],
+        "follow_up_actions": [
+          "test_union_based_injection",
+          "enumerate_database_structure",
+          "attempt_file_upload_functionality"
+        ]
+      },
+      {
+        "discovery": "Capcom.sys vulnerable driver",
+        "discovery_method": "system enumeration after initial access",
+        "why_critical": "Direct path to SYSTEM privileges via kernel exploitation",
+        "how_to_recognize": [
+          "capcom.sys present in drivers directory",
+          "gaming software installation artifacts",
+          "SeLoadDriverPrivilege available"
+        ],
+        "follow_up_actions": [
+          "compile_capcom_exploit",
+          "modify_metasploit_module",
+          "execute_kernel_shellcode"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "AppLocker_bypass_to_code_execution",
+        "why_possible": "Incomplete AppLocker policy with writable bypass directories",
+        "recognition_signs": [
+          "applocker_blocking_standard_paths",
+          "writable_directories_in_path",
+          "bat_file_hijacking_opportunities"
+        ],
+        "exploitation_path": "SQL injection → File upload → AppLocker bypass → Code execution"
+      },
+      {
+        "privilege_level": "limited_user",
+        "escalation_method": "Capcom_driver_to_SYSTEM",
+        "why_possible": "Vulnerable kernel driver with arbitrary code execution capability",
+        "recognition_signs": [
+          "capcom_sys_driver_installed",
+          "seloaddriverprivilege_present",
+          "kernel_exploitation_vectors_available"
+        ],
+        "exploitation_path": "User access → Load Capcom driver → Kernel shellcode → SYSTEM"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Only port 80 open on Windows IIS 8.5 server",
+        "decision": "Focus on web application enumeration and subdomain discovery",
+        "reasoning": "Limited attack surface requires thorough web reconnaissance",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "port_knocking",
+            "when": "if common ports fail"
+          },
+          {
+            "option": "udp_scan",
+            "when": "if tcp enumeration exhausted"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "hidden_directories_found",
+          "application_stack_identified"
+        ],
+        "next_decision": "enumerate_discovered_services"
+      },
+      {
+        "step": 2,
+        "situation": "Found members subdomain with login form and ASP backend",
+        "decision": "Test for SQL injection in login parameters",
+        "reasoning": "ASP application with database backend likely vulnerable to SQLi",
+        "confidence": 0.85,
+        "prerequisites": [
+          "login_form_identified",
+          "asp_backend_confirmed"
+        ],
+        "success_indicators": [
+          "sql_error_messages",
+          "parameter_crashes_application"
+        ],
+        "failure_fallbacks": [
+          "credential_brute_force",
+          "session_manipulation",
+          "directory_traversal"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "SQL injection confirmed in logintype parameter",
+        "decision": "Exploit SQLi to gain database access and enumerate system",
+        "reasoning": "SQLi provides path to credential extraction and potential command execution",
+        "confidence": 0.95,
+        "prerequisites": [
+          "sql_injection_confirmed"
+        ],
+        "success_indicators": [
+          "database_enumeration_successful",
+          "credentials_extracted"
+        ],
+        "failure_fallbacks": [
+          "blind_sqli_techniques",
+          "time_based_injection"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_limited_ports_open": {
+        "action": "intensive_web_enumeration",
+        "tools": [
+          "feroxbuster",
+          "wfuzz",
+          "gobuster"
+        ],
+        "next_phase": "subdomain_and_directory_discovery"
+      },
+      "if_subdomain_found": {
+        "action": "enumerate_subdomain_thoroughly",
+        "alternatives": [
+          "directory_brute_force",
+          "parameter_fuzzing",
+          "technology_fingerprinting"
+        ],
+        "decision_criteria": "based_on_response_codes_and_content"
+      },
+      "if_sql_injection_found": {
+        "action": "exploit_for_system_access",
+        "purpose": "gain_initial_foothold_through_database",
+        "tools": [
+          "sqlmap",
+          "manual_injection",
+          "custom_payloads"
+        ]
+      },
+      "if_applocker_detected": {
+        "action": "research_bypass_techniques",
+        "alternatives": [
+          "powershell_bypasses",
+          "alternate_execution_methods",
+          "dll_hijacking"
+        ],
+        "decision_criteria": "based_on_applocker_configuration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_subdomains_when_limited_ports",
+        "reasoning": "hidden_services_often_on_subdomains_in_ctf_environments",
+        "applicability": "single_port_web_applications"
+      },
+      {
+        "rule": "test_all_parameters_for_sql_injection",
+        "reasoning": "asp_applications_frequently_vulnerable_to_sqli",
+        "applicability": "asp_net_applications_with_forms"
+      },
+      {
+        "rule": "prepare_applocker_bypasses_for_windows_targets",
+        "reasoning": "modern_windows_boxes_often_implement_application_whitelisting",
+        "applicability": "windows_server_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "database_backend_exists",
+          "user_input_parameters"
+        ],
+        "success_indicators": [
+          "error_messages_revealed",
+          "parameter_reflection",
+          "time_delay_responses"
+        ],
+        "incompatible_with": [
+          "parameterized_queries_only",
+          "input_validation_strict",
+          "waf_blocking_payloads"
+        ],
+        "confidence_boosters": [
+          "asp_net_application",
+          "legacy_code_patterns",
+          "error_disclosure_enabled"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "file_system_access",
+          "insufficient_path_validation"
+        ],
+        "success_indicators": [
+          "file_contents_returned",
+          "directory_listings_exposed",
+          "system_files_accessible"
+        ],
+        "incompatible_with": [
+          "chroot_jail_active",
+          "strict_path_validation",
+          "file_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "iis_web_server",
+          "asp_net_framework",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Subdomain Enumeration",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "dns",
+          "http"
+        ],
+        "required_ports": [
+          53,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "dns_resolution_available",
+          "multiple_subdomains_exist",
+          "wildcard_dns_not_blocking"
+        ],
+        "success_indicators": [
+          "different_response_codes",
+          "unique_content_returned",
+          "service_differentiation"
+        ],
+        "incompatible_with": [
+          "wildcard_dns_catchall",
+          "subdomain_blocking",
+          "single_application_only"
+        ],
+        "confidence_boosters": [
+          "corporate_domain",
+          "multiple_services_hinted",
+          "development_environments"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "AppLocker Bypass",
+        "mitre_id": "T1218",
+        "required_services": [
+          "smb",
+          "winrm"
+        ],
+        "required_ports": [
+          445,
+          5985,
+          5986
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "applocker_enabled",
+          "code_execution_needed",
+          "alternative_execution_paths"
+        ],
+        "success_indicators": [
+          "unsigned_binaries_execute",
+          "script_execution_allowed",
+          "dll_loading_possible"
+        ],
+        "incompatible_with": [
+          "device_guard_enabled",
+          "constrained_language_mode",
+          "complete_path_blocking"
+        ],
+        "confidence_boosters": [
+          "default_applocker_rules",
+          "writable_system_paths",
+          "trusted_publisher_bypass"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "iis_web_server": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "ASP.NET"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "windows_server": {
+        "port_indicators": [
+          135,
+          139,
+          445,
+          3389
+        ],
+        "service_indicators": [
+          "smb",
+          "rpc",
+          "rdp"
+        ],
+        "banner_indicators": [
+          "Windows Server",
+          "Microsoft Windows"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "asp_net_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "banner_indicators": [
+          "X-Powered-By: ASP.NET",
+          ".aspx",
+          ".asp"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "subdomain_enumeration",
+          "when": "single_web_port_detected",
+          "reason": "often_reveals_hidden_applications"
+        },
+        {
+          "attack": "sql_injection",
+          "when": "asp_net_application_detected",
+          "reason": "common_in_legacy_applications"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_functionality"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "parameter_fuzzing",
+          "when": "web_forms_present",
+          "reason": "may_reveal_injection_points"
+        },
+        {
+          "attack": "applocker_bypass",
+          "when": "windows_code_execution_needed",
+          "reason": "common_enterprise_protection"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Injection - Union Based",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "POST /old/verify.asp with logintype={payload}",
+            "actual_command": "logintype=1 UNION SELECT 1,2,3,4,5,6-- -",
+            "output_pattern": "302 redirect with data in Email cookie",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "sql_injection_vulnerable_parameter",
+          "union_injection_possible"
+        ],
+        "success_indicators": [
+          "302_response_instead_of_500_error",
+          "data_reflected_in_cookies",
+          "database_version_extracted"
+        ],
+        "common_failures": [
+          "incorrect_column_count",
+          "waf_blocking_payloads",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "stacked_queries",
+          "command_execution_via_xp_cmdshell",
+          "database_enumeration"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "MSSQL Command Execution",
+        "mitre_id": "T1059.001",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "xp_cmdshell",
+            "command_template": "EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE; EXEC xp_cmdshell '{command}'",
+            "actual_command": "EXEC sp_configure 'show advanced options', 1; EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE;",
+            "output_pattern": "Command output in database results",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "sql_injection_with_stacked_queries",
+          "dbo_or_sysadmin_privileges",
+          "mssql_database_backend"
+        ],
+        "success_indicators": [
+          "xp_cmdshell_enabled_successfully",
+          "command_execution_confirmed",
+          "network_callbacks_received"
+        ],
+        "common_failures": [
+          "insufficient_database_privileges",
+          "xp_cmdshell_disabled_by_policy",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "file_upload_via_certutil",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Subdomain Enumeration",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u http://{domain} -H 'Host: FUZZ.{domain}' -w {wordlist} --hh {filter_size}",
+            "actual_command": "wfuzz -u http://streetfighterclub.htb -H 'Host: FUZZ.streetfighterclub.htb' -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt --hh 6911",
+            "output_pattern": "Different response codes/sizes for valid subdomains",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "target_domain_identified",
+          "dns_resolution_working",
+          "http_service_accessible"
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "different_response_patterns_identified",
+          "additional_attack_surface_found"
+        ],
+        "common_failures": [
+          "no_subdomains_configured",
+          "rate_limiting_blocking_requests",
+          "dns_filtering_active"
+        ],
+        "follow_up_techniques": [
+          "directory_brute_forcing",
+          "technology_stack_identification",
+          "vulnerability_assessment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Directory Brute Force",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {url} -x {extensions} -w {wordlist}",
+            "actual_command": "feroxbuster -u http://members.streetfighterclub.htb -x aspx,asp,html -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories-lowercase.txt",
+            "output_pattern": "HTTP status codes and file/directory discoveries",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "appropriate_wordlist_selected",
+          "file_extensions_identified"
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "sensitive_files_discovered",
+          "admin_panels_located"
+        ],
+        "common_failures": [
+          "rate_limiting_active",
+          "waf_blocking_requests",
+          "case_sensitivity_issues"
+        ],
+        "follow_up_techniques": [
+          "manual_file_inspection",
+          "parameter_fuzzing",
+          "authentication_bypass_attempts"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "sql_injection_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "sqlmap",
+          "manual_curl_requests"
+        ],
+        "best_practices": [
+          "use_repeater_for_payload_testing",
+          "monitor_response_patterns_carefully",
+          "decode_base64_cookie_values"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_reconnaissance"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_file_extensions",
+          "consider_case_sensitivity",
+          "adjust_thread_count_for_stability"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "subdomain_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "dns_enumeration"
+        ],
+        "alternatives": [
+          "ffuf",
+          "gobuster",
+          "amass"
+        ],
+        "best_practices": [
+          "filter_default_responses_with_hh_or_hw",
+          "use_quality_wordlists",
+          "validate_discovered_subdomains"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sql_injection_to_command_execution",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wfuzz -u http://streetfighterclub.htb -H 'Host: FUZZ.streetfighterclub.htb' -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt --hh 6911",
+            "purpose": "Discover subdomains",
+            "expected_output": "members subdomain found"
+          },
+          {
+            "step": 2,
+            "command": "feroxbuster -u http://members.streetfighterclub.htb -x aspx,asp,html -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories-lowercase.txt",
+            "purpose": "Find hidden directories and files",
+            "expected_output": "/old/login.asp discovered"
+          },
+          {
+            "step": 3,
+            "command": "POST logintype=1 UNION SELECT 1,2,3,4,5,6-- -",
+            "purpose": "Test SQL injection with union",
+            "expected_output": "302 response with data in cookies"
+          },
+          {
+            "step": 4,
+            "command": "logintype=1; EXEC sp_configure 'show advanced options', 1; EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE;-- -",
+            "purpose": "Enable xp_cmdshell for command execution",
+            "expected_output": "No error response"
+          },
+          {
+            "step": 5,
+            "command": "logintype=1; EXEC xp_cmdshell 'ping [attacker_ip]';-- -",
+            "purpose": "Test command execution",
+            "expected_output": "ICMP packets received at attacker"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Fighter",
+      "difficulty": "Insane",
+      "os": "Windows Server 2012R2",
+      "platform": "HackTheBox",
+      "release_date": "2018-05-05",
+      "author": "decoder, Cneeliz",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "applocker_bypass",
+        "driver_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "sql_injection",
+        "capcom_driver",
+        "script_hijacking"
+      ],
+      "environment_type": "hardened_windows_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "applocker_evasion",
+        "kernel_exploitation",
+        "privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "sql_injection",
+        "windows_internals",
+        "driver_exploitation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "windows_exploitation",
+      "subcategories": [
+        "applocker_bypass",
+        "kernel_exploitation",
+        "web_exploitation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "defense_evasion",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "applocker_configuration",
+        "driver_whitelisting",
+        "input_validation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bastard",
+        "Bounty",
+        "Jeeves"
+      ],
+      "similarity_reasons": [
+        "windows_server",
+        "web_exploitation",
+        "privilege_escalation"
+      ],
+      "unique_aspects": [
+        "capcom_driver_exploit",
+        "applocker_bypass",
+        "juicypotato_origin"
+      ],
+      "difficulty_factors": [
+        "multiple_bypass_techniques",
+        "kernel_exploitation",
+        "defense_evasion"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T01:15:18.637886",
+    "original_file": "0xdf_writeups/Htb Fighter.md",
+    "content_length": 60680,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

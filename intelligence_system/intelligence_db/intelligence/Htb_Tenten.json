@@ -1,0 +1,794 @@
+{
+  "writeup_id": "Htb_Tenten",
+  "scenario_fingerprint": {
+    "scenario_name": "wordpress_plugin_steganography_privesc",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+wordpress",
+    "os_family": "ubuntu_linux",
+    "environment_type": "web_application",
+    "entry_vector": "wordpress_plugin_exploit",
+    "privilege_path": "file_upload_to_ssh_key_extraction",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "vulnerable_job_manager_plugin",
+      "steganography_ssh_key_hiding",
+      "file_upload_functionality",
+      "wordpress_4_7_3"
+    ],
+    "environmental_clues": [
+      "job_portal_wordpress_site",
+      "file_upload_resume_feature",
+      "ubuntu_16_04_xenial",
+      "apache_2_4_18"
+    ],
+    "similar_scenarios": [
+      "wordpress_file_upload_boxes",
+      "ctf_steganography_challenges"
+    ],
+    "unique_aspects": [
+      "ssh_key_in_uploaded_image",
+      "steganography_extraction_required",
+      "job_application_upload_vector"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "WordPress Plugin Exploitation",
+        "success_reason": "Job Manager plugin had Insecure Direct Object Reference vulnerability (CVE-2015-6668)",
+        "prerequisite_indicators": [
+          "wordpress_site_identified",
+          "plugin_enumeration_possible",
+          "vulnerable_plugin_version_installed"
+        ],
+        "recognition_patterns": [
+          "wpscan identifies job-manager plugin",
+          "version 7.2.5 detected (vulnerable)",
+          "file upload functionality present",
+          "IDOR vulnerability in filename disclosure"
+        ],
+        "failure_modes": [
+          "plugin_updated_to_patched_version",
+          "wpscan_blocked_by_waf",
+          "plugin_not_publicly_accessible"
+        ],
+        "environmental_factors": [
+          "outdated_wordpress_installation",
+          "legacy_plugin_versions",
+          "insufficient_security_updates"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "WPScan with API Key",
+        "success_reason": "API key enabled vulnerability detection that identified specific CVE",
+        "prerequisite_indicators": [
+          "wordpress_site_confirmed",
+          "wpvulndb_api_access_available",
+          "plugins_enumerable"
+        ],
+        "recognition_patterns": [
+          "wpscan requires API key for vuln data",
+          "free tier allows 50 requests/day",
+          "CVE-2015-6668 identified in results"
+        ],
+        "failure_modes": [
+          "no_api_key_available",
+          "rate_limiting_exceeded",
+          "waf_blocking_enumeration"
+        ],
+        "environmental_factors": [
+          "public_wordpress_installation",
+          "standard_plugin_locations_accessible",
+          "no_security_hardening"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "File Upload Bypass Testing",
+        "success_reason": "Application used extension-based filtering instead of content validation",
+        "prerequisite_indicators": [
+          "file_upload_functionality_present",
+          "job_application_form_accessible",
+          "resume_upload_feature_available"
+        ],
+        "recognition_patterns": [
+          "extension whitelist implementation",
+          "allows .png, .docx, .pdf extensions",
+          "blocks .php and suspicious extensions",
+          "mime-type headers not validated"
+        ],
+        "failure_modes": [
+          "content_based_validation_implemented",
+          "file_type_magic_bytes_checked",
+          "upload_functionality_disabled"
+        ],
+        "environmental_factors": [
+          "weak_input_validation",
+          "developer_security_inexperience",
+          "legacy_upload_handling"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "15-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Job Manager Plugin CVE-2015-6668",
+        "discovery_method": "wpscan with API key enumeration",
+        "why_critical": "Insecure Direct Object Reference allows filename disclosure and potential file access",
+        "how_to_recognize": [
+          "job-manager plugin version 7.2.5 detected",
+          "file upload functionality present",
+          "wpscan vulnerability output shows CVE-2015-6668"
+        ],
+        "follow_up_actions": [
+          "exploit_idor_for_file_enumeration",
+          "test_file_disclosure_vectors",
+          "enumerate_uploaded_files"
+        ]
+      },
+      {
+        "discovery": "WordPress user 'takis'",
+        "discovery_method": "wpscan user enumeration and passive detection",
+        "why_critical": "Identified valid username for potential credential attacks",
+        "how_to_recognize": [
+          "author posts pattern detection",
+          "wp-json API user enumeration",
+          "RSS generator metadata"
+        ],
+        "follow_up_actions": [
+          "password_brute_force_attack",
+          "credential_stuffing_attempts",
+          "social_engineering_research"
+        ]
+      },
+      {
+        "discovery": "Steganography opportunity in uploaded files",
+        "discovery_method": "File upload testing and CTF-style analysis",
+        "why_critical": "Hacker image files may contain hidden SSH private keys",
+        "how_to_recognize": [
+          "image file uploads accepted",
+          "steganography tools detect hidden data",
+          "CTF-style challenge indicators"
+        ],
+        "follow_up_actions": [
+          "run_steganography_tools",
+          "extract_hidden_ssh_keys",
+          "test_extracted_credentials"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_user",
+        "escalation_method": "Plugin_IDOR_to_File_Access",
+        "why_possible": "Job Manager plugin allows direct object reference to uploaded files",
+        "recognition_signs": [
+          "CVE-2015-6668 vulnerability present",
+          "file upload functionality available",
+          "predictable file naming or enumeration possible"
+        ],
+        "exploitation_path": "File Upload → IDOR Exploitation → File Disclosure → SSH Key Extraction"
+      },
+      {
+        "privilege_level": "file_access",
+        "escalation_method": "Steganography_to_SSH_Access",
+        "why_possible": "Hidden SSH private keys embedded in image files using steganography",
+        "recognition_signs": [
+          "image files contain hidden data",
+          "steganography tools reveal embedded content",
+          "SSH private key format detected"
+        ],
+        "exploitation_path": "File Access → Steganography Extraction → SSH Private Key → System Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with WordPress site",
+        "decision": "Enumerate WordPress plugins and themes for vulnerabilities",
+        "reasoning": "WordPress sites commonly have vulnerable plugins/themes that provide easier entry than SSH brute force",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if no web vulnerabilities found"
+          },
+          {
+            "option": "directory_brute_force",
+            "when": "if standard wp enumeration fails"
+          }
+        ],
+        "success_indicators": [
+          "plugins_identified",
+          "themes_identified",
+          "users_enumerated"
+        ],
+        "next_decision": "analyze_plugin_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Found job-manager plugin with potential IDOR vulnerability",
+        "decision": "Test for Insecure Direct Object Reference in job application URLs",
+        "reasoning": "Job-themed site with job-manager plugin suggests custom functionality that may have IDOR flaws",
+        "confidence": 0.85,
+        "prerequisites": [
+          "wordpress_site_confirmed",
+          "job_manager_plugin_detected"
+        ],
+        "success_indicators": [
+          "different_titles_leaked",
+          "private_posts_accessible"
+        ],
+        "failure_fallbacks": [
+          "other_plugin_vulns",
+          "wordpress_core_vulns",
+          "file_upload_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "IDOR confirmed - can enumerate post titles by changing ID parameter",
+        "decision": "Systematically enumerate all post IDs to find hidden content",
+        "reasoning": "IDOR allows access to private/draft posts that may contain sensitive information",
+        "confidence": 0.95,
+        "prerequisites": [
+          "idor_vulnerability_confirmed"
+        ],
+        "success_indicators": [
+          "private_posts_found",
+          "sensitive_filenames_discovered"
+        ],
+        "next_decision": "analyze_leaked_content"
+      }
+    ],
+    "branching_logic": {
+      "if_wordpress_detected": {
+        "action": "run_wpscan_with_api_key",
+        "tools": [
+          "wpscan",
+          "wpvulndb_api"
+        ],
+        "next_phase": "plugin_vulnerability_analysis"
+      },
+      "if_idor_found": {
+        "action": "enumerate_all_post_ids",
+        "method": "systematic_id_bruteforce",
+        "tools": [
+          "curl",
+          "grep",
+          "cut"
+        ]
+      },
+      "if_sensitive_files_found": {
+        "action": "download_and_analyze_files",
+        "purpose": "extract_credentials_or_keys",
+        "tools": [
+          "steganography_tools",
+          "file_analysis"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_get_wpscan_api_key_for_vulnerability_detection",
+        "reasoning": "modern_wpscan_requires_api_key_for_vulnerability_enumeration",
+        "applicability": "wordpress_targets"
+      },
+      {
+        "rule": "test_idor_on_custom_plugins_with_id_parameters",
+        "reasoning": "custom_plugins_often_lack_proper_authorization_checks",
+        "applicability": "wordpress_sites_with_custom_functionality"
+      },
+      {
+        "rule": "systematically_enumerate_idor_ranges_not_just_single_tests",
+        "reasoning": "comprehensive_enumeration_reveals_hidden_sensitive_content",
+        "applicability": "confirmed_idor_vulnerabilities"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "WordPress Plugin Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "wordpress_detected",
+          "vulnerable_plugins_present",
+          "plugin_enumeration_successful"
+        ],
+        "success_indicators": [
+          "wpscan_identifies_plugins",
+          "plugin_version_outdated",
+          "known_cve_exists"
+        ],
+        "incompatible_with": [
+          "plugins_disabled",
+          "waf_blocking_enumeration",
+          "custom_wordpress_hardening"
+        ],
+        "confidence_boosters": [
+          "default_wordpress_structure",
+          "wp_content_accessible",
+          "readme_files_exposed"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "File Upload Bypass",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality_present",
+          "weak_file_validation",
+          "upload_directory_accessible"
+        ],
+        "success_indicators": [
+          "upload_form_detected",
+          "extension_based_filtering_only",
+          "mime_type_validation_absent"
+        ],
+        "incompatible_with": [
+          "strict_file_validation",
+          "upload_sandboxing",
+          "execution_prevention"
+        ],
+        "confidence_boosters": [
+          "multiple_allowed_extensions",
+          "client_side_validation_only",
+          "predictable_upload_paths"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Steganography Data Extraction",
+        "mitre_id": "T1027.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "image_files_accessible",
+          "suspicious_file_sizes",
+          "ctf_like_environment"
+        ],
+        "success_indicators": [
+          "image_files_larger_than_expected",
+          "steganography_tools_detect_data",
+          "embedded_credentials_found"
+        ],
+        "incompatible_with": [
+          "images_not_accessible",
+          "no_embedded_data",
+          "encrypted_payloads"
+        ],
+        "confidence_boosters": [
+          "hacker_themed_images",
+          "unusual_file_naming",
+          "ctf_competition_context"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "wordpress": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "WordPress",
+          "wp-content",
+          "wp-admin"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ubuntu_linux": {
+        "port_indicators": [
+          22,
+          80
+        ],
+        "service_indicators": [
+          "ssh",
+          "apache"
+        ],
+        "banner_indicators": [
+          "OpenSSH 7.2p2 Ubuntu",
+          "Apache/2.4.18 (Ubuntu)"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "file_upload_service": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "upload form",
+          "file input",
+          "resume upload"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "wordpress_plugin_enumeration",
+          "when": "wordpress_detected",
+          "reason": "plugins_often_vulnerable_high_success_rate"
+        },
+        {
+          "attack": "wpscan_comprehensive_scan",
+          "when": "wordpress_detected",
+          "reason": "automated_vulnerability_identification"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "file_upload_testing",
+          "when": "upload_functionality_detected",
+          "reason": "potential_code_execution_vector"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "discover_hidden_wordpress_components"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "steganography_analysis",
+          "when": "image_files_found",
+          "reason": "ctf_specific_technique_low_real_world_applicability"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "WordPress Plugin Exploitation - Insecure Direct Object Reference",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "wpscan",
+            "command_template": "wpscan --url {target_url} -e ap,t,tt,u --api-token {api_key}",
+            "actual_command": "wpscan --url http://10.10.10.10 -e ap,t,tt,u --api-token $WPVULNDV_API_KEY",
+            "output_pattern": "job-manager plugin version 7.2.5",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -s {target_url}/index.php/jobs/apply/{id}/ | grep 'entry-title' | cut -d'>' -f2 | cut -d'<' -f1",
+            "actual_command": "curl -s http://10.10.10.10/index.php/jobs/apply/8/ | grep 'entry-title' | cut -d'>' -f2 | cut -d'<' -f1",
+            "success_factors": [
+              "vulnerable_plugin_version",
+              "database_entries_present"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "wordpress_site_identified",
+          "job_manager_plugin_installed",
+          "plugin_version_vulnerable"
+        ],
+        "success_indicators": [
+          "post_titles_enumerated",
+          "private_content_disclosed",
+          "file_names_discovered"
+        ],
+        "common_failures": [
+          "plugin_patched",
+          "no_sensitive_uploads",
+          "access_controls_implemented"
+        ],
+        "follow_up_techniques": [
+          "file_path_brute_force",
+          "steganography_analysis",
+          "credential_extraction"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "WordPress Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {target_url} -w {wordlist} -t 40 -x php",
+            "actual_command": "gobuster dir -u http://10.10.10.10 -w /usr/share/dirbuster/wordlists/directory-list-2.3-medium.txt -t 40 -x php",
+            "output_pattern": "/wp-content, /wp-login.php, /wp-includes",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "wordpress_site_confirmed",
+          "http_service_accessible"
+        ],
+        "success_indicators": [
+          "wordpress_structure_mapped",
+          "plugins_identified",
+          "themes_discovered"
+        ],
+        "common_failures": [
+          "directory_listing_disabled",
+          "custom_wordpress_structure",
+          "rate_limiting_active"
+        ],
+        "follow_up_techniques": [
+          "plugin_vulnerability_research",
+          "theme_exploitation",
+          "user_enumeration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "File Upload Bypass Testing",
+        "mitre_id": "T1105",
+        "category": "defense_evasion",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "burp_suite",
+            "command_template": "Manual testing via proxy",
+            "actual_command": "Test file extensions: .png, .docx, .pdf allowed; .php, .ph3 blocked",
+            "success_factors": [
+              "extension_whitelist_bypass",
+              "mime_type_confusion"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality_present",
+          "web_proxy_configured"
+        ],
+        "success_indicators": [
+          "allowed_extensions_identified",
+          "upload_restrictions_mapped",
+          "bypass_methods_discovered"
+        ],
+        "common_failures": [
+          "strict_validation_implemented",
+          "server_side_filtering",
+          "file_type_verification"
+        ],
+        "follow_up_techniques": [
+          "malicious_file_upload",
+          "polyglot_file_creation",
+          "path_traversal_attempts"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wpscan",
+        "use_case": "wordpress_vulnerability_assessment",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "wordpress_penetration_testing"
+        ],
+        "alternatives": [
+          "manual_enumeration",
+          "nuclei"
+        ],
+        "best_practices": [
+          "use_api_key_for_vulnerability_data",
+          "enumerate_all_components",
+          "verify_findings_manually"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "include_relevant_extensions",
+          "adjust_thread_count_for_target"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "wordpress_plugin_idor_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wpscan --url http://10.10.10.10 -e ap,t,tt,u --api-token $WPVULNDV_API_KEY",
+            "purpose": "Identify WordPress plugins and vulnerabilities",
+            "expected_output": "job-manager plugin with CVE-2015-6668"
+          },
+          {
+            "step": 2,
+            "command": "for i in $(seq 1 25); do echo -n \"$i: \"; curl -s http://10.10.10.10/index.php/jobs/apply/$i/ | grep 'entry-title' | cut -d'>' -f2 | cut -d'<' -f1; done",
+            "purpose": "Enumerate database entries via IDOR",
+            "expected_output": "List of post titles including HackerAccessGranted"
+          },
+          {
+            "step": 3,
+            "command": "python brute.py with target http://10.10.10.10/ and filename HackerAccessGranted",
+            "purpose": "Brute force file paths for discovered uploads",
+            "expected_output": "File found at /wp-content/uploads/2017/04/HackerAccessGranted.jpg"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Tenten",
+      "difficulty": "Medium",
+      "os": "Linux (Ubuntu 16.04)",
+      "platform": "HackTheBox",
+      "release_date": "2017-03-22",
+      "author": "ch4p",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "wordpress_exploitation",
+        "steganography",
+        "plugin_vulnerabilities"
+      ],
+      "key_vulnerabilities": [
+        "wordpress_plugin_exploit",
+        "steganography_hidden_keys",
+        "file_upload_bypass"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "wordpress_security",
+        "steganography_techniques",
+        "wpscan_usage",
+        "ctf_style_challenges"
+      ],
+      "prerequisite_knowledge": [
+        "wordpress_basics",
+        "web_enumeration",
+        "steganography_tools",
+        "ssh_key_usage"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "wordpress_exploitation",
+        "steganography",
+        "ctf_challenges"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "wordpress_hardening",
+        "plugin_security",
+        "file_upload_restrictions",
+        "regular_updates"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Apocalyst",
+        "Blocky",
+        "Waldo"
+      ],
+      "similarity_reasons": [
+        "wordpress_exploitation",
+        "ctf_elements",
+        "steganography_components"
+      ],
+      "unique_aspects": [
+        "steganography_ssh_key_extraction",
+        "wpscan_api_integration",
+        "job_portal_theme"
+      ],
+      "difficulty_factors": [
+        "steganography_knowledge_required",
+        "wordpress_enumeration_skills",
+        "ctf_style_thinking"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T01:41:12.689991",
+    "original_file": "0xdf_writeups/Htb Tenten.md",
+    "content_length": 29254,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

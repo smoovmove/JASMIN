@@ -1,0 +1,996 @@
+{
+  "writeup_id": "Htb_Shoppy",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_nosql_injection_to_docker_escape",
+    "primary_services": [
+      "http",
+      "ssh",
+      "mattermost"
+    ],
+    "port_signature": "22+80+9093",
+    "service_combination": "ssh+nginx+mattermost",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "nosql_injection",
+    "privilege_path": "web_admin_to_ssh_to_docker_escape",
+    "attack_complexity": "easy",
+    "estimated_time": "45-60 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "nosql_injection_bypass",
+      "mattermost_subdomain",
+      "docker_group_membership",
+      "static_password_in_binary"
+    ],
+    "environmental_clues": [
+      "nginx_redirect_to_domain",
+      "subdomain_enumeration_required",
+      "prometheus_metrics_port_9093",
+      "debian_11_openssh_version"
+    ],
+    "similar_scenarios": [
+      "mongodb_injection_boxes",
+      "docker_escape_scenarios"
+    ],
+    "unique_aspects": [
+      "mattermost_credential_storage",
+      "binary_reverse_engineering_step",
+      "prometheus_monitoring_service",
+      "multi_stage_credential_chain"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "NoSQL_injection_authentication_bypass",
+        "success_reason": "Login form vulnerable to MongoDB injection using [$ne] operator",
+        "prerequisite_indicators": [
+          "login_form_present",
+          "nosql_database_backend",
+          "insufficient_input_validation",
+          "json_content_type_accepted"
+        ],
+        "recognition_patterns": [
+          "login form with username/password fields",
+          "MongoDB or NoSQL error messages",
+          "application accepts JSON POST data",
+          "no input sanitization on login parameters"
+        ],
+        "failure_modes": [
+          "input_validation_present",
+          "sql_database_backend",
+          "parameterized_queries_used",
+          "json_input_rejected"
+        ],
+        "environmental_factors": [
+          "nodejs_application",
+          "mongodb_backend",
+          "insufficient_security_controls",
+          "developer_unfamiliarity_with_nosql_security"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "NoSQL_injection_data_extraction",
+        "success_reason": "User search functionality vulnerable to MongoDB injection for data dumping",
+        "prerequisite_indicators": [
+          "search_functionality_present",
+          "nosql_database_backend",
+          "user_data_accessible",
+          "regex_operators_available"
+        ],
+        "recognition_patterns": [
+          "search forms or API endpoints",
+          "MongoDB regex injection possible",
+          "user enumeration functionality",
+          "JSON response with user data"
+        ],
+        "failure_modes": [
+          "input_sanitization_implemented",
+          "access_controls_enforced",
+          "query_parameterization_used",
+          "rate_limiting_active"
+        ],
+        "environmental_factors": [
+          "admin_panel_accessible",
+          "user_management_features",
+          "mongodb_aggregation_available",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "credential_reuse_across_services",
+        "success_reason": "Cracked hash from web app worked for SSH and Mattermost access",
+        "prerequisite_indicators": [
+          "multiple_services_running",
+          "weak_password_policies",
+          "shared_user_accounts",
+          "password_reuse_patterns"
+        ],
+        "recognition_patterns": [
+          "same username across services",
+          "weak password complexity",
+          "service accounts with shell access",
+          "multiple authentication endpoints"
+        ],
+        "failure_modes": [
+          "unique_passwords_per_service",
+          "strong_password_policies",
+          "account_isolation",
+          "mfa_enabled"
+        ],
+        "environmental_factors": [
+          "development_environment",
+          "insufficient_password_policies",
+          "shared_service_accounts",
+          "legacy_authentication_methods"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-20 minutes"
+      },
+      {
+        "technique": "docker_group_privilege_escalation",
+        "success_reason": "User in docker group can mount host filesystem and gain root access",
+        "prerequisite_indicators": [
+          "user_in_docker_group",
+          "docker_daemon_running",
+          "docker_images_available",
+          "unrestricted_docker_access"
+        ],
+        "recognition_patterns": [
+          "id command shows docker group membership",
+          "docker ps/images commands work",
+          "docker socket accessible",
+          "no docker authorization plugins"
+        ],
+        "failure_modes": [
+          "docker_authorization_plugins",
+          "restricted_docker_commands",
+          "no_privileged_containers",
+          "docker_daemon_not_running"
+        ],
+        "environmental_factors": [
+          "development_server_setup",
+          "unrestricted_docker_access",
+          "administrative_convenience_over_security",
+          "insufficient_privilege_separation"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "admin login bypass via NoSQL injection",
+        "discovery_method": "Manual testing with [$ne] operator in JSON POST",
+        "why_critical": "Provided access to admin panel and user data extraction",
+        "how_to_recognize": [
+          "login form accepts JSON data",
+          "MongoDB backend indicators",
+          "no input validation on auth fields",
+          "successful bypass with {\"username\":{\"$ne\":null},\"password\":{\"$ne\":null}}"
+        ],
+        "follow_up_actions": [
+          "enumerate_admin_functionality",
+          "attempt_data_extraction",
+          "test_other_nosql_injection_points",
+          "dump_user_credentials"
+        ]
+      },
+      {
+        "discovery": "user hash extraction via search injection",
+        "discovery_method": "NoSQL injection in user search with regex operators",
+        "why_critical": "Obtained password hashes for offline cracking",
+        "how_to_recognize": [
+          "search functionality in admin panel",
+          "regex injection possible",
+          "user data returned in responses",
+          "hash values visible in JSON output"
+        ],
+        "follow_up_actions": [
+          "crack_hashes_with_hashcat",
+          "test_credentials_across_services",
+          "enumerate_additional_users",
+          "check_password_reuse"
+        ]
+      },
+      {
+        "discovery": "docker group membership",
+        "discovery_method": "id command showing group membership",
+        "why_critical": "Direct path to root via container privilege escalation",
+        "how_to_recognize": [
+          "id output shows docker group",
+          "docker commands executable",
+          "docker daemon accessible",
+          "ability to run privileged containers"
+        ],
+        "follow_up_actions": [
+          "run_privileged_container",
+          "mount_host_filesystem",
+          "access_root_files",
+          "establish_persistent_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web_user",
+        "escalation_method": "NoSQL_injection_to_admin_access",
+        "why_possible": "Login form vulnerable to MongoDB injection bypass",
+        "recognition_signs": [
+          "nosql_database_backend",
+          "json_input_accepted",
+          "no_input_validation",
+          "authentication_bypass_possible"
+        ],
+        "exploitation_path": "NoSQL injection → Admin panel → User data extraction → Hash cracking"
+      },
+      {
+        "privilege_level": "regular_user",
+        "escalation_method": "docker_group_to_root",
+        "why_possible": "User account member of docker group with unrestricted access",
+        "recognition_signs": [
+          "docker_group_membership",
+          "docker_daemon_running",
+          "no_authorization_plugins",
+          "privileged_container_creation_allowed"
+        ],
+        "exploitation_path": "Docker group membership → Mount host filesystem → Root file access → Root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,9093 open on Linux host with HTTP redirect to domain",
+        "decision": "Enumerate subdomains and web applications first",
+        "reasoning": "Domain-based routing suggests multiple services, subdomain enumeration often reveals additional attack surface",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_web_enumeration",
+            "when": "if subdomain fuzzing fails"
+          },
+          {
+            "option": "service_fingerprinting",
+            "when": "if web apps are minimal"
+          }
+        ],
+        "success_indicators": [
+          "additional_subdomains_found",
+          "login_pages_discovered",
+          "different_applications_identified"
+        ],
+        "next_decision": "analyze_web_application_technologies"
+      },
+      {
+        "step": 2,
+        "situation": "Found login page with authentication bypass opportunity",
+        "decision": "Test for NoSQL injection on login forms",
+        "reasoning": "Modern web apps often use NoSQL databases, injection bypasses are common and high-impact",
+        "confidence": 0.75,
+        "prerequisites": [
+          "login_form_identified",
+          "standard_auth_failed"
+        ],
+        "success_indicators": [
+          "authentication_bypassed",
+          "admin_access_gained"
+        ],
+        "failure_fallbacks": [
+          "sql_injection",
+          "credential_brute_force",
+          "directory_traversal"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Gained admin access to web application",
+        "decision": "Look for user enumeration and data extraction capabilities",
+        "reasoning": "Admin panels typically expose user management functions that can leak credentials",
+        "confidence": 0.85,
+        "prerequisites": [
+          "admin_panel_access"
+        ],
+        "success_indicators": [
+          "user_data_extracted",
+          "password_hashes_found"
+        ],
+        "failure_fallbacks": [
+          "file_upload_vulnerabilities",
+          "command_injection_testing"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Found additional service (Mattermost) and obtained credentials",
+        "decision": "Check credential reuse across discovered services",
+        "reasoning": "Users commonly reuse passwords across multiple services in same environment",
+        "confidence": 0.8,
+        "prerequisites": [
+          "multiple_services_identified",
+          "credentials_obtained"
+        ],
+        "success_indicators": [
+          "ssh_access_gained",
+          "service_authentication_successful"
+        ],
+        "failure_fallbacks": [
+          "password_cracking",
+          "service_specific_exploits"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_nosql_injection_succeeds": {
+        "action": "extract_user_data_and_hashes",
+        "tools": [
+          "burp_suite",
+          "custom_payloads"
+        ],
+        "next_phase": "credential_cracking_and_reuse"
+      },
+      "if_credentials_found": {
+        "action": "test_across_all_discovered_services",
+        "alternatives": [
+          "ssh_login",
+          "mattermost_login",
+          "web_admin_panels"
+        ],
+        "decision_criteria": "based_on_service_availability"
+      },
+      "if_initial_access_gained": {
+        "action": "enumerate_privilege_escalation_vectors",
+        "purpose": "find_path_to_root_access",
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ]
+      },
+      "if_docker_group_membership_found": {
+        "action": "exploit_docker_for_privilege_escalation",
+        "method": "mount_host_filesystem_in_container",
+        "tools": [
+          "docker_commands",
+          "container_breakout"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_nosql_injection_on_modern_web_apps",
+        "reasoning": "high_success_rate_and_often_overlooked_vulnerability",
+        "applicability": "web_applications_with_authentication"
+      },
+      {
+        "rule": "enumerate_subdomains_when_domain_routing_detected",
+        "reasoning": "reveals_additional_attack_surface_and_services",
+        "applicability": "domain_based_web_applications"
+      },
+      {
+        "rule": "test_credential_reuse_across_all_discovered_services",
+        "reasoning": "common_security_weakness_in_enterprise_environments",
+        "applicability": "multiple_services_discovered"
+      },
+      {
+        "rule": "check_docker_group_membership_for_privilege_escalation",
+        "reasoning": "docker_group_provides_effective_root_access",
+        "applicability": "linux_systems_with_docker_installed"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "NoSQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "nosql_database_backend",
+          "user_input_fields",
+          "login_forms_present"
+        ],
+        "success_indicators": [
+          "authentication_bypass_successful",
+          "data_extraction_possible",
+          "error_messages_reveal_nosql"
+        ],
+        "incompatible_with": [
+          "input_validation_strict",
+          "parameterized_queries_only",
+          "sql_database_only"
+        ],
+        "confidence_boosters": [
+          "mongodb_indicators",
+          "json_based_requests",
+          "node_js_application"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "hidden_directories_exist",
+          "no_rate_limiting"
+        ],
+        "success_indicators": [
+          "admin_panels_discovered",
+          "backup_files_found",
+          "configuration_files_exposed"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "ip_blocking_enabled",
+          "minimal_web_application"
+        ],
+        "confidence_boosters": [
+          "default_installations",
+          "common_cms_patterns",
+          "development_environments"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Docker Privilege Escalation",
+        "mitre_id": "T1611",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "user_in_docker_group",
+          "docker_service_running",
+          "docker_images_available"
+        ],
+        "success_indicators": [
+          "host_filesystem_mounted",
+          "root_access_achieved",
+          "container_escape_successful"
+        ],
+        "incompatible_with": [
+          "docker_not_installed",
+          "user_not_in_docker_group",
+          "rootless_docker_only"
+        ],
+        "confidence_boosters": [
+          "docker_group_membership",
+          "writable_docker_socket",
+          "privileged_containers"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-10 minutes"
+      },
+      {
+        "technique": "Subdomain Enumeration",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "dns",
+          "http"
+        ],
+        "required_ports": [
+          53,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "dns_resolution_available",
+          "virtual_host_routing",
+          "multiple_subdomains_exist"
+        ],
+        "success_indicators": [
+          "additional_services_discovered",
+          "admin_subdomains_found",
+          "different_applications_exposed"
+        ],
+        "incompatible_with": [
+          "single_application_only",
+          "no_dns_wildcards",
+          "strict_host_validation"
+        ],
+        "confidence_boosters": [
+          "wildcard_dns_records",
+          "corporate_environments",
+          "multi_tenant_applications"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443,
+          9093
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "HTTP/1.1",
+          "text/html"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Debian",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "nosql_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "technology_indicators": [
+          "node.js",
+          "mongodb",
+          "json"
+        ],
+        "confidence_threshold": 0.7
+      },
+      "docker_environment": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "system_indicators": [
+          "docker_group",
+          "docker_service"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "subdomain_enumeration",
+          "when": "dns_name_detected",
+          "reason": "often_reveals_additional_attack_surface"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_method_for_finding_admin_panels"
+        },
+        {
+          "attack": "nosql_injection",
+          "when": "login_forms_present",
+          "reason": "high_impact_authentication_bypass"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "docker_privilege_escalation",
+          "when": "docker_group_membership_confirmed",
+          "reason": "nearly_guaranteed_root_access"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "NoSQL Injection - Authentication Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "POST /login HTTP/1.1\nContent-Type: application/json\n\n{\"username\":{\"$ne\":null}, \"password\":{\"$ne\":null}}",
+            "actual_command": "POST /login with JSON payload bypassing authentication",
+            "output_pattern": "302 redirect to admin panel",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -X POST -H 'Content-Type: application/json' -d '{\"username\":{\"$ne\":null}, \"password\":{\"$ne\":null}}' http://{target}/login",
+            "actual_command": "curl -X POST -H 'Content-Type: application/json' -d '{\"username\":{\"$ne\":null}, \"password\":{\"$ne\":null}}' http://shoppy.htb/login",
+            "success_factors": [
+              "mongodb_backend",
+              "no_input_sanitization"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_login",
+          "nosql_database_backend",
+          "json_content_type_accepted",
+          "no_input_validation"
+        ],
+        "success_indicators": [
+          "authentication_bypass_successful",
+          "access_to_admin_panel",
+          "session_cookie_received"
+        ],
+        "common_failures": [
+          "sql_database_instead_of_nosql",
+          "input_sanitization_present",
+          "json_not_accepted",
+          "rate_limiting_active"
+        ],
+        "follow_up_techniques": [
+          "nosql_data_extraction",
+          "admin_panel_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "NoSQL Injection - Data Extraction",
+        "mitre_id": "T1213",
+        "category": "collection",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "POST /admin/search-users HTTP/1.1\nContent-Type: application/json\n\n{\"username\":{\"$ne\":null}}",
+            "actual_command": "POST to search endpoint with NoSQL wildcard injection",
+            "output_pattern": "JSON response with user data and password hashes",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "authenticated_session",
+          "admin_panel_access",
+          "search_functionality_available",
+          "nosql_backend"
+        ],
+        "success_indicators": [
+          "user_data_extracted",
+          "password_hashes_obtained",
+          "multiple_users_enumerated"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "input_validation_on_search",
+          "empty_database_results"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_reuse_testing",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Hash Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 0 {hash_file} {wordlist}",
+            "actual_command": "hashcat -m 0 hash.txt /usr/share/wordlists/rockyou.txt",
+            "output_pattern": "hash:plaintext_password",
+            "effectiveness_rating": 4,
+            "reliability": 0.7
+          },
+          {
+            "name": "john",
+            "command_template": "john --wordlist={wordlist} {hash_file}",
+            "actual_command": "john --wordlist=/usr/share/wordlists/rockyou.txt hash.txt",
+            "success_factors": [
+              "weak_password",
+              "common_wordlist_hit",
+              "md5_hash"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "password_hashes_obtained",
+          "hash_format_identified",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "password_cracked_successfully",
+          "plaintext_credentials_obtained",
+          "credentials_validate_on_target"
+        ],
+        "common_failures": [
+          "strong_password_policy",
+          "uncommon_hash_format",
+          "insufficient_wordlist_coverage"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "service_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "5 minutes - several hours",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Docker Group Privilege Escalation",
+        "mitre_id": "T1068",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "docker",
+            "command_template": "docker run -v /:/mnt --rm -it {image} chroot /mnt sh",
+            "actual_command": "docker run -v /:/mnt --rm -it alpine chroot /mnt sh",
+            "output_pattern": "root shell with full filesystem access",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "docker",
+            "command_template": "docker run -v /:/host --rm -it {image} /bin/bash",
+            "actual_command": "docker run -v /:/host --rm -it ubuntu /bin/bash",
+            "success_factors": [
+              "user_in_docker_group",
+              "docker_service_running",
+              "available_images"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "user_in_docker_group",
+          "docker_service_accessible",
+          "docker_images_available"
+        ],
+        "success_indicators": [
+          "container_created_successfully",
+          "host_filesystem_mounted",
+          "root_access_achieved"
+        ],
+        "common_failures": [
+          "docker_service_not_running",
+          "no_suitable_images",
+          "insufficient_disk_space"
+        ],
+        "follow_up_techniques": [
+          "host_file_system_access",
+          "credential_extraction",
+          "persistence_establishment"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "nosql_injection_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "curl",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "test_both_form_and_json_payloads",
+          "monitor_response_times_for_errors",
+          "try_multiple_nosql_operators"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_reconnaissance"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "check_for_case_sensitivity",
+          "follow_redirects_carefully"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nosql_injection_to_root",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST -H 'Content-Type: application/json' -d '{\"username\":{\"$ne\":null}, \"password\":{\"$ne\":null}}' http://shoppy.htb/login",
+            "purpose": "Bypass authentication with NoSQL injection",
+            "expected_output": "302 redirect with session cookie"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST -H 'Content-Type: application/json' -H 'Cookie: session_cookie' -d '{\"username\":{\"$ne\":null}}' http://shoppy.htb/admin/search-users",
+            "purpose": "Extract user data and hashes",
+            "expected_output": "JSON with usernames and password hashes"
+          },
+          {
+            "step": 3,
+            "command": "hashcat -m 0 extracted_hashes.txt /usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack extracted password hashes",
+            "expected_output": "Plaintext passwords"
+          },
+          {
+            "step": 4,
+            "command": "ssh username@target_ip",
+            "purpose": "Authenticate with cracked credentials",
+            "expected_output": "SSH shell access"
+          },
+          {
+            "step": 5,
+            "command": "docker run -v /:/mnt --rm -it alpine chroot /mnt sh",
+            "purpose": "Escalate to root via docker group",
+            "expected_output": "Root shell with full system access"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Shoppy",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2022-09-17",
+      "author": "lockscan",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "nosql_injection",
+        "credential_reuse",
+        "docker_privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "nosql_injection",
+        "weak_credentials",
+        "docker_group_membership"
+      ],
+      "environment_type": "web_application_with_chat_service",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "nosql_injection_techniques",
+        "docker_container_escapes",
+        "credential_hunting"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_exploitation",
+        "linux_fundamentals",
+        "docker_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "nosql_injection",
+        "privilege_escalation",
+        "container_escape"
+      ],
+      "attack_types": [
+        "injection",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "principle_least_privilege",
+        "container_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Validation",
+        "Bolt",
+        "Previse"
+      ],
+      "similarity_reasons": [
+        "nosql_injection",
+        "credential_reuse",
+        "web_to_system_pivot"
+      ],
+      "unique_aspects": [
+        "mattermost_integration",
+        "docker_group_escalation",
+        "binary_reverse_engineering"
+      ],
+      "difficulty_factors": [
+        "straightforward_injection",
+        "clear_escalation_path",
+        "well_known_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T22:05:40.526329",
+    "original_file": "0xdf_writeups/Htb Shoppy.md",
+    "content_length": 30640,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

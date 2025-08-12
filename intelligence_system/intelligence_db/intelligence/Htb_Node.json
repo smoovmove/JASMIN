@@ -1,0 +1,860 @@
+{
+  "writeup_id": "Htb_Node",
+  "scenario_fingerprint": {
+    "scenario_name": "nodejs_express_api_enumeration",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+3000",
+    "service_combination": "ssh+nodejs_express",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "api_endpoint_enumeration",
+    "privilege_path": "web_to_buffer_overflow",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "nodejs_express_framework",
+      "custom_port_3000",
+      "api_data_exposure",
+      "buffer_overflow_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "express_powered_by_header",
+      "social_media_application",
+      "closed_user_registration",
+      "mongodb_backend_likely"
+    ],
+    "similar_scenarios": [
+      "express_web_apps",
+      "nodejs_api_targets"
+    ],
+    "unique_aspects": [
+      "hadoop_service_misidentification",
+      "return_to_libc_exploit",
+      "password_hash_exposure_via_api"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "API_endpoint_enumeration",
+        "success_reason": "Client-side JavaScript revealed API endpoints including /api/users/latest",
+        "prerequisite_indicators": [
+          "javascript_framework_detected",
+          "client_side_routing_present",
+          "api_endpoints_referenced"
+        ],
+        "recognition_patterns": [
+          "angular/react/vue controllers visible",
+          "API calls in client-side code",
+          "REST endpoint patterns (/api/*)"
+        ],
+        "failure_modes": [
+          "minified_javascript",
+          "server_side_rendering_only",
+          "proper_api_authentication"
+        ],
+        "environmental_factors": [
+          "nodejs_express_framework",
+          "single_page_application",
+          "development_practices_exposed"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "sensitive_data_exposure",
+        "success_reason": "API endpoint /api/users/latest exposed password hashes without authentication",
+        "prerequisite_indicators": [
+          "unauthenticated_api_access",
+          "verbose_api_responses",
+          "development_endpoints_exposed"
+        ],
+        "recognition_patterns": [
+          "password hashes in API responses",
+          "user enumeration possible",
+          "admin flags visible"
+        ],
+        "failure_modes": [
+          "proper_authentication_required",
+          "sanitized_api_responses",
+          "role_based_access_control"
+        ],
+        "environmental_factors": [
+          "development_environment_practices",
+          "insufficient_api_security",
+          "mongodb_backend_typical"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "password hashes in /api/users/latest",
+        "discovery_method": "client-side JavaScript analysis revealing API endpoints",
+        "why_critical": "Exposed user credentials including admin accounts",
+        "how_to_recognize": [
+          "API endpoints in client-side code",
+          "unauthenticated API access",
+          "verbose JSON responses with sensitive fields"
+        ],
+        "follow_up_actions": [
+          "extract_all_password_hashes",
+          "identify_admin_accounts",
+          "attempt_hash_cracking",
+          "test_ssh_access_with_credentials"
+        ]
+      },
+      {
+        "discovery": "admin user accounts",
+        "discovery_method": "is_admin field in API response",
+        "why_critical": "Identifies high-privilege targets for credential attacks",
+        "how_to_recognize": [
+          "is_admin or role fields in responses",
+          "privileged user indicators",
+          "admin-specific API endpoints"
+        ],
+        "follow_up_actions": [
+          "prioritize_admin_hash_cracking",
+          "test_admin_specific_endpoints",
+          "attempt_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "credential_harvesting_to_user_access",
+        "why_possible": "Password hashes exposed through unsecured API endpoint",
+        "recognition_signs": [
+          "client_side_api_calls_visible",
+          "development_endpoints_accessible",
+          "sensitive_data_in_responses"
+        ],
+        "exploitation_path": "JavaScript analysis → API discovery → hash extraction → credential cracking → user access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22 (SSH) and 3000 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration first",
+        "reasoning": "SSH typically requires credentials, web app may provide initial foothold",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known vulnerabilities exist"
+          }
+        ],
+        "success_indicators": [
+          "web_application_accessible",
+          "technology_stack_identified",
+          "endpoints_discovered"
+        ],
+        "next_decision": "enumerate_web_application_structure"
+      },
+      {
+        "step": 2,
+        "situation": "Identified NodeJS Express application with client-side JavaScript",
+        "decision": "Analyze client-side JavaScript for API endpoints",
+        "reasoning": "Express apps often expose APIs, client JS reveals backend structure",
+        "confidence": 0.95,
+        "prerequisites": [
+          "web_application_accessible",
+          "javascript_framework_detected"
+        ],
+        "success_indicators": [
+          "api_endpoints_discovered",
+          "authentication_mechanisms_found"
+        ],
+        "failure_fallbacks": [
+          "directory_brute_force",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found API endpoint /api/users/ exposing user data including password hashes",
+        "decision": "Extract all user data and attempt hash cracking",
+        "reasoning": "Direct access to user credentials bypasses authentication entirely",
+        "confidence": 0.98,
+        "prerequisites": [
+          "api_endpoint_accessible",
+          "user_data_exposed"
+        ],
+        "success_indicators": [
+          "password_hashes_obtained",
+          "admin_accounts_identified"
+        ],
+        "failure_fallbacks": [
+          "api_parameter_manipulation",
+          "authentication_bypass"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_api_enumeration_succeeds": {
+        "action": "extract_sensitive_data",
+        "tools": [
+          "curl",
+          "jq",
+          "burp_suite"
+        ],
+        "next_phase": "credential_cracking"
+      },
+      "if_hashes_obtained": {
+        "action": "crack_passwords_and_authenticate",
+        "tools": [
+          "hashcat",
+          "john",
+          "crackstation"
+        ],
+        "decision_criteria": "prioritize_admin_accounts_first"
+      },
+      "if_credentials_valid": {
+        "action": "authenticate_and_escalate",
+        "purpose": "gain_initial_access_and_enumerate_system",
+        "tools": [
+          "web_login",
+          "ssh_access"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_api_endpoints_without_authentication",
+        "reasoning": "common_misconfiguration_in_spa_applications",
+        "applicability": "single_page_applications_with_rest_apis"
+      },
+      {
+        "rule": "analyze_client_side_javascript_for_backend_structure",
+        "reasoning": "reveals_api_structure_and_authentication_flows",
+        "applicability": "javascript_heavy_web_applications"
+      },
+      {
+        "rule": "test_api_endpoint_variations_for_data_exposure",
+        "reasoning": "different_endpoints_may_expose_different_data_sets",
+        "applicability": "rest_api_enumeration"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "NodeJS_API_Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          3000,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "nodejs_express_framework",
+          "api_endpoints_exposed",
+          "directory_listing_enabled"
+        ],
+        "success_indicators": [
+          "express_header_present",
+          "api_routes_discoverable",
+          "json_responses_returned"
+        ],
+        "incompatible_with": [
+          "api_authentication_required",
+          "rate_limiting_strict",
+          "waf_protection_active"
+        ],
+        "confidence_boosters": [
+          "standard_express_directory_structure",
+          "default_port_3000",
+          "mongodb_backend_indicators"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          3000,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_running",
+          "no_strict_rate_limiting",
+          "predictable_directory_structure"
+        ],
+        "success_indicators": [
+          "301_302_redirects_found",
+          "different_response_codes",
+          "content_length_variations"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "ip_blocking_enabled",
+          "honeypot_responses"
+        ],
+        "confidence_boosters": [
+          "standard_web_frameworks",
+          "default_installations",
+          "development_environments"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "NoSQL_Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          3000,
+          8080
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "nodejs_application",
+          "mongodb_backend",
+          "user_input_processing",
+          "login_forms_present"
+        ],
+        "success_indicators": [
+          "mongodb_error_messages",
+          "authentication_bypass",
+          "data_extraction_successful"
+        ],
+        "incompatible_with": [
+          "input_sanitization_strict",
+          "parameterized_queries_only",
+          "sql_database_backend"
+        ],
+        "confidence_boosters": [
+          "nodejs_express_stack",
+          "json_request_handling",
+          "weak_input_validation"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "nodejs_express": {
+        "port_indicators": [
+          3000,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "nodejs"
+        ],
+        "banner_indicators": [
+          "Express",
+          "X-Powered-By: Express",
+          "Node.js"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          3000,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "express",
+          "iis"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "mongodb_backend": {
+        "port_indicators": [
+          27017
+        ],
+        "service_indicators": [
+          "mongodb"
+        ],
+        "banner_indicators": [
+          "MongoDB",
+          "nosql"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "high_success_rate_reveals_hidden_endpoints"
+        },
+        {
+          "attack": "nodejs_api_enumeration",
+          "when": "express_framework_detected",
+          "reason": "often_exposes_sensitive_api_endpoints"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "nosql_injection",
+          "when": "nodejs_mongodb_stack_detected",
+          "reason": "effective_but_requires_specific_conditions"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "API Endpoint Enumeration",
+        "mitre_id": "T1087.001",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s {target}/api/users/ | jq .",
+            "actual_command": "curl -s 10.10.10.58:3000/api/users/ | jq .",
+            "output_pattern": "JSON array with user objects containing _id, username, password, is_admin",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {target}",
+            "actual_command": "feroxbuster -u http://10.10.10.58:3000",
+            "success_factors": [
+              "directory_traversal",
+              "api_endpoint_discovery"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "javascript_framework_in_use",
+          "client_side_code_analysis"
+        ],
+        "success_indicators": [
+          "api_endpoints_discovered",
+          "sensitive_data_exposed",
+          "user_credentials_leaked"
+        ],
+        "common_failures": [
+          "endpoints_require_authentication",
+          "rate_limiting_implemented",
+          "proper_access_controls"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_validation",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Client-Side Source Code Analysis",
+        "mitre_id": "T1213.002",
+        "category": "collection",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "browser_dev_tools",
+            "command_template": "F12 -> Sources -> analyze JavaScript files",
+            "actual_command": "Analyze /assets/js/app/controllers/*.js files",
+            "output_pattern": "API endpoint references in JavaScript controllers",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "javascript_heavy_application",
+          "client_side_routing",
+          "spa_architecture"
+        ],
+        "success_indicators": [
+          "api_endpoints_identified",
+          "authentication_logic_discovered",
+          "hidden_functionality_found"
+        ],
+        "common_failures": [
+          "obfuscated_javascript",
+          "minified_code",
+          "dynamic_endpoint_generation"
+        ],
+        "follow_up_techniques": [
+          "api_endpoint_testing",
+          "parameter_fuzzing",
+          "authentication_bypass"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Hash Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "crackstation",
+            "command_template": "Submit hashes to online cracking service",
+            "actual_command": "Submit SHA256 hashes to crackstation.net",
+            "output_pattern": "Plaintext passwords for common hashes",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          },
+          {
+            "name": "jq",
+            "command_template": "curl -s {api_endpoint} | jq -r '.[].password'",
+            "actual_command": "curl -s 10.10.10.58:3000/api/users/ | jq -r '.[].password'",
+            "success_factors": [
+              "unsalted_hashes",
+              "common_passwords",
+              "weak_algorithms"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "password_hashes_obtained",
+          "hash_format_identified",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "passwords_cracked_successfully",
+          "admin_credentials_recovered",
+          "authentication_possible"
+        ],
+        "common_failures": [
+          "strong_passwords_used",
+          "salted_hashes",
+          "modern_hashing_algorithms"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Zip Archive Password Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "zip2john",
+            "command_template": "zip2john {zip_file} 2>/dev/null | tee {hash_file}",
+            "actual_command": "zip2john myplace.backup.zip 2>/dev/null | tee myplace.backup.zip.hash",
+            "output_pattern": "$pkzip2$ hash format",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "base64",
+            "command_template": "cat {file} | base64 -d > {output}",
+            "actual_command": "cat myplace.backup | base64 -d > myplace.backup.decode",
+            "success_factors": [
+              "base64_encoded_data",
+              "proper_decoding"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "password_protected_archive",
+          "john_the_ripper_available",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "hash_extracted_successfully",
+          "password_cracked",
+          "archive_contents_accessible"
+        ],
+        "common_failures": [
+          "strong_archive_password",
+          "encryption_method_unsupported",
+          "corrupted_archive"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "configuration_file_review"
+        ],
+        "time_investment": "10-120 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "api_endpoint_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "api_enumeration",
+          "data_extraction"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "postman",
+          "wget"
+        ],
+        "best_practices": [
+          "use_jq_for_json_parsing",
+          "save_responses_for_analysis",
+          "test_different_http_methods"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "adjust_thread_count_for_target",
+          "filter_false_positives"
+        ]
+      },
+      {
+        "tool": "jq",
+        "use_case": "json_data_parsing",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "medium",
+        "essential_for": [
+          "api_response_analysis",
+          "data_extraction"
+        ],
+        "alternatives": [
+          "python_json_module",
+          "manual_parsing"
+        ],
+        "best_practices": [
+          "learn_basic_filter_syntax",
+          "use_raw_output_for_strings",
+          "combine_with_curl_for_automation"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nodejs_api_enumeration_to_credential_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "feroxbuster -u http://10.10.10.58:3000",
+            "purpose": "Discover web directories and endpoints",
+            "expected_output": "Directory listings including /assets/js/app/controllers"
+          },
+          {
+            "step": 2,
+            "command": "Analyze JavaScript controller files in browser dev tools",
+            "purpose": "Identify API endpoints from client-side code",
+            "expected_output": "API endpoints like /api/users/, /api/admin/backup"
+          },
+          {
+            "step": 3,
+            "command": "curl -s 10.10.10.58:3000/api/users/ | jq .",
+            "purpose": "Extract user data including password hashes",
+            "expected_output": "JSON array with user objects containing hashed passwords"
+          },
+          {
+            "step": 4,
+            "command": "curl -s 10.10.10.58:3000/api/users/ | jq -r '.[].password'",
+            "purpose": "Extract only password hashes for cracking",
+            "expected_output": "List of SHA256 password hashes"
+          },
+          {
+            "step": 5,
+            "command": "Submit hashes to crackstation.net",
+            "purpose": "Crack password hashes using online service",
+            "expected_output": "Plaintext passwords including admin password 'manchester'"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-60 minutes"
+      },
+      {
+        "sequence_name": "backup_file_extraction_and_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Login with admin credentials to access backup functionality",
+            "purpose": "Access admin panel with cracked credentials",
+            "expected_output": "Admin interface with backup download option"
+          },
+          {
+            "step": 2,
+            "command": "cat myplace.backup | base64 -d > myplace.backup.decode",
+            "purpose": "Decode base64 encoded backup file",
+            "expected_output": "Binary zip archive file"
+          },
+          {
+            "step": 3,
+            "command": "file myplace.backup.decode",
+            "purpose": "Identify file type of decoded backup",
+            "expected_output": "Zip archive data confirmation"
+          },
+          {
+            "step": 4,
+            "command": "zip2john myplace.backup.zip 2>/dev/null | tee myplace.backup.zip.hash",
+            "purpose": "Extract hash from password-protected zip",
+            "expected_output": "John the Ripper compatible hash"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Node",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu 16.04",
+      "platform": "HackTheBox",
+      "release_date": "2017-10-14",
+      "author": "rastating",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "api_enumeration",
+        "buffer_overflow"
+      ],
+      "key_vulnerabilities": [
+        "information_disclosure",
+        "weak_authentication",
+        "buffer_overflow"
+      ],
+      "environment_type": "web_application_nodejs",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "nodejs_security",
+        "api_enumeration",
+        "binary_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "basic_binary_exploitation",
+        "nodejs_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "api_security",
+        "binary_exploitation",
+        "information_disclosure"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "initial_access"
+      ],
+      "defensive_lessons": [
+        "secure_api_design",
+        "input_validation",
+        "least_privilege"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Celestial",
+        "Canape",
+        "Sneaky"
+      ],
+      "similarity_reasons": [
+        "nodejs_application",
+        "web_enumeration",
+        "linux_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "express_framework",
+        "return_to_libc",
+        "multiple_root_paths"
+      ],
+      "difficulty_factors": [
+        "api_endpoint_discovery",
+        "buffer_overflow_exploitation",
+        "nodejs_specific_attacks"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:28:01.388634",
+    "original_file": "0xdf_writeups/Htb Node.md",
+    "content_length": 68500,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

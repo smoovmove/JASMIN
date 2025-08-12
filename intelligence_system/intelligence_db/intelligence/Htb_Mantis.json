@@ -1,0 +1,893 @@
+{
+  "writeup_id": "Htb_Mantis",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_sql_kerberos_privilege_escalation",
+    "primary_services": [
+      "dns",
+      "kerberos",
+      "ldap",
+      "smb",
+      "mssql",
+      "http"
+    ],
+    "port_signature": "53+88+389+445+1433+8080",
+    "service_combination": "dns+kerberos+ldap+smb+mssql+http",
+    "os_family": "windows_server_2008_r2",
+    "environment_type": "active_directory",
+    "entry_vector": "web_enumeration_to_sql_credentials",
+    "privilege_path": "sql_creds_to_domain_user_to_system",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "sql_server_on_domain_controller",
+      "credentials_hidden_in_web_application",
+      "kerberos_privilege_escalation_vulnerability",
+      "multiple_http_services_different_ports"
+    ],
+    "environmental_clues": [
+      "domain_controller_with_sql_server",
+      "multiple_web_services_1337_8080",
+      "extensive_enumeration_required",
+      "windows_server_2008_r2_sp1"
+    ],
+    "similar_scenarios": [
+      "forest_htb_hard",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "sql_server_colocated_with_domain_controller",
+      "web_based_credential_discovery",
+      "kerberos_ticket_privilege_escalation",
+      "enumeration_heavy_attack_path"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Credential_Discovery_in_Web_Content",
+        "success_reason": "SQL Server credentials exposed in webpage source/hidden content",
+        "prerequisite_indicators": [
+          "web_application_present",
+          "database_service_running",
+          "insufficient_credential_protection"
+        ],
+        "recognition_patterns": [
+          "hidden form fields with credentials",
+          "commented out connection strings",
+          "development/test credentials in source",
+          "CMS configuration exposure"
+        ],
+        "failure_modes": [
+          "credentials_properly_secured",
+          "no_web_application_access",
+          "encrypted_configuration_files"
+        ],
+        "environmental_factors": [
+          "development_environment_practices",
+          "cms_default_configurations",
+          "insufficient_code_review"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "MS14-068_Kerberos_Privilege_Escalation",
+        "success_reason": "Unpatched Windows Server 2008 R2 vulnerable to Kerberos PAC validation bypass",
+        "prerequisite_indicators": [
+          "windows_server_2008_r2",
+          "unpatched_system",
+          "domain_user_credentials_available",
+          "kerberos_service_accessible"
+        ],
+        "recognition_patterns": [
+          "Windows Server 2008 R2 SP1",
+          "MS14-068 patch not applied",
+          "domain user account access",
+          "kerberos port 88 open"
+        ],
+        "failure_modes": [
+          "system_fully_patched",
+          "no_domain_credentials",
+          "kerberos_not_accessible"
+        ],
+        "environmental_factors": [
+          "legacy_windows_environment",
+          "insufficient_patch_management",
+          "domain_controller_role"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SQL Server database credentials",
+        "discovery_method": "Web application enumeration and source code analysis",
+        "why_critical": "Provided domain user credentials for privilege escalation attack",
+        "how_to_recognize": [
+          "database connection strings in web config",
+          "hidden form fields with credentials",
+          "CMS configuration files",
+          "development credentials in comments"
+        ],
+        "follow_up_actions": [
+          "test_sql_server_access",
+          "enumerate_database_contents",
+          "test_domain_authentication",
+          "check_for_privilege_escalation_vulns"
+        ]
+      },
+      {
+        "discovery": "Windows Server 2008 R2 SP1 version",
+        "discovery_method": "Nmap service detection and SMB enumeration",
+        "why_critical": "Indicates potential MS14-068 vulnerability for privilege escalation",
+        "how_to_recognize": [
+          "Windows Server 2008 R2 Standard 7601 Service Pack 1",
+          "domain controller role",
+          "kerberos service available",
+          "patch level indicators"
+        ],
+        "follow_up_actions": [
+          "verify_ms14068_vulnerability",
+          "obtain_domain_user_credentials",
+          "craft_malicious_kerberos_ticket",
+          "escalate_to_system"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "MS14-068_Kerberos_Exploit",
+        "why_possible": "Unpatched Windows Server 2008 R2 allows forged Kerberos PAC for privilege escalation",
+        "recognition_signs": [
+          "windows_server_2008_r2_sp1",
+          "domain_controller_role",
+          "ms14068_patch_missing",
+          "domain_user_credentials_available"
+        ],
+        "exploitation_path": "Domain User Creds → Forged Kerberos Ticket → SYSTEM Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,135,139,389,445,464,593,636,1433,8080,1337 open on Windows host",
+        "decision": "Identify as Domain Controller with additional services and prioritize AD enumeration",
+        "reasoning": "Port combination indicates AD DC with SQL Server and web services",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if AD attacks fail"
+          },
+          {
+            "option": "sql_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "domain_name_discovered",
+          "kerberos_service_responds",
+          "ldap_base_dn_found"
+        ],
+        "next_decision": "choose_initial_attack_vector"
+      },
+      {
+        "step": 2,
+        "situation": "Confirmed Active Directory environment (htb.local)",
+        "decision": "Try username enumeration with Kerbrute before credential attacks",
+        "reasoning": "Need valid usernames for subsequent Kerberos attacks",
+        "confidence": 0.9,
+        "prerequisites": [
+          "domain_name_known",
+          "kerberos_accessible"
+        ],
+        "success_indicators": [
+          "valid_usernames_found"
+        ],
+        "failure_fallbacks": [
+          "web_enumeration",
+          "smb_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found usernames: james, administrator, mantis",
+        "decision": "Try ASREPRoast attack first",
+        "reasoning": "ASREPRoast doesn't require valid credentials",
+        "confidence": 0.85,
+        "prerequisites": [
+          "valid_usernames_available"
+        ],
+        "success_indicators": [
+          "accounts_without_preauth_found"
+        ],
+        "failure_fallbacks": [
+          "password_spraying",
+          "web_credential_hunting"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "ASREPRoast failed, multiple web services available",
+        "decision": "Enumerate web services for credential disclosure",
+        "reasoning": "Web services often contain hardcoded credentials or config files",
+        "confidence": 0.75,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "standard enumeration fails"
+          },
+          {
+            "option": "cms_exploitation",
+            "when": "cms_identified"
+          }
+        ],
+        "success_indicators": [
+          "credentials_found",
+          "config_files_discovered"
+        ],
+        "next_decision": "test_discovered_credentials"
+      }
+    ],
+    "branching_logic": {
+      "if_asreproast_succeeds": {
+        "action": "crack_hash_and_authenticate",
+        "tools": [
+          "hashcat",
+          "evil-winrm"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_asreproast_fails": {
+        "action": "enumerate_web_services",
+        "alternatives": [
+          "directory_bruteforce",
+          "cms_enumeration",
+          "sql_connection_attempts"
+        ],
+        "decision_criteria": "based_on_service_accessibility"
+      },
+      "if_web_credentials_found": {
+        "action": "test_credential_reuse",
+        "targets": [
+          "sql_server",
+          "domain_authentication",
+          "smb_shares"
+        ],
+        "tools": [
+          "mssqlclient",
+          "evil-winrm",
+          "smbclient"
+        ]
+      },
+      "if_domain_credentials_obtained": {
+        "action": "bloodhound_enumeration",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "bloodhound-python",
+          "sharphound"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_enumerate_usernames_first_on_ad",
+        "reasoning": "usernames_required_for_most_ad_attacks",
+        "applicability": "active_directory_environments"
+      },
+      {
+        "rule": "check_web_services_for_credentials_when_ad_attacks_fail",
+        "reasoning": "web_services_often_contain_database_or_domain_credentials",
+        "applicability": "mixed_service_environments"
+      },
+      {
+        "rule": "test_credential_reuse_across_all_services",
+        "reasoning": "credentials_often_reused_between_web_sql_and_domain",
+        "applicability": "multi_service_targets"
+      },
+      {
+        "rule": "prioritize_unusual_ports_in_ctf_environments",
+        "reasoning": "port_1337_likely_contains_key_information",
+        "applicability": "ctf_or_lab_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Kerberoasting",
+        "mitre_id": "T1558.003",
+        "required_services": [
+          "kerberos",
+          "ldap"
+        ],
+        "required_ports": [
+          88,
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "service_accounts_with_spn",
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "GetUserSPNs_returns_tickets",
+          "service_accounts_enumerated",
+          "kerberos_tickets_obtained"
+        ],
+        "incompatible_with": [
+          "no_service_accounts",
+          "strong_service_passwords",
+          "kerberos_disabled"
+        ],
+        "confidence_boosters": [
+          "mssql_service_detected",
+          "legacy_service_accounts",
+          "default_spn_configurations"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SQL_Server_Enumeration",
+        "mitre_id": "T1046",
+        "required_services": [
+          "ms-sql-s"
+        ],
+        "required_ports": [
+          1433,
+          50255
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "mssql_service_running",
+          "network_access_to_sql_port"
+        ],
+        "success_indicators": [
+          "sql_version_identified",
+          "authentication_methods_discovered",
+          "database_enumeration_possible"
+        ],
+        "incompatible_with": [
+          "sql_service_disabled",
+          "firewall_blocking_sql_ports",
+          "certificate_authentication_only"
+        ],
+        "confidence_boosters": [
+          "default_sql_configuration",
+          "integrated_authentication",
+          "sa_account_enabled"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Web_Directory_Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          1337,
+          8080
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_running",
+          "directory_structure_present"
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "sensitive_files_discovered",
+          "admin_panels_located"
+        ],
+        "incompatible_with": [
+          "static_single_page_sites",
+          "aggressive_rate_limiting",
+          "comprehensive_access_controls"
+        ],
+        "confidence_boosters": [
+          "iis_server_detected",
+          "default_web_configurations",
+          "development_artifacts_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          636,
+          3269
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "kpasswd5"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "htb.local"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          1337,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "Microsoft-IIS"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis",
+          "Microsoft HTTPAPI"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "sql_server": {
+        "port_indicators": [
+          1433,
+          50255
+        ],
+        "service_indicators": [
+          "ms-sql-s",
+          "Microsoft SQL Server"
+        ],
+        "banner_indicators": [
+          "SQL Server 2014",
+          "Microsoft SQL Server"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "web_directory_enumeration",
+          "when": "multiple_web_services_detected",
+          "reason": "high_success_rate_credential_discovery_likely"
+        },
+        {
+          "attack": "sql_server_enumeration",
+          "when": "mssql_service_detected",
+          "reason": "often_contains_domain_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected",
+          "reason": "no_credentials_needed_but_requires_vulnerable_accounts"
+        },
+        {
+          "attack": "kerberoasting",
+          "when": "domain_credentials_obtained",
+          "reason": "requires_valid_creds_but_high_success_with_service_accounts"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Kerberos User Enumeration",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "kerbrute",
+            "command_template": "kerbrute userenum --domain {domain} {wordlist} --dc {dc_ip}",
+            "actual_command": "kerbrute userenum --domain htb.local /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt --dc 10.10.10.52",
+            "output_pattern": "[+] VALID USERNAME:",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "kerberos_service_accessible",
+          "domain_name_known"
+        ],
+        "success_indicators": [
+          "valid_usernames_discovered",
+          "no_authentication_required"
+        ],
+        "common_failures": [
+          "network_connectivity_issues",
+          "kerberos_service_unavailable"
+        ],
+        "follow_up_techniques": [
+          "asreproast",
+          "password_spraying",
+          "kerberoasting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "GetNPUsers.py",
+            "command_template": "GetNPUsers.py {domain}/{user} -no-pass -dc-ip {dc_ip}",
+            "actual_command": "GetNPUsers.py htb.local/james -no-pass -dc-ip 10.10.10.52",
+            "output_pattern": "[-] User {user} doesn't have UF_DONT_REQUIRE_PREAUTH set",
+            "effectiveness_rating": 3,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "valid_usernames_known",
+          "kerberos_service_accessible",
+          "accounts_without_preauth"
+        ],
+        "success_indicators": [
+          "hash_extracted_successfully"
+        ],
+        "common_failures": [
+          "no_vulnerable_accounts",
+          "preauth_required_for_all_users"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_validation"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {url} -w {wordlist} -t {threads} -o {output}",
+            "actual_command": "gobuster dir -u http://10.10.10.52:1337 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -t 40 -o scans/gobuster-1337-medium",
+            "output_pattern": "/{directory} (Status: {code})",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "appropriate_wordlist"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "sensitive_files_found"
+        ],
+        "common_failures": [
+          "rate_limiting",
+          "waf_blocking",
+          "inadequate_wordlist"
+        ],
+        "follow_up_techniques": [
+          "file_enumeration",
+          "credential_extraction",
+          "vulnerability_assessment"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Credential Extraction from Files",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "perl",
+            "command_template": "perl -lpe '$_=pack\"B*\",$_' < <( echo {binary_string} )",
+            "actual_command": "perl -lpe '$_=pack\"B*\",$_' < <( echo 010000000110010001101101001000010110111001011111010100000100000001110011011100110101011100110000011100100110010000100001 )",
+            "output_pattern": "decoded_password",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "base64_decode_xxd",
+            "command_template": "echo {base64_string} | base64 -d | xxd -r -p",
+            "actual_command": "echo NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx | base64 -d | xxd -r -p",
+            "output_pattern": "decoded_credentials",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "encoded_credentials_found",
+          "encoding_format_identified"
+        ],
+        "success_indicators": [
+          "credentials_successfully_decoded",
+          "credentials_provide_access"
+        ],
+        "common_failures": [
+          "incorrect_encoding_assumption",
+          "corrupted_encoded_data"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "service_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "kerbrute",
+        "use_case": "kerberos_user_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "enum4linux",
+          "rpcclient"
+        ],
+        "best_practices": [
+          "use_comprehensive_username_wordlists",
+          "verify_domain_name_accuracy",
+          "follow_up_with_asreproast_attempts"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_multiple_wordlists",
+          "adjust_thread_count_for_stability",
+          "check_for_rate_limiting"
+        ]
+      },
+      {
+        "tool": "GetNPUsers.py",
+        "use_case": "asreproast_attack",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_attacks"
+        ],
+        "alternatives": [
+          "rubeus",
+          "powerview"
+        ],
+        "best_practices": [
+          "test_all_discovered_usernames",
+          "combine_with_user_enumeration",
+          "prepare_for_hash_cracking"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "active_directory_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "kerbrute userenum --domain htb.local /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt --dc 10.10.10.52",
+            "purpose": "Enumerate valid domain usernames",
+            "expected_output": "Valid usernames: james, administrator, mantis"
+          },
+          {
+            "step": 2,
+            "command": "for user in $(cat users); do GetNPUsers.py htb.local/${user} -no-pass -dc-ip 10.10.10.52 2>/dev/null | grep -F -e '[+]' -e '[-]'; done",
+            "purpose": "Test users for ASREPRoast vulnerability",
+            "expected_output": "Users require preauth (not vulnerable)"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "web_credential_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gobuster dir -u http://10.10.10.52:1337 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -t 40",
+            "purpose": "Discover hidden web directories",
+            "expected_output": "/secure_notes directory found"
+          },
+          {
+            "step": 2,
+            "command": "curl http://10.10.10.52:1337/secure_notes/",
+            "purpose": "Browse discovered directory",
+            "expected_output": "Development notes file with encoded credentials"
+          },
+          {
+            "step": 3,
+            "command": "perl -lpe '$_=pack\"B*\",$_' < <( echo 010000000110010001101101001000010110111001011111010100000100000001110011011100110101011100110000011100100110010000100001 )",
+            "purpose": "Decode binary-encoded credentials",
+            "expected_output": "@dm!n_P@ssW0rd!"
+          },
+          {
+            "step": 4,
+            "command": "echo NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx | base64 -d | xxd -r -p",
+            "purpose": "Decode base64+hex encoded SQL credentials",
+            "expected_output": "m$$ql_S@_P@ssW0rd!"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Mantis",
+      "difficulty": "Hard",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2017-09-16",
+      "author": "lkys37en",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "kerberos",
+        "sql_server",
+        "active_directory"
+      ],
+      "key_vulnerabilities": [
+        "ms14-068",
+        "sql_server_credentials",
+        "kerberos_privilege_escalation"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ms14-068_exploitation",
+        "sql_enumeration",
+        "kerberos_ticket_manipulation"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_enumeration",
+        "kerberos_internals",
+        "sql_server_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "kerberos_attacks",
+        "sql_server_exploitation",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "patch_management",
+        "sql_hardening",
+        "kerberos_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Active",
+        "Resolute"
+      ],
+      "similarity_reasons": [
+        "ad_environment",
+        "kerberos_attacks",
+        "domain_controller"
+      ],
+      "unique_aspects": [
+        "ms14-068_vulnerability",
+        "sql_server_integration",
+        "extensive_enumeration"
+      ],
+      "difficulty_factors": [
+        "multiple_rabbit_holes",
+        "complex_attack_chain",
+        "advanced_kerberos_exploitation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:14:08.596013",
+    "original_file": "0xdf_writeups/Htb Mantis.md",
+    "content_length": 24811,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

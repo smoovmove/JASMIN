@@ -1,0 +1,871 @@
+{
+  "writeup_id": "Htb_Quick",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_quic_http3_exploitation",
+    "primary_services": [
+      "http",
+      "ssh",
+      "quic"
+    ],
+    "port_signature": "22+9001+443/udp",
+    "service_combination": "ssh+http+quic_http3",
+    "os_family": "linux_ubuntu",
+    "environment_type": "web_application",
+    "entry_vector": "quic_http3_enumeration",
+    "privilege_path": "web_user_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "quic_http3_protocol",
+      "edge_side_include_injection",
+      "race_condition_exploitation",
+      "custom_curl_build_required"
+    ],
+    "environmental_clues": [
+      "apache_ubuntu_18_04",
+      "https_portal_subdomain",
+      "udp_443_quic_service",
+      "ticketing_system_backend"
+    ],
+    "similar_scenarios": [
+      "travel_htb_hard",
+      "node_htb_medium"
+    ],
+    "unique_aspects": [
+      "http3_over_quic_protocol",
+      "esi_injection_vulnerability",
+      "file_race_condition",
+      "cached_config_credentials"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "QUIC/HTTP3_Discovery",
+        "success_reason": "Website hosted on non-standard QUIC protocol over UDP 443",
+        "prerequisite_indicators": [
+          "https_link_with_no_tcp_443",
+          "udp_443_open",
+          "modern_web_infrastructure"
+        ],
+        "recognition_patterns": [
+          "https links to unreachable hosts",
+          "UDP 443 responses",
+          "HTTP/3 or QUIC references"
+        ],
+        "failure_modes": [
+          "no_quic_capable_tools",
+          "udp_443_filtered",
+          "standard_https_only"
+        ],
+        "environmental_factors": [
+          "cutting_edge_web_technologies",
+          "security_through_obscurity",
+          "modern_infrastructure_testing"
+        ],
+        "success_probability": 0.15,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Custom_Tool_Building",
+        "success_reason": "Built curl with QUIC support to access HTTP/3 content",
+        "prerequisite_indicators": [
+          "standard_tools_insufficient",
+          "protocol_support_missing",
+          "source_code_available"
+        ],
+        "recognition_patterns": [
+          "connection failures with standard tools",
+          "protocol version mismatches",
+          "need for specialized libraries"
+        ],
+        "failure_modes": [
+          "compilation_errors",
+          "dependency_issues",
+          "time_constraints"
+        ],
+        "environmental_factors": [
+          "development_environment_available",
+          "root_access_for_compilation",
+          "internet_access_for_dependencies"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "45-90 minutes"
+      },
+      {
+        "technique": "Credential_Harvesting_From_Client_List",
+        "success_reason": "Client information provided usernames for credential attacks",
+        "prerequisite_indicators": [
+          "client_listing_available",
+          "naming_patterns_visible",
+          "contact_information_exposed"
+        ],
+        "recognition_patterns": [
+          "employee/client directories",
+          "email addresses with naming conventions",
+          "organizational structure visible"
+        ],
+        "failure_modes": [
+          "no_client_information",
+          "randomized_usernames",
+          "strong_password_policies"
+        ],
+        "environmental_factors": [
+          "information_disclosure_practices",
+          "weak_opsec_culture",
+          "public_facing_directories"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "QUIC/HTTP3 portal site",
+        "discovery_method": "Custom curl build with QUIC support",
+        "why_critical": "Hidden attack surface not accessible via standard tools",
+        "how_to_recognize": [
+          "https links to inaccessible hosts",
+          "UDP 443 open but TCP 443 closed",
+          "modern web application indicators"
+        ],
+        "follow_up_actions": [
+          "build_quic_capable_tools",
+          "enumerate_http3_endpoints",
+          "test_for_unique_vulnerabilities"
+        ]
+      },
+      {
+        "discovery": "Client information disclosure",
+        "discovery_method": "Directory enumeration and client listing",
+        "why_critical": "Provided usernames and organizational context",
+        "how_to_recognize": [
+          "client or employee directories",
+          "contact information pages",
+          "organizational charts"
+        ],
+        "follow_up_actions": [
+          "extract_usernames_and_emails",
+          "build_credential_lists",
+          "test_authentication_endpoints"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "Protocol_Discovery_to_Credential_Access",
+        "why_possible": "Hidden services revealed additional attack surface",
+        "recognition_signs": [
+          "non_standard_protocols_in_use",
+          "multiple_web_services",
+          "information_disclosure_vulnerabilities"
+        ],
+        "exploitation_path": "QUIC Discovery → Client Enumeration → Credential Harvesting → Authentication Bypass"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Only ports 22 (SSH) and 9001 (HTTP) open on initial scan",
+        "decision": "Enumerate web application thoroughly and check for alternative protocols",
+        "reasoning": "Limited attack surface requires comprehensive web enumeration",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if no web vulnerabilities found"
+          },
+          {
+            "option": "udp_scan",
+            "when": "if tcp enumeration incomplete"
+          }
+        ],
+        "success_indicators": [
+          "additional_vhosts_found",
+          "credentials_discovered",
+          "alternative_protocols_identified"
+        ],
+        "next_decision": "analyze_web_content_for_leads"
+      },
+      {
+        "step": 2,
+        "situation": "Found HTTPS link to portal.quick.htb but port 443 TCP closed",
+        "decision": "Investigate QUIC/HTTP3 protocol on UDP 443",
+        "reasoning": "Modern web applications may use QUIC protocol over UDP",
+        "confidence": 0.75,
+        "prerequisites": [
+          "https_link_found",
+          "tcp_443_closed"
+        ],
+        "success_indicators": [
+          "quic_connection_established",
+          "additional_content_accessible"
+        ],
+        "failure_fallbacks": [
+          "vhost_enumeration",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "QUIC protocol confirmed, need specialized tools",
+        "decision": "Build curl with HTTP3 support for QUIC access",
+        "reasoning": "Standard tools don't support QUIC, custom build required",
+        "confidence": 0.85,
+        "prerequisites": [
+          "quic_protocol_identified"
+        ],
+        "success_indicators": [
+          "curl_http3_functional",
+          "portal_content_accessible"
+        ],
+        "failure_fallbacks": [
+          "alternative_quic_tools",
+          "browser_with_quic_support"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Accessed QUIC portal, found employee information and documents",
+        "decision": "Extract credentials and user information from accessible content",
+        "reasoning": "Employee details and documents often contain authentication data",
+        "confidence": 0.8,
+        "prerequisites": [
+          "portal_access_established"
+        ],
+        "success_indicators": [
+          "employee_emails_found",
+          "pdf_documents_retrieved",
+          "potential_usernames_identified"
+        ],
+        "failure_fallbacks": [
+          "parameter_injection_testing",
+          "file_inclusion_attempts"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_limited_ports_found": {
+        "action": "comprehensive_web_enumeration",
+        "tools": [
+          "gobuster",
+          "wfuzz",
+          "curl"
+        ],
+        "next_phase": "alternative_protocol_investigation"
+      },
+      "if_https_link_with_closed_tcp443": {
+        "action": "test_quic_protocol",
+        "alternatives": [
+          "udp_port_scan",
+          "vhost_enumeration"
+        ],
+        "decision_criteria": "based_on_modern_protocol_indicators"
+      },
+      "if_quic_confirmed": {
+        "action": "build_specialized_tools",
+        "purpose": "access_quic_content",
+        "tools": [
+          "curl_with_http3",
+          "custom_quic_clients"
+        ]
+      },
+      "if_employee_info_found": {
+        "action": "credential_extraction_and_testing",
+        "purpose": "gain_initial_access",
+        "tools": [
+          "pdf_analysis",
+          "username_generation",
+          "password_spraying"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_udp_443_if_https_links_found_but_tcp_443_closed",
+        "reasoning": "quic_protocol_increasingly_common_on_modern_applications",
+        "applicability": "web_applications_with_https_references"
+      },
+      {
+        "rule": "build_specialized_tools_for_emerging_protocols",
+        "reasoning": "standard_tools_lag_behind_protocol_adoption",
+        "applicability": "ctf_and_modern_application_testing"
+      },
+      {
+        "rule": "extract_all_user_information_from_accessible_content",
+        "reasoning": "employee_details_often_lead_to_credential_discovery",
+        "applicability": "information_gathering_phase"
+      },
+      {
+        "rule": "analyze_pdf_documents_for_embedded_credentials",
+        "reasoning": "documentation_frequently_contains_authentication_data",
+        "applicability": "document_discovery_scenarios"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          9001
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_running",
+          "directory_listing_disabled",
+          "common_web_technologies"
+        ],
+        "success_indicators": [
+          "php_extensions_found",
+          "status_200_responses",
+          "login_pages_discovered"
+        ],
+        "incompatible_with": [
+          "complete_directory_listing",
+          "aggressive_rate_limiting",
+          "web_application_firewall"
+        ],
+        "confidence_boosters": [
+          "php_backend_detected",
+          "standard_web_structure",
+          "common_filenames_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Virtual_Host_Discovery",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          9001
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_running",
+          "virtual_hosting_enabled",
+          "dns_resolution_available"
+        ],
+        "success_indicators": [
+          "different_content_lengths",
+          "unique_response_codes",
+          "subdomain_references_found"
+        ],
+        "incompatible_with": [
+          "single_site_hosting",
+          "strict_host_header_validation",
+          "cdn_protection"
+        ],
+        "confidence_boosters": [
+          "subdomain_links_in_content",
+          "apache_virtual_hosts",
+          "shared_hosting_environment"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "QUIC_HTTP3_Enumeration",
+        "mitre_id": "T1046",
+        "required_services": [
+          "quic"
+        ],
+        "required_ports": [
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "quic_protocol_enabled",
+          "udp_443_accessible",
+          "http3_support"
+        ],
+        "success_indicators": [
+          "quic_handshake_successful",
+          "http3_responses_received",
+          "alternative_content_discovered"
+        ],
+        "incompatible_with": [
+          "udp_filtering",
+          "quic_disabled",
+          "legacy_only_protocols"
+        ],
+        "confidence_boosters": [
+          "modern_web_infrastructure",
+          "google_technologies",
+          "performance_optimization_focus"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Client_Information_Harvesting",
+        "mitre_id": "T1589.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          9001
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "client_listing_pages",
+          "business_website",
+          "customer_information_displayed"
+        ],
+        "success_indicators": [
+          "client_names_extracted",
+          "contact_information_found",
+          "business_relationships_identified"
+        ],
+        "incompatible_with": [
+          "privacy_focused_sites",
+          "internal_applications_only",
+          "authentication_required"
+        ],
+        "confidence_boosters": [
+          "business_service_websites",
+          "testimonial_sections",
+          "partner_pages"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          9001
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "quic_service": {
+        "port_indicators": [
+          443
+        ],
+        "service_indicators": [
+          "quic",
+          "http3"
+        ],
+        "protocol_indicators": [
+          "udp"
+        ],
+        "confidence_threshold": 0.7
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          9001
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          ".php",
+          "PHP"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "ubuntu_linux": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH 7.6p1 Ubuntu",
+          "Apache/2.4.29 (Ubuntu)"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_information_disclosure"
+        },
+        {
+          "attack": "client_information_harvesting",
+          "when": "business_website_detected",
+          "reason": "easy_reconnaissance_data"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "virtual_host_discovery",
+          "when": "apache_web_server_detected",
+          "reason": "potential_hidden_applications"
+        },
+        {
+          "attack": "quic_enumeration",
+          "when": "modern_web_infrastructure_detected",
+          "reason": "uncommon_attack_surface"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "QUIC/HTTP3 Reconnaissance",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl_http3",
+            "command_template": "/opt/curl/src/curl --http3 https://{hostname}/",
+            "actual_command": "/opt/curl/src/curl --http3 https://portal.quick.htb/",
+            "output_pattern": "HTML content over QUIC protocol",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "nmap_udp",
+            "command_template": "nmap -p- -sU --min-rate 10000 -oA scans/nmap-alludp {target}",
+            "actual_command": "nmap -p- -sU --min-rate 10000 -oA scans/nmap-alludp 10.10.10.186",
+            "success_factors": [
+              "quic_service_running",
+              "udp_443_open"
+            ],
+            "effectiveness_rating": 2
+          }
+        ],
+        "prerequisites": [
+          "curl_compiled_with_http3_support",
+          "quic_service_accessible",
+          "domain_name_known"
+        ],
+        "success_indicators": [
+          "http3_connection_established",
+          "content_retrieved_successfully",
+          "additional_attack_surface_discovered"
+        ],
+        "common_failures": [
+          "curl_lacks_http3_support",
+          "firewall_blocking_udp_443",
+          "certificate_validation_errors"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting_from_pdfs",
+          "virtual_host_enumeration",
+          "web_application_testing"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Credential Discovery in Documents",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "curl_http3",
+            "command_template": "/opt/curl/src/curl -s --http3 https://{hostname}/docs/{document}",
+            "actual_command": "/opt/curl/src/curl -s --http3 https://portal.quick.htb/docs/Connectivity.pdf > Connectivity.pdf",
+            "output_pattern": "PDF containing credentials",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "document_links_discovered",
+          "http3_access_established",
+          "pdf_viewer_available"
+        ],
+        "success_indicators": [
+          "credentials_found_in_document",
+          "credentials_valid_for_authentication",
+          "access_to_restricted_areas"
+        ],
+        "common_failures": [
+          "documents_contain_no_credentials",
+          "credentials_expired_or_invalid",
+          "documents_require_authentication"
+        ],
+        "follow_up_techniques": [
+          "credential_spraying",
+          "web_application_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Web Application Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u http://{target}:{port} -w {wordlist} -x php -t 30",
+            "actual_command": "gobuster dir -u http://10.10.10.186:9001 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php -t 30",
+            "output_pattern": "Directory and file listings",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          },
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -u http://{target}:{port} -H \"Host: FUZZ.{domain}\" -w {wordlist} --hh {hide_chars}",
+            "actual_command": "wfuzz -c -u http://10.10.10.186:9001 -H \"Host: FUZZ.quick.htb\" -w /usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt --hh 3351",
+            "success_factors": [
+              "virtual_hosts_configured",
+              "different_response_sizes"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "wordlists_available",
+          "target_technology_identified"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "sensitive_files_found",
+          "additional_attack_surface_identified"
+        ],
+        "common_failures": [
+          "rate_limiting_blocks_requests",
+          "all_responses_identical",
+          "insufficient_wordlist_coverage"
+        ],
+        "follow_up_techniques": [
+          "file_inclusion_testing",
+          "authentication_bypass",
+          "sql_injection_testing"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl_with_http3",
+        "use_case": "quic_protocol_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "high",
+        "essential_for": [
+          "http3_applications",
+          "quic_services"
+        ],
+        "alternatives": [
+          "firefox_nightly",
+          "chrome_canary"
+        ],
+        "best_practices": [
+          "compile_from_source_with_quiche",
+          "verify_http3_support_before_use",
+          "handle_certificate_errors_appropriately"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "include_relevant_file_extensions",
+          "adjust_thread_count_for_target",
+          "use_appropriate_wordlists_for_technology"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "quic_service_discovery_and_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.186",
+            "purpose": "Initial port discovery",
+            "expected_output": "TCP ports 22 and 9001 open"
+          },
+          {
+            "step": 2,
+            "command": "nmap -p- -sU --min-rate 10000 10.10.10.186",
+            "purpose": "UDP port discovery",
+            "expected_output": "UDP services potentially missed"
+          },
+          {
+            "step": 3,
+            "command": "/opt/curl/src/curl --http3 https://portal.quick.htb/",
+            "purpose": "Test QUIC/HTTP3 connectivity",
+            "expected_output": "HTML content over HTTP/3"
+          },
+          {
+            "step": 4,
+            "command": "/opt/curl/src/curl -s --http3 https://portal.quick.htb/docs/Connectivity.pdf > Connectivity.pdf",
+            "purpose": "Download documentation for credential harvesting",
+            "expected_output": "PDF file with potential credentials"
+          },
+          {
+            "step": 5,
+            "command": "Login with elisa@wink.co.uk / Quick4cc3$$",
+            "purpose": "Authenticate to web application",
+            "expected_output": "Access to ticketing system"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Quick",
+      "difficulty": "Hard",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2020-04-25",
+      "author": "MrR3boot",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "http3_quic",
+        "esi_injection",
+        "race_condition"
+      ],
+      "key_vulnerabilities": [
+        "edge_side_include_injection",
+        "race_condition_file_access",
+        "cached_credentials"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "http3_exploitation",
+        "esi_attacks",
+        "race_conditions",
+        "file_access_vulnerabilities"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_web_exploitation",
+        "http3_protocol",
+        "race_condition_concepts",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "protocol_exploitation",
+        "injection_attacks",
+        "race_conditions"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "secure_esi_implementation",
+        "prevent_race_conditions",
+        "secure_credential_storage",
+        "http3_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Arkham",
+        "Player",
+        "Craft"
+      ],
+      "similarity_reasons": [
+        "complex_web_exploitation",
+        "multiple_privilege_escalation_steps",
+        "advanced_injection_techniques"
+      ],
+      "unique_aspects": [
+        "http3_quic_protocol",
+        "edge_side_include_injection",
+        "race_condition_exploitation"
+      ],
+      "difficulty_factors": [
+        "emerging_protocol_exploitation",
+        "complex_attack_chain",
+        "timing_sensitive_exploits"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T13:12:47.527874",
+    "original_file": "0xdf_writeups/Htb Quick.md",
+    "content_length": 55849,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

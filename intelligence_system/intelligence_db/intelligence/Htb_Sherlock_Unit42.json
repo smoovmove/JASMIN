@@ -1,0 +1,873 @@
+{
+  "writeup_id": "Htb_Sherlock_Unit42",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_malware_analysis_sysmon",
+    "primary_services": [
+      "sysmon",
+      "windows_event_log",
+      "dns",
+      "http"
+    ],
+    "port_signature": "53+80+443",
+    "service_combination": "sysmon+event_logging+network_activity",
+    "os_family": "windows_client",
+    "environment_type": "endpoint_forensics",
+    "entry_vector": "malicious_download",
+    "privilege_path": "user_execution_to_persistence",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "sysmon_event_logs",
+      "firefox_download_vector",
+      "dropbox_malware_distribution",
+      "ultravnc_backdoor"
+    ],
+    "environmental_clues": [
+      "evtx_log_files",
+      "process_creation_events",
+      "file_timestomping",
+      "network_connection_logs"
+    ],
+    "similar_scenarios": [
+      "dfir_challenges",
+      "malware_analysis_labs"
+    ],
+    "unique_aspects": [
+      "unit42_campaign_simulation",
+      "timestomping_defense_evasion",
+      "dummy_domain_connectivity_check",
+      "self_terminating_malware"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Malware_Download_via_Firefox",
+        "success_reason": "User downloaded and executed malware from Dropbox through Firefox browser",
+        "prerequisite_indicators": [
+          "firefox_browser_available",
+          "user_has_download_permissions",
+          "dropbox_accessible",
+          "no_download_restrictions"
+        ],
+        "recognition_patterns": [
+          "firefox.exe DNS queries to dropbox domains",
+          "file downloads from dl.dropboxusercontent.com",
+          "process creation events following downloads",
+          "suspicious executable names"
+        ],
+        "failure_modes": [
+          "browser_security_blocking_downloads",
+          "network_restrictions_blocking_dropbox",
+          "user_awareness_preventing_execution",
+          "antivirus_detection"
+        ],
+        "environmental_factors": [
+          "unrestricted_internet_access",
+          "user_download_privileges",
+          "insufficient_browser_security",
+          "lack_of_application_whitelisting"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Defense_Evasion_Timestomping",
+        "success_reason": "Malware modified file timestamps to appear legitimate and avoid detection",
+        "prerequisite_indicators": [
+          "file_creation_permissions",
+          "system_time_access",
+          "no_file_integrity_monitoring"
+        ],
+        "recognition_patterns": [
+          "EventID 2 (file time changed)",
+          "suspicious timestamp patterns",
+          "multiple files with identical old timestamps",
+          "timestamp inconsistencies"
+        ],
+        "failure_modes": [
+          "file_integrity_monitoring_active",
+          "restricted_file_permissions",
+          "timestamp_validation_controls"
+        ],
+        "environmental_factors": [
+          "standard_user_privileges_sufficient",
+          "no_advanced_edr_monitoring",
+          "insufficient_file_monitoring"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "1-2 minutes"
+      },
+      {
+        "technique": "Persistence_via_UltraVNC_Backdoor",
+        "success_reason": "Malware installed backdoored UltraVNC for persistent remote access",
+        "prerequisite_indicators": [
+          "software_installation_permissions",
+          "network_connectivity",
+          "no_application_control"
+        ],
+        "recognition_patterns": [
+          "UltraVNC process creation",
+          "network connections to suspicious IPs",
+          "service installation events",
+          "registry modifications for persistence"
+        ],
+        "failure_modes": [
+          "application_whitelisting_blocking_installation",
+          "network_egress_filtering",
+          "service_installation_restrictions"
+        ],
+        "environmental_factors": [
+          "standard_user_can_install_software",
+          "unrestricted_outbound_connections",
+          "legitimate_remote_access_tools_allowed"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "3-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Firefox DNS query to Dropbox",
+        "discovery_method": "Sysmon EventID 22 analysis",
+        "why_critical": "Initial infection vector identification through cloud storage abuse",
+        "how_to_recognize": [
+          "firefox.exe making DNS queries",
+          "dropboxusercontent.com domains",
+          "suspicious subdomain patterns",
+          "timing correlation with file creation"
+        ],
+        "follow_up_actions": [
+          "analyze_downloaded_file_hash",
+          "check_network_connections",
+          "examine_process_creation_events",
+          "investigate_file_modifications"
+        ]
+      },
+      {
+        "discovery": "Timestomping activity",
+        "discovery_method": "Sysmon EventID 2 enumeration",
+        "why_critical": "Defense evasion technique indicating sophisticated malware",
+        "how_to_recognize": [
+          "multiple EventID 2 entries",
+          "identical old timestamps on new files",
+          "PDF and executable timestamp changes",
+          "temporal clustering of events"
+        ],
+        "follow_up_actions": [
+          "identify_all_timestomped_files",
+          "correlate_with_process_creation",
+          "check_file_integrity",
+          "analyze_malware_capabilities"
+        ]
+      },
+      {
+        "discovery": "Process termination after infection",
+        "discovery_method": "Sysmon EventID 5 analysis",
+        "why_critical": "Self-deletion behavior typical of droppers/installers",
+        "how_critical": "Indicates successful payload deployment and cleanup",
+        "how_to_recognize": [
+          "process termination events",
+          "timing after file creation/modification",
+          "correlation with network activity",
+          "cleanup of temporary files"
+        ],
+        "follow_up_actions": [
+          "identify_persistent_components",
+          "check_for_scheduled_tasks",
+          "analyze_registry_changes",
+          "hunt_for_backdoor_processes"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_execution",
+        "escalation_method": "social_engineering_to_persistence",
+        "why_possible": "User willingly downloaded and executed malware from trusted cloud service",
+        "recognition_signs": [
+          "user_initiated_download_from_dropbox",
+          "voluntary_execution_of_suspicious_file",
+          "no_privilege_escalation_required",
+          "legitimate_cloud_service_abuse"
+        ],
+        "exploitation_path": "Social Engineering → Download → Execute → Install Backdoor → Persistence"
+      },
+      {
+        "privilege_level": "initial_access",
+        "escalation_method": "backdoor_installation_for_persistence",
+        "why_possible": "Standard user privileges sufficient for UltraVNC installation and network access",
+        "recognition_signs": [
+          "software_installation_without_admin_rights",
+          "network_connections_to_c2_infrastructure",
+          "registry_modifications_for_persistence",
+          "service_or_startup_modifications"
+        ],
+        "exploitation_path": "Initial Execution → File Drops → Registry Changes → Network Callback → Persistent Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Analyzing Sysmon logs for malware investigation",
+        "decision": "Start with EventID 1 (Process Creation) to identify malicious processes",
+        "reasoning": "Process creation events show all executed programs and command lines, essential for spotting malicious activity",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "network_analysis",
+            "when": "if process analysis inconclusive"
+          },
+          {
+            "option": "file_creation_analysis",
+            "when": "if need to track dropped files"
+          }
+        ],
+        "success_indicators": [
+          "suspicious_process_identified",
+          "parent_child_relationships_mapped",
+          "command_line_arguments_analyzed"
+        ],
+        "next_decision": "analyze_process_execution_chain"
+      },
+      {
+        "step": 2,
+        "situation": "Found suspicious process execution from Firefox",
+        "decision": "Investigate file download source and distribution method",
+        "reasoning": "Browser-initiated malware suggests user interaction and external download source",
+        "confidence": 0.9,
+        "prerequisites": [
+          "parent_process_firefox_identified",
+          "suspicious_child_process_found"
+        ],
+        "success_indicators": [
+          "download_source_identified",
+          "cloud_service_determined"
+        ],
+        "failure_fallbacks": [
+          "network_connection_analysis",
+          "dns_query_investigation"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Identified malware dropped files on system",
+        "decision": "Analyze EventID 11 (File Created) and EventID 2 (File Time Changed)",
+        "reasoning": "File creation events reveal malware persistence mechanisms and timestomping evasion",
+        "confidence": 0.85,
+        "prerequisites": [
+          "malicious_process_identified"
+        ],
+        "success_indicators": [
+          "dropped_files_catalogued",
+          "timestomping_detected",
+          "persistence_mechanisms_found"
+        ],
+        "failure_fallbacks": [
+          "registry_analysis",
+          "scheduled_task_investigation"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Need to understand malware network behavior",
+        "decision": "Correlate EventID 22 (DNS queries) with EventID 3 (Network connections)",
+        "reasoning": "Network activity reveals C2 infrastructure and connectivity checks",
+        "confidence": 0.8,
+        "prerequisites": [
+          "malicious_process_timeline_established"
+        ],
+        "success_indicators": [
+          "c2_infrastructure_identified",
+          "connectivity_checks_found",
+          "malicious_ips_discovered"
+        ],
+        "failure_fallbacks": [
+          "traffic_analysis",
+          "domain_reputation_check"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_firefox_parent_process": {
+        "action": "investigate_download_source",
+        "tools": [
+          "jq",
+          "timeline_analysis"
+        ],
+        "next_phase": "file_creation_analysis"
+      },
+      "if_timestomping_detected": {
+        "action": "analyze_evasion_techniques",
+        "purpose": "understand_defense_evasion_methods",
+        "tools": [
+          "eventid_2_analysis",
+          "file_metadata_comparison"
+        ]
+      },
+      "if_network_connections_found": {
+        "action": "map_c2_infrastructure",
+        "purpose": "identify_threat_actor_infrastructure",
+        "tools": [
+          "dns_analysis",
+          "ip_reputation_check"
+        ]
+      },
+      "if_process_terminates": {
+        "action": "analyze_persistence_mechanisms",
+        "purpose": "find_backdoor_installation",
+        "tools": [
+          "registry_analysis",
+          "service_analysis"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_start_with_process_creation_events",
+        "reasoning": "provides_execution_timeline_and_parent_child_relationships",
+        "applicability": "sysmon_log_analysis"
+      },
+      {
+        "rule": "correlate_file_creation_with_process_events",
+        "reasoning": "maps_malware_dropping_behavior_to_execution",
+        "applicability": "malware_analysis"
+      },
+      {
+        "rule": "analyze_network_events_after_process_identification",
+        "reasoning": "provides_context_for_malware_communication_patterns",
+        "applicability": "c2_infrastructure_mapping"
+      },
+      {
+        "rule": "check_for_timestomping_when_file_creation_detected",
+        "reasoning": "common_evasion_technique_in_malware_campaigns",
+        "applicability": "defense_evasion_detection"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Malware_Distribution_via_Cloud_Storage",
+        "mitre_id": "T1566.002",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux",
+          "macos"
+        ],
+        "environmental_prerequisites": [
+          "internet_connectivity",
+          "web_browser_present",
+          "cloud_storage_accessible"
+        ],
+        "success_indicators": [
+          "file_download_events",
+          "browser_network_connections",
+          "executable_creation_on_disk"
+        ],
+        "incompatible_with": [
+          "network_isolation",
+          "cloud_storage_blocked",
+          "download_restrictions"
+        ],
+        "confidence_boosters": [
+          "dropbox_domains_accessible",
+          "firefox_browser_present",
+          "user_interaction_possible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-10 minutes"
+      },
+      {
+        "technique": "Timestomp",
+        "mitre_id": "T1070.006",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_system_write_access",
+          "malware_execution_successful"
+        ],
+        "success_indicators": [
+          "sysmon_event_id_2",
+          "file_timestamp_modifications",
+          "creation_time_changes"
+        ],
+        "incompatible_with": [
+          "file_system_read_only",
+          "insufficient_privileges",
+          "file_integrity_monitoring"
+        ],
+        "confidence_boosters": [
+          "multiple_files_timestomped",
+          "suspicious_timestamp_patterns",
+          "pdf_files_present"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "1-3 minutes"
+      },
+      {
+        "technique": "Process_Injection_UltraVNC",
+        "mitre_id": "T1055",
+        "required_services": [
+          "vnc"
+        ],
+        "required_ports": [
+          5900,
+          5800
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ultravnc_installed_or_installable",
+          "administrative_privileges",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "ultravnc_process_creation",
+          "backdoor_network_connections",
+          "persistence_mechanisms"
+        ],
+        "incompatible_with": [
+          "vnc_services_blocked",
+          "application_whitelisting",
+          "endpoint_protection_active"
+        ],
+        "confidence_boosters": [
+          "legitimate_ultravnc_present",
+          "remote_access_requirements",
+          "administrative_access_available"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_sysmon_logging": {
+        "port_indicators": [],
+        "service_indicators": [
+          "sysmon",
+          "eventlog"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Sysmon"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_browser_present": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "firefox",
+          "chrome",
+          "edge"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "cloud_storage_access": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "dropbox",
+          "onedrive",
+          "googledrive"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "malware_distribution_via_cloud",
+          "when": "web_browser_and_internet_detected",
+          "reason": "common_initial_access_vector"
+        },
+        {
+          "attack": "timestomp_defense_evasion",
+          "when": "malware_execution_successful",
+          "reason": "effective_forensic_timeline_disruption"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ultravnc_backdoor_installation",
+          "when": "administrative_access_achieved",
+          "reason": "reliable_persistence_mechanism"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Sysmon Log Analysis",
+        "mitre_id": "T1562.002",
+        "category": "defense_evasion",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "EvtxeCmd.exe",
+            "command_template": "EvtxECmd.exe -f {evtx_file} --json {output_dir}",
+            "actual_command": "EvtxECmd.exe -f .\\Microsoft-Windows-Sysmon-Operational.evtx --json .",
+            "output_pattern": "JSON formatted event logs",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "jq",
+            "command_template": "cat {json_file} | jq -sc 'group_by(.EventId) | map({EventId: .[0].EventId, count: length}) |.[]'",
+            "actual_command": "cat .\\20240408132435_EvtxECmd_Output.json | jq -sc 'group_by(.EventId) | map({EventId: .[0].EventId, count: length}) |.[]'",
+            "success_factors": [
+              "json_formatted_input",
+              "proper_jq_syntax"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "sysmon_logs_available",
+          "evtx_processing_tools",
+          "json_parsing_capability"
+        ],
+        "success_indicators": [
+          "event_histogram_generated",
+          "malicious_processes_identified",
+          "timeline_established"
+        ],
+        "common_failures": [
+          "corrupted_evtx_files",
+          "missing_sysmon_configuration",
+          "insufficient_logging_coverage"
+        ],
+        "follow_up_techniques": [
+          "process_tree_analysis",
+          "network_connection_tracking",
+          "file_creation_monitoring"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Malware Distribution via Cloud Storage",
+        "mitre_id": "T1566.002",
+        "category": "initial_access",
+        "phase": "delivery",
+        "tools_used": [
+          {
+            "name": "Firefox",
+            "command_template": "N/A - Browser based download",
+            "actual_command": "Download from uc2f030016253ec53f4953980a4e.dl.dropboxusercontent.com",
+            "output_pattern": "DNS queries to dropbox domains",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "internet_connectivity",
+          "user_interaction",
+          "cloud_storage_access"
+        ],
+        "success_indicators": [
+          "dns_queries_to_dropbox",
+          "file_download_events",
+          "process_execution_from_downloads"
+        ],
+        "common_failures": [
+          "network_filtering_blocks_access",
+          "user_awareness_prevents_execution",
+          "antivirus_detection"
+        ],
+        "follow_up_techniques": [
+          "file_timestomping",
+          "persistence_establishment",
+          "backdoor_installation"
+        ],
+        "time_investment": "1-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Timestomping",
+        "mitre_id": "T1070.006",
+        "category": "defense_evasion",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "Built-in Windows APIs",
+            "command_template": "N/A - Programmatic timestamp modification",
+            "actual_command": "Timestamp changed to make files appear older",
+            "output_pattern": "Sysmon EventID 2 - File creation time changed",
+            "effectiveness_rating": 3,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "file_system_write_access",
+          "malware_execution_context"
+        ],
+        "success_indicators": [
+          "eventid_2_logs_present",
+          "suspicious_timestamp_patterns",
+          "multiple_files_same_timestamp"
+        ],
+        "common_failures": [
+          "forensic_tools_detect_modification",
+          "inconsistent_timestamp_application",
+          "sysmon_logging_captures_changes"
+        ],
+        "follow_up_techniques": [
+          "file_hiding",
+          "registry_modification",
+          "process_injection"
+        ],
+        "time_investment": "Seconds per file",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "EvtxeCmd.exe",
+        "use_case": "windows_event_log_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_forensics",
+          "incident_response"
+        ],
+        "alternatives": [
+          "Get-WinEvent",
+          "wevtutil",
+          "LogParser"
+        ],
+        "best_practices": [
+          "always_export_to_json_for_analysis",
+          "combine_with_jq_for_filtering",
+          "validate_log_integrity_before_processing"
+        ]
+      },
+      {
+        "tool": "jq",
+        "use_case": "json_log_analysis_and_filtering",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "json_data_analysis",
+          "log_processing"
+        ],
+        "alternatives": [
+          "PowerShell ConvertFrom-Json",
+          "Python json module"
+        ],
+        "best_practices": [
+          "use_slurp_mode_for_multi_line_json",
+          "combine_group_by_with_map_for_statistics",
+          "filter_early_to_reduce_processing_overhead"
+        ]
+      },
+      {
+        "tool": "Sysmon",
+        "use_case": "advanced_windows_system_monitoring",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "high",
+        "essential_for": [
+          "malware_analysis",
+          "threat_hunting",
+          "incident_response"
+        ],
+        "alternatives": [
+          "Windows Security Auditing",
+          "ETW",
+          "WMI"
+        ],
+        "best_practices": [
+          "use_comprehensive_configuration_like_swiftonseecurity",
+          "focus_on_eventid_1_for_process_creation",
+          "monitor_eventid_11_for_file_creation_patterns"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sysmon_evtx_to_json_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "EvtxECmd.exe -f .\\Microsoft-Windows-Sysmon-Operational.evtx --json .",
+            "purpose": "Convert EVTX to JSON format",
+            "expected_output": "JSON file with timestamp prefix"
+          },
+          {
+            "step": 2,
+            "command": "cat .\\output.json | jq -sc 'group_by(.EventId) | map({EventId: .[0].EventId, count: length}) |.[]'",
+            "purpose": "Generate event ID histogram",
+            "expected_output": "Count of each EventID type"
+          },
+          {
+            "step": 3,
+            "command": "cat .\\output.json | jq -c 'select(.EventId == 1)' > eventid1.json",
+            "purpose": "Filter process creation events",
+            "expected_output": "Filtered JSON with only EventID 1"
+          },
+          {
+            "step": 4,
+            "command": "cat .\\eventid1.json | jq -s '.[0]'",
+            "purpose": "Examine first process creation event",
+            "expected_output": "Detailed process creation log entry"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-15 minutes"
+      },
+      {
+        "sequence_name": "malware_analysis_workflow",
+        "steps": [
+          {
+            "step": 1,
+            "command": "cat .\\output.json | jq 'select(.EventId == 22)'",
+            "purpose": "Identify DNS queries for C2 communication",
+            "expected_output": "DNS query events showing dropbox domains"
+          },
+          {
+            "step": 2,
+            "command": "cat .\\output.json | jq 'select(.EventId == 1) | select(.PayloadData2 | contains(\"T1027\"))'",
+            "purpose": "Find obfuscated processes",
+            "expected_output": "Process creation events with obfuscation indicators"
+          },
+          {
+            "step": 3,
+            "command": "cat .\\output.json | jq 'select(.EventId == 2)'",
+            "purpose": "Detect timestomping activities",
+            "expected_output": "File creation time modification events"
+          },
+          {
+            "step": 4,
+            "command": "cat .\\output.json | jq 'select(.EventId == 11)'",
+            "purpose": "Track file creation patterns",
+            "expected_output": "File creation events showing malware artifacts"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Unit42",
+      "difficulty": "Very Easy",
+      "os": "Windows",
+      "platform": "HackTheBox Sherlock",
+      "release_date": "2024-04-04",
+      "author": "CyberJunkie",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "malware_delivery",
+        "remote_access_trojan"
+      ],
+      "key_vulnerabilities": [
+        "social_engineering",
+        "backdoored_software"
+      ],
+      "environment_type": "windows_endpoint",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "sysmon_analysis",
+        "malware_forensics",
+        "event_log_investigation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_windows_forensics",
+        "event_log_concepts",
+        "malware_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "digital_forensics",
+      "subcategories": [
+        "malware_analysis",
+        "incident_response",
+        "log_analysis"
+      ],
+      "attack_types": [
+        "initial_access",
+        "persistence",
+        "defense_evasion"
+      ],
+      "defensive_lessons": [
+        "sysmon_monitoring",
+        "file_integrity_monitoring",
+        "network_traffic_analysis"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Insider",
+        "Noted",
+        "Campfire-1"
+      ],
+      "similarity_reasons": [
+        "sysmon_logs",
+        "malware_investigation",
+        "windows_forensics"
+      ],
+      "unique_aspects": [
+        "ultravnc_backdoor",
+        "timestomping_analysis",
+        "unit42_campaign"
+      ],
+      "difficulty_factors": [
+        "guided_questions",
+        "clear_attack_timeline",
+        "well_documented_iocs"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:16:37.377445",
+    "original_file": "0xdf_writeups/Htb Sherlock Unit42.md",
+    "content_length": 42295,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

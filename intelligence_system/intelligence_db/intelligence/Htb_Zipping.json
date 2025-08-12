@@ -1,0 +1,823 @@
+{
+  "writeup_id": "Htb_Zipping",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_zip_symlink_sqli_lfi",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "zip_symlink_traversal",
+    "privilege_path": "web_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "zip_file_upload_functionality",
+      "symlink_traversal_vulnerability",
+      "sql_injection_filter_bypass",
+      "local_file_inclusion"
+    ],
+    "environmental_clues": [
+      "php_web_application",
+      "file_upload_restrictions",
+      "zip_archive_processing",
+      "ubuntu_apache_stack"
+    ],
+    "similar_scenarios": [
+      "file_upload_bypass",
+      "zip_slip_attacks"
+    ],
+    "unique_aspects": [
+      "pdf_in_zip_requirement",
+      "symlink_file_disclosure",
+      "chained_sqli_lfi_webshell",
+      "custom_binary_shared_object_privesc"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "symlink_zip_upload",
+        "success_reason": "File upload accepts zip with symlinks, extracts and serves content without validation",
+        "prerequisite_indicators": [
+          "file_upload_functionality",
+          "zip_archive_processing",
+          "extracted_files_served_directly",
+          "no_symlink_validation"
+        ],
+        "recognition_patterns": [
+          "upload accepts zip files",
+          "extracted files accessible via web",
+          "symlinks preserved during extraction",
+          "content-type mismatch in responses"
+        ],
+        "failure_modes": [
+          "symlinks_stripped_during_extraction",
+          "chroot_jail_prevents_traversal",
+          "extracted_files_not_web_accessible",
+          "strict_file_type_validation"
+        ],
+        "environmental_factors": [
+          "php_zip_extraction_default_behavior",
+          "apache_serves_extracted_files",
+          "no_chroot_isolation",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "sql_injection_via_filter_bypass",
+        "success_reason": "Blacklist filtering bypassed using alternative SQL syntax",
+        "prerequisite_indicators": [
+          "user_input_in_sql_queries",
+          "blacklist_based_filtering",
+          "mysql_backend_database",
+          "dynamic_query_construction"
+        ],
+        "recognition_patterns": [
+          "error messages reveal filtering",
+          "certain keywords blocked",
+          "alternative syntax accepted",
+          "database errors in responses"
+        ],
+        "failure_modes": [
+          "whitelist_input_validation",
+          "parameterized_queries_used",
+          "comprehensive_blacklist",
+          "input_sanitization_effective"
+        ],
+        "environmental_factors": [
+          "php_mysql_backend",
+          "developer_implemented_filtering",
+          "incomplete_security_controls",
+          "legacy_code_patterns"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "lfi_via_include_parameter",
+        "success_reason": "PHP include() function accepts user input without proper validation",
+        "prerequisite_indicators": [
+          "php_application",
+          "dynamic_file_inclusion",
+          "user_controlled_parameters",
+          "web_accessible_upload_directory"
+        ],
+        "recognition_patterns": [
+          "url_parameters_affect_page_content",
+          "php_error_messages_reveal_paths",
+          "include/require_in_error_output",
+          "file_path_manipulation_possible"
+        ],
+        "failure_modes": [
+          "whitelist_file_inclusion",
+          "proper_input_sanitization",
+          "disabled_url_includes",
+          "chroot_environment"
+        ],
+        "environmental_factors": [
+          "php_default_configuration",
+          "allow_url_include_enabled",
+          "insufficient_path_validation",
+          "predictable_file_locations"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "symlink_file_read_capability",
+        "discovery_method": "zip upload with symbolic links",
+        "why_critical": "Enables reading arbitrary system files including source code",
+        "how_to_recognize": [
+          "zip upload functionality present",
+          "extracted files served via web",
+          "symlinks preserved in extraction",
+          "content-type mismatches in responses"
+        ],
+        "follow_up_actions": [
+          "read_application_source_code",
+          "enumerate_system_configuration",
+          "identify_database_credentials",
+          "map_application_structure"
+        ]
+      },
+      {
+        "discovery": "mysql_user_credentials",
+        "discovery_method": "source code analysis via file read",
+        "why_critical": "Database access enables further enumeration and potential data exfiltration",
+        "how_to_recognize": [
+          "database_connection_strings_in_source",
+          "hardcoded_credentials",
+          "configuration_files_readable",
+          "mysql_user_in_passwd_file"
+        ],
+        "follow_up_actions": [
+          "test_database_connectivity",
+          "enumerate_database_structure",
+          "identify_sql_injection_points",
+          "attempt_file_write_via_sql"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "webshell_via_sql_injection_and_lfi",
+        "why_possible": "SQL injection allows file write, LFI enables code execution",
+        "recognition_signs": [
+          "sql_injection_with_file_privileges",
+          "web_writable_directories_identified",
+          "lfi_vulnerability_confirmed",
+          "php_code_execution_possible"
+        ],
+        "exploitation_path": "SQL Injection → INTO OUTFILE → LFI → Code Execution"
+      },
+      {
+        "privilege_level": "system_user",
+        "escalation_method": "shared_object_hijacking",
+        "why_possible": "Custom binary with insecure library loading",
+        "recognition_signs": [
+          "custom_suid_binaries",
+          "ld_library_path_manipulation",
+          "writable_library_directories",
+          "missing_library_dependencies"
+        ],
+        "exploitation_path": "Malicious .so → LD_PRELOAD → Root Execution"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and exploitation",
+        "reasoning": "Limited attack surface requires deep web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web exploitation fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "web_application_accessible",
+          "file_upload_functionality_found",
+          "php_application_identified"
+        ],
+        "next_decision": "analyze_upload_functionality"
+      },
+      {
+        "step": 2,
+        "situation": "Found file upload accepting ZIP with PDF inside",
+        "decision": "Test symlink attack for file disclosure",
+        "reasoning": "ZIP symlinks commonly bypass upload restrictions for file read",
+        "confidence": 0.85,
+        "prerequisites": [
+          "zip_upload_functionality",
+          "pdf_extension_required"
+        ],
+        "success_indicators": [
+          "symlink_file_read_successful",
+          "passwd_file_accessible"
+        ],
+        "failure_fallbacks": [
+          "zip_slip_attack",
+          "malicious_pdf_upload",
+          "path_traversal"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Achieved arbitrary file read via symlink in ZIP",
+        "decision": "Extract application source code and configuration",
+        "reasoning": "Source code reveals additional attack vectors and SQL injection points",
+        "confidence": 0.95,
+        "prerequisites": [
+          "file_read_capability",
+          "php_application_identified"
+        ],
+        "success_indicators": [
+          "source_code_extracted",
+          "database_config_found",
+          "additional_endpoints_discovered"
+        ],
+        "next_decision": "analyze_source_for_vulnerabilities"
+      },
+      {
+        "step": 4,
+        "situation": "Found SQL injection in shop functionality via source analysis",
+        "decision": "Exploit SQL injection to write webshell",
+        "reasoning": "SQL injection with file write capabilities enables code execution",
+        "confidence": 0.8,
+        "prerequisites": [
+          "sql_injection_identified",
+          "mysql_write_permissions"
+        ],
+        "success_indicators": [
+          "webshell_written_successfully",
+          "lfi_vulnerability_confirmed"
+        ],
+        "failure_fallbacks": [
+          "data_exfiltration_via_sqli",
+          "privilege_escalation_via_sqli"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_symlink_succeeds": {
+        "action": "enumerate_system_files_and_source",
+        "tools": [
+          "custom_python_script",
+          "zip_with_symlinks"
+        ],
+        "next_phase": "source_code_analysis"
+      },
+      "if_file_read_achieved": {
+        "action": "extract_application_source_and_configs",
+        "targets": [
+          "/etc/apache2/sites-enabled/000-default.conf",
+          "php_source_files",
+          "database_configs"
+        ],
+        "purpose": "find_additional_attack_vectors"
+      },
+      "if_sqli_found": {
+        "action": "write_webshell_via_sqli",
+        "method": "mysql_into_outfile",
+        "next_step": "lfi_to_execute_webshell"
+      },
+      "if_webshell_executed": {
+        "action": "enumerate_for_privilege_escalation",
+        "tools": [
+          "custom_binaries_analysis",
+          "shared_object_hijacking"
+        ],
+        "next_phase": "privilege_escalation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_symlinks_in_zip_uploads",
+        "reasoning": "high_success_rate_for_file_disclosure",
+        "applicability": "zip_upload_functionality_present"
+      },
+      {
+        "rule": "automate_file_reading_with_custom_script",
+        "reasoning": "efficiency_in_source_code_extraction",
+        "applicability": "symlink_file_read_confirmed"
+      },
+      {
+        "rule": "analyze_source_code_for_hidden_endpoints",
+        "reasoning": "reveals_additional_attack_surface",
+        "applicability": "php_source_accessible"
+      },
+      {
+        "rule": "combine_sqli_with_lfi_for_webshell_execution",
+        "reasoning": "common_pattern_in_php_applications",
+        "applicability": "mysql_write_permissions_and_lfi_present"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Zip Symlink Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "zip_file_upload_functionality",
+          "file_extraction_on_server",
+          "symlink_support_in_filesystem"
+        ],
+        "success_indicators": [
+          "zip_upload_accepted",
+          "file_contents_displayed_or_accessible",
+          "symlink_traversal_successful"
+        ],
+        "incompatible_with": [
+          "symlink_filtering_enabled",
+          "chroot_jail_active",
+          "windows_filesystem"
+        ],
+        "confidence_boosters": [
+          "pdf_file_requirement_mentioned",
+          "file_processing_after_upload",
+          "linux_target_confirmed"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "SQL Injection via Filter Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "mysql",
+          "mariadb"
+        ],
+        "required_ports": [
+          80,
+          443,
+          3306
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_database",
+          "user_input_parameters",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "database_error_messages",
+          "sql_syntax_accepted",
+          "data_extraction_successful"
+        ],
+        "incompatible_with": [
+          "prepared_statements_only",
+          "strict_waf_filtering",
+          "no_database_backend"
+        ],
+        "confidence_boosters": [
+          "php_application_detected",
+          "dynamic_content_generation",
+          "parameter_based_queries"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "LFI to RCE via Webshell",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "local_file_inclusion_vulnerability",
+          "file_write_capability",
+          "web_accessible_upload_directory"
+        ],
+        "success_indicators": [
+          "local_files_readable",
+          "webshell_upload_successful",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "file_inclusion_disabled",
+          "strict_file_permissions",
+          "no_write_access"
+        ],
+        "confidence_boosters": [
+          "php_application_detected",
+          "file_upload_functionality",
+          "include_functions_present"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "20-40 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "php_web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx"
+        ],
+        "file_extension_indicators": [
+          ".php"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "file_upload_functionality": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "form_indicators": [
+          "multipart/form-data",
+          "file input"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_target": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "zip_symlink_traversal",
+          "when": "file_upload_and_linux_detected",
+          "reason": "high_success_rate_immediate_file_access"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_additional_attack_surface"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "sql_injection_testing",
+          "when": "dynamic_web_app_detected",
+          "reason": "common_vulnerability_good_impact"
+        },
+        {
+          "attack": "lfi_testing",
+          "when": "php_application_detected",
+          "reason": "often_leads_to_rce"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Zip Symlink File Read",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "ln",
+            "command_template": "ln -s {target_file} {pdf_name}.pdf",
+            "actual_command": "ln -s /etc/passwd passwd.pdf",
+            "output_pattern": "symbolic link created",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "zip",
+            "command_template": "zip --symlinks {archive_name}.zip {symlink_file}.pdf",
+            "actual_command": "zip --symlinks passwd.zip passwd.pdf",
+            "success_factors": [
+              "symlinks_flag_required",
+              "pdf_extension_bypass"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "python_zipfile",
+            "command_template": "python3 readfile.py {host} {target_file_path}",
+            "actual_command": "python3 readfile.py 10.10.11.229 /etc/passwd",
+            "success_factors": [
+              "automated_symlink_creation",
+              "direct_file_extraction"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality",
+          "zip_file_processing",
+          "pdf_extension_filter_only",
+          "symlink_preservation_in_extraction"
+        ],
+        "success_indicators": [
+          "file_contents_returned_in_http_response",
+          "upload_accepted_with_success_message",
+          "accessible_via_uploads_directory_path"
+        ],
+        "common_failures": [
+          "symlinks_not_preserved_during_zip_creation",
+          "server_follows_symlinks_during_extraction",
+          "strict_file_type_validation_beyond_extension"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "configuration_file_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Web Application Source Code Disclosure",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "custom_python_script",
+            "command_template": "python3 readfile.py {host} {source_file_path}",
+            "actual_command": "python3 readfile.py 10.10.11.229 /var/www/html/index.php",
+            "output_pattern": "php_source_code_revealed",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "file_read_capability_established",
+          "web_root_directory_known",
+          "target_file_paths_identified"
+        ],
+        "success_indicators": [
+          "php_source_code_retrieved",
+          "database_credentials_exposed",
+          "additional_endpoints_discovered"
+        ],
+        "common_failures": [
+          "incorrect_web_root_path",
+          "file_permissions_prevent_access",
+          "binary_files_corrupted_in_transfer"
+        ],
+        "follow_up_techniques": [
+          "sql_injection_testing",
+          "local_file_inclusion_exploitation",
+          "credential_reuse_attacks"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "zip_with_symlinks",
+        "use_case": "file_system_traversal_via_upload",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "file_upload_exploitation"
+        ],
+        "alternatives": [
+          "path_traversal_sequences",
+          "null_byte_injection"
+        ],
+        "best_practices": [
+          "always_use_symlinks_flag",
+          "target_sensitive_files_first",
+          "automate_with_custom_scripts"
+        ]
+      },
+      {
+        "tool": "python_zipfile_automation",
+        "use_case": "automated_file_extraction_via_symlinks",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "bulk_file_enumeration"
+        ],
+        "alternatives": [
+          "manual_zip_creation",
+          "bash_scripting"
+        ],
+        "best_practices": [
+          "set_proper_zipinfo_attributes",
+          "handle_binary_files_correctly",
+          "extract_urls_from_responses_automatically"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "zip_symlink_file_read",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ln -s /etc/passwd passwd.pdf",
+            "purpose": "Create symbolic link with PDF extension",
+            "expected_output": "Symbolic link created"
+          },
+          {
+            "step": 2,
+            "command": "zip --symlinks passwd.zip passwd.pdf",
+            "purpose": "Archive symlink preserving link structure",
+            "expected_output": "Archive created with symlink preserved"
+          },
+          {
+            "step": 3,
+            "command": "curl -F 'zipFile=@passwd.zip' -F 'submit=' http://target/upload.php",
+            "purpose": "Upload malicious zip file",
+            "expected_output": "Upload success with file path returned"
+          },
+          {
+            "step": 4,
+            "command": "curl http://target/uploads/[hash]/passwd.pdf",
+            "purpose": "Retrieve target file contents",
+            "expected_output": "Contents of /etc/passwd"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "2-5 minutes"
+      },
+      {
+        "sequence_name": "automated_source_code_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "python3 readfile.py 10.10.11.229 /var/www/html/upload.php",
+            "purpose": "Extract upload handler source code",
+            "expected_output": "PHP source code with upload logic"
+          },
+          {
+            "step": 2,
+            "command": "python3 readfile.py 10.10.11.229 /var/www/html/shop/functions.php",
+            "purpose": "Extract shop functionality source",
+            "expected_output": "PHP functions and database interactions"
+          },
+          {
+            "step": 3,
+            "command": "python3 readfile.py 10.10.11.229 /etc/apache2/sites-enabled/000-default.conf",
+            "purpose": "Extract web server configuration",
+            "expected_output": "Apache virtual host configuration"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Zipping",
+      "difficulty": "Medium",
+      "os": "Ubuntu Linux",
+      "platform": "HackTheBox",
+      "release_date": "2023-08-26",
+      "author": "xdann1",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "file_upload",
+        "symlink_traversal",
+        "sql_injection",
+        "lfi"
+      ],
+      "key_vulnerabilities": [
+        "zip_symlink_abuse",
+        "filter_bypass",
+        "shared_object_hijacking"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "zip_file_attacks",
+        "symlink_exploitation",
+        "php_filters",
+        "so_hijacking"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "file_system_traversal",
+        "sql_injection",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "file_upload_abuse",
+        "path_traversal",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "validate_file_uploads",
+        "sanitize_zip_contents",
+        "restrict_symlinks",
+        "input_validation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bagel",
+        "Shoppy",
+        "Timing"
+      ],
+      "similarity_reasons": [
+        "file_upload_exploitation",
+        "web_application_focus",
+        "multi_stage_exploitation"
+      ],
+      "unique_aspects": [
+        "zip_symlink_traversal",
+        "phar_filter_bypass",
+        "null_byte_zip_handling"
+      ],
+      "difficulty_factors": [
+        "multiple_exploitation_paths",
+        "filter_bypass_techniques",
+        "shared_object_manipulation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:18:39.087774",
+    "original_file": "0xdf_writeups/Htb Zipping.md",
+    "content_length": 55882,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

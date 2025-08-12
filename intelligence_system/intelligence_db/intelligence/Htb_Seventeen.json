@@ -1,0 +1,1042 @@
+{
+  "writeup_id": "Htb_Seventeen",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_multi_vhost_sqli_webshell_chain",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80+8000",
+    "service_combination": "ssh+http+http_alt",
+    "os_family": "ubuntu_linux",
+    "environment_type": "web_application",
+    "entry_vector": "sql_injection_boolean_based",
+    "privilege_path": "sqli_to_file_upload_to_webshell_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "multiple_virtual_hosts",
+      "boolean_based_sql_injection",
+      "roundcube_cve_2020_12640",
+      "malicious_npm_module"
+    ],
+    "environmental_clues": [
+      "apache_multiple_ports",
+      "virtual_host_enumeration_required",
+      "file_upload_functionality",
+      "nodejs_npm_environment"
+    ],
+    "similar_scenarios": [
+      "multi_vhost_web_exploitation",
+      "sql_injection_to_rce"
+    ],
+    "unique_aspects": [
+      "exam_site_boolean_sqli",
+      "oldmanagement_file_upload",
+      "roundcube_webmail_exploit",
+      "rogue_npm_server_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Virtual Host Discovery",
+        "success_reason": "exam.seventeen.htb subdomain exposed additional attack surface",
+        "prerequisite_indicators": [
+          "domain_name_in_response",
+          "apache_virtual_host_config",
+          "multiple_applications_hosted"
+        ],
+        "recognition_patterns": [
+          "domain name mentioned in main site",
+          "different content lengths in vhost fuzzing",
+          "subdomain naming conventions (exam, admin, etc)"
+        ],
+        "failure_modes": [
+          "no_virtual_hosts_configured",
+          "identical_content_all_vhosts",
+          "strict_host_header_validation"
+        ],
+        "environmental_factors": [
+          "apache_name_based_virtual_hosting",
+          "multiple_web_applications",
+          "development_subdomains_exposed"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "SQL Injection Discovery",
+        "success_reason": "Search functionality vulnerable to boolean-based blind SQLi",
+        "prerequisite_indicators": [
+          "php_application_detected",
+          "search_forms_present",
+          "database_driven_content"
+        ],
+        "recognition_patterns": [
+          "search parameter in URL (?p=exams)",
+          "dynamic content generation",
+          "different responses to SQL payloads"
+        ],
+        "failure_modes": [
+          "prepared_statements_used",
+          "input_validation_present",
+          "waf_blocking_payloads"
+        ],
+        "environmental_factors": [
+          "legacy_php_application",
+          "insufficient_input_sanitization",
+          "direct_sql_query_construction"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "File Upload Exploitation",
+        "success_reason": "oldmanagement system allowed webshell upload",
+        "prerequisite_indicators": [
+          "file_upload_functionality",
+          "insufficient_file_validation",
+          "web_accessible_upload_directory"
+        ],
+        "recognition_patterns": [
+          "upload forms present",
+          "weak file extension filtering",
+          "predictable upload paths"
+        ],
+        "failure_modes": [
+          "strict_file_type_validation",
+          "uploads_outside_webroot",
+          "execution_prevention_headers"
+        ],
+        "environmental_factors": [
+          "legacy_upload_handling",
+          "insufficient_security_controls",
+          "development_features_exposed"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "20-40 minutes"
+      },
+      {
+        "technique": "CVE-2020-12640 Roundcube RCE",
+        "success_reason": "Roundcube instance vulnerable to file inclusion via malicious attachment",
+        "prerequisite_indicators": [
+          "roundcube_webmail_identified",
+          "file_upload_capability",
+          "vulnerable_roundcube_version"
+        ],
+        "recognition_patterns": [
+          "roundcube login page",
+          "version disclosure in headers/source",
+          "attachment handling functionality"
+        ],
+        "failure_modes": [
+          "patched_roundcube_version",
+          "attachment_restrictions",
+          "file_inclusion_protections"
+        ],
+        "environmental_factors": [
+          "unpatched_roundcube_installation",
+          "default_configurations",
+          "accessible_webmail_service"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "30-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "exam.seventeen.htb virtual host",
+        "discovery_method": "Virtual host fuzzing with wfuzz",
+        "why_critical": "Exposed vulnerable exam management system with SQL injection",
+        "how_to_recognize": [
+          "different content length in vhost responses",
+          "subdomain naming patterns",
+          "additional functionality exposed"
+        ],
+        "follow_up_actions": [
+          "enumerate_all_vhost_functionality",
+          "test_for_sql_injection",
+          "map_application_structure"
+        ]
+      },
+      {
+        "discovery": "Boolean-based SQL injection in exam search",
+        "discovery_method": "Manual testing of search parameters",
+        "why_critical": "Provided database access leading to credential discovery",
+        "how_to_recognize": [
+          "different response times/content",
+          "error messages on malformed queries",
+          "boolean logic affecting responses"
+        ],
+        "follow_up_actions": [
+          "automate_with_sqlmap",
+          "extract_database_schema",
+          "dump_sensitive_tables"
+        ]
+      },
+      {
+        "discovery": "oldmanagement system credentials",
+        "discovery_method": "SQL injection database extraction",
+        "why_critical": "Led to file upload capability and webshell deployment",
+        "how_to_recognize": [
+          "credential tables in database",
+          "password hashes or plaintext",
+          "service account patterns"
+        ],
+        "follow_up_actions": [
+          "test_credential_reuse",
+          "access_management_interface",
+          "identify_upload_functionality"
+        ]
+      },
+      {
+        "discovery": "Roundcube webmail instance",
+        "discovery_method": "Information disclosure from oldmanagement system",
+        "why_critical": "Vulnerable to CVE-2020-12640 for RCE via uploaded webshell",
+        "how_to_recognize": [
+          "hostname/URL disclosure",
+          "webmail service indicators",
+          "roundcube-specific artifacts"
+        ],
+        "follow_up_actions": [
+          "identify_roundcube_version",
+          "test_cve_2020_12640",
+          "prepare_webshell_payload"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_access",
+        "escalation_method": "SQL_injection_to_credential_extraction",
+        "why_possible": "Exam system vulnerable to boolean-based blind SQL injection",
+        "recognition_signs": [
+          "dynamic_search_functionality",
+          "php_application_without_prepared_statements",
+          "error_message_differences"
+        ],
+        "exploitation_path": "SQLi → Database dump → Credentials → File upload access"
+      },
+      {
+        "privilege_level": "file_upload_access",
+        "escalation_method": "webshell_to_roundcube_rce",
+        "why_possible": "Combination of file upload and Roundcube CVE-2020-12640",
+        "recognition_signs": [
+          "unrestricted_file_upload",
+          "vulnerable_roundcube_version",
+          "file_inclusion_vulnerability"
+        ],
+        "exploitation_path": "Upload webshell → CVE-2020-12640 → Remote code execution"
+      },
+      {
+        "privilege_level": "initial_shell",
+        "escalation_method": "password_reuse_pivoting",
+        "why_possible": "Credentials reused across multiple services and users",
+        "recognition_signs": [
+          "common_passwords_in_database",
+          "service_account_patterns",
+          "multiple_user_accounts"
+        ],
+        "exploitation_path": "Web credentials → SSH access → User pivoting → Root via malicious NPM"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,8000 open on Linux host with multiple HTTP services",
+        "decision": "Enumerate virtual hosts and web applications first",
+        "reasoning": "Multiple HTTP ports suggest virtual hosting with different applications",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "port_8000_bypass",
+            "when": "if vhost enumeration reveals access method"
+          }
+        ],
+        "success_indicators": [
+          "virtual_hosts_discovered",
+          "different_applications_found",
+          "technology_stack_identified"
+        ],
+        "next_decision": "analyze_discovered_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered exam.seventeen.htb with PHP application and search functionality",
+        "decision": "Test search functionality for SQL injection",
+        "reasoning": "Search forms are common SQL injection vectors in PHP applications",
+        "confidence": 0.85,
+        "prerequisites": [
+          "php_application_confirmed",
+          "search_form_identified"
+        ],
+        "success_indicators": [
+          "sql_error_messages",
+          "boolean_based_responses",
+          "time_delays"
+        ],
+        "failure_fallbacks": [
+          "directory_traversal",
+          "file_upload_search",
+          "admin_bypass"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "SQL injection confirmed in search functionality",
+        "decision": "Extract database information to find additional virtual hosts and credentials",
+        "reasoning": "Database often contains configuration data and references to other system components",
+        "confidence": 0.95,
+        "prerequisites": [
+          "sql_injection_confirmed"
+        ],
+        "success_indicators": [
+          "database_schema_extracted",
+          "additional_vhosts_found",
+          "credentials_discovered"
+        ],
+        "next_decision": "pivot_to_discovered_services"
+      }
+    ],
+    "branching_logic": {
+      "if_vhost_enumeration_succeeds": {
+        "action": "enumerate_each_discovered_application",
+        "tools": [
+          "feroxbuster",
+          "wfuzz",
+          "burp"
+        ],
+        "next_phase": "application_vulnerability_assessment"
+      },
+      "if_sql_injection_found": {
+        "action": "extract_database_contents",
+        "tools": [
+          "sqlmap",
+          "manual_injection"
+        ],
+        "priority_targets": [
+          "user_tables",
+          "configuration_tables",
+          "application_metadata"
+        ]
+      },
+      "if_database_reveals_new_services": {
+        "action": "pivot_to_discovered_services",
+        "purpose": "expand_attack_surface",
+        "tools": [
+          "curl",
+          "browser",
+          "custom_scripts"
+        ]
+      },
+      "if_file_upload_found": {
+        "action": "attempt_webshell_upload",
+        "bypass_methods": [
+          "extension_manipulation",
+          "mime_type_bypass",
+          "path_traversal"
+        ],
+        "next_phase": "code_execution_achieved"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_enumerate_vhosts_on_multi_port_http",
+        "reasoning": "virtual_hosting_commonly_used_for_multiple_applications",
+        "applicability": "multiple_http_ports_or_domain_names_present"
+      },
+      {
+        "rule": "prioritize_sql_injection_in_search_forms",
+        "reasoning": "high_success_rate_and_often_leads_to_database_access",
+        "applicability": "php_applications_with_search_functionality"
+      },
+      {
+        "rule": "extract_full_database_when_injection_confirmed",
+        "reasoning": "databases_often_contain_references_to_other_system_components",
+        "applicability": "sql_injection_vulnerability_confirmed"
+      },
+      {
+        "rule": "test_discovered_upload_functionality_immediately",
+        "reasoning": "file_upload_often_leads_to_direct_code_execution",
+        "applicability": "file_upload_endpoints_discovered"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8000,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "domain_name_identified",
+          "multiple_ports_or_services"
+        ],
+        "success_indicators": [
+          "different_content_per_vhost",
+          "status_code_variations",
+          "response_size_differences"
+        ],
+        "incompatible_with": [
+          "single_static_site",
+          "no_virtual_hosting_configured"
+        ],
+        "confidence_boosters": [
+          "multiple_http_ports",
+          "403_forbidden_responses",
+          "domain_name_in_content"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_database",
+          "user_input_parameters",
+          "dynamic_content_generation"
+        ],
+        "success_indicators": [
+          "error_messages_revealed",
+          "time_delay_responses",
+          "boolean_logic_responses"
+        ],
+        "incompatible_with": [
+          "static_html_only",
+          "properly_parameterized_queries",
+          "waf_blocking_requests"
+        ],
+        "confidence_boosters": [
+          "login_forms_present",
+          "search_functionality",
+          "database_error_messages"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "30-120 minutes"
+      },
+      {
+        "technique": "File Upload Exploitation",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "web_accessible_upload_directory",
+          "insufficient_file_validation"
+        ],
+        "success_indicators": [
+          "file_successfully_uploaded",
+          "uploaded_file_accessible",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "strict_file_type_validation",
+          "uploads_outside_webroot",
+          "proper_file_sanitization"
+        ],
+        "confidence_boosters": [
+          "management_interfaces",
+          "cms_platforms",
+          "weak_file_extensions_filtering"
+        ],
+        "typical_success_rate": 0.55,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_file_access",
+          "insufficient_path_validation",
+          "file_inclusion_functionality"
+        ],
+        "success_indicators": [
+          "system_files_accessible",
+          "path_traversal_successful",
+          "sensitive_file_disclosure"
+        ],
+        "incompatible_with": [
+          "proper_input_sanitization",
+          "chroot_jail_environment",
+          "strict_file_access_controls"
+        ],
+        "confidence_boosters": [
+          "file_parameter_in_urls",
+          "include_functionality",
+          "error_messages_showing_paths"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8000,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "virtual_hosting": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "response_indicators": [
+          "403_forbidden",
+          "domain_in_content",
+          "multiple_ports"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "database_backend": {
+        "port_indicators": [
+          3306,
+          5432,
+          1433
+        ],
+        "service_indicators": [
+          "mysql",
+          "postgresql",
+          "mssql"
+        ],
+        "application_indicators": [
+          "dynamic_content",
+          "login_forms",
+          "search_functionality"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "virtual_host_discovery",
+          "when": "multiple_http_ports_and_403_responses",
+          "reason": "often_reveals_hidden_applications"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_enumeration_technique"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "sql_injection_testing",
+          "when": "dynamic_web_application_detected",
+          "reason": "high_impact_but_requires_parameters"
+        },
+        {
+          "attack": "file_upload_testing",
+          "when": "management_interface_discovered",
+          "reason": "direct_code_execution_potential"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Boolean-based SQL Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "sqlmap",
+            "command_template": "sqlmap -u '{url}' --dbs --batch",
+            "actual_command": "sqlmap -u 'http://exam.seventeen.htb/?p=exams&search=test' --dbs --batch",
+            "output_pattern": "available databases:",
+            "effectiveness_rating": 5,
+            "reliability": 0.92
+          },
+          {
+            "name": "manual_boolean_injection",
+            "command_template": "curl '{url}' -d 'search={payload}'",
+            "actual_command": "curl 'http://exam.seventeen.htb/?p=exams' -d 'search=1' AND 1=1--'",
+            "success_factors": [
+              "different_response_lengths",
+              "time_delays",
+              "error_messages"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "search_parameter_injectable",
+          "database_backend_present"
+        ],
+        "success_indicators": [
+          "different_responses_to_true_false_conditions",
+          "database_enumeration_successful",
+          "sensitive_data_extracted"
+        ],
+        "common_failures": [
+          "waf_blocking_requests",
+          "input_sanitization_present",
+          "rate_limiting_active"
+        ],
+        "follow_up_techniques": [
+          "database_enumeration",
+          "credential_extraction",
+          "file_upload_discovery"
+        ],
+        "time_investment": "30-120 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u http://{domain} -H 'Host: FUZZ.{domain}' -w {wordlist} --hh {hide_chars}",
+            "actual_command": "wfuzz -u http://seventeen.htb -H 'Host: FUZZ.seventeen.htb' -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt --hh 20689",
+            "output_pattern": "200        347 L    991 W    17375 Ch",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "domain_name_known",
+          "virtual_host_routing_suspected"
+        ],
+        "success_indicators": [
+          "different_response_sizes",
+          "new_applications_discovered",
+          "additional_attack_surface_found"
+        ],
+        "common_failures": [
+          "no_virtual_hosts_configured",
+          "identical_responses_across_hosts"
+        ],
+        "follow_up_techniques": [
+          "application_enumeration",
+          "vulnerability_assessment",
+          "further_subdomain_discovery"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "CVE-2020-12640 Roundcube RCE",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "manual_exploit",
+            "command_template": "curl -X POST '{roundcube_url}' -d '_task=mail&_action=upload&_file={malicious_file}'",
+            "actual_command": "curl -X POST 'http://roundcube.seventeen.htb/upload' -d '_task=mail&_action=upload&_file=webshell.php'",
+            "success_factors": [
+              "file_upload_successful",
+              "include_vulnerability_present"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "roundcube_instance_accessible",
+          "file_upload_capability",
+          "webshell_uploaded_successfully"
+        ],
+        "success_indicators": [
+          "code_execution_achieved",
+          "webshell_responds_to_commands",
+          "system_access_obtained"
+        ],
+        "common_failures": [
+          "file_upload_restrictions",
+          "path_traversal_blocked",
+          "execution_context_limited"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "persistence_establishment"
+        ],
+        "time_investment": "20-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Password Reuse Attack",
+        "mitre_id": "T1110.004",
+        "category": "credential_access",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "ssh",
+            "command_template": "ssh {username}@{target_ip}",
+            "actual_command": "ssh mark@17.17.0.3",
+            "success_factors": [
+              "credentials_found_in_database",
+              "password_reuse_across_services"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "credentials_obtained_from_database",
+          "ssh_service_accessible",
+          "users_reuse_passwords"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "shell_access_obtained",
+          "user_privileges_confirmed"
+        ],
+        "common_failures": [
+          "passwords_not_reused",
+          "accounts_disabled",
+          "ssh_key_authentication_only"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "system_enumeration",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Malicious NPM Package Installation",
+        "mitre_id": "T1195.002",
+        "category": "persistence",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "npm",
+            "command_template": "npm install {malicious_package}",
+            "actual_command": "npm install malicious-package",
+            "success_factors": [
+              "rogue_npm_server_configured",
+              "root_uses_user_npmrc"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "npm_installed_on_system",
+          "rogue_npm_server_accessible",
+          "user_npmrc_file_accessible_to_root"
+        ],
+        "success_indicators": [
+          "malicious_package_installed",
+          "code_execution_as_root",
+          "privilege_escalation_successful"
+        ],
+        "common_failures": [
+          "npm_server_not_accessible",
+          "package_installation_fails",
+          "execution_context_insufficient"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "system_compromise",
+          "data_exfiltration"
+        ],
+        "time_investment": "45-90 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "sqlmap",
+        "use_case": "automated_sql_injection_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "database_enumeration",
+          "data_extraction"
+        ],
+        "alternatives": [
+          "manual_injection",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_batch_mode_for_automation",
+          "specify_database_type_when_known",
+          "use_threads_for_faster_enumeration"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "virtual_host_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "subdomain_enumeration",
+          "vhost_discovery"
+        ],
+        "alternatives": [
+          "gobuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "hide_default_response_sizes",
+          "use_comprehensive_wordlists",
+          "filter_error_responses"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_enumeration"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "use_recursive_scanning",
+          "adjust_thread_count_for_target",
+          "include_common_extensions"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "vhost_to_sql_injection",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wfuzz -u http://seventeen.htb -H 'Host: FUZZ.seventeen.htb' -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt --hh 20689",
+            "purpose": "Discover virtual hosts",
+            "expected_output": "exam.seventeen.htb found"
+          },
+          {
+            "step": 2,
+            "command": "sqlmap -u 'http://exam.seventeen.htb/?p=exams&search=test' --dbs --batch",
+            "purpose": "Exploit SQL injection to enumerate databases",
+            "expected_output": "Database names extracted"
+          },
+          {
+            "step": 3,
+            "command": "sqlmap -u 'http://exam.seventeen.htb/?p=exams&search=test' -D database_name --tables",
+            "purpose": "Enumerate tables in discovered database",
+            "expected_output": "Table names and structure"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-90 minutes"
+      },
+      {
+        "sequence_name": "database_to_shell_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "sqlmap -u 'http://exam.seventeen.htb/?p=exams&search=test' -D db_sfms --dump",
+            "purpose": "Extract database contents",
+            "expected_output": "User credentials and system information"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST 'http://oldmanagement.seventeen.htb/upload' -F 'file=@webshell.php'",
+            "purpose": "Upload webshell to discovered management system",
+            "expected_output": "File upload successful"
+          },
+          {
+            "step": 3,
+            "command": "curl 'http://roundcube.seventeen.htb/webshell.php?cmd=id'",
+            "purpose": "Execute commands through webshell",
+            "expected_output": "Command execution as www-data"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "60-120 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Seventeen",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2022-05-28",
+      "author": "kavigihan",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "file_upload",
+        "cve_exploitation",
+        "supply_chain"
+      ],
+      "key_vulnerabilities": [
+        "boolean_sql_injection",
+        "file_upload_bypass",
+        "cve-2020-12640",
+        "malicious_npm_package"
+      ],
+      "environment_type": "multi_service_web_application",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_sql_injection",
+        "virtual_host_enumeration",
+        "roundcube_exploitation",
+        "supply_chain_attacks",
+        "npm_security"
+      ],
+      "prerequisite_knowledge": [
+        "sql_injection_techniques",
+        "web_application_security",
+        "linux_privilege_escalation",
+        "nodejs_security"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application_security",
+      "subcategories": [
+        "sql_injection",
+        "file_upload",
+        "cve_exploitation",
+        "supply_chain_attack"
+      ],
+      "attack_types": [
+        "initial_access",
+        "persistence",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "file_upload_restrictions",
+        "patch_management",
+        "npm_security_practices"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bolt",
+        "Previse",
+        "Writer"
+      ],
+      "similarity_reasons": [
+        "complex_web_exploitation",
+        "multiple_virtual_hosts",
+        "chained_vulnerabilities"
+      ],
+      "unique_aspects": [
+        "roundcube_cve_exploitation",
+        "npm_supply_chain_attack",
+        "multi_stage_web_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "complex_exploitation_chain",
+        "advanced_privilege_escalation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T22:01:07.179848",
+    "original_file": "0xdf_writeups/Htb Seventeen.md",
+    "content_length": 65657,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

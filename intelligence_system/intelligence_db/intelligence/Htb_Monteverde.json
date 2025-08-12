@@ -1,0 +1,999 @@
+{
+  "writeup_id": "Htb_Monteverde",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_azure_ad_sync",
+    "primary_services": [
+      "kerberos",
+      "ldap",
+      "smb",
+      "dns",
+      "winrm",
+      "rpc"
+    ],
+    "port_signature": "53+88+389+445+5985+135",
+    "service_combination": "dns+kerberos+ldap+smb+winrm+rpc",
+    "os_family": "windows_server",
+    "environment_type": "active_directory_azure_sync",
+    "entry_vector": "username_as_password",
+    "privilege_path": "service_account_to_azure_ad_sync_abuse",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "azure_ad_sync_service_account",
+      "xml_config_password_disclosure",
+      "aad_synchronization_service",
+      "username_password_reuse"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "azure_active_directory_integration",
+      "rpc_anonymous_access",
+      "winrm_enabled"
+    ],
+    "similar_scenarios": [
+      "sauna_htb_easy",
+      "forest_htb_hard"
+    ],
+    "unique_aspects": [
+      "azure_ad_connect_database_abuse",
+      "sabatchjobs_service_account",
+      "megabank_domain_environment"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "RPC_User_Enumeration",
+        "success_reason": "Anonymous RPC access allowed user enumeration via querydispinfo",
+        "prerequisite_indicators": [
+          "rpc_port_135_open",
+          "smb_port_445_accessible",
+          "anonymous_rpc_sessions_allowed"
+        ],
+        "recognition_patterns": [
+          "rpcclient connects without credentials",
+          "querydispinfo returns user list",
+          "service accounts with descriptive names visible"
+        ],
+        "failure_modes": [
+          "rpc_anonymous_access_disabled",
+          "user_enumeration_restricted",
+          "firewall_blocking_rpc"
+        ],
+        "environmental_factors": [
+          "default_windows_domain_config",
+          "legacy_compatibility_settings",
+          "insufficient_rpc_hardening"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Username_as_Password_Attack",
+        "success_reason": "SABatchJobs account used username as password",
+        "prerequisite_indicators": [
+          "valid_usernames_enumerated",
+          "smb_authentication_available",
+          "weak_password_policies"
+        ],
+        "recognition_patterns": [
+          "service account naming patterns",
+          "batch job accounts often have weak passwords",
+          "crackmapexec shows successful authentication"
+        ],
+        "failure_modes": [
+          "strong_password_policies_enforced",
+          "account_lockout_policies_active",
+          "no_weak_credentials_exist"
+        ],
+        "environmental_factors": [
+          "automated_account_creation",
+          "service_account_mismanagement",
+          "default_credential_practices"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "SMB_Share_Enumeration",
+        "success_reason": "Valid credentials provided access to users$ share containing sensitive files",
+        "prerequisite_indicators": [
+          "valid_domain_credentials",
+          "smb_shares_accessible",
+          "user_profile_shares_exist"
+        ],
+        "recognition_patterns": [
+          "users$ share contains user directories",
+          "mhope directory accessible",
+          "azure.xml config file present"
+        ],
+        "failure_modes": [
+          "restrictive_share_permissions",
+          "no_sensitive_files_in_shares",
+          "encrypted_configuration_files"
+        ],
+        "environmental_factors": [
+          "default_share_permissions",
+          "user_profile_redirection",
+          "configuration_files_in_user_directories"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "10-15 minutes"
+      },
+      {
+        "technique": "Azure_AD_Database_Abuse",
+        "success_reason": "mhope account had permissions to access Azure AD synchronization database",
+        "prerequisite_indicators": [
+          "azure_ad_connect_installed",
+          "user_in_azure_admins_group",
+          "winrm_access_available"
+        ],
+        "recognition_patterns": [
+          "Azure AD Connect service running",
+          "user in Azure Admins group",
+          "ADSync database accessible"
+        ],
+        "failure_modes": [
+          "user_not_in_azure_admins",
+          "azure_ad_connect_not_installed",
+          "database_access_restricted"
+        ],
+        "environmental_factors": [
+          "azure_ad_hybrid_environment",
+          "privileged_azure_permissions",
+          "password_synchronization_enabled"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SABatchJobs weak credentials",
+        "discovery_method": "crackmapexec username/password spray",
+        "why_critical": "Provided initial domain access and SMB share enumeration",
+        "how_to_recognize": [
+          "service account naming patterns",
+          "successful SMB authentication",
+          "batch job related account names"
+        ],
+        "follow_up_actions": [
+          "enumerate_smb_shares",
+          "check_winrm_access",
+          "search_for_config_files"
+        ]
+      },
+      {
+        "discovery": "azure.xml configuration file",
+        "discovery_method": "SMB share enumeration in users$ share",
+        "why_critical": "Contained plaintext password for mhope user with WinRM access",
+        "how_to_recognize": [
+          "xml files in user directories",
+          "azure related configuration files",
+          "password elements in xml"
+        ],
+        "follow_up_actions": [
+          "extract_passwords_from_xml",
+          "test_winrm_access",
+          "check_user_group_memberships"
+        ]
+      },
+      {
+        "discovery": "mhope in Azure Admins group",
+        "discovery_method": "Group membership enumeration after WinRM access",
+        "why_critical": "Enabled access to Azure AD Connect database for administrator password extraction",
+        "how_to_recognize": [
+          "Azure Admins group membership",
+          "Azure AD Connect installed",
+          "ADSync database present"
+        ],
+        "follow_up_actions": [
+          "run_azure_ad_connect_exploit",
+          "extract_admin_credentials",
+          "verify_domain_admin_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "domain_user_sabatchjobs",
+        "escalation_method": "SMB_share_credential_discovery",
+        "why_possible": "SABatchJobs had read access to users$ share containing mhope's azure.xml",
+        "recognition_signs": [
+          "users$_share_accessible",
+          "user_directories_readable",
+          "configuration_files_present"
+        ],
+        "exploitation_path": "SMB enumeration → azure.xml → mhope credentials → WinRM access"
+      },
+      {
+        "privilege_level": "domain_user_mhope",
+        "escalation_method": "Azure_AD_Connect_database_abuse",
+        "why_possible": "mhope was member of Azure Admins group with ADSync database access",
+        "recognition_signs": [
+          "azure_admins_group_membership",
+          "azure_ad_connect_service_running",
+          "adsync_database_accessible"
+        ],
+        "exploitation_path": "Azure Admins membership → ADSync database → Administrator password → Domain Admin"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,135,139,389,445,464,593,636,3268,3269,5985,9389 open on Windows host",
+        "decision": "Identify as Domain Controller and enumerate users via RPC first",
+        "reasoning": "Port combination indicates AD DC, RPC often allows anonymous enumeration",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if rpc fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous access"
+          },
+          {
+            "option": "kerberos_attacks",
+            "when": "if users known"
+          }
+        ],
+        "success_indicators": [
+          "rpc_anonymous_connection_successful",
+          "user_list_obtained",
+          "domain_name_discovered"
+        ],
+        "next_decision": "choose_credential_attack_method"
+      },
+      {
+        "step": 2,
+        "situation": "Obtained user list via RPC enumeration",
+        "decision": "Try username-as-password attack before complex password spraying",
+        "reasoning": "Simple credential reuse is common and low-risk for lockouts",
+        "confidence": 0.8,
+        "prerequisites": [
+          "user_list_available",
+          "smb_accessible"
+        ],
+        "success_indicators": [
+          "valid_credentials_found"
+        ],
+        "failure_fallbacks": [
+          "password_spraying",
+          "asreproast",
+          "kerberoasting"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Valid credentials obtained for SABatchJobs",
+        "decision": "Enumerate all accessible SMB shares systematically",
+        "reasoning": "Service accounts often have access to sensitive file shares",
+        "confidence": 0.9,
+        "prerequisites": [
+          "valid_smb_credentials"
+        ],
+        "success_indicators": [
+          "additional_shares_accessible",
+          "sensitive_files_found"
+        ],
+        "next_decision": "analyze_found_files_for_credentials"
+      },
+      {
+        "step": 4,
+        "situation": "Found XML config file in users$ share",
+        "decision": "Extract credentials from configuration files",
+        "reasoning": "Config files commonly contain hardcoded passwords",
+        "confidence": 0.85,
+        "prerequisites": [
+          "config_files_accessible"
+        ],
+        "success_indicators": [
+          "new_credentials_extracted",
+          "higher_privilege_user_found"
+        ],
+        "next_decision": "test_new_credentials_for_winrm"
+      }
+    ],
+    "branching_logic": {
+      "if_rpc_enumeration_succeeds": {
+        "action": "extract_usernames_and_try_credential_attacks",
+        "tools": [
+          "rpcclient",
+          "crackmapexec"
+        ],
+        "next_phase": "credential_validation"
+      },
+      "if_username_password_succeeds": {
+        "action": "enumerate_smb_shares_thoroughly",
+        "tools": [
+          "smbmap",
+          "smbclient"
+        ],
+        "next_phase": "file_system_enumeration"
+      },
+      "if_config_files_found": {
+        "action": "extract_credentials_and_test_access",
+        "tools": [
+          "grep",
+          "evil-winrm"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_winrm_access_obtained": {
+        "action": "enumerate_azure_ad_components",
+        "purpose": "find_azure_ad_privilege_escalation",
+        "tools": [
+          "powershell",
+          "azure_ad_modules"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_rpc_enumeration_first_on_dc",
+        "reasoning": "high_success_rate_for_user_enumeration_without_credentials",
+        "applicability": "domain_controller_environments"
+      },
+      {
+        "rule": "test_username_as_password_before_complex_spraying",
+        "reasoning": "low_lockout_risk_and_surprisingly_effective",
+        "applicability": "when_user_list_obtained"
+      },
+      {
+        "rule": "thoroughly_enumerate_all_accessible_smb_shares",
+        "reasoning": "service_accounts_often_have_broad_file_access",
+        "applicability": "service_account_credentials_obtained"
+      },
+      {
+        "rule": "prioritize_config_files_for_credential_extraction",
+        "reasoning": "xml_and_config_files_commonly_contain_hardcoded_passwords",
+        "applicability": "file_system_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "RPC_Anonymous_Enumeration",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "rpc",
+          "smb"
+        ],
+        "required_ports": [
+          135,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "anonymous_rpc_access_enabled",
+          "smb_service_accessible",
+          "domain_controller_present"
+        ],
+        "success_indicators": [
+          "rpcclient_connects_without_creds",
+          "querydispinfo_returns_users",
+          "user_enumeration_successful"
+        ],
+        "incompatible_with": [
+          "anonymous_access_disabled",
+          "rpc_service_blocked",
+          "strict_authentication_required"
+        ],
+        "confidence_boosters": [
+          "domain_controller_ports_open",
+          "windows_domain_environment",
+          "legacy_smb_configuration"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Username_As_Password_Attack",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "smb",
+          "kerberos"
+        ],
+        "required_ports": [
+          445,
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "user_list_obtained",
+          "smb_authentication_available",
+          "weak_password_policies"
+        ],
+        "success_indicators": [
+          "crackmapexec_shows_success",
+          "authentication_successful",
+          "service_account_identified"
+        ],
+        "incompatible_with": [
+          "account_lockout_enabled",
+          "strong_password_policies",
+          "mfa_required"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_configurations",
+          "batch_job_accounts_present"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "SMB_Share_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "valid_credentials_obtained",
+          "smb_service_accessible",
+          "file_shares_present"
+        ],
+        "success_indicators": [
+          "smbmap_shows_accessible_shares",
+          "configuration_files_found",
+          "credential_files_discovered"
+        ],
+        "incompatible_with": [
+          "share_access_restricted",
+          "encrypted_file_shares",
+          "no_interesting_files"
+        ],
+        "confidence_boosters": [
+          "service_account_credentials",
+          "administrative_shares_present",
+          "config_file_extensions_found"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Azure_AD_Database_Abuse",
+        "mitre_id": "T1003.003",
+        "required_services": [
+          "adws"
+        ],
+        "required_ports": [
+          9389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "azure_ad_connect_installed",
+          "privileged_user_access",
+          "adws_service_running"
+        ],
+        "success_indicators": [
+          "azure_ad_connect_database_accessible",
+          "credential_extraction_successful",
+          "administrator_password_obtained"
+        ],
+        "incompatible_with": [
+          "azure_ad_connect_not_installed",
+          "database_encrypted",
+          "insufficient_privileges"
+        ],
+        "confidence_boosters": [
+          "aad_service_account_present",
+          "synchronization_service_running",
+          "winrm_access_available"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "MEGABANK.LOCAL"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "azure_ad_connect": {
+        "port_indicators": [
+          9389,
+          5985
+        ],
+        "service_indicators": [
+          "adws",
+          "wsman"
+        ],
+        "account_indicators": [
+          "AAD_",
+          "synchronization service"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "ldap",
+          "domain"
+        ],
+        "feature_indicators": [
+          "globalcatLDAP",
+          "kpasswd5"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "rpc_anonymous_enumeration",
+          "when": "domain_controller_detected",
+          "reason": "often_provides_user_list_without_credentials"
+        },
+        {
+          "attack": "username_as_password",
+          "when": "user_list_obtained",
+          "reason": "common_weak_configuration_quick_wins"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "smb_share_enumeration",
+          "when": "valid_credentials_obtained",
+          "reason": "frequently_contains_configuration_files_with_passwords"
+        },
+        {
+          "attack": "azure_ad_database_abuse",
+          "when": "azure_ad_connect_detected_and_privileged_access",
+          "reason": "high_success_rate_for_admin_credentials"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "RPC User Enumeration",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "rpcclient",
+            "command_template": "rpcclient -U \"\" -N {target_ip}",
+            "actual_command": "rpcclient -U \"\" -N 10.10.10.172",
+            "output_pattern": "index: 0x{hex} RID: 0x{hex} acb: 0x{hex} Account: {username}",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "rpc_null_session_allowed",
+          "port_445_accessible"
+        ],
+        "success_indicators": [
+          "user_list_retrieved",
+          "service_accounts_identified",
+          "account_descriptions_obtained"
+        ],
+        "common_failures": [
+          "null_session_disabled",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "credential_spraying",
+          "password_brute_force"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Username as Password Attack",
+        "mitre_id": "T1110.003",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec smb {target_ip} -u {userlist} -p {userlist} --continue-on-success",
+            "actual_command": "crackmapexec smb 10.10.10.172 -u users -p users --continue-on-success",
+            "output_pattern": "[+] {domain}\\{username}:{password}",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "user_list_available",
+          "smb_service_accessible",
+          "weak_password_policy"
+        ],
+        "success_indicators": [
+          "valid_credentials_found",
+          "smb_authentication_successful"
+        ],
+        "common_failures": [
+          "account_lockout_policies",
+          "strong_password_requirements",
+          "no_weak_passwords"
+        ],
+        "follow_up_techniques": [
+          "smb_enumeration",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SMB Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "smbmap",
+            "command_template": "smbmap -H {target_ip} -u {username} -p {password}",
+            "actual_command": "smbmap -H 10.10.10.172 -u SABatchJobs -p SABatchJobs",
+            "output_pattern": "Disk\\s+Permissions\\s+Comment",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "smbmap recursive",
+            "command_template": "smbmap -H {target_ip} -u {username} -p {password} -R '{share_name}'",
+            "actual_command": "smbmap -H 10.10.10.172 -u SABatchJobs -p SABatchJobs -R 'users$'",
+            "output_pattern": "dr--r--r--\\s+\\d+\\s+.*",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "valid_smb_credentials",
+          "smb_service_accessible"
+        ],
+        "success_indicators": [
+          "accessible_shares_identified",
+          "sensitive_files_discovered",
+          "configuration_files_found"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "empty_shares",
+          "access_denied_errors"
+        ],
+        "follow_up_techniques": [
+          "file_extraction",
+          "credential_harvesting"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Configuration File Credential Extraction",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -U {username} //{target_ip}/{share} {password} -c 'get {file_path} {local_file}'",
+            "actual_command": "smbclient -U SABatchJobs //10.10.10.172/users$ SABatchJobs -c 'get mhope/azure.xml azure.xml'",
+            "output_pattern": "getting file.*of size.*",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "configuration_files_identified",
+          "read_access_to_files",
+          "credentials_stored_in_plaintext"
+        ],
+        "success_indicators": [
+          "file_successfully_downloaded",
+          "credentials_extracted_from_xml",
+          "password_field_contains_plaintext"
+        ],
+        "common_failures": [
+          "encrypted_configuration_files",
+          "no_credentials_in_config",
+          "file_access_denied"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "winrm_authentication"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "WinRM Authentication",
+        "mitre_id": "T1021.006",
+        "category": "lateral_movement",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec winrm {target_ip} -u {username} -p '{password}'",
+            "actual_command": "crackmapexec winrm 10.10.10.172 -u mhope -p '4n0therD4y@n0th3r$'",
+            "output_pattern": "\\[\\+\\].*\\(Pwn3d!\\)",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "evil-winrm",
+            "command_template": "evil-winrm.rb -i {target_ip} -u {username} -p '{password}'",
+            "actual_command": "evil-winrm.rb -i 10.10.10.172 -u mhope -p '4n0therD4y@n0th3r$'",
+            "output_pattern": "Info: Establishing connection to remote endpoint",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "winrm_service_enabled",
+          "valid_domain_credentials",
+          "user_in_remote_management_group"
+        ],
+        "success_indicators": [
+          "remote_shell_obtained",
+          "powershell_session_established",
+          "user_flag_accessible"
+        ],
+        "common_failures": [
+          "winrm_service_disabled",
+          "user_not_in_winrm_group",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "azure_ad_enumeration"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "crackmapexec",
+        "use_case": "credential_validation_and_service_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments",
+          "active_directory"
+        ],
+        "alternatives": [
+          "hydra",
+          "medusa",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_continue_on_success_for_spraying",
+          "validate_winrm_access_after_smb_success",
+          "monitor_for_account_lockouts"
+        ]
+      },
+      {
+        "tool": "smbmap",
+        "use_case": "smb_share_enumeration_and_file_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_networks",
+          "file_share_enumeration"
+        ],
+        "alternatives": [
+          "smbclient",
+          "enum4linux",
+          "nullinux"
+        ],
+        "best_practices": [
+          "use_recursive_flag_for_deep_enumeration",
+          "focus_on_user_directories_and_config_files",
+          "check_permissions_on_all_discovered_shares"
+        ]
+      },
+      {
+        "tool": "evil-winrm",
+        "use_case": "windows_remote_management_shell",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_post_exploitation",
+          "winrm_access"
+        ],
+        "alternatives": [
+          "winrs",
+          "powershell_remoting",
+          "psexec"
+        ],
+        "best_practices": [
+          "preferred_over_psexec_for_stealth",
+          "supports_file_upload_download",
+          "maintains_powershell_context"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "rpc_to_domain_user_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "rpcclient -U \"\" -N 10.10.10.172",
+            "purpose": "Establish null RPC session",
+            "expected_output": "rpcclient $> prompt"
+          },
+          {
+            "step": 2,
+            "command": "querydispinfo",
+            "purpose": "Enumerate domain users",
+            "expected_output": "List of domain accounts with descriptions"
+          },
+          {
+            "step": 3,
+            "command": "crackmapexec smb 10.10.10.172 -u users -p users --continue-on-success",
+            "purpose": "Test username as password",
+            "expected_output": "[+] MEGABANK.LOCAL\\SABatchJobs:SABatchJobs"
+          },
+          {
+            "step": 4,
+            "command": "smbmap -H 10.10.10.172 -u SABatchJobs -p SABatchJobs -R 'users$'",
+            "purpose": "Enumerate accessible files",
+            "expected_output": "azure.xml file in mhope directory"
+          },
+          {
+            "step": 5,
+            "command": "smbclient -U SABatchJobs //10.10.10.172/users$ SABatchJobs -c 'get mhope/azure.xml azure.xml'",
+            "purpose": "Download configuration file",
+            "expected_output": "File downloaded successfully"
+          },
+          {
+            "step": 6,
+            "command": "evil-winrm.rb -i 10.10.10.172 -u mhope -p '4n0therD4y@n0th3r$'",
+            "purpose": "Establish WinRM shell",
+            "expected_output": "PowerShell session as mhope"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-35 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Monteverde",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2020-01-11",
+      "author": "egre55",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "rpc_enumeration",
+        "password_spraying",
+        "azure_ad"
+      ],
+      "key_vulnerabilities": [
+        "weak_passwords",
+        "azure_ad_database_exposure",
+        "excessive_permissions"
+      ],
+      "environment_type": "azure_active_directory_domain",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "azure_ad_attacks",
+        "password_spraying",
+        "smb_enumeration",
+        "winrm_access"
+      ],
+      "prerequisite_knowledge": [
+        "basic_ad_concepts",
+        "smb_protocols",
+        "azure_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "azure_ad",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "lateral_movement",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "strong_password_policies",
+        "azure_ad_hardening",
+        "service_account_security",
+        "smb_access_controls"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Sauna",
+        "Active"
+      ],
+      "similarity_reasons": [
+        "ad_environment",
+        "credential_attacks",
+        "service_enumeration"
+      ],
+      "unique_aspects": [
+        "azure_ad_focus",
+        "xml_config_exposure",
+        "azure_database_exploitation"
+      ],
+      "difficulty_factors": [
+        "azure_specific_techniques",
+        "multiple_credential_stages",
+        "service_enumeration_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-03T23:27:48.507877",
+    "original_file": "0xdf_writeups/Htb Monteverde.md",
+    "content_length": 36031,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

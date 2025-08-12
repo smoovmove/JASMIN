@@ -1,0 +1,847 @@
+{
+  "writeup_id": "Htb_Oz",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_multi_webapp_ssti_docker_escape",
+    "primary_services": [
+      "http",
+      "werkzeug",
+      "python"
+    ],
+    "port_signature": "80+8080",
+    "service_combination": "werkzeug+python_web_apps",
+    "os_family": "linux",
+    "environment_type": "containerized_web_applications",
+    "entry_vector": "server_side_template_injection",
+    "privilege_path": "webapp_to_container_to_host_root",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "werkzeug_python_framework",
+      "wildcard_http_responses",
+      "multiple_web_applications",
+      "docker_container_environment"
+    ],
+    "environmental_clues": [
+      "python_2_7_14_werkzeug",
+      "registration_based_webapp",
+      "random_response_generation",
+      "containerized_services"
+    ],
+    "similar_scenarios": [
+      "node_htb_medium",
+      "canape_htb_medium"
+    ],
+    "unique_aspects": [
+      "oz_themed_application",
+      "docker_management_vulnerability",
+      "database_ssh_key_storage",
+      "multi_container_architecture"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Directory_Fuzzing_with_Wildcard_Bypass",
+        "success_reason": "Application returned wildcard responses but had hidden endpoints discoverable through response filtering",
+        "prerequisite_indicators": [
+          "web_application_accessible",
+          "wildcard_responses_present",
+          "response_length_variations"
+        ],
+        "recognition_patterns": [
+          "gobuster fails with wildcard detection",
+          "random response lengths for invalid paths",
+          "consistent response patterns for valid paths"
+        ],
+        "failure_modes": [
+          "no_wildcard_responses",
+          "uniform_response_lengths",
+          "proper_404_handling"
+        ],
+        "environmental_factors": [
+          "python_flask_werkzeug_framework",
+          "catch_all_routing_configured",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Response_Length_Filtering",
+        "success_reason": "Different response patterns revealed valid endpoints when filtered by character count and word count",
+        "prerequisite_indicators": [
+          "varying_response_lengths",
+          "pattern_recognition_possible",
+          "wfuzz_tool_available"
+        ],
+        "recognition_patterns": [
+          "27 character responses for invalid paths",
+          "1 word responses with random lengths",
+          "HTML responses vs text responses"
+        ],
+        "failure_modes": [
+          "uniform_response_handling",
+          "proper_error_pages",
+          "consistent_content_types"
+        ],
+        "environmental_factors": [
+          "custom_error_handling",
+          "framework_default_responses",
+          "inconsistent_response_formatting"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Multi_Level_Directory_Enumeration",
+        "success_reason": "Found /users endpoint led to discovering admin user through secondary fuzzing",
+        "prerequisite_indicators": [
+          "initial_directory_found",
+          "api_structure_present",
+          "user_enumeration_possible"
+        ],
+        "recognition_patterns": [
+          "/users endpoint discovered",
+          "different response for admin vs invalid users",
+          "21 character response for valid users"
+        ],
+        "failure_modes": [
+          "no_user_enumeration",
+          "uniform_user_responses",
+          "authentication_required"
+        ],
+        "environmental_factors": [
+          "rest_api_structure",
+          "user_enumeration_allowed",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "20-40 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "/users/admin endpoint",
+        "discovery_method": "wfuzz with response length filtering",
+        "why_critical": "Revealed admin user existence and different response pattern",
+        "how_to_recognize": [
+          "21 character response vs 5 character default",
+          "admin/Admin both return same length",
+          "consistent pattern for valid usernames"
+        ],
+        "follow_up_actions": [
+          "enumerate_more_usernames",
+          "test_admin_functionality",
+          "check_for_api_endpoints"
+        ]
+      },
+      {
+        "discovery": "SQL injection in user enumeration",
+        "discovery_method": "Special characters causing 500 errors",
+        "why_critical": "500 errors on single quotes indicate potential SQL injection",
+        "how_to_recognize": [
+          "500 error on single quote character",
+          "291 character error responses",
+          "database error patterns"
+        ],
+        "follow_up_actions": [
+          "test_sql_injection_payloads",
+          "enumerate_database_structure",
+          "extract_sensitive_data"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web_access",
+        "escalation_method": "Directory_Enumeration_to_User_Discovery",
+        "why_possible": "Application exposed user enumeration without authentication",
+        "recognition_signs": [
+          "different_response_lengths_for_valid_users",
+          "no_authentication_required_for_enumeration",
+          "predictable_api_structure"
+        ],
+        "exploitation_path": "Wildcard Bypass → Response Filtering → User Enumeration → SQL Injection"
+      },
+      {
+        "privilege_level": "information_disclosure",
+        "escalation_method": "SQL_Injection_via_User_Parameter",
+        "why_possible": "User input directly processed by database without sanitization",
+        "recognition_signs": [
+          "500_errors_on_special_characters",
+          "database_error_messages",
+          "consistent_error_response_lengths"
+        ],
+        "exploitation_path": "User Enumeration → SQL Error → Database Extraction → Credential Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 80,8080 open running Python Werkzeug",
+        "decision": "Focus on web application enumeration and testing",
+        "reasoning": "Limited attack surface indicates web-focused target",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "port_knocking",
+            "when": "if no web vulnerabilities found"
+          },
+          {
+            "option": "udp_scan",
+            "when": "if initial enumeration fails"
+          }
+        ],
+        "success_indicators": [
+          "web_directories_found",
+          "api_endpoints_discovered",
+          "error_messages_revealed"
+        ],
+        "next_decision": "enumerate_web_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered wildcard responses blocking directory enumeration",
+        "decision": "Use wfuzz with response filtering instead of gobuster",
+        "reasoning": "Wildcard responses require filtering by response characteristics",
+        "confidence": 0.95,
+        "prerequisites": [
+          "wildcard_response_identified"
+        ],
+        "success_indicators": [
+          "valid_endpoints_found",
+          "response_patterns_identified"
+        ],
+        "failure_fallbacks": [
+          "manual_endpoint_testing",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found /users endpoint with potential injection point",
+        "decision": "Test for SQL injection with single quote",
+        "reasoning": "500 error on special characters indicates backend database interaction",
+        "confidence": 0.85,
+        "prerequisites": [
+          "dynamic_endpoint_found",
+          "error_response_observed"
+        ],
+        "success_indicators": [
+          "sql_error_messages",
+          "union_injection_successful"
+        ],
+        "failure_fallbacks": [
+          "template_injection_testing",
+          "parameter_manipulation"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_wildcard_responses_found": {
+        "action": "implement_response_filtering",
+        "tools": [
+          "wfuzz",
+          "custom_filtering"
+        ],
+        "next_phase": "filtered_enumeration"
+      },
+      "if_sql_injection_confirmed": {
+        "action": "enumerate_database_structure",
+        "tools": [
+          "sqlmap",
+          "manual_union_queries"
+        ],
+        "next_phase": "data_extraction"
+      },
+      "if_web_enumeration_successful": {
+        "action": "test_discovered_endpoints",
+        "purpose": "find_injection_vulnerabilities",
+        "tools": [
+          "burp_suite",
+          "manual_testing"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_for_wildcard_responses_first",
+        "reasoning": "prevents_false_positives_in_directory_enumeration",
+        "applicability": "web_application_testing"
+      },
+      {
+        "rule": "use_response_filtering_when_wildcards_detected",
+        "reasoning": "more_effective_than_status_code_filtering",
+        "applicability": "wildcard_response_environments"
+      },
+      {
+        "rule": "test_special_characters_on_dynamic_endpoints",
+        "reasoning": "quick_way_to_identify_injection_vulnerabilities",
+        "applicability": "api_endpoints_and_user_input"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "directory_structure_exists"
+        ],
+        "success_indicators": [
+          "different_response_codes",
+          "varying_content_lengths",
+          "distinct_response_patterns"
+        ],
+        "incompatible_with": [
+          "complete_wildcard_responses",
+          "uniform_response_patterns",
+          "aggressive_rate_limiting"
+        ],
+        "confidence_boosters": [
+          "mixed_response_codes",
+          "predictable_directory_names",
+          "framework_default_paths"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Web Application Enumeration",
+        "mitre_id": "T1590.002",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "accessible_endpoints"
+        ],
+        "success_indicators": [
+          "framework_banners_detected",
+          "technology_stack_identified",
+          "api_endpoints_discovered"
+        ],
+        "incompatible_with": [
+          "complete_access_restrictions",
+          "heavy_obfuscation"
+        ],
+        "confidence_boosters": [
+          "server_headers_present",
+          "error_messages_verbose",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Wildcard Response Filtering",
+        "mitre_id": "T1590.002",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "wildcard_responses_present",
+          "pattern_variations_exist"
+        ],
+        "success_indicators": [
+          "consistent_wildcard_patterns",
+          "filterable_response_characteristics",
+          "hidden_endpoints_revealed"
+        ],
+        "incompatible_with": [
+          "completely_random_responses",
+          "no_pattern_variations"
+        ],
+        "confidence_boosters": [
+          "predictable_response_lengths",
+          "consistent_word_counts",
+          "framework_default_behaviors"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "python_web_framework": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Werkzeug",
+          "Python",
+          "Flask",
+          "Django"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "wildcard_responses": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "random_content",
+          "varying_lengths",
+          "consistent_patterns"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "api_endpoint": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "api",
+          "webapi",
+          "rest",
+          "json"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "web_enumeration",
+          "when": "python_web_framework_detected",
+          "reason": "framework_specific_vulnerabilities_common"
+        },
+        {
+          "attack": "directory_bruteforce_with_filtering",
+          "when": "wildcard_responses_detected",
+          "reason": "hidden_endpoints_likely_present"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "api_endpoint_discovery",
+          "when": "api_service_detected",
+          "reason": "often_reveals_additional_functionality"
+        },
+        {
+          "attack": "parameter_fuzzing",
+          "when": "web_application_detected",
+          "reason": "may_reveal_hidden_parameters"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Injection via Union-Based Enumeration",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s \"http://{target}/users/'%20union%20select%20{query};--%20-\"",
+            "actual_command": "curl -s \"http://10.10.10.96/users/'%20union%20select%20version();--%20-\"",
+            "output_pattern": "{\"username\":\"{result}\"}",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "jq",
+            "command_template": "jq -r '.username'",
+            "actual_command": "curl -s \"http://10.10.10.96/users/'%20union%20select%20user();--%20-\" | jq -r '.username'",
+            "success_factors": [
+              "json_response_format",
+              "proper_field_extraction"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "sql_injection_vulnerability_present",
+          "union_select_supported",
+          "single_column_response"
+        ],
+        "success_indicators": [
+          "500_error_on_single_quote",
+          "successful_union_select_execution",
+          "database_information_extracted"
+        ],
+        "common_failures": [
+          "incorrect_column_count_in_union",
+          "waf_blocking_requests",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "database_schema_enumeration",
+          "credential_extraction",
+          "file_system_access"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Web Directory Fuzzing with Wildcard Filtering",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -w {wordlist} -u http://{target}/FUZZ --hh {chars} --hw {words}",
+            "actual_command": "wfuzz -c -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -u http://10.10.10.96/FUZZ --hh 27 --hw 1",
+            "output_pattern": "ID Response Lines Word Chars Payload",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "gobuster",
+            "command_template": "gobuster -u {target} -w {wordlist} -t 50 -x {extensions}",
+            "actual_command": "gobuster -u 10.10.10.96 -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -t 50 -x txt,php",
+            "success_factors": [
+              "no_wildcard_responses"
+            ],
+            "effectiveness_rating": 2
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "unique_response_patterns_identified",
+          "valid_endpoints_discovered",
+          "filtered_noise_responses"
+        ],
+        "common_failures": [
+          "wildcard_responses_blocking_enumeration",
+          "rate_limiting_active",
+          "insufficient_wordlist_coverage"
+        ],
+        "follow_up_techniques": [
+          "parameter_fuzzing",
+          "endpoint_specific_enumeration",
+          "vulnerability_testing"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Database Schema Enumeration via Information Schema",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s \"http://{target}/users/'%20union%20select%20{column}%20FROM%20information_schema.{table}%20limit%201%20offset%20{offset};--%20-\"",
+            "actual_command": "curl -s \"http://10.10.10.96/users/'%20union%20select%20schema_name%20FROM%20information_schema.schemata%20limit%201%20offset%202;--%20-\"",
+            "output_pattern": "{\"username\":\"{schema_name}\"}",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "sql_injection_established",
+          "information_schema_accessible",
+          "union_select_working"
+        ],
+        "success_indicators": [
+          "database_names_extracted",
+          "table_names_enumerated",
+          "column_structure_mapped"
+        ],
+        "common_failures": [
+          "insufficient_database_privileges",
+          "information_schema_restricted",
+          "response_truncation"
+        ],
+        "follow_up_techniques": [
+          "sensitive_data_extraction",
+          "credential_harvesting",
+          "privilege_escalation"
+        ],
+        "time_investment": "20-40 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wfuzz",
+        "use_case": "directory_enumeration_with_wildcard_filtering",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "ffuf",
+          "dirb",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "identify_wildcard_response_patterns_first",
+          "use_multiple_filter_options_simultaneously",
+          "adjust_thread_count_based_on_target_stability"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "sql_injection_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "manual_sql_injection_testing"
+        ],
+        "alternatives": [
+          "sqlmap",
+          "burp_suite",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "url_encode_special_characters_properly",
+          "use_comment_syntax_to_avoid_syntax_errors",
+          "combine_with_json_parsers_for_clean_output"
+        ]
+      },
+      {
+        "tool": "jq",
+        "use_case": "json_response_parsing",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "api_testing",
+          "json_data_extraction"
+        ],
+        "alternatives": [
+          "python_json_module",
+          "grep_with_regex"
+        ],
+        "best_practices": [
+          "use_raw_output_flag_for_clean_strings",
+          "combine_with_curl_for_streamlined_workflows",
+          "learn_basic_filtering_syntax_for_complex_responses"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sql_injection_discovery_to_database_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl 10.10.10.96/users/'",
+            "purpose": "Test for SQL injection vulnerability",
+            "expected_output": "500 Internal Server Error"
+          },
+          {
+            "step": 2,
+            "command": "curl \"http://10.10.10.96/users/'%20or%201=1;--%20-\"",
+            "purpose": "Confirm SQL injection works",
+            "expected_output": "Valid JSON response with data"
+          },
+          {
+            "step": 3,
+            "command": "curl -s \"http://10.10.10.96/users/'%20union%20select%201;--%20-\"",
+            "purpose": "Test union select with single column",
+            "expected_output": "{\"username\":\"1\"}"
+          },
+          {
+            "step": 4,
+            "command": "curl -s \"http://10.10.10.96/users/'%20union%20select%20version();--%20-\" | jq -r '.username'",
+            "purpose": "Extract database version",
+            "expected_output": "5.5.59-MariaDB-1~wheezy"
+          },
+          {
+            "step": 5,
+            "command": "curl -s \"http://10.10.10.96/users/'%20union%20select%20schema_name%20FROM%20information_schema.schemata%20limit%201%20offset%202;--%20-\" | jq -r '.username'",
+            "purpose": "Enumerate database schemas",
+            "expected_output": "ozdb"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "30-60 minutes"
+      },
+      {
+        "sequence_name": "web_directory_enumeration_with_wildcard_bypass",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gobuster -u 10.10.10.96 -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -t 50",
+            "purpose": "Initial directory enumeration attempt",
+            "expected_output": "Wildcard response detected"
+          },
+          {
+            "step": 2,
+            "command": "curl 10.10.10.96/randomstring",
+            "purpose": "Identify wildcard response pattern",
+            "expected_output": "Random string response"
+          },
+          {
+            "step": 3,
+            "command": "wfuzz -c -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -u http://10.10.10.96/FUZZ",
+            "purpose": "Identify response patterns for filtering",
+            "expected_output": "Various response sizes and word counts"
+          },
+          {
+            "step": 4,
+            "command": "wfuzz -c -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -u http://10.10.10.96/FUZZ --hh 27 --hw 1",
+            "purpose": "Filter out wildcard responses",
+            "expected_output": "users endpoint discovered"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Oz",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2018-09-01",
+      "author": "incidrthreat, Mumbai",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "template_injection",
+        "container_escape"
+      ],
+      "key_vulnerabilities": [
+        "ssti",
+        "database_exposure",
+        "docker_management_vuln"
+      ],
+      "environment_type": "containerized_web_applications",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ssti_exploitation",
+        "container_security",
+        "multi_stage_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "web_enumeration",
+        "template_engines",
+        "docker_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "template_injection",
+        "container_escape",
+        "database_exploitation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "lateral_movement",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "container_hardening",
+        "secure_docker_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Canape",
+        "Node",
+        "Arkham"
+      ],
+      "similarity_reasons": [
+        "web_app_focus",
+        "multi_stage_exploitation",
+        "container_environments"
+      ],
+      "unique_aspects": [
+        "docker_management_exploit",
+        "multi_container_architecture",
+        "database_ssh_key_storage"
+      ],
+      "difficulty_factors": [
+        "extensive_enumeration",
+        "complex_attack_chain",
+        "container_knowledge_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T23:31:36.854441",
+    "original_file": "0xdf_writeups/Htb Oz.md",
+    "content_length": 72120,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

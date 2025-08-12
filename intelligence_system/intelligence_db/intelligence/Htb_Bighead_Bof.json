@@ -1,0 +1,835 @@
+{
+  "writeup_id": "Htb_Bighead_Bof",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_buffer_overflow_egg_hunter",
+    "primary_services": [
+      "http",
+      "custom_web_server"
+    ],
+    "port_signature": "80",
+    "service_combination": "custom_http_server",
+    "os_family": "windows",
+    "environment_type": "standalone_server",
+    "entry_vector": "buffer_overflow",
+    "privilege_path": "remote_code_execution",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "limited_buffer_space",
+      "egg_hunter_technique_required",
+      "custom_web_server_binary",
+      "head_request_vulnerability"
+    ],
+    "environmental_clues": [
+      "bigheadwebsrv_banner",
+      "coffee_endpoint_418_response",
+      "teapot_gif_response",
+      "vulnerability_warning_message"
+    ],
+    "similar_scenarios": [
+      "vulnserver_basic_bof",
+      "custom_service_overflow"
+    ],
+    "unique_aspects": [
+      "space_constrained_exploitation",
+      "egg_hunter_shellcode_technique",
+      "head_request_parsing_bug",
+      "ida_reverse_engineering_required"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Static Binary Analysis",
+        "success_reason": "Vulnerable binary had clear buffer overflow in HEAD request handler with hex decoding",
+        "prerequisite_indicators": [
+          "binary_available_for_analysis",
+          "debugging_symbols_present",
+          "unsafe_string_functions_used"
+        ],
+        "recognition_patterns": [
+          "strcpy without bounds checking",
+          "malloc with fixed size but variable input",
+          "hex decoding loop without length validation"
+        ],
+        "failure_modes": [
+          "binary_stripped_or_obfuscated",
+          "modern_compiler_protections",
+          "input_validation_present"
+        ],
+        "environmental_factors": [
+          "legacy_compilation_without_protections",
+          "custom_web_server_implementation",
+          "developer_warning_in_code"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "2-4 hours"
+      },
+      {
+        "technique": "Egg Hunter Exploitation",
+        "success_reason": "Limited buffer space required staged payload technique",
+        "prerequisite_indicators": [
+          "small_overflow_buffer_space",
+          "reliable_crash_reproduction",
+          "memory_layout_predictable"
+        ],
+        "recognition_patterns": [
+          "buffer space under 100 bytes",
+          "shellcode won't fit in available space",
+          "need for two-stage payload"
+        ],
+        "failure_modes": [
+          "insufficient_memory_permissions",
+          "address_space_randomization",
+          "egg_marker_collision"
+        ],
+        "environmental_factors": [
+          "32bit_windows_target",
+          "no_dep_or_aslr",
+          "predictable_memory_layout"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "4-8 hours"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "HEAD request hex decoding vulnerability",
+        "discovery_method": "IDA Pro static analysis of ConnectionHandler function",
+        "why_critical": "Unsafe strcpy in Function4 allows stack buffer overflow",
+        "how_to_recognize": [
+          "HEAD requests under 219 bytes trigger special handling",
+          "hex decoding loop without bounds checking",
+          "malloc(12) but unlimited input processing"
+        ],
+        "follow_up_actions": [
+          "setup_windows_debugging_environment",
+          "reproduce_crash_with_controlled_input",
+          "calculate_offset_to_return_address"
+        ]
+      },
+      {
+        "discovery": "Limited buffer space for shellcode",
+        "discovery_method": "Crash analysis and stack layout examination",
+        "why_critical": "Standard shellcode techniques insufficient, requires advanced exploitation",
+        "how_to_recognize": [
+          "available space less than typical shellcode size",
+          "stack space constraints",
+          "need for staged payload approach"
+        ],
+        "follow_up_actions": [
+          "implement_egg_hunter_technique",
+          "place_shellcode_in_accessible_memory",
+          "test_payload_reliability"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "remote_code_execution",
+        "escalation_method": "buffer_overflow_to_system_shell",
+        "why_possible": "No modern exploit protections on legacy Windows 2008 32-bit",
+        "recognition_signs": [
+          "no_dep_protection",
+          "no_aslr_enabled",
+          "predictable_stack_layout",
+          "unsafe_string_functions"
+        ],
+        "exploitation_path": "Static Analysis → Vulnerability ID → Egg Hunter → Remote Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found custom web server on non-standard port with unusual responses",
+        "decision": "Perform binary analysis before fuzzing",
+        "reasoning": "Custom binaries often have unique vulnerabilities that require reverse engineering",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_fuzzing",
+            "when": "if time constrained"
+          },
+          {
+            "option": "source_code_review",
+            "when": "if source available"
+          }
+        ],
+        "success_indicators": [
+          "binary_downloaded",
+          "ida_analysis_complete",
+          "vulnerability_functions_identified"
+        ],
+        "next_decision": "identify_attack_surface"
+      },
+      {
+        "step": 2,
+        "situation": "Multiple HTTP endpoints discovered with different behaviors",
+        "decision": "Map all request handlers and identify unique code paths",
+        "reasoning": "Different endpoints may have different vulnerability surfaces",
+        "confidence": 0.85,
+        "prerequisites": [
+          "binary_analysis_tools",
+          "disassembler_access"
+        ],
+        "success_indicators": [
+          "connection_handler_found",
+          "request_parsing_logic_mapped"
+        ],
+        "failure_fallbacks": [
+          "dynamic_analysis",
+          "black_box_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found HEAD request handler with hex decoding and unsafe operations",
+        "decision": "Focus on HEAD request path with hex-encoded payloads",
+        "reasoning": "Hex decoding + unsafe strcpy indicates high probability buffer overflow",
+        "confidence": 0.95,
+        "prerequisites": [
+          "head_handler_identified",
+          "unsafe_functions_found"
+        ],
+        "success_indicators": [
+          "buffer_overflow_confirmed",
+          "eip_control_achieved"
+        ],
+        "next_decision": "determine_exploit_constraints"
+      },
+      {
+        "step": 4,
+        "situation": "Buffer overflow confirmed but limited space for shellcode",
+        "decision": "Implement egg hunter technique for shellcode execution",
+        "reasoning": "Small buffer space requires staged payload approach",
+        "confidence": 0.8,
+        "prerequisites": [
+          "overflow_confirmed",
+          "space_limitations_identified"
+        ],
+        "success_indicators": [
+          "egg_hunter_working",
+          "shellcode_executed"
+        ],
+        "alternatives": [
+          {
+            "option": "rop_chain",
+            "when": "if dep_enabled"
+          },
+          {
+            "option": "ret2libc",
+            "when": "if aslr_disabled"
+          }
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_custom_binary_found": {
+        "action": "prioritize_reverse_engineering",
+        "tools": [
+          "ida_pro",
+          "ghidra",
+          "x64dbg"
+        ],
+        "next_phase": "static_analysis_vulnerability_hunting"
+      },
+      "if_multiple_endpoints_exist": {
+        "action": "analyze_each_request_handler",
+        "purpose": "find_unique_vulnerability_surfaces",
+        "decision_criteria": "based_on_code_complexity_and_input_handling"
+      },
+      "if_buffer_overflow_found": {
+        "action": "assess_exploitation_constraints",
+        "considerations": [
+          "buffer_size",
+          "bad_characters",
+          "memory_protections"
+        ],
+        "next_phase": "exploit_development"
+      },
+      "if_space_limited": {
+        "action": "use_staged_payload_technique",
+        "techniques": [
+          "egg_hunter",
+          "socket_reuse",
+          "rop_chain"
+        ],
+        "selection_criteria": "based_on_available_space_and_constraints"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_reverse_engineer_custom_binaries_first",
+        "reasoning": "static_analysis_more_efficient_than_blind_fuzzing",
+        "applicability": "custom_or_unknown_binaries"
+      },
+      {
+        "rule": "map_all_request_handlers_before_exploitation",
+        "reasoning": "different_endpoints_may_have_different_attack_surfaces",
+        "applicability": "web_servers_and_network_services"
+      },
+      {
+        "rule": "use_egg_hunter_for_space_constrained_overflows",
+        "reasoning": "enables_full_shellcode_execution_despite_size_limits",
+        "applicability": "buffer_overflows_with_limited_space"
+      },
+      {
+        "rule": "test_exploits_in_controlled_environment_first",
+        "reasoning": "complex_exploits_require_debugging_and_refinement",
+        "applicability": "advanced_exploitation_techniques"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Buffer Overflow",
+        "mitre_id": "T1203",
+        "required_services": [
+          "http",
+          "custom_web_server"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "vulnerable_web_service",
+          "custom_binary_application",
+          "stack_based_overflow_present"
+        ],
+        "success_indicators": [
+          "application_crash_on_input",
+          "eip_control_achieved",
+          "memory_corruption_detected"
+        ],
+        "incompatible_with": [
+          "dep_enabled",
+          "aslr_enabled",
+          "stack_canaries_present",
+          "input_validation_strict"
+        ],
+        "confidence_boosters": [
+          "custom_developed_software",
+          "legacy_application",
+          "no_modern_protections"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "30-120 minutes"
+      },
+      {
+        "technique": "Egg Hunter Shellcode",
+        "mitre_id": "T1055",
+        "required_services": [
+          "vulnerable_application"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "limited_buffer_space",
+          "memory_corruption_vulnerability",
+          "shellcode_injection_possible"
+        ],
+        "success_indicators": [
+          "small_payload_space_available",
+          "larger_payload_stored_elsewhere",
+          "memory_search_feasible"
+        ],
+        "incompatible_with": [
+          "sufficient_buffer_space",
+          "memory_randomization_high",
+          "process_isolation_strict"
+        ],
+        "confidence_boosters": [
+          "constrained_exploit_space",
+          "predictable_memory_layout",
+          "multiple_input_vectors"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "45-180 minutes"
+      },
+      {
+        "technique": "Web Service Enumeration",
+        "mitre_id": "T1046",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443,
+          8000
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_running",
+          "network_connectivity",
+          "service_responsive"
+        ],
+        "success_indicators": [
+          "http_responses_received",
+          "directory_structure_revealed",
+          "application_fingerprinted"
+        ],
+        "incompatible_with": [
+          "service_down",
+          "network_filtering_strict",
+          "rate_limiting_aggressive"
+        ],
+        "confidence_boosters": [
+          "custom_error_messages",
+          "verbose_responses",
+          "debug_information_leaked"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "5-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "vulnerable_web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "custom_web_server"
+        ],
+        "banner_indicators": [
+          "BigHeadWebSrv",
+          "custom",
+          "vulnerable"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "windows_target": {
+        "port_indicators": [
+          135,
+          139,
+          445,
+          3389
+        ],
+        "service_indicators": [
+          "smb",
+          "rpc",
+          "rdp"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Microsoft"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "buffer_overflow_target": {
+        "port_indicators": [
+          80,
+          443,
+          21,
+          23,
+          25
+        ],
+        "service_indicators": [
+          "custom_service",
+          "legacy_application"
+        ],
+        "banner_indicators": [
+          "vulnerable",
+          "beta",
+          "development"
+        ],
+        "confidence_threshold": 0.7
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "web_service_enumeration",
+          "when": "http_service_detected",
+          "reason": "quick_reconnaissance_high_success_rate"
+        },
+        {
+          "attack": "buffer_overflow_testing",
+          "when": "custom_web_service_detected",
+          "reason": "custom_applications_often_vulnerable"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "reverse_engineering",
+          "when": "custom_binary_identified",
+          "reason": "thorough_but_time_intensive"
+        },
+        {
+          "attack": "egg_hunter_exploitation",
+          "when": "limited_buffer_space_confirmed",
+          "reason": "specialized_technique_for_constrained_exploits"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Buffer Overflow with Egg Hunter",
+        "mitre_id": "T1055",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "IDA Free",
+            "command_template": "ida {binary_file}",
+            "actual_command": "ida BigHeadWebSrv.exe",
+            "output_pattern": "disassembly_view",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "Immunity Debugger",
+            "command_template": "attach to process",
+            "actual_command": "attach BigHeadWebSrv.exe",
+            "success_factors": [
+              "process_running",
+              "debugger_privileges"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "mona",
+            "command_template": "!mona {command}",
+            "actual_command": "!mona jmp -r esp",
+            "output_pattern": "gadget_addresses",
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "msf-pattern_create",
+            "command_template": "msf-pattern_create -l {length}",
+            "actual_command": "msf-pattern_create -l 50",
+            "success_factors": [
+              "unique_pattern_generation"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "curl",
+            "command_template": "curl --head http://{target}:{port}/{hex_payload}",
+            "actual_command": "curl --head http://10.1.1.146:8008/4161304161314161324161334161344161354161364161374161384161394162304162314162324162334162344162354162",
+            "success_factors": [
+              "valid_http_request",
+              "hex_encoded_payload"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_web_server",
+          "hex_to_binary_conversion_vulnerability",
+          "stack_based_buffer_overflow",
+          "limited_buffer_space"
+        ],
+        "success_indicators": [
+          "eip_control_achieved",
+          "jmp_esp_gadget_found",
+          "egg_hunter_shellcode_executed",
+          "main_shellcode_located_and_executed"
+        ],
+        "common_failures": [
+          "aslr_enabled_modules",
+          "insufficient_buffer_space",
+          "bad_characters_in_shellcode",
+          "nginx_filtering_requests"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "persistence_mechanisms"
+        ],
+        "time_investment": "2-4 hours",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Static Binary Analysis",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "IDA Free",
+            "command_template": "strings analysis via Shift-F12",
+            "actual_command": "Shift-F12 in IDA",
+            "output_pattern": "http_request_strings",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "target_binary_available",
+          "disassembler_tool_access"
+        ],
+        "success_indicators": [
+          "vulnerable_function_identified",
+          "input_validation_weaknesses_found",
+          "unsafe_string_operations_located"
+        ],
+        "common_failures": [
+          "obfuscated_binaries",
+          "packed_executables",
+          "complex_control_flow"
+        ],
+        "follow_up_techniques": [
+          "dynamic_analysis",
+          "fuzzing",
+          "exploit_development"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "IDA Free",
+        "use_case": "binary_reverse_engineering",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "high",
+        "essential_for": [
+          "static_analysis",
+          "vulnerability_research"
+        ],
+        "alternatives": [
+          "ghidra",
+          "radare2",
+          "x64dbg"
+        ],
+        "best_practices": [
+          "start_with_strings_analysis",
+          "follow_cross_references",
+          "understand_function_flow_before_details"
+        ]
+      },
+      {
+        "tool": "Immunity Debugger",
+        "use_case": "windows_exploit_development",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "buffer_overflow_exploitation"
+        ],
+        "alternatives": [
+          "x32dbg",
+          "windbg",
+          "ollydbg"
+        ],
+        "best_practices": [
+          "restart_debugger_between_runs",
+          "use_mona_plugin_for_automation",
+          "set_breakpoints_at_critical_points"
+        ]
+      },
+      {
+        "tool": "mona",
+        "use_case": "exploit_development_automation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "rop_chain_generation",
+          "gadget_finding"
+        ],
+        "alternatives": [
+          "ropper",
+          "rp++"
+        ],
+        "best_practices": [
+          "check_module_protections_first",
+          "verify_gadgets_manually",
+          "consider_bad_characters"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "buffer_overflow_eip_control",
+        "steps": [
+          {
+            "step": 1,
+            "command": "msf-pattern_create -l 50 | xxd -p | tr -d \"\\n\"",
+            "purpose": "Generate hex-encoded pattern for offset discovery",
+            "expected_output": "Hex pattern string"
+          },
+          {
+            "step": 2,
+            "command": "curl --head http://10.1.1.146:8008/[hex_pattern]",
+            "purpose": "Trigger buffer overflow with pattern",
+            "expected_output": "Application crash with pattern in EIP"
+          },
+          {
+            "step": 3,
+            "command": "msf-pattern_offset -q [eip_value_reversed]",
+            "purpose": "Calculate exact offset to EIP",
+            "expected_output": "Exact match at offset 36"
+          },
+          {
+            "step": 4,
+            "command": "!mona jmp -r esp",
+            "purpose": "Find JMP ESP gadget in non-ASLR module",
+            "expected_output": "List of gadget addresses"
+          },
+          {
+            "step": 5,
+            "command": "curl --head http://10.1.1.146:8008/$(python -c 'print \"A\"*72 + \"f0125062\" + \"B\"*8')",
+            "purpose": "Verify EIP control and ESP pointing to controlled data",
+            "expected_output": "Execution redirected to controlled buffer"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "45-90 minutes"
+      },
+      {
+        "sequence_name": "ida_vulnerability_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Open binary in IDA Free",
+            "purpose": "Load target for static analysis",
+            "expected_output": "Disassembly view loaded"
+          },
+          {
+            "step": 2,
+            "command": "Shift-F12",
+            "purpose": "Open strings window",
+            "expected_output": "List of embedded strings"
+          },
+          {
+            "step": 3,
+            "command": "Search for HTTP-related strings",
+            "purpose": "Locate request handling code",
+            "expected_output": "GET, POST, HEAD request strings found"
+          },
+          {
+            "step": 4,
+            "command": "Follow cross-references to ConnectionHandler",
+            "purpose": "Navigate to vulnerable function",
+            "expected_output": "Request processing logic identified"
+          },
+          {
+            "step": 5,
+            "command": "Analyze HEAD request handling path",
+            "purpose": "Identify unsafe string operations",
+            "expected_output": "strcpy vulnerability in Function4"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "BigHead BOF",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "Unknown",
+      "author": "0xdf",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "buffer_overflow",
+        "web_service_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "stack_buffer_overflow",
+        "limited_buffer_space"
+      ],
+      "environment_type": "windows_web_service",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "advanced_bof_techniques",
+        "egg_hunter_shellcode",
+        "reverse_engineering"
+      ],
+      "prerequisite_knowledge": [
+        "basic_buffer_overflows",
+        "assembly_language",
+        "debugger_usage",
+        "shellcode_development"
+      ]
+    },
+    "categorization": {
+      "primary_category": "binary_exploitation",
+      "subcategories": [
+        "buffer_overflow",
+        "shellcode_development",
+        "reverse_engineering"
+      ],
+      "attack_types": [
+        "memory_corruption",
+        "code_execution"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "stack_canaries",
+        "aslr_implementation",
+        "dep_nx_bit"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Buff",
+        "Brainfuck",
+        "SecNotes"
+      ],
+      "similarity_reasons": [
+        "windows_exploitation",
+        "buffer_overflow_techniques",
+        "web_service_vulnerabilities"
+      ],
+      "unique_aspects": [
+        "egg_hunter_technique",
+        "space_constrained_exploitation",
+        "advanced_shellcode_staging"
+      ],
+      "difficulty_factors": [
+        "limited_buffer_space",
+        "advanced_exploitation_techniques",
+        "reverse_engineering_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:50:58.759893",
+    "original_file": "0xdf_writeups/Htb Bighead Bof.md",
+    "content_length": 20823,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

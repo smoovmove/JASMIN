@@ -1,0 +1,976 @@
+{
+  "writeup_id": "Htb_Sherlock_Einladen",
+  "scenario_fingerprint": {
+    "scenario_name": "phishing_hta_dll_sideloading_rat",
+    "primary_services": [
+      "http",
+      "dns",
+      "chat_service"
+    ],
+    "port_signature": "80+443+53",
+    "service_combination": "web+dns+c2_chat",
+    "os_family": "windows",
+    "environment_type": "corporate_workstation",
+    "entry_vector": "phishing_email_hta_attachment",
+    "privilege_path": "user_execution_to_persistence",
+    "attack_complexity": "medium",
+    "estimated_time": "2-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "hta_file_dropper",
+      "dll_sideloading_technique",
+      "legitimate_microsoft_binary_abuse",
+      "chat_service_c2_channel",
+      "multi_stage_payload_delivery"
+    ],
+    "environmental_clues": [
+      "embassy_themed_phishing",
+      "zip_archive_delivery",
+      "signed_microsoft_executable",
+      "process_monitor_artifacts",
+      "network_capture_available"
+    ],
+    "similar_scenarios": [
+      "maldoc_analysis",
+      "apt_phishing_campaigns",
+      "dll_hijacking_attacks"
+    ],
+    "unique_aspects": [
+      "javascript_bat_polyglot",
+      "dotnet_rat_secondary_payload",
+      "geolocation_based_evasion",
+      "anti_debugging_checks",
+      "scheduled_task_persistence"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "HTML_Phishing_Downloader",
+        "success_reason": "Legitimate-looking embassy invitation with automatic ZIP download",
+        "prerequisite_indicators": [
+          "web_server_hosting_malicious_content",
+          "social_engineering_pretext_established",
+          "victim_browser_javascript_enabled"
+        ],
+        "recognition_patterns": [
+          "embassy/government themed content",
+          "automatic file download on page load",
+          "ZIP file with diplomatic naming convention"
+        ],
+        "failure_modes": [
+          "javascript_disabled",
+          "download_blocked_by_browser",
+          "user_suspicious_of_unsolicited_invites"
+        ],
+        "environmental_factors": [
+          "default_browser_security_settings",
+          "lack_of_user_security_awareness",
+          "trusted_government_themed_social_engineering"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "1-2 minutes"
+      },
+      {
+        "technique": "HTA_Multi_Stage_Dropper",
+        "success_reason": "HTA file bypassed security controls and dropped multiple payloads including legitimate signed Microsoft binary",
+        "prerequisite_indicators": [
+          "hta_files_allowed_to_execute",
+          "user_opened_zip_contents",
+          "mshta_process_available"
+        ],
+        "recognition_patterns": [
+          "HTA file in ZIP archive",
+          "creates multiple files including PDF decoy",
+          "drops legitimate Microsoft signed binary with malicious DLLs"
+        ],
+        "failure_modes": [
+          "hta_execution_blocked",
+          "application_whitelisting_enabled",
+          "user_does_not_open_hta_file"
+        ],
+        "environmental_factors": [
+          "default_windows_hta_handling",
+          "no_application_whitelisting",
+          "user_trust_in_signed_binaries"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "30 seconds - 2 minutes"
+      },
+      {
+        "technique": "DLL_Side_Loading",
+        "success_reason": "Legitimate Microsoft binary (msoev.exe) loaded malicious DLLs from same directory",
+        "prerequisite_indicators": [
+          "legitimate_signed_binary_available",
+          "dll_search_order_exploitable",
+          "target_dlls_not_in_system_path"
+        ],
+        "recognition_patterns": [
+          "legitimate Microsoft signed executable",
+          "malicious DLLs with expected names in same directory",
+          "binary loads DLLs from current directory first"
+        ],
+        "failure_modes": [
+          "dll_signature_verification_enforced",
+          "application_isolation_enabled",
+          "dll_search_order_hardened"
+        ],
+        "environmental_factors": [
+          "default_dll_search_order",
+          "no_dll_signature_enforcement",
+          "trust_in_microsoft_signed_binaries"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "Immediate upon execution"
+      },
+      {
+        "technique": "Chat_Service_C2",
+        "success_reason": "Malware used legitimate chat platform for command and control communication",
+        "prerequisite_indicators": [
+          "internet_connectivity_available",
+          "chat_service_not_blocked",
+          "dns_resolution_working"
+        ],
+        "recognition_patterns": [
+          "connections to chat service domains",
+          "legitimate cloud service FQDN patterns",
+          "reverse IP format in subdomain"
+        ],
+        "failure_modes": [
+          "chat_service_blocked_by_firewall",
+          "dns_filtering_in_place",
+          "network_monitoring_detecting_anomalous_traffic"
+        ],
+        "environmental_factors": [
+          "permissive_egress_filtering",
+          "legitimate_chat_services_allowed",
+          "cloud_services_trusted"
+        ],
+        "success_probability": 0.79,
+        "typical_timeframe": "Within minutes of execution"
+      },
+      {
+        "technique": "JavaScript_Polyglot_Dropper",
+        "success_reason": "JavaScript/BAT polyglot file executed additional .NET RAT payload",
+        "prerequisite_indicators": [
+          "javascript_execution_environment",
+          "batch_file_execution_allowed",
+          "base64_decoding_capability"
+        ],
+        "recognition_patterns": [
+          "file with dual JS/BAT functionality",
+          "large base64 encoded content",
+          "writes itself as .bat file"
+        ],
+        "failure_modes": [
+          "script_execution_disabled",
+          "antivirus_detecting_polyglot",
+          "execution_policy_restrictions"
+        ],
+        "environmental_factors": [
+          "default_script_execution_policies",
+          "no_advanced_threat_protection",
+          "polyglot_techniques_not_detected"
+        ],
+        "success_probability": 0.71,
+        "typical_timeframe": "2-5 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Embassy-themed phishing pretext",
+        "discovery_method": "Analysis of downloader.html and HTA file names",
+        "why_critical": "Established trust and legitimacy for initial compromise",
+        "how_to_recognize": [
+          "government/diplomatic themed file names",
+          "invitation or official document pretexts",
+          "use of country codes or embassy references"
+        ],
+        "follow_up_actions": [
+          "analyze_social_engineering_effectiveness",
+          "check_for_similar_campaigns",
+          "educate_users_on_diplomatic_themed_attacks"
+        ]
+      },
+      {
+        "discovery": "Legitimate Microsoft signed binary with malicious DLLs",
+        "discovery_method": "File analysis showing msoev.exe signed by Microsoft",
+        "why_critical": "Bypassed security controls through trusted binary abuse",
+        "how_to_recognize": [
+          "signed executable in suspicious context",
+          "accompanying unsigned DLLs",
+          "binary not in expected system location"
+        ],
+        "follow_up_actions": [
+          "implement_dll_signature_verification",
+          "monitor_for_dll_sideloading",
+          "analyze_binary_dependencies"
+        ]
+      },
+      {
+        "discovery": "Chat service C2 communication",
+        "discovery_method": "Network traffic analysis in PCAP",
+        "why_critical": "Enabled persistent command and control channel",
+        "how_to_recognize": [
+          "connections to chat service domains",
+          "cloud service FQDN patterns",
+          "unusual subdomain structures"
+        ],
+        "follow_up_actions": [
+          "block_identified_c2_domains",
+          "monitor_for_similar_chat_service_abuse",
+          "implement_dns_filtering"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_execution",
+        "escalation_method": "multi_stage_payload_deployment",
+        "why_possible": "HTA file had full user privileges to drop and execute multiple payloads",
+        "recognition_signs": [
+          "multiple_files_created_simultaneously",
+          "legitimate_binary_with_suspicious_dlls",
+          "process_monitor_showing_file_creation_sequence"
+        ],
+        "exploitation_path": "HTA execution → File drops → DLL sideloading → C2 communication"
+      },
+      {
+        "privilege_level": "initial_malware",
+        "escalation_method": "secondary_payload_download",
+        "why_possible": "First stage malware downloaded and executed additional .NET RAT",
+        "recognition_signs": [
+          "javascript_polyglot_execution",
+          "base64_encoded_executable_content",
+          "bat_file_creation_and_execution"
+        ],
+        "exploitation_path": "Initial malware → JS/BAT polyglot → Base64 decode → .NET RAT execution"
+      },
+      {
+        "privilege_level": "rat_deployment",
+        "escalation_method": "persistence_and_anti_analysis",
+        "why_possible": ".NET RAT implemented registry persistence and anti-debugging checks",
+        "recognition_signs": [
+          "registry_key_modifications",
+          "scheduled_task_creation",
+          "debugger_process_enumeration"
+        ],
+        "exploitation_path": "RAT execution → Registry persistence → Scheduled tasks → Anti-analysis evasion"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Multiple suspicious artifacts found including HTML, HTA, executables, and network captures",
+        "decision": "Start with the initial infection vector - analyze downloader.html first",
+        "reasoning": "HTML file likely represents the entry point of the attack chain",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "analyze_hta_file",
+            "when": "if HTML analysis inconclusive"
+          },
+          {
+            "option": "examine_network_traffic",
+            "when": "if need C2 communication details"
+          }
+        ],
+        "success_indicators": [
+          "zip_download_mechanism_identified",
+          "next_stage_payload_discovered",
+          "social_engineering_theme_identified"
+        ],
+        "next_decision": "analyze_downloaded_payload"
+      },
+      {
+        "step": 2,
+        "situation": "HTML downloads ZIP containing HTA file",
+        "decision": "Analyze HTA file for payload extraction and execution logic",
+        "reasoning": "HTA files can execute code and are common in phishing attacks",
+        "confidence": 0.95,
+        "prerequisites": [
+          "zip_file_extracted",
+          "hta_file_identified"
+        ],
+        "success_indicators": [
+          "embedded_executables_found",
+          "execution_flow_mapped"
+        ],
+        "failure_fallbacks": [
+          "static_analysis_tools",
+          "sandbox_execution"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "HTA creates multiple executables including signed Microsoft binary",
+        "decision": "Identify DLL sideloading attack pattern",
+        "reasoning": "Legitimate signed binary with malicious DLLs indicates sideloading technique",
+        "confidence": 0.85,
+        "prerequisites": [
+          "executables_extracted",
+          "file_signatures_checked"
+        ],
+        "success_indicators": [
+          "malicious_dlls_identified",
+          "sideloading_confirmed"
+        ],
+        "failure_fallbacks": [
+          "dynamic_analysis",
+          "process_monitoring"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_html_analysis_succeeds": {
+        "action": "extract_and_analyze_zip_contents",
+        "tools": [
+          "unzip",
+          "file_command",
+          "sha256sum"
+        ],
+        "next_phase": "hta_payload_analysis"
+      },
+      "if_hta_contains_executables": {
+        "action": "analyze_dll_sideloading_attack",
+        "alternatives": [
+          "static_analysis",
+          "dynamic_analysis",
+          "network_analysis"
+        ],
+        "decision_criteria": "based_on_file_types_and_signatures"
+      },
+      "if_network_communication_found": {
+        "action": "analyze_c2_infrastructure",
+        "purpose": "identify_command_control_mechanisms",
+        "tools": [
+          "wireshark",
+          "tshark",
+          "dns_analysis"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_start_with_initial_infection_vector",
+        "reasoning": "understanding_attack_chain_from_beginning_provides_context",
+        "applicability": "multi_stage_malware_analysis"
+      },
+      {
+        "rule": "check_for_dll_sideloading_when_legitimate_executables_present",
+        "reasoning": "common_technique_to_bypass_application_whitelisting",
+        "applicability": "windows_malware_with_signed_binaries"
+      },
+      {
+        "rule": "analyze_network_traffic_after_identifying_executables",
+        "reasoning": "correlate_network_behavior_with_malware_functionality",
+        "applicability": "malware_with_network_communication"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "HTA_Phishing",
+        "mitre_id": "T1566.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "email_delivery_capability",
+          "web_hosting_available",
+          "hta_execution_enabled"
+        ],
+        "success_indicators": [
+          "hta_file_downloaded",
+          "mshta_process_spawned",
+          "multiple_files_created"
+        ],
+        "incompatible_with": [
+          "hta_execution_blocked",
+          "email_filtering_strict",
+          "application_whitelisting"
+        ],
+        "confidence_boosters": [
+          "social_engineering_theme",
+          "legitimate_file_signatures",
+          "zip_archive_delivery"
+        ],
+        "typical_success_rate": 0.73,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "DLL_Side_Loading",
+        "mitre_id": "T1574.002",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "legitimate_signed_binary_available",
+          "dll_search_order_exploitable",
+          "write_permissions_to_target_directory"
+        ],
+        "success_indicators": [
+          "malicious_dll_loaded",
+          "legitimate_process_spawned",
+          "network_connections_established"
+        ],
+        "incompatible_with": [
+          "dll_signature_verification_strict",
+          "application_isolation",
+          "process_monitoring_active"
+        ],
+        "confidence_boosters": [
+          "microsoft_signed_executables",
+          "common_dll_names",
+          "system_directory_placement"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Chat_Service_C2",
+        "mitre_id": "T1102.002",
+        "required_services": [
+          "https"
+        ],
+        "required_ports": [
+          443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux",
+          "macos"
+        ],
+        "environmental_prerequisites": [
+          "internet_connectivity",
+          "chat_service_accessible",
+          "dns_resolution_working"
+        ],
+        "success_indicators": [
+          "https_connections_to_chat_domain",
+          "persistent_communication_channel",
+          "command_execution_capability"
+        ],
+        "incompatible_with": [
+          "chat_services_blocked",
+          "ssl_inspection_active",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "cloud_hosted_services",
+          "legitimate_chat_platforms",
+          "encrypted_communications"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Registry_Persistence",
+        "mitre_id": "T1547.001",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "registry_write_permissions",
+          "autostart_locations_accessible",
+          "user_or_admin_privileges"
+        ],
+        "success_indicators": [
+          "registry_keys_modified",
+          "autostart_entries_created",
+          "persistence_across_reboots"
+        ],
+        "incompatible_with": [
+          "registry_monitoring_active",
+          "autostart_restrictions",
+          "limited_user_privileges"
+        ],
+        "confidence_boosters": [
+          "common_autostart_locations",
+          "obfuscated_registry_keys",
+          "scheduled_task_creation"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_workstation": {
+        "port_indicators": [
+          135,
+          139,
+          445,
+          3389
+        ],
+        "service_indicators": [
+          "smb",
+          "rpc",
+          "rdp"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Microsoft"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "email_infrastructure": {
+        "port_indicators": [
+          25,
+          110,
+          143,
+          993,
+          995
+        ],
+        "service_indicators": [
+          "smtp",
+          "pop3",
+          "imap"
+        ],
+        "banner_indicators": [
+          "Exchange",
+          "Outlook",
+          "Mail"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_services": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "hta_phishing",
+          "when": "email_infrastructure_detected",
+          "reason": "high_success_rate_with_social_engineering"
+        },
+        {
+          "attack": "dll_side_loading",
+          "when": "windows_workstation_detected",
+          "reason": "bypasses_many_security_controls"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "chat_service_c2",
+          "when": "internet_connectivity_available",
+          "reason": "reliable_but_may_be_monitored"
+        },
+        {
+          "attack": "registry_persistence",
+          "when": "windows_system_compromised",
+          "reason": "effective_but_commonly_monitored"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "HTML Smuggling",
+        "mitre_id": "T1027.006",
+        "category": "defense_evasion",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "JavaScript Blob API",
+            "command_template": "var e = new Uint8Array(d); var f = new Blob([e], {type: \"application/zip\"});",
+            "actual_command": "var d = [80,75,3,4,20,3,0,0,8,0,187,75,242,86,252,105,4,...]; var e = new Uint8Array(d); var f = new Blob([e], {type: \"application/zip\"});",
+            "output_pattern": "Downloads zip file to user system",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "javascript_enabled_browser",
+          "user_visits_malicious_page"
+        ],
+        "success_indicators": [
+          "zip_file_downloaded_automatically",
+          "no_network_detection_of_payload",
+          "bypasses_email_security_gateways"
+        ],
+        "common_failures": [
+          "javascript_disabled",
+          "browser_blocks_automatic_downloads",
+          "user_suspicious_of_blank_page"
+        ],
+        "follow_up_techniques": [
+          "hta_execution",
+          "dll_sideloading",
+          "social_engineering"
+        ],
+        "time_investment": "1-2 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "HTA Execution",
+        "mitre_id": "T1218.005",
+        "category": "defense_evasion",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "ActiveX FileSystemObject",
+            "command_template": "CreateObject(\"Scripting.FileSystemObject\").CreateTextFile(\"{path}\").Write({content})",
+            "actual_command": "CreateObject(\"Scripting.FileSystemObject\").CreateTextFile(\"C:\\\\windows\\\\tasks\\\\mso.dll\").Write(content)",
+            "output_pattern": "Creates multiple executable files on disk",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "WScript.Shell",
+            "command_template": "CreateObject(\"WScript.Shell\").Exec \"{executable_path}\"",
+            "actual_command": "CreateObject(\"WScript.Shell\").Exec \"C:\\\\windows\\\\tasks\\\\msoev.exe\"",
+            "success_factors": [
+              "hta_execution_allowed",
+              "write_permissions_to_tasks_folder"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "hta_file_execution_allowed",
+          "write_access_to_windows_tasks",
+          "user_double_clicks_hta"
+        ],
+        "success_indicators": [
+          "multiple_files_written_to_disk",
+          "executable_launched_successfully",
+          "no_av_detection_during_write"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "av_blocks_file_creation",
+          "hta_execution_disabled"
+        ],
+        "follow_up_techniques": [
+          "dll_sideloading",
+          "persistence_mechanisms",
+          "c2_communication"
+        ],
+        "time_investment": "30 seconds",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "DLL Side-Loading",
+        "mitre_id": "T1574.002",
+        "category": "persistence",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "Legitimate Microsoft Binary",
+            "command_template": "{legitimate_exe}",
+            "actual_command": "msoev.exe",
+            "output_pattern": "Loads malicious DLLs instead of legitimate ones",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "legitimate_signed_binary_available",
+          "malicious_dll_same_name_as_expected",
+          "dll_search_order_hijacking_possible"
+        ],
+        "success_indicators": [
+          "malicious_dll_loaded_by_legitimate_process",
+          "process_appears_legitimate_to_monitoring",
+          "code_execution_achieved"
+        ],
+        "common_failures": [
+          "dll_signature_validation",
+          "application_whitelisting",
+          "dll_load_monitoring_alerts"
+        ],
+        "follow_up_techniques": [
+          "process_injection",
+          "network_communication",
+          "credential_harvesting"
+        ],
+        "time_investment": "immediate",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "JavaScript/Batch Polyglot",
+        "mitre_id": "T1027.006",
+        "category": "defense_evasion",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "Polyglot File",
+            "command_template": "/*@echo off\n{batch_commands}\n@goto :eof\n*/\n{javascript_code}",
+            "actual_command": "unc.js executed as both JavaScript and batch file",
+            "output_pattern": "Executes different code depending on interpreter",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "ability_to_write_polyglot_file",
+          "multiple_execution_contexts_available"
+        ],
+        "success_indicators": [
+          "file_executes_in_multiple_contexts",
+          "different_behavior_per_context",
+          "evasion_of_static_analysis"
+        ],
+        "common_failures": [
+          "syntax_conflicts_between_languages",
+          "execution_context_restrictions",
+          "polyglot_detection_tools"
+        ],
+        "follow_up_techniques": [
+          "base64_decoding",
+          "secondary_payload_deployment",
+          "rat_installation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "HTML Smuggling",
+        "use_case": "payload_delivery_bypass",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "email_security_bypass",
+          "network_detection_evasion"
+        ],
+        "alternatives": [
+          "direct_download_links",
+          "email_attachments"
+        ],
+        "best_practices": [
+          "use_legitimate_looking_html_pages",
+          "embed_payloads_as_byte_arrays",
+          "implement_multiple_download_methods"
+        ]
+      },
+      {
+        "tool": "HTA Files",
+        "use_case": "initial_code_execution",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments",
+          "user_interaction_scenarios"
+        ],
+        "alternatives": [
+          "office_macros",
+          "lnk_files",
+          "chm_files"
+        ],
+        "best_practices": [
+          "use_vbscript_for_file_operations",
+          "write_to_writable_system_directories",
+          "chain_with_legitimate_executables"
+        ]
+      },
+      {
+        "tool": "DLL Side-Loading",
+        "use_case": "defense_evasion_execution",
+        "effectiveness_rating": 5,
+        "reliability": 0.88,
+        "learning_curve": "medium",
+        "essential_for": [
+          "av_evasion",
+          "process_legitimacy"
+        ],
+        "alternatives": [
+          "process_injection",
+          "process_hollowing"
+        ],
+        "best_practices": [
+          "use_microsoft_signed_binaries",
+          "match_expected_dll_exports",
+          "place_dlls_in_application_directory"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "html_smuggling_to_execution",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Host downloader.html on web server or send via email",
+            "purpose": "Deliver HTML smuggling page to target",
+            "expected_output": "User visits page, zip automatically downloads"
+          },
+          {
+            "step": 2,
+            "command": "User extracts and opens Invitation_Farewell_DE_EMB.hta",
+            "purpose": "Execute HTA file to drop malware",
+            "expected_output": "Multiple files written to C:\\windows\\tasks\\"
+          },
+          {
+            "step": 3,
+            "command": "msoev.exe automatically executed by HTA",
+            "purpose": "Launch legitimate binary for DLL side-loading",
+            "expected_output": "Malicious DLLs loaded, C2 communication established"
+          }
+        ],
+        "success_rate": 0.82,
+        "typical_duration": "2-5 minutes"
+      },
+      {
+        "sequence_name": "polyglot_secondary_infection",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Download unc.js polyglot file",
+            "purpose": "Retrieve secondary payload",
+            "expected_output": "JavaScript/batch polyglot on disk"
+          },
+          {
+            "step": 2,
+            "command": "Execute as batch file to create richpear.bat",
+            "purpose": "Create batch version of payload",
+            "expected_output": "Batch file written to disk"
+          },
+          {
+            "step": 3,
+            "command": "Decode base64 content to create EmpireClient.exe",
+            "purpose": "Deploy .NET RAT payload",
+            "expected_output": "Secondary RAT installed and running"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "3-8 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Einladen",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox Sherlock",
+      "release_date": "2023-11-13",
+      "author": "thewhitefriday",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "phishing",
+        "dll_sideloading",
+        "c2_communication"
+      ],
+      "key_vulnerabilities": [
+        "social_engineering",
+        "dll_hijacking",
+        "malware_execution"
+      ],
+      "environment_type": "corporate_endpoint",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "malware_analysis",
+        "dfir_techniques",
+        "phishing_investigation",
+        "dll_sideloading",
+        "c2_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "basic_malware_analysis",
+        "windows_forensics",
+        "network_analysis",
+        "file_format_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "digital_forensics",
+      "subcategories": [
+        "malware_analysis",
+        "phishing_investigation",
+        "incident_response"
+      ],
+      "attack_types": [
+        "initial_access",
+        "defense_evasion",
+        "command_and_control"
+      ],
+      "defensive_lessons": [
+        "email_security",
+        "dll_monitoring",
+        "network_monitoring",
+        "user_awareness"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Noted",
+        "Campfire-1",
+        "OpTinselTrace-1"
+      ],
+      "similarity_reasons": [
+        "dfir_focus",
+        "malware_analysis",
+        "phishing_investigation",
+        "multi_stage_attack"
+      ],
+      "unique_aspects": [
+        "german_embassy_theme",
+        "hta_file_analysis",
+        "dll_sideloading",
+        "chat_service_c2",
+        "polyglot_malware"
+      ],
+      "difficulty_factors": [
+        "multiple_artifact_types",
+        "complex_infection_chain",
+        "encryption_analysis",
+        "network_forensics"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T13:04:05.845591",
+    "original_file": "0xdf_writeups/Htb Sherlock Einladen.md",
+    "content_length": 52988,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

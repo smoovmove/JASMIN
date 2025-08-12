@@ -1,0 +1,958 @@
+{
+  "writeup_id": "Htb_Spider",
+  "scenario_fingerprint": {
+    "scenario_name": "flask_ssti_cookie_injection_xxe",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "ssti_in_username",
+    "privilege_path": "flask_secret_to_cookie_forge_to_xxe_root",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "flask_cookie_session_manipulation",
+      "limited_character_ssti",
+      "blind_ssti_rce",
+      "xxe_in_cookie_data"
+    ],
+    "environmental_clues": [
+      "flask_session_cookies",
+      "uuid_based_usernames",
+      "nginx_frontend",
+      "ubuntu_18_04"
+    ],
+    "similar_scenarios": [
+      "node_blog_htb_medium",
+      "json_htb_medium"
+    ],
+    "unique_aspects": [
+      "10_character_username_limit",
+      "ssti_config_leak",
+      "cookie_sql_injection",
+      "xxe_root_ssh_key_extraction"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SSTI_in_username",
+        "success_reason": "Username field vulnerable to Jinja2 template injection with 10-character limit",
+        "prerequisite_indicators": [
+          "flask_application_detected",
+          "user_input_reflected_in_templates",
+          "jinja2_template_engine"
+        ],
+        "recognition_patterns": [
+          "flask session cookies present",
+          "{{7*7}} returns 49",
+          "{{7*'7'}} returns 7777777",
+          "{{config}} reveals configuration"
+        ],
+        "failure_modes": [
+          "template_injection_filtered",
+          "user_input_not_reflected",
+          "character_limit_too_restrictive"
+        ],
+        "environmental_factors": [
+          "flask_debug_mode_disabled",
+          "limited_input_validation",
+          "template_rendering_without_sandboxing"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "flask_secret_extraction",
+        "success_reason": "Config object accessible through SSTI revealing SECRET_KEY",
+        "prerequisite_indicators": [
+          "ssti_vulnerability_confirmed",
+          "flask_application_identified",
+          "config_object_accessible"
+        ],
+        "recognition_patterns": [
+          "{{config}} returns dictionary",
+          "SECRET_KEY visible in output",
+          "flask session structure understood"
+        ],
+        "failure_modes": [
+          "config_object_filtered",
+          "secret_key_not_in_config",
+          "output_truncated_completely"
+        ],
+        "environmental_factors": [
+          "default_flask_configuration",
+          "secret_key_stored_in_config",
+          "no_config_access_restrictions"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "flask_cookie_forgery",
+        "success_reason": "Extracted SECRET_KEY allows crafting arbitrary session cookies",
+        "prerequisite_indicators": [
+          "flask_secret_key_obtained",
+          "session_cookie_structure_known",
+          "target_user_identifiable"
+        ],
+        "recognition_patterns": [
+          "session cookie format understood",
+          "uuid/username structure identified",
+          "successful cookie validation"
+        ],
+        "failure_modes": [
+          "additional_session_validation",
+          "secret_key_incorrect",
+          "session_structure_unknown"
+        ],
+        "environmental_factors": [
+          "standard_flask_session_handling",
+          "no_additional_csrf_protection",
+          "predictable_session_structure"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "sql_injection_via_cookie",
+        "success_reason": "UUID parameter from forged cookie used in unparameterized database query",
+        "prerequisite_indicators": [
+          "cookie_forgery_capability",
+          "database_backend_present",
+          "uuid_parameter_processed"
+        ],
+        "recognition_patterns": [
+          "error_based_sql_responses",
+          "time_based_sql_delays",
+          "boolean_based_sql_differences"
+        ],
+        "failure_modes": [
+          "parameterized_queries_used",
+          "input_validation_on_uuid",
+          "database_errors_suppressed"
+        ],
+        "environmental_factors": [
+          "legacy_database_code",
+          "trusted_cookie_data_assumption",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "flask_secret_key",
+        "discovery_method": "SSTI via {{config}} in username field",
+        "why_critical": "Enables complete session forgery and privilege escalation",
+        "how_to_recognize": [
+          "flask session cookies present",
+          "SSTI in user-controlled fields",
+          "config object accessible",
+          "SECRET_KEY in configuration"
+        ],
+        "follow_up_actions": [
+          "craft_admin_session_cookies",
+          "test_sql_injection_in_uuid",
+          "enumerate_database_structure",
+          "identify_admin_accounts"
+        ]
+      },
+      {
+        "discovery": "limited_character_ssti",
+        "discovery_method": "10-character username field with Jinja2 injection",
+        "why_critical": "Bypasses input validation while maintaining injection capability",
+        "how_to_recognize": [
+          "character_limits_on_input_fields",
+          "template_injection_still_possible",
+          "creative_payload_construction_needed"
+        ],
+        "follow_up_actions": [
+          "extract_config_object",
+          "identify_other_injectable_fields",
+          "craft_minimal_payloads"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_user",
+        "escalation_method": "SSTI_to_secret_extraction",
+        "why_possible": "Username field processes Jinja2 templates without proper sandboxing",
+        "recognition_signs": [
+          "flask_application_identified",
+          "user_input_reflected_in_pages",
+          "template_injection_successful"
+        ],
+        "exploitation_path": "Register account → SSTI in username → Extract SECRET_KEY → Forge admin cookies"
+      },
+      {
+        "privilege_level": "authenticated_user",
+        "escalation_method": "cookie_forgery_to_admin",
+        "why_possible": "Flask SECRET_KEY compromise allows arbitrary session creation",
+        "recognition_signs": [
+          "secret_key_extracted",
+          "session_structure_understood",
+          "admin_functionality_exists"
+        ],
+        "exploitation_path": "Forge admin cookie → Access admin panel → Further exploitation"
+      },
+      {
+        "privilege_level": "admin_access",
+        "escalation_method": "blind_ssti_to_rce",
+        "why_possible": "Additional SSTI vulnerabilities in admin functionality",
+        "recognition_signs": [
+          "admin_panel_accessible",
+          "additional_input_fields",
+          "template_processing_continues"
+        ],
+        "exploitation_path": "Admin SSTI → RCE → Shell access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only SSH (22) and HTTP (80) ports open on Linux host",
+        "decision": "Focus on web application enumeration and exploitation",
+        "reasoning": "Limited attack surface requires deep web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if web exploitation fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "web_app_technology_identified",
+          "authentication_mechanism_found",
+          "input_validation_weaknesses_discovered"
+        ],
+        "next_decision": "analyze_web_technology_stack"
+      },
+      {
+        "step": 2,
+        "situation": "Identified Flask application with session cookies",
+        "decision": "Test for SSTI in all user-controllable input fields",
+        "reasoning": "Flask commonly uses Jinja2 templating which is vulnerable to SSTI",
+        "confidence": 0.85,
+        "prerequisites": [
+          "flask_application_confirmed",
+          "user_input_fields_identified"
+        ],
+        "success_indicators": [
+          "template_injection_confirmed",
+          "config_data_accessible"
+        ],
+        "failure_fallbacks": [
+          "sqli_testing",
+          "file_inclusion_testing",
+          "authentication_bypass"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Limited SSTI found in username field with 10 character restriction",
+        "decision": "Extract Flask SECRET_KEY using {{config}} payload",
+        "reasoning": "SECRET_KEY enables cookie forgery for privilege escalation",
+        "confidence": 0.95,
+        "prerequisites": [
+          "ssti_confirmed",
+          "character_limit_identified"
+        ],
+        "success_indicators": [
+          "secret_key_extracted",
+          "cookie_signing_capability_gained"
+        ],
+        "failure_fallbacks": [
+          "other_config_extraction",
+          "rce_attempts"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Flask SECRET_KEY obtained, can forge cookies",
+        "decision": "Test for SQL injection in backend database queries using forged cookies",
+        "reasoning": "Cookie-based parameters often have less input validation",
+        "confidence": 0.8,
+        "prerequisites": [
+          "secret_key_known",
+          "cookie_structure_understood"
+        ],
+        "success_indicators": [
+          "database_error_triggered",
+          "union_injection_successful"
+        ],
+        "failure_fallbacks": [
+          "direct_admin_impersonation",
+          "session_manipulation"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_ssti_found": {
+        "action": "prioritize_config_extraction_over_rce",
+        "tools": [
+          "custom_flask_proxy",
+          "jinja2_payloads"
+        ],
+        "next_phase": "cookie_forgery_preparation"
+      },
+      "if_secret_key_extracted": {
+        "action": "build_cookie_manipulation_proxy",
+        "alternatives": [
+          "direct_admin_access",
+          "sqli_via_cookies",
+          "session_hijacking"
+        ],
+        "decision_criteria": "based_on_available_user_data"
+      },
+      "if_sqli_confirmed": {
+        "action": "enumerate_database_for_admin_credentials",
+        "purpose": "gain_administrative_access",
+        "tools": [
+          "union_injection",
+          "custom_proxy_script"
+        ]
+      },
+      "if_admin_access_gained": {
+        "action": "search_for_additional_ssti_or_rce",
+        "purpose": "achieve_code_execution",
+        "tools": [
+          "blind_ssti_testing",
+          "file_upload_exploitation"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_ssti_on_flask_applications",
+        "reasoning": "high_success_rate_with_jinja2_templating",
+        "applicability": "flask_or_python_web_applications"
+      },
+      {
+        "rule": "extract_config_before_attempting_rce_in_limited_ssti",
+        "reasoning": "config_data_enables_broader_attack_surface",
+        "applicability": "character_limited_template_injection"
+      },
+      {
+        "rule": "test_sqli_in_cookie_parameters_when_secret_key_known",
+        "reasoning": "backend_queries_often_less_protected_than_form_inputs",
+        "applicability": "cookie_forgery_capability_available"
+      },
+      {
+        "rule": "build_custom_proxy_for_complex_cookie_manipulation",
+        "reasoning": "automation_essential_for_efficient_sqli_exploitation",
+        "applicability": "multi_step_cookie_based_attacks"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SSTI_Flask_Jinja2",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "flask_application",
+          "jinja2_template_engine",
+          "user_input_in_templates",
+          "template_rendering_enabled"
+        ],
+        "success_indicators": [
+          "flask_session_cookie_present",
+          "template_syntax_evaluation",
+          "config_object_accessible",
+          "mathematical_expressions_evaluated"
+        ],
+        "incompatible_with": [
+          "input_sanitization_enabled",
+          "template_sandboxing_strict",
+          "user_input_escaped"
+        ],
+        "confidence_boosters": [
+          "flask_session_cookie_structure",
+          "jinja2_error_messages",
+          "python_stack_traces",
+          "werkzeug_debugger"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Flask_Cookie_Manipulation",
+        "mitre_id": "T1539",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "flask_application",
+          "session_cookies_used",
+          "secret_key_obtainable",
+          "cookie_based_authentication"
+        ],
+        "success_indicators": [
+          "flask_session_cookie_decoded",
+          "secret_key_leaked",
+          "custom_cookies_accepted",
+          "privilege_escalation_possible"
+        ],
+        "incompatible_with": [
+          "secure_secret_key_management",
+          "cookie_integrity_checks",
+          "session_validation_strict"
+        ],
+        "confidence_boosters": [
+          "predictable_secret_keys",
+          "config_object_exposure",
+          "debug_mode_enabled",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "SQL_Injection_Cookie_Based",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application",
+          "database_backend",
+          "cookie_parameters_in_queries",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "database_errors_in_response",
+          "timing_differences_observed",
+          "data_extraction_successful",
+          "authentication_bypass_possible"
+        ],
+        "incompatible_with": [
+          "parameterized_queries",
+          "input_sanitization_enabled",
+          "waf_protection_active"
+        ],
+        "confidence_boosters": [
+          "error_based_sql_responses",
+          "database_specific_functions",
+          "union_based_injection_possible",
+          "blind_injection_timing"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "XXE_Cookie_Based",
+        "mitre_id": "T1203",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "xml_processing_enabled",
+          "cookie_data_parsed_as_xml",
+          "external_entity_processing",
+          "insufficient_xml_validation"
+        ],
+        "success_indicators": [
+          "xml_parsing_errors",
+          "file_disclosure_successful",
+          "ssrf_responses_received",
+          "entity_expansion_working"
+        ],
+        "incompatible_with": [
+          "xml_external_entities_disabled",
+          "input_validation_strict",
+          "xml_parser_hardened"
+        ],
+        "confidence_boosters": [
+          "xml_content_type_accepted",
+          "libxml_error_messages",
+          "file_system_access_possible",
+          "network_requests_from_server"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "30-90 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "flask_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443,
+          5000
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Flask",
+          "Werkzeug",
+          "Python"
+        ],
+        "cookie_indicators": [
+          "session=eyJ",
+          "flask-session"
+        ],
+        "header_indicators": [
+          "Server: Werkzeug"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443,
+          3000,
+          8000
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis",
+          "flask",
+          "django"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "database_backend": {
+        "port_indicators": [
+          3306,
+          5432,
+          1433,
+          1521,
+          27017
+        ],
+        "service_indicators": [
+          "mysql",
+          "postgresql",
+          "mssql",
+          "oracle",
+          "mongodb"
+        ],
+        "error_indicators": [
+          "SQL syntax",
+          "mysql_",
+          "postgresql",
+          "sqlite"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ssti_flask_config_leak",
+          "when": "flask_application_detected",
+          "reason": "often_reveals_secret_keys_and_sensitive_config"
+        },
+        {
+          "attack": "flask_cookie_manipulation",
+          "when": "flask_session_cookie_present_and_secret_known",
+          "reason": "direct_privilege_escalation_possible"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "sql_injection_cookie_based",
+          "when": "web_application_with_database_detected",
+          "reason": "unconventional_injection_point_often_overlooked"
+        },
+        {
+          "attack": "xxe_cookie_based",
+          "when": "xml_processing_indicators_present",
+          "reason": "file_disclosure_and_ssrf_potential"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "rate_limiting_and_detection_mechanisms_common"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Server-Side Template Injection (SSTI)",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "manual_testing",
+            "command_template": "{{7*7}} or {{7*'7'}} in input fields",
+            "actual_command": "Username: {{config}}",
+            "output_pattern": "Template evaluation results",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "user_controlled_input_in_templates",
+          "jinja2_or_similar_template_engine",
+          "input_validation_bypass"
+        ],
+        "success_indicators": [
+          "mathematical_expressions_evaluated",
+          "config_object_accessible",
+          "secret_key_leaked"
+        ],
+        "common_failures": [
+          "input_length_restrictions",
+          "character_filtering",
+          "template_sandboxing"
+        ],
+        "follow_up_techniques": [
+          "flask_cookie_forging",
+          "privilege_escalation",
+          "rce_via_template_injection"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Flask Cookie Forging",
+        "mitre_id": "T1550.004",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "python_flask",
+            "command_template": "session_serializer.dumps(cookie_data)",
+            "actual_command": "cookie_data = {\"uuid\": uuid, \"username\": \"\", \"cart_items\": []}",
+            "output_pattern": "Signed Flask session cookie",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "flask_secret_key_known",
+          "understanding_of_cookie_structure",
+          "python_flask_environment"
+        ],
+        "success_indicators": [
+          "valid_signed_cookies_generated",
+          "authentication_bypass_achieved",
+          "admin_access_obtained"
+        ],
+        "common_failures": [
+          "incorrect_secret_key",
+          "wrong_cookie_structure",
+          "session_validation_errors"
+        ],
+        "follow_up_techniques": [
+          "sql_injection_via_cookie",
+          "admin_panel_access",
+          "further_exploitation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "SQL Injection via Cookie Parameter",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "manual_injection",
+            "command_template": "' or 1=1-- -",
+            "actual_command": "uuid=' or 1=1-- -",
+            "output_pattern": "Database query results",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          },
+          {
+            "name": "sqlmap",
+            "command_template": "sqlmap -u {proxy_url} -p {parameter}",
+            "actual_command": "sqlmap -u 'http://127.0.0.1:5000/?uuid=1e05713d-9b4e-4d2c-938b-c5673866ee3e' -p uuid",
+            "success_factors": [
+              "union_injection_available",
+              "mysql_backend"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "ability_to_modify_cookie_values",
+          "backend_database_queries_vulnerable",
+          "insufficient_input_sanitization"
+        ],
+        "success_indicators": [
+          "database_error_messages",
+          "data_extraction_successful",
+          "user_credentials_obtained"
+        ],
+        "common_failures": [
+          "prepared_statements_used",
+          "input_validation_present",
+          "waf_blocking_requests"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "database_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "20-60 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Flask Session Decoder",
+        "use_case": "cookie_analysis",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "flask_applications"
+        ],
+        "alternatives": [
+          "manual_base64_decoding",
+          "custom_python_scripts"
+        ],
+        "best_practices": [
+          "identify_flask_cookies_by_structure",
+          "decode_before_attempting_forgery",
+          "understand_cookie_components"
+        ]
+      },
+      {
+        "tool": "Custom Flask Proxy",
+        "use_case": "cookie_injection_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "flask_cookie_exploitation"
+        ],
+        "alternatives": [
+          "burp_suite_extensions",
+          "manual_cookie_crafting"
+        ],
+        "best_practices": [
+          "automate_cookie_generation",
+          "proxy_requests_for_testing",
+          "integrate_with_sqlmap"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ssti_to_flask_secret_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Register username: {{7*7}}",
+            "purpose": "Test for SSTI vulnerability",
+            "expected_output": "49 displayed in username field"
+          },
+          {
+            "step": 2,
+            "command": "Register username: {{config}}",
+            "purpose": "Extract Flask configuration",
+            "expected_output": "Flask config dictionary with SECRET_KEY"
+          },
+          {
+            "step": 3,
+            "command": "Extract: 'SECRET_KEY': 'Sup3rUnpredictableK3yPleas3Leav3mdanfe12332942'",
+            "purpose": "Obtain Flask signing key",
+            "expected_output": "Secret key for cookie forging"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "flask_cookie_sqli_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Create Flask proxy with extracted secret key",
+            "purpose": "Setup cookie forging capability",
+            "expected_output": "Proxy server running on localhost:5000"
+          },
+          {
+            "step": 2,
+            "command": "Test: http://127.0.0.1:5000/?uuid=' or 1=1-- -",
+            "purpose": "Confirm SQL injection in UUID parameter",
+            "expected_output": "Different user data returned (chiv)"
+          },
+          {
+            "step": 3,
+            "command": "sqlmap -u 'http://127.0.0.1:5000/?uuid=test' -p uuid --dump",
+            "purpose": "Extract database contents",
+            "expected_output": "User credentials: chiv:ch1VW4sHERE7331"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Spider",
+      "difficulty": "Hard",
+      "os": "Linux Ubuntu 18.04",
+      "platform": "HackTheBox",
+      "release_date": "2021-05-29",
+      "author": "InfoSecJack & chivato",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "ssti",
+        "sql_injection",
+        "xxe"
+      ],
+      "key_vulnerabilities": [
+        "flask_secret_leak",
+        "blind_ssti",
+        "xxe_in_cookie"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "advanced_ssti_techniques",
+        "flask_security",
+        "xxe_exploitation",
+        "cookie_manipulation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "template_injection",
+        "sql_injection",
+        "xml_attacks"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "template_injection",
+        "sql_injection",
+        "xml_attacks"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "secure_template_handling",
+        "input_validation",
+        "xml_parser_hardening",
+        "flask_secret_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Templated",
+        "Pit",
+        "Ophiuchi"
+      ],
+      "similarity_reasons": [
+        "ssti_exploitation",
+        "web_app_focus",
+        "complex_attack_chains"
+      ],
+      "unique_aspects": [
+        "ssti_in_username",
+        "blind_ssti_rce",
+        "xxe_in_cookie_context"
+      ],
+      "difficulty_factors": [
+        "multiple_complex_vulnerabilities",
+        "blind_exploitation",
+        "advanced_web_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:25:18.367514",
+    "original_file": "0xdf_writeups/Htb Spider.md",
+    "content_length": 32516,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

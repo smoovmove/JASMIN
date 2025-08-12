@@ -1,0 +1,1073 @@
+{
+  "writeup_id": "Htb_Absolute",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_complex_enumeration",
+    "primary_services": [
+      "dns",
+      "http",
+      "kerberos",
+      "ldap",
+      "smb",
+      "winrm"
+    ],
+    "port_signature": "53+80+88+389+445+5985",
+    "service_combination": "dns+http+kerberos+ldap+smb+winrm",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "asreproast_from_metadata",
+    "privilege_path": "user_enumeration_to_domain_admin",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "image_metadata_username_discovery",
+      "nim_binary_dynamic_analysis",
+      "shadow_credential_attacks",
+      "kerberos_relay_attacks"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "iis_web_server",
+      "clock_skew_present",
+      "smb_signing_required",
+      "winrm_enabled"
+    ],
+    "similar_scenarios": [
+      "forest_htb_insane",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "metadata_based_user_discovery",
+      "nim_binary_analysis_required",
+      "krbrelay_privilege_escalation",
+      "shadow_credentials_attack_path"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "ASREPRoast",
+        "success_reason": "Service account had pre-authentication disabled in Kerberos configuration",
+        "prerequisite_indicators": [
+          "kerberos_service_available",
+          "domain_controller_accessible",
+          "accounts_without_preauth_exist"
+        ],
+        "recognition_patterns": [
+          "service account naming (svc-*)",
+          "GetNPUsers returns hashes",
+          "no preauth required error",
+          "port 88 kerberos accessible"
+        ],
+        "failure_modes": [
+          "all_accounts_require_preauth",
+          "kerberos_not_accessible",
+          "no_service_accounts",
+          "clock_skew_too_large"
+        ],
+        "environmental_factors": [
+          "default_active_directory_config",
+          "legacy_service_configurations",
+          "insufficient_hardening",
+          "domain_controller_exposed"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "Username_Enumeration_via_Metadata",
+        "success_reason": "Full names exposed in image metadata allowed username format discovery",
+        "prerequisite_indicators": [
+          "web_application_present",
+          "images_with_metadata",
+          "standard_naming_conventions"
+        ],
+        "recognition_patterns": [
+          "exif data contains names",
+          "consistent naming patterns",
+          "corporate website structure"
+        ],
+        "failure_modes": [
+          "metadata_stripped",
+          "no_standard_naming_convention",
+          "fake_metadata"
+        ],
+        "environmental_factors": [
+          "poor_opsec_practices",
+          "automated_content_management",
+          "lack_of_metadata_sanitization"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "LDAP_Enumeration_with_Creds",
+        "success_reason": "Valid credentials allowed comprehensive directory enumeration",
+        "prerequisite_indicators": [
+          "ldap_ports_accessible",
+          "valid_domain_credentials",
+          "insufficient_access_controls"
+        ],
+        "recognition_patterns": [
+          "ldap anonymous bind fails",
+          "authenticated queries succeed",
+          "user/group enumeration possible"
+        ],
+        "failure_modes": [
+          "ldap_not_accessible",
+          "credentials_invalid",
+          "strict_access_controls"
+        ],
+        "environmental_factors": [
+          "default_ldap_permissions",
+          "domain_user_read_access",
+          "legacy_configurations"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "WriteDACL_to_DCSync",
+        "success_reason": "Service account had WriteDACL permission on domain object",
+        "prerequisite_indicators": [
+          "service_account_compromised",
+          "bloodhound_analysis_complete",
+          "writedacl_permissions_exist"
+        ],
+        "recognition_patterns": [
+          "bloodhound shows WriteDACL path",
+          "exchange-related service accounts",
+          "privileged group memberships"
+        ],
+        "failure_modes": [
+          "no_writedacl_permissions",
+          "protected_users_group",
+          "modern_security_controls"
+        ],
+        "environmental_factors": [
+          "exchange_server_present",
+          "legacy_permissions_model",
+          "insufficient_privilege_review"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "20-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Full names in image metadata",
+        "discovery_method": "EXIF data extraction from web images",
+        "why_critical": "Enabled username format identification for AS-REP roasting",
+        "how_to_recognize": [
+          "corporate website with staff photos",
+          "metadata not stripped from images",
+          "consistent naming patterns visible"
+        ],
+        "follow_up_actions": [
+          "extract_all_image_metadata",
+          "identify_username_format",
+          "build_username_wordlist"
+        ]
+      },
+      {
+        "discovery": "AS-REP roastable service account",
+        "discovery_method": "GetNPUsers.py enumeration",
+        "why_critical": "Provided initial domain foothold with crackable hash",
+        "how_to_recognize": [
+          "service account naming pattern",
+          "pre-auth disabled accounts",
+          "weak password policies"
+        ],
+        "follow_up_actions": [
+          "crack_hash_with_hashcat",
+          "test_winrm_access",
+          "run_bloodhound_collection"
+        ]
+      },
+      {
+        "discovery": "WriteDACL permission on domain",
+        "discovery_method": "BloodHound analysis of service account",
+        "why_critical": "Direct path to domain admin via DCSync attack",
+        "how_to_recognize": [
+          "bloodhound_shows_writedacl_path",
+          "service_account_high_privileges",
+          "exchange_related_permissions"
+        ],
+        "follow_up_actions": [
+          "add_dcsync_permissions",
+          "perform_dcsync_attack",
+          "extract_domain_admin_hashes"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "ASREPRoast_to_ServiceAccount",
+        "why_possible": "Service account had pre-authentication disabled",
+        "recognition_signs": [
+          "kerberos_port_accessible",
+          "service_accounts_exist",
+          "weak_password_policies"
+        ],
+        "exploitation_path": "Username enum → GetNPUsers → Hash crack → Domain user"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "WriteDACL_to_DCSync",
+        "why_possible": "Service account had WriteDACL permission on domain object",
+        "recognition_signs": [
+          "bloodhound_shows_writedacl",
+          "exchange_service_account",
+          "high_privilege_group_membership"
+        ],
+        "exploitation_path": "Add-DomainObjectAcl → DCSync → Domain Admin"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "KrbRelay_attacks",
+        "why_possible": "Kerberos relay attacks possible against machine account",
+        "recognition_signs": [
+          "machine_account_accessible",
+          "kerberos_relay_possible",
+          "insufficient_relay_protections"
+        ],
+        "exploitation_path": "KrbRelay/KrbRelayUp → Machine hash → Administrator"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445 open on Windows host",
+        "decision": "Identify as Domain Controller and try Kerberos attacks first",
+        "reasoning": "Port combination indicates AD DC with high probability",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if kerberos fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous access"
+          },
+          {
+            "option": "web_enumeration",
+            "when": "if port 80 open"
+          }
+        ],
+        "success_indicators": [
+          "kerberos_service_responds",
+          "domain_name_discovered",
+          "ldap_base_dn_found"
+        ],
+        "next_decision": "choose_initial_attack_vector"
+      },
+      {
+        "step": 2,
+        "situation": "Domain identified as absolute.htb, no anonymous SMB/LDAP access",
+        "decision": "Enumerate web application for user information",
+        "reasoning": "Need usernames before attempting Kerberos attacks",
+        "confidence": 0.8,
+        "prerequisites": [
+          "domain_name_known",
+          "web_service_available"
+        ],
+        "success_indicators": [
+          "usernames_discovered",
+          "metadata_found"
+        ],
+        "failure_fallbacks": [
+          "dns_enumeration",
+          "brute_force_common_users"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Usernames discovered from web metadata",
+        "decision": "Try ASREPRoast attack",
+        "reasoning": "ASREPRoast doesn't require valid credentials and has high success rate",
+        "confidence": 0.85,
+        "prerequisites": [
+          "usernames_list",
+          "kerberos_accessible"
+        ],
+        "success_indicators": [
+          "accounts_without_preauth_found",
+          "hash_obtained"
+        ],
+        "failure_fallbacks": [
+          "password_spraying",
+          "kerberoasting_attempt"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Valid domain credentials obtained",
+        "decision": "Perform LDAP enumeration for privilege escalation paths",
+        "reasoning": "LDAP provides comprehensive AD structure and permissions",
+        "confidence": 0.9,
+        "prerequisites": [
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "additional_users_found",
+          "group_memberships_discovered"
+        ],
+        "next_decision": "analyze_privilege_escalation_options"
+      }
+    ],
+    "branching_logic": {
+      "if_asreproast_succeeds": {
+        "action": "crack_hash_and_authenticate",
+        "tools": [
+          "hashcat",
+          "john"
+        ],
+        "next_phase": "ldap_enumeration_with_creds"
+      },
+      "if_asreproast_fails": {
+        "action": "try_alternative_attacks",
+        "alternatives": [
+          "password_spraying",
+          "kerberoasting",
+          "smb_enumeration"
+        ],
+        "decision_criteria": "based_on_available_usernames"
+      },
+      "if_credentials_obtained": {
+        "action": "enumerate_shares_and_ldap",
+        "purpose": "find_additional_credentials_and_escalation_paths",
+        "tools": [
+          "smbclient",
+          "ldapsearch",
+          "bloodhound-python"
+        ]
+      },
+      "if_share_access_gained": {
+        "action": "analyze_files_for_credentials",
+        "focus": [
+          "config_files",
+          "scripts",
+          "binaries"
+        ],
+        "techniques": [
+          "static_analysis",
+          "dynamic_analysis"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_web_metadata_for_usernames",
+        "reasoning": "image_metadata_often_contains_creator_information",
+        "applicability": "web_applications_with_images"
+      },
+      {
+        "rule": "try_asreproast_before_password_spraying",
+        "reasoning": "no_lockout_risk_and_higher_success_rate",
+        "applicability": "active_directory_environments"
+      },
+      {
+        "rule": "enumerate_ldap_immediately_after_getting_domain_creds",
+        "reasoning": "reveals_full_ad_structure_and_attack_paths",
+        "applicability": "any_domain_user_access"
+      },
+      {
+        "rule": "analyze_custom_binaries_with_dynamic_analysis",
+        "reasoning": "static_analysis_may_miss_runtime_credentials",
+        "applicability": "custom_applications_found_in_shares"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.87,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "LDAP_Enumeration",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "ldap"
+        ],
+        "required_ports": [
+          389,
+          636,
+          3268,
+          3269
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "ldap_service_accessible"
+        ],
+        "success_indicators": [
+          "ldapsearch_returns_data",
+          "naming_contexts_discovered",
+          "user_objects_enumerable"
+        ],
+        "incompatible_with": [
+          "ldap_disabled",
+          "anonymous_bind_disabled",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "anonymous_bind_allowed",
+          "default_ad_configuration",
+          "verbose_ldap_responses"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-10 minutes"
+      },
+      {
+        "technique": "Metadata_Extraction",
+        "mitre_id": "T1589.002",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "files_with_metadata_present"
+        ],
+        "success_indicators": [
+          "exiftool_extracts_usernames",
+          "document_metadata_present",
+          "author_information_found"
+        ],
+        "incompatible_with": [
+          "metadata_stripped",
+          "no_downloadable_files",
+          "web_service_unavailable"
+        ],
+        "confidence_boosters": [
+          "office_documents_present",
+          "image_files_present",
+          "pdf_files_present"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Kerberos_Relay_Attack",
+        "mitre_id": "T1558.003",
+        "required_services": [
+          "kerberos",
+          "ldap"
+        ],
+        "required_ports": [
+          88,
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "relay_conditions_met"
+        ],
+        "success_indicators": [
+          "krbrelayup_successful",
+          "machine_account_hash_obtained",
+          "dcsync_attack_possible"
+        ],
+        "incompatible_with": [
+          "kerberos_signing_enforced",
+          "relay_protections_enabled",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "unconstrained_delegation",
+          "weak_kerberos_configuration",
+          "legacy_ad_setup"
+        ],
+        "typical_success_rate": 0.73,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "kpasswd5"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Microsoft Windows Kerberos"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "Microsoft-IIS",
+          "apache",
+          "nginx"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          5985,
+          9389
+        ],
+        "service_indicators": [
+          "domain",
+          "kerberos-sec",
+          "ldap",
+          "microsoft-ds",
+          "globalcatLDAP"
+        ],
+        "banner_indicators": [
+          "dc.absolute.htb",
+          "Domain Controller",
+          "globalcatLDAP"
+        ],
+        "confidence_threshold": 0.98
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "metadata_extraction",
+          "when": "web_service_detected",
+          "reason": "often_reveals_usernames_for_further_attacks"
+        },
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected_and_usernames_known",
+          "reason": "high_success_rate_no_creds_needed"
+        },
+        {
+          "attack": "ldap_enumeration",
+          "when": "ldap_service_detected",
+          "reason": "reveals_domain_structure_and_users"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "smb_enumeration",
+          "when": "smb_service_detected_and_creds_available",
+          "reason": "often_reveals_shares_and_files"
+        },
+        {
+          "attack": "kerberos_relay",
+          "when": "domain_admin_access_needed",
+          "reason": "powerful_but_complex_privilege_escalation"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "GetNPUsers.py",
+            "command_template": "GetNPUsers.py {domain}/ -dc-ip {ip} -no-pass",
+            "actual_command": "GetNPUsers.py absolute.htb/ -dc-ip 10.10.11.181 -no-pass",
+            "output_pattern": "$krb5asrep$23${username}@{domain}:",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "kerberos_service_accessible",
+          "domain_name_known",
+          "accounts_without_preauth"
+        ],
+        "success_indicators": [
+          "hash_extracted_successfully",
+          "hash_cracked_within_reasonable_time",
+          "credentials_provide_system_access"
+        ],
+        "common_failures": [
+          "no_vulnerable_accounts",
+          "strong_passwords_resist_cracking",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "winrm_authentication",
+          "ldap_enumeration",
+          "credential_spraying"
+        ],
+        "time_investment": "5-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "LDAP Enumeration",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "enumeration",
+        "tools_used": [
+          {
+            "name": "ldapsearch",
+            "command_template": "ldapsearch -H ldap://{dc} -x -b \"DC={domain},DC={tld}\"",
+            "actual_command": "ldapsearch -H ldap://dc.absolute.htb -x -b \"DC=absolute,DC=htb\"",
+            "output_pattern": "dn: CN=",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "ldap_service_accessible",
+          "domain_credentials_obtained",
+          "base_dn_known"
+        ],
+        "success_indicators": [
+          "user_accounts_enumerated",
+          "group_memberships_identified",
+          "service_accounts_discovered"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "insufficient_privileges",
+          "ldap_service_unavailable"
+        ],
+        "follow_up_techniques": [
+          "bloodhound_enumeration",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "10-45 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Shadow Credentials Attack",
+        "mitre_id": "T1556.007",
+        "category": "persistence",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "pywhisker",
+            "command_template": "pywhisker.py -d {domain} -u {username} -p {password} --target {target_user} --action add",
+            "actual_command": "pywhisker.py -d absolute.htb -u user -p password --target targetuser --action add",
+            "output_pattern": "Successfully added shadow credential",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "domain_credentials_available",
+          "target_user_modifiable",
+          "msds_keycredentiallink_writable"
+        ],
+        "success_indicators": [
+          "shadow_credential_added_successfully",
+          "certificate_authentication_works",
+          "elevated_access_obtained"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "target_user_protected",
+          "certificate_authentication_disabled"
+        ],
+        "follow_up_techniques": [
+          "certificate_authentication",
+          "privilege_escalation",
+          "persistence_establishment"
+        ],
+        "time_investment": "15-60 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Kerberos Relay Attack",
+        "mitre_id": "T1557.001",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "KrbRelay",
+            "command_template": "KrbRelay.exe -spn {spn} -clsid {clsid} -rbcd {target}",
+            "actual_command": "KrbRelay.exe -spn ldap/dc.absolute.htb -clsid 354ff91b-5e49-4bdc-a8e6-1cb6c6877182 -rbcd TARGETCOMPUTER$",
+            "output_pattern": "Successfully relayed authentication",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          },
+          {
+            "name": "KrbRelayUp",
+            "command_template": "KrbRelayUp.exe relay -m {method} -cls {clsid}",
+            "actual_command": "KrbRelayUp.exe relay -m rbcd -cls 354ff91b-5e49-4bdc-a8e6-1cb6c6877182",
+            "output_pattern": "Relay attack completed successfully",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "kerberos_authentication_available",
+          "com_object_accessible",
+          "target_service_vulnerable"
+        ],
+        "success_indicators": [
+          "authentication_relayed_successfully",
+          "administrative_access_obtained",
+          "machine_account_hash_retrieved"
+        ],
+        "common_failures": [
+          "com_object_not_accessible",
+          "relay_protection_enabled",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "dcsync_attack",
+          "golden_ticket_creation",
+          "domain_persistence"
+        ],
+        "time_investment": "30-120 minutes",
+        "skill_level": "expert"
+      },
+      {
+        "name": "Image Metadata Analysis",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "exiftool",
+            "command_template": "exiftool {image_file}",
+            "actual_command": "exiftool hero_1.jpg",
+            "output_pattern": "Author|Creator|Artist",
+            "effectiveness_rating": 3,
+            "reliability": 0.7
+          }
+        ],
+        "prerequisites": [
+          "image_files_accessible",
+          "metadata_not_stripped",
+          "exif_data_present"
+        ],
+        "success_indicators": [
+          "usernames_discovered",
+          "full_names_extracted",
+          "organizational_info_revealed"
+        ],
+        "common_failures": [
+          "metadata_stripped",
+          "no_useful_information",
+          "false_positive_data"
+        ],
+        "follow_up_techniques": [
+          "username_enumeration",
+          "credential_spraying",
+          "social_engineering"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "GetNPUsers.py",
+        "use_case": "asreproast_attack",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "kerberos_environments"
+        ],
+        "alternatives": [
+          "rubeus",
+          "kerbrute"
+        ],
+        "best_practices": [
+          "enumerate_users_first",
+          "check_for_preauth_disabled",
+          "use_proper_domain_format"
+        ]
+      },
+      {
+        "tool": "KrbRelay",
+        "use_case": "kerberos_relay_attacks",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "high",
+        "essential_for": [
+          "advanced_ad_attacks"
+        ],
+        "alternatives": [
+          "KrbRelayUp",
+          "manual_relay"
+        ],
+        "best_practices": [
+          "identify_vulnerable_com_objects",
+          "ensure_proper_spn_format",
+          "validate_target_permissions"
+        ]
+      },
+      {
+        "tool": "evil-winrm",
+        "use_case": "windows_remote_management",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_post_exploitation"
+        ],
+        "alternatives": [
+          "psexec",
+          "wmiexec"
+        ],
+        "best_practices": [
+          "verify_winrm_service_enabled",
+          "use_proper_authentication_method",
+          "handle_clock_skew_issues"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "domain_reconnaissance_to_initial_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sCV -p 53,80,88,135,139,389,445,464,593,636,3268,3269,5985,9389 10.10.11.181",
+            "purpose": "Identify domain controller services",
+            "expected_output": "Domain controller services enumerated"
+          },
+          {
+            "step": 2,
+            "command": "ldapsearch -H ldap://dc.absolute.htb -x -s base namingcontexts",
+            "purpose": "Extract domain naming context",
+            "expected_output": "DC=absolute,DC=htb"
+          },
+          {
+            "step": 3,
+            "command": "wget -r http://absolute.htb/images/",
+            "purpose": "Download images for metadata analysis",
+            "expected_output": "Image files downloaded"
+          },
+          {
+            "step": 4,
+            "command": "exiftool *.jpg | grep -i author",
+            "purpose": "Extract usernames from image metadata",
+            "expected_output": "Full names of domain users"
+          },
+          {
+            "step": 5,
+            "command": "GetNPUsers.py absolute.htb/ -dc-ip 10.10.11.181 -no-pass",
+            "purpose": "Attempt ASREPRoast attack",
+            "expected_output": "Kerberos hashes for vulnerable accounts"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "30-90 minutes"
+      },
+      {
+        "sequence_name": "privilege_escalation_via_shadow_credentials",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ldapsearch -H ldap://dc.absolute.htb -D user@absolute.htb -w password -b \"DC=absolute,DC=htb\"",
+            "purpose": "Enumerate domain objects with credentials",
+            "expected_output": "Domain user and group information"
+          },
+          {
+            "step": 2,
+            "command": "pywhisker.py -d absolute.htb -u user -p password --target targetuser --action add",
+            "purpose": "Add shadow credential to target user",
+            "expected_output": "Shadow credential successfully added"
+          },
+          {
+            "step": 3,
+            "command": "gettgtpkinit.py -cert-pfx certificate.pfx absolute.htb/targetuser targetuser.ccache",
+            "purpose": "Authenticate using shadow credential",
+            "expected_output": "TGT obtained via certificate authentication"
+          },
+          {
+            "step": 4,
+            "command": "export KRB5CCNAME=targetuser.ccache && evil-winrm -i 10.10.11.181 -r absolute.htb",
+            "purpose": "Access system with elevated privileges",
+            "expected_output": "Administrative shell access"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "45-120 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Absolute",
+      "difficulty": "Insane",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2022-09-24",
+      "author": "Geiseric",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "kerberos",
+        "active_directory",
+        "ldap",
+        "binary_analysis"
+      ],
+      "key_vulnerabilities": [
+        "asrep_roastable_accounts",
+        "shadow_credentials",
+        "kerberos_relay"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_kerberos_attacks",
+        "shadow_credentials",
+        "kerberos_relay",
+        "nim_binary_analysis",
+        "group_modification_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_ad_concepts",
+        "kerberos_authentication",
+        "ldap_enumeration",
+        "binary_analysis",
+        "dynamic_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "kerberos_attacks",
+        "privilege_escalation",
+        "binary_analysis",
+        "credential_harvesting"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "monitor_group_modifications",
+        "shadow_credential_detection",
+        "kerberos_relay_prevention",
+        "metadata_sanitization"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Sauna",
+        "Active"
+      ],
+      "similarity_reasons": [
+        "domain_controller",
+        "kerberos_attacks",
+        "asrep_roasting",
+        "ldap_enumeration"
+      ],
+      "unique_aspects": [
+        "nim_binary_analysis",
+        "shadow_credentials",
+        "krbrelayup",
+        "metadata_enumeration",
+        "group_modification_privilege_escalation"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "multiple_credential_harvesting_stages",
+        "advanced_kerberos_techniques",
+        "binary_analysis_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:41:15.667186",
+    "original_file": "0xdf_writeups/Htb Absolute.md",
+    "content_length": 81027,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

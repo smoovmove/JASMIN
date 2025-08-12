@@ -1,0 +1,883 @@
+{
+  "writeup_id": "Htb_Phoenix",
+  "scenario_fingerprint": {
+    "scenario_name": "wordpress_blind_sqli_2fa_bypass",
+    "primary_services": [
+      "http",
+      "https",
+      "ssh"
+    ],
+    "port_signature": "22+80+443",
+    "service_combination": "ssh+http+https",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "blind_sql_injection",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "wordpress_vulnerable_plugin",
+      "blind_sql_injection",
+      "two_factor_authentication_bypass",
+      "pam_2fa_selective_enforcement"
+    ],
+    "environmental_clues": [
+      "wordpress_5.9_latest",
+      "apache_version_hidden",
+      "ssl_certificate_phoenix_htb",
+      "multiple_wordpress_users",
+      "forum_functionality"
+    ],
+    "similar_scenarios": [
+      "wordpress_plugin_exploitation",
+      "web_app_sqli_pivot"
+    ],
+    "unique_aspects": [
+      "extremely_slow_blind_sqli",
+      "plugin_reverse_engineering_required",
+      "2fa_token_generation_bypass",
+      "wildcard_injection_privilege_escalation",
+      "compiled_shell_script_analysis"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Blind SQL Injection",
+        "success_reason": "WordPress plugin pie-register had unpatched SQL injection vulnerability",
+        "prerequisite_indicators": [
+          "wordpress_site_identified",
+          "vulnerable_plugin_present",
+          "plugin_version_outdated"
+        ],
+        "recognition_patterns": [
+          "wpscan identifies vulnerable plugins",
+          "registration forms present",
+          "slow response times on parameter manipulation",
+          "boolean-based blind injection responses"
+        ],
+        "failure_modes": [
+          "plugin_patched_to_latest",
+          "waf_blocking_injection",
+          "input_sanitization_implemented"
+        ],
+        "environmental_factors": [
+          "outdated_wordpress_plugins",
+          "insufficient_security_monitoring",
+          "default_plugin_configurations"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Password Reuse Attack",
+        "success_reason": "Database credentials reused across multiple services",
+        "prerequisite_indicators": [
+          "database_access_obtained",
+          "password_hashes_extracted",
+          "multiple_services_available"
+        ],
+        "recognition_patterns": [
+          "same username across services",
+          "ssh service available",
+          "multiple authentication interfaces",
+          "service account patterns"
+        ],
+        "failure_modes": [
+          "unique_passwords_per_service",
+          "strong_password_policies",
+          "account_lockout_mechanisms"
+        ],
+        "environmental_factors": [
+          "poor_password_management",
+          "legacy_authentication_systems",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "2FA Bypass via Interface Switching",
+        "success_reason": "PAM 2FA not consistently enforced across all interfaces",
+        "prerequisite_indicators": [
+          "multiple_authentication_interfaces",
+          "2fa_enabled_on_primary_interface",
+          "inconsistent_security_policies"
+        ],
+        "recognition_patterns": [
+          "2FA prompt on web interface",
+          "SSH access available",
+          "different authentication flows",
+          "PAM configuration inconsistencies"
+        ],
+        "failure_modes": [
+          "2fa_enforced_globally",
+          "consistent_pam_configuration",
+          "interface_access_restrictions"
+        ],
+        "environmental_factors": [
+          "mixed_authentication_systems",
+          "incomplete_security_implementations",
+          "legacy_access_methods"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "Wildcard Injection in Shell Script",
+        "success_reason": "Compiled shell script used unquoted wildcards in file operations",
+        "prerequisite_indicators": [
+          "custom_shell_scripts_present",
+          "file_operation_commands",
+          "insufficient_input_validation"
+        ],
+        "recognition_patterns": [
+          "shell scripts with file operations",
+          "wildcard characters in commands",
+          "unquoted variables",
+          "privilege escalation opportunities"
+        ],
+        "failure_modes": [
+          "proper_input_quoting",
+          "restricted_file_operations",
+          "secure_coding_practices"
+        ],
+        "environmental_factors": [
+          "custom_administrative_scripts",
+          "insufficient_code_review",
+          "privilege_escalation_vectors"
+        ],
+        "success_probability": 0.55,
+        "typical_timeframe": "20-40 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "pie-register plugin SQL injection",
+        "discovery_method": "wpscan vulnerability enumeration",
+        "why_critical": "Provided database access to extract user credentials",
+        "how_to_recognize": [
+          "wpscan shows vulnerable plugins",
+          "registration forms present",
+          "plugin version enumeration",
+          "slow blind injection responses"
+        ],
+        "follow_up_actions": [
+          "exploit_blind_sql_injection",
+          "extract_user_credentials",
+          "crack_password_hashes",
+          "test_credential_reuse"
+        ]
+      },
+      {
+        "discovery": "Inconsistent 2FA enforcement",
+        "discovery_method": "Testing multiple authentication interfaces",
+        "why_critical": "Allowed bypass of 2FA protection via SSH",
+        "how_to_recognize": [
+          "2FA prompt on web login",
+          "SSH service available",
+          "same credentials work differently",
+          "PAM configuration gaps"
+        ],
+        "follow_up_actions": [
+          "test_ssh_access",
+          "enumerate_pam_configuration",
+          "identify_privilege_escalation",
+          "check_sudo_permissions"
+        ]
+      },
+      {
+        "discovery": "Wildcard injection vulnerability",
+        "discovery_method": "Analysis of custom shell scripts",
+        "why_critical": "Enabled privilege escalation to root",
+        "how_to_recognize": [
+          "custom shell scripts present",
+          "unquoted wildcard usage",
+          "file operation commands",
+          "elevated execution context"
+        ],
+        "follow_up_actions": [
+          "reverse_engineer_script",
+          "craft_wildcard_injection",
+          "create_malicious_filenames",
+          "execute_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "database_access",
+        "escalation_method": "credential_extraction_and_reuse",
+        "why_possible": "Database contained user credentials reused across services",
+        "recognition_signs": [
+          "database_access_obtained",
+          "user_table_accessible",
+          "password_hashes_crackable",
+          "ssh_service_available"
+        ],
+        "exploitation_path": "SQL Injection → Database Access → Credential Extraction → SSH Access"
+      },
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "wildcard_injection_privilege_escalation",
+        "why_possible": "Custom shell script with unquoted wildcards running with elevated privileges",
+        "recognition_signs": [
+          "custom_scripts_present",
+          "wildcard_usage_in_commands",
+          "elevated_execution_context",
+          "file_operation_vulnerabilities"
+        ],
+        "exploitation_path": "Shell Access → Script Analysis → Wildcard Injection → Root Shell"
+      },
+      {
+        "privilege_level": "2fa_protected_account",
+        "escalation_method": "interface_switching_bypass",
+        "why_possible": "2FA not consistently enforced across all authentication interfaces",
+        "recognition_signs": [
+          "2fa_on_web_interface",
+          "ssh_access_available",
+          "inconsistent_pam_config",
+          "multiple_auth_methods"
+        ],
+        "exploitation_path": "Web 2FA Block → SSH Interface → Authentication Bypass → System Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found WordPress site with multiple plugins during wpscan enumeration",
+        "decision": "Focus on plugins with SQL injection vulnerabilities first",
+        "reasoning": "SQL injection provides direct database access and potential credential extraction",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "brute_force_login",
+            "when": "if SQLi fails"
+          },
+          {
+            "option": "plugin_file_upload",
+            "when": "if authenticated access obtained"
+          }
+        ],
+        "success_indicators": [
+          "sql_injection_confirmed",
+          "database_data_extracted",
+          "user_credentials_found"
+        ],
+        "next_decision": "optimize_sqli_extraction"
+      },
+      {
+        "step": 2,
+        "situation": "Confirmed blind SQL injection in asgaros-forum plugin",
+        "decision": "Extract only essential data (usernames, password hashes, 2FA seeds)",
+        "reasoning": "Blind SQLi is slow, focus on high-value data for authentication bypass",
+        "confidence": 0.85,
+        "prerequisites": [
+          "sqli_vulnerability_confirmed",
+          "database_structure_identified"
+        ],
+        "success_indicators": [
+          "password_hashes_extracted",
+          "2fa_seeds_found"
+        ],
+        "failure_fallbacks": [
+          "try_different_sqli_techniques",
+          "focus_on_other_plugins"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Obtained credentials but facing 2FA prompt",
+        "decision": "Reverse engineer plugin to understand 2FA token generation",
+        "reasoning": "Need to generate valid tokens to bypass 2FA protection",
+        "confidence": 0.75,
+        "prerequisites": [
+          "plugin_source_accessible",
+          "2fa_seed_extracted"
+        ],
+        "success_indicators": [
+          "token_generation_understood",
+          "valid_tokens_created"
+        ],
+        "failure_fallbacks": [
+          "look_for_2fa_bypass",
+          "try_other_attack_vectors"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Successfully authenticated to WordPress admin",
+        "decision": "Abuse file upload functionality in plugins for webshell",
+        "reasoning": "Admin access allows plugin manipulation for code execution",
+        "confidence": 0.95,
+        "prerequisites": [
+          "admin_access_confirmed",
+          "file_upload_plugin_available"
+        ],
+        "success_indicators": [
+          "webshell_uploaded",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "theme_editor_abuse",
+          "plugin_editor_abuse"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_sqli_succeeds": {
+        "action": "extract_authentication_data",
+        "tools": [
+          "sqlmap",
+          "custom_scripts"
+        ],
+        "next_phase": "credential_analysis_and_2fa_bypass"
+      },
+      "if_2fa_encountered": {
+        "action": "reverse_engineer_2fa_mechanism",
+        "alternatives": [
+          "plugin_source_analysis",
+          "database_seed_extraction"
+        ],
+        "decision_criteria": "based_on_plugin_accessibility"
+      },
+      "if_admin_access_obtained": {
+        "action": "escalate_to_shell_access",
+        "purpose": "achieve_code_execution_on_server",
+        "tools": [
+          "webshell_upload",
+          "plugin_abuse"
+        ]
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_for_privilege_escalation",
+        "purpose": "find_local_privesc_vectors",
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_sqli_over_bruteforce_on_wordpress",
+        "reasoning": "more_reliable_and_avoids_account_lockout",
+        "applicability": "wordpress_sites_with_vulnerable_plugins"
+      },
+      {
+        "rule": "extract_minimal_data_from_blind_sqli",
+        "reasoning": "blind_sqli_is_slow_focus_on_essential_data_only",
+        "applicability": "time_based_blind_sql_injection"
+      },
+      {
+        "rule": "reverse_engineer_2fa_when_seeds_available",
+        "reasoning": "often_more_efficient_than_brute_force_bypass",
+        "applicability": "custom_2fa_implementations"
+      },
+      {
+        "rule": "abuse_admin_file_upload_for_immediate_shell",
+        "reasoning": "fastest_path_to_code_execution_from_admin_access",
+        "applicability": "wordpress_admin_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "WordPress SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https",
+          "mysql"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "wordpress_detected",
+          "vulnerable_plugin_present",
+          "mysql_backend_accessible"
+        ],
+        "success_indicators": [
+          "wp_json_api_accessible",
+          "plugin_enumeration_successful",
+          "database_response_variations"
+        ],
+        "incompatible_with": [
+          "waf_blocking_requests",
+          "plugin_patched",
+          "database_connection_blocked"
+        ],
+        "confidence_boosters": [
+          "wpscan_vulnerability_confirmed",
+          "time_based_response_delays",
+          "error_message_disclosure"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "30-120 minutes"
+      },
+      {
+        "technique": "WordPress User Enumeration",
+        "mitre_id": "T1087.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "wordpress_detected",
+          "wp_json_api_enabled",
+          "user_enumeration_not_blocked"
+        ],
+        "success_indicators": [
+          "wp_json_users_endpoint_accessible",
+          "author_sitemap_available",
+          "oembed_api_responses"
+        ],
+        "incompatible_with": [
+          "user_enumeration_disabled",
+          "api_endpoints_blocked",
+          "custom_security_plugin_active"
+        ],
+        "confidence_boosters": [
+          "robots_txt_wp_admin_entry",
+          "wordpress_generator_meta_tag",
+          "wp_content_directory_accessible"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Web Shell Upload",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "insufficient_file_validation",
+          "web_accessible_upload_directory"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "uploaded_file_executable",
+          "command_execution_confirmed"
+        ],
+        "incompatible_with": [
+          "strict_file_type_validation",
+          "upload_directory_not_executable",
+          "antivirus_scanning_uploads"
+        ],
+        "confidence_boosters": [
+          "wordpress_plugin_upload_feature",
+          "weak_mime_type_checking",
+          "predictable_upload_paths"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Password Reuse Attack",
+        "mitre_id": "T1110.004",
+        "required_services": [
+          "ssh",
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          22,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "credentials_obtained",
+          "multiple_services_available",
+          "weak_password_policies"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "service_access_granted",
+          "different_privilege_levels"
+        ],
+        "incompatible_with": [
+          "unique_passwords_enforced",
+          "account_lockout_policies",
+          "multi_factor_authentication"
+        ],
+        "confidence_boosters": [
+          "default_credentials_found",
+          "common_username_patterns",
+          "legacy_service_configurations"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "wordpress": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "WordPress",
+          "wp-content",
+          "wp-admin",
+          "wp-json"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_server": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.88
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "wordpress_user_enumeration",
+          "when": "wordpress_detected",
+          "reason": "high_success_rate_reveals_usernames"
+        },
+        {
+          "attack": "wpscan_vulnerability_scan",
+          "when": "wordpress_detected",
+          "reason": "identifies_plugin_vulnerabilities"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "sql_injection_exploitation",
+          "when": "vulnerable_plugin_detected",
+          "reason": "time_consuming_but_high_impact"
+        },
+        {
+          "attack": "password_reuse_testing",
+          "when": "credentials_obtained",
+          "reason": "quick_wins_across_services"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "noisy_and_time_consuming"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Blind SQL Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -k 'https://{target}/forum/?subscribe_topic=1%20union%20select%201%20and%20sleep({seconds})'",
+            "actual_command": "curl -k 'https://phoenix.htb/forum/?subscribe_topic=1%20union%20select%201%20and%20sleep(10)'",
+            "output_pattern": "time_delay_confirms_injection",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "sqlmap",
+            "command_template": "sqlmap --url \"{target}/forum/?subscribe_topic=*\" --dbms=mysql --technique=T",
+            "actual_command": "sqlmap --url \"https://phoenix.htb/forum/?subscribe_topic=*\" --dbms=mysql --technique=T",
+            "success_factors": [
+              "time_based_injection",
+              "mysql_database",
+              "vulnerable_parameter"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_wordpress_plugin",
+          "asgaros_forum_plugin_installed",
+          "version_below_1.15.13"
+        ],
+        "success_indicators": [
+          "time_delay_response_matches_sleep_parameter",
+          "sqlmap_confirms_injection_point",
+          "database_enumeration_possible"
+        ],
+        "common_failures": [
+          "waf_blocking_requests",
+          "rate_limiting_active",
+          "plugin_version_patched"
+        ],
+        "follow_up_techniques": [
+          "database_enumeration",
+          "credential_extraction",
+          "privilege_escalation"
+        ],
+        "time_investment": "30-120 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "WordPress Plugin Vulnerability Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "wpscan",
+            "command_template": "wpscan --url {target} --enumerate u,at,ap --disable-tls-checks --api-token {api_key}",
+            "actual_command": "wpscan --url https://phoenix.htb --enumerate u,at,ap --disable-tls-checks --api-token $WPSCAN_API",
+            "output_pattern": "vulnerabilities_identified",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "wordpress_site_identified",
+          "vulnerable_plugins_installed",
+          "network_access_to_target"
+        ],
+        "success_indicators": [
+          "plugin_versions_identified",
+          "cve_matches_found",
+          "exploitation_path_confirmed"
+        ],
+        "common_failures": [
+          "plugins_updated_to_secure_versions",
+          "false_positive_vulnerability_reports",
+          "access_controls_blocking_exploitation"
+        ],
+        "follow_up_techniques": [
+          "sql_injection_exploitation",
+          "file_upload_attacks",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wpscan",
+        "use_case": "wordpress_vulnerability_assessment",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "wordpress_penetration_testing"
+        ],
+        "alternatives": [
+          "manual_enumeration",
+          "nuclei"
+        ],
+        "best_practices": [
+          "use_api_token_for_vulnerability_data",
+          "enumerate_users_themes_plugins",
+          "verify_plugin_versions_manually"
+        ]
+      },
+      {
+        "tool": "sqlmap",
+        "use_case": "automated_sql_injection_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "blind_sql_injection",
+          "time_based_injection"
+        ],
+        "alternatives": [
+          "manual_injection",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "specify_dbms_when_known",
+          "use_technique_parameter_for_speed",
+          "handle_rate_limiting_appropriately"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "wordpress_sqli_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wpscan --url https://phoenix.htb --enumerate u,at,ap --disable-tls-checks --api-token $WPSCAN_API",
+            "purpose": "Identify vulnerable WordPress plugins",
+            "expected_output": "asgaros-forum plugin with CVE-2021-24827"
+          },
+          {
+            "step": 2,
+            "command": "curl -k 'https://phoenix.htb/forum/?subscribe_topic=1%20union%20select%201%20and%20sleep(10)'",
+            "purpose": "Verify SQL injection vulnerability",
+            "expected_output": "10 second delay in response"
+          },
+          {
+            "step": 3,
+            "command": "sqlmap --url \"https://phoenix.htb/forum/?subscribe_topic=*\" --dbms=mysql --technique=T",
+            "purpose": "Automate SQL injection exploitation",
+            "expected_output": "Database enumeration capabilities"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Phoenix",
+      "difficulty": "Hard",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2022-03-05",
+      "author": "jit",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "wordpress",
+        "2fa_bypass"
+      ],
+      "key_vulnerabilities": [
+        "blind_sql_injection",
+        "plugin_vulnerabilities",
+        "wildcard_injection"
+      ],
+      "environment_type": "web_application_wordpress",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "blind_sqli_optimization",
+        "wordpress_plugin_analysis",
+        "2fa_bypass_techniques",
+        "reverse_engineering"
+      ],
+      "prerequisite_knowledge": [
+        "sql_injection",
+        "wordpress_security",
+        "reverse_engineering",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "wordpress",
+        "sql_injection",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_plugin_development",
+        "2fa_implementation",
+        "input_validation",
+        "wildcard_handling"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bolt",
+        "Previse",
+        "Writer"
+      ],
+      "similarity_reasons": [
+        "wordpress_exploitation",
+        "sql_injection",
+        "multi_factor_bypass"
+      ],
+      "unique_aspects": [
+        "slow_blind_sqli",
+        "2fa_seed_extraction",
+        "wildcard_injection_escalation"
+      ],
+      "difficulty_factors": [
+        "time_consuming_sqli",
+        "reverse_engineering_required",
+        "complex_privilege_escalation_chain"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T01:30:14.205750",
+    "original_file": "0xdf_writeups/Htb Phoenix.md",
+    "content_length": 64645,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

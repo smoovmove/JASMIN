@@ -1,0 +1,839 @@
+{
+  "writeup_id": "Htb_Brainfuck",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_wordpress_crypto_challenge",
+    "primary_services": [
+      "https",
+      "smtp",
+      "pop3",
+      "imap",
+      "ssh"
+    ],
+    "port_signature": "22+25+110+143+443",
+    "service_combination": "ssh+smtp+pop3+imap+https",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "wordpress_plugin_vulnerability",
+    "privilege_path": "plugin_auth_bypass_to_user_shell",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.85,
+    "distinguishing_factors": [
+      "wp_support_plus_plugin_vulnerability",
+      "tls_certificate_subdomain_enumeration",
+      "cryptographic_challenges",
+      "email_service_integration"
+    ],
+    "environmental_clues": [
+      "wordpress_cms",
+      "multiple_subdomains_in_certificate",
+      "mail_server_services",
+      "forum_application"
+    ],
+    "similar_scenarios": [
+      "ctf_style_boxes",
+      "crypto_heavy_challenges"
+    ],
+    "unique_aspects": [
+      "privilege_escalation_via_wp_set_auth_cookie",
+      "vigenere_cipher_elements",
+      "rsa_cryptography",
+      "brainfuck_programming_language_theme"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "WordPress Plugin Privilege Escalation",
+        "success_reason": "WP Support Plus Ticket System v7.1.3 had authentication bypass via loginGuestFacebook action",
+        "prerequisite_indicators": [
+          "wordpress_site_identified",
+          "vulnerable_plugin_installed",
+          "wp_admin_ajax_accessible"
+        ],
+        "recognition_patterns": [
+          "wpscan identifies vulnerable plugin versions",
+          "wp-support-plus-responsive-ticket-system directory exists",
+          "version 7.1.3 in readme.txt"
+        ],
+        "failure_modes": [
+          "plugin_updated_to_8.0.0_or_higher",
+          "plugin_not_installed",
+          "wp_admin_ajax_disabled"
+        ],
+        "environmental_factors": [
+          "outdated_wordpress_installation",
+          "legacy_plugin_configurations",
+          "insufficient_security_updates"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "TLS Certificate Enumeration",
+        "success_reason": "Certificate revealed multiple subdomains and email addresses",
+        "prerequisite_indicators": [
+          "https_service_available",
+          "certificate_contains_sans",
+          "multiple_vhosts_configured"
+        ],
+        "recognition_patterns": [
+          "Subject Alternative Names in certificate",
+          "commonName different from IP",
+          "email addresses in certificate fields"
+        ],
+        "failure_modes": [
+          "self_signed_certificate_with_no_info",
+          "default_certificate_used",
+          "single_domain_certificate"
+        ],
+        "environmental_factors": [
+          "multi_tenant_hosting",
+          "development_environment_certificates",
+          "detailed_certificate_information"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "WP Support Plus Plugin v7.1.3",
+        "discovery_method": "wpscan enumeration",
+        "why_critical": "Contains privilege escalation vulnerability allowing admin authentication bypass",
+        "how_to_recognize": [
+          "wpscan shows plugin version 7.1.3",
+          "privilege escalation vulnerability listed",
+          "loginGuestFacebook action available"
+        ],
+        "follow_up_actions": [
+          "craft_authentication_bypass_request",
+          "test_admin_panel_access",
+          "enumerate_additional_attack_vectors"
+        ]
+      },
+      {
+        "discovery": "Multiple subdomains from TLS certificate",
+        "discovery_method": "Certificate inspection",
+        "why_critical": "Revealed additional attack surface including secret forum",
+        "how_to_recognize": [
+          "Subject Alternative Names present",
+          "sup3rs3cr3t subdomain naming pattern",
+          "email address orestis@brainfuck.htb"
+        ],
+        "follow_up_actions": [
+          "add_domains_to_hosts_file",
+          "enumerate_each_subdomain",
+          "check_for_additional_services"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_user",
+        "escalation_method": "WordPress_admin_authentication_bypass",
+        "why_possible": "Vulnerable plugin allows arbitrary user authentication via wp_set_auth_cookie misuse",
+        "recognition_signs": [
+          "wp_support_plus_plugin_installed",
+          "version_below_8.0.0",
+          "admin_ajax_endpoint_accessible"
+        ],
+        "exploitation_path": "loginGuestFacebook POST → admin cookies → WordPress admin panel"
+      },
+      {
+        "privilege_level": "wordpress_admin",
+        "escalation_method": "theme_editing_blocked",
+        "why_possible": "Standard WordPress RCE via theme editing was prevented by file permissions",
+        "recognition_signs": [
+          "theme_editor_shows_not_editable",
+          "file_permissions_hardened",
+          "plugin_upload_restrictions"
+        ],
+        "exploitation_path": "Need alternative RCE method beyond standard WordPress techniques"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,25,110,143,443 open on Linux host with HTTPS certificate containing multiple subdomains",
+        "decision": "Enumerate TLS certificate for additional attack surface and check all discovered subdomains",
+        "reasoning": "Certificate reveals multiple subdomains that expand attack surface significantly",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "direct_service_enumeration",
+            "when": "if no certificate info available"
+          },
+          {
+            "option": "subdomain_bruteforce",
+            "when": "if certificate doesn't reveal subdomains"
+          }
+        ],
+        "success_indicators": [
+          "multiple_subdomains_discovered",
+          "email_addresses_found",
+          "different_applications_on_subdomains"
+        ],
+        "next_decision": "enumerate_web_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered WordPress site with WP Support Plus plugin version 7.1.3",
+        "decision": "Exploit privilege escalation vulnerability in WP Support Plus < 8.0.0",
+        "reasoning": "Known vulnerability allows authentication bypass without credentials",
+        "confidence": 0.9,
+        "prerequisites": [
+          "wordpress_identified",
+          "vulnerable_plugin_confirmed"
+        ],
+        "success_indicators": [
+          "admin_authentication_successful",
+          "wordpress_admin_panel_access"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "other_plugin_vulnerabilities",
+          "wordpress_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Gained WordPress admin access but file editing/upload disabled",
+        "decision": "Search for credentials in plugin configurations and settings",
+        "reasoning": "Admin access allows viewing saved credentials in plugin settings that may be reused elsewhere",
+        "confidence": 0.75,
+        "prerequisites": [
+          "wordpress_admin_access",
+          "plugins_with_credential_storage"
+        ],
+        "success_indicators": [
+          "smtp_credentials_found",
+          "database_credentials_discovered",
+          "api_keys_located"
+        ],
+        "failure_fallbacks": [
+          "database_access_attempt",
+          "configuration_file_access",
+          "backup_file_search"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_certificate_reveals_subdomains": {
+        "action": "enumerate_all_discovered_subdomains",
+        "tools": [
+          "curl",
+          "burp",
+          "browser"
+        ],
+        "next_phase": "identify_different_applications"
+      },
+      "if_wordpress_identified": {
+        "action": "run_wpscan_for_vulnerabilities",
+        "tools": [
+          "wpscan"
+        ],
+        "focus": "plugins_and_themes_over_core",
+        "next_phase": "exploit_highest_confidence_vulnerability"
+      },
+      "if_admin_access_but_no_rce": {
+        "action": "extract_credentials_from_settings",
+        "locations": [
+          "plugin_settings",
+          "smtp_configuration",
+          "database_settings"
+        ],
+        "next_phase": "credential_reuse_testing"
+      },
+      "if_smtp_credentials_found": {
+        "action": "access_email_services",
+        "services": [
+          "pop3",
+          "imap",
+          "smtp"
+        ],
+        "purpose": "find_additional_credentials_or_information"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_tls_certificate_for_subdomains",
+        "reasoning": "certificates_often_reveal_hidden_attack_surface",
+        "applicability": "https_services_present"
+      },
+      {
+        "rule": "prioritize_plugin_vulnerabilities_over_wordpress_core",
+        "reasoning": "plugins_more_likely_to_be_outdated_and_vulnerable",
+        "applicability": "wordpress_environments"
+      },
+      {
+        "rule": "extract_credentials_from_admin_panels_when_rce_blocked",
+        "reasoning": "admin_access_often_reveals_stored_credentials_for_lateral_movement",
+        "applicability": "admin_access_without_code_execution"
+      },
+      {
+        "rule": "test_discovered_credentials_against_all_available_services",
+        "reasoning": "credential_reuse_common_across_services",
+        "applicability": "multiple_services_identified"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "WordPress Plugin Privilege Escalation",
+        "mitre_id": "T1068",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "wordpress_installation",
+          "vulnerable_plugin_installed",
+          "wp_support_plus_plugin_version_less_than_8.0.0"
+        ],
+        "success_indicators": [
+          "wp_admin_accessible",
+          "plugin_directory_enumerable",
+          "version_disclosure_in_readme"
+        ],
+        "incompatible_with": [
+          "plugin_updated_to_secure_version",
+          "wordpress_hardened_configuration",
+          "web_application_firewall_blocking"
+        ],
+        "confidence_boosters": [
+          "wpscan_vulnerability_confirmation",
+          "readme_txt_accessible",
+          "admin_ajax_endpoint_responsive"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "TLS Certificate Subdomain Enumeration",
+        "mitre_id": "T1590.005",
+        "required_services": [
+          "https"
+        ],
+        "required_ports": [
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "tls_certificate_present",
+          "subject_alternative_names_configured"
+        ],
+        "success_indicators": [
+          "certificate_contains_sans",
+          "additional_hostnames_discovered",
+          "services_respond_on_discovered_domains"
+        ],
+        "incompatible_with": [
+          "wildcard_certificates_only",
+          "certificate_without_sans"
+        ],
+        "confidence_boosters": [
+          "multiple_sans_present",
+          "descriptive_subdomain_names",
+          "services_accessible_on_discovered_hosts"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "WordPress Enumeration",
+        "mitre_id": "T1590.002",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "wordpress_installation_detected",
+          "wp_admin_accessible",
+          "plugin_directories_enumerable"
+        ],
+        "success_indicators": [
+          "wp_admin_login_page_accessible",
+          "plugin_readme_files_readable",
+          "version_information_disclosed"
+        ],
+        "incompatible_with": [
+          "wordpress_security_plugins_active",
+          "directory_listing_disabled",
+          "custom_wordpress_structure"
+        ],
+        "confidence_boosters": [
+          "default_wordpress_structure",
+          "plugin_version_in_readme",
+          "wpscan_database_matches"
+        ],
+        "typical_success_rate": 0.88,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "wordpress": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "WordPress",
+          "wp-content",
+          "wp-admin"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_server": {
+        "port_indicators": [
+          22,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ssh",
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "tls_certificate_enumeration",
+          "when": "https_service_detected",
+          "reason": "quick_subdomain_discovery_high_success_rate"
+        },
+        {
+          "attack": "wordpress_plugin_exploitation",
+          "when": "wordpress_detected_with_plugins",
+          "reason": "known_vulnerabilities_often_unpatched"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "wordpress_user_enumeration",
+          "when": "wordpress_installation_confirmed",
+          "reason": "reveals_usernames_for_further_attacks"
+        },
+        {
+          "attack": "directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "discovers_hidden_content_and_functionality"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "WordPress Plugin Privilege Escalation",
+        "mitre_id": "T1068",
+        "category": "privilege_escalation",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wpscan",
+            "command_template": "wpscan --url https://{target} --disable-tls-checks --api-token {token}",
+            "actual_command": "wpscan --url https://brainfuck.htb --disable-tls-checks --api-token $WPSCAN_API",
+            "output_pattern": "wp-support-plus-responsive-ticket-system",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "custom_html_form",
+            "command_template": "<form method=\"post\" action=\"http://{target}/wp-admin/admin-ajax.php\"><input type=\"text\" name=\"username\" value=\"{username}\"><input type=\"hidden\" name=\"email\" value=\"sth\"><input type=\"hidden\" name=\"action\" value=\"loginGuestFacebook\"></form>",
+            "actual_command": "POST /wp-admin/admin-ajax.php with username=admin&email=sth&action=loginGuestFacebook",
+            "success_factors": [
+              "vulnerable_plugin_version",
+              "loginGuestFacebook_action_available"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "wordpress_site_identified",
+          "wp_support_plus_plugin_version_less_than_8.0.0",
+          "admin_ajax_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "authentication_cookies_set",
+          "admin_dashboard_accessible",
+          "wp_admin_privileges_obtained"
+        ],
+        "common_failures": [
+          "plugin_not_installed",
+          "plugin_version_patched",
+          "endpoint_blocked"
+        ],
+        "follow_up_techniques": [
+          "wordpress_theme_editing",
+          "plugin_upload_rce",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "TLS Certificate Reconnaissance",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p {port} -sCV {target}",
+            "actual_command": "nmap -p 22,25,110,143,443 -sCV 10.10.10.17",
+            "output_pattern": "Subject Alternative Name: DNS:",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "browser_certificate_inspection",
+            "command_template": "Visit https://{target} and inspect certificate",
+            "actual_command": "Visit https://10.10.10.17 and inspect certificate",
+            "success_factors": [
+              "valid_certificate_present",
+              "san_fields_populated"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "https_service_available",
+          "valid_tls_certificate_present"
+        ],
+        "success_indicators": [
+          "additional_hostnames_discovered",
+          "email_addresses_identified",
+          "organization_information_gathered"
+        ],
+        "common_failures": [
+          "self_signed_certificates",
+          "minimal_certificate_information",
+          "certificate_validation_errors"
+        ],
+        "follow_up_techniques": [
+          "subdomain_enumeration",
+          "virtual_host_discovery",
+          "email_enumeration"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "WordPress Credential Harvesting",
+        "mitre_id": "T1555.003",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "browser_dev_tools",
+            "command_template": "Right-click password field > Inspect Element > View value attribute",
+            "actual_command": "Inspect SMTP password field in WordPress admin",
+            "output_pattern": "value=\"{password}\"",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "wordpress_admin_access",
+          "smtp_plugin_configured",
+          "password_fields_populated"
+        ],
+        "success_indicators": [
+          "smtp_credentials_extracted",
+          "email_access_obtained",
+          "additional_services_accessible"
+        ],
+        "common_failures": [
+          "passwords_not_saved_in_forms",
+          "encrypted_password_storage",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "email_access",
+          "credential_reuse_testing",
+          "smtp_enumeration"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Vigenere Cipher Cryptanalysis",
+        "mitre_id": "T1140",
+        "category": "defense_evasion",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "python_zip_function",
+            "command_template": "list(zip('{ciphertext}', '{plaintext}'))",
+            "actual_command": "list(zip('Pieagnm - Jkoijeg nbw zwx mle grwsnn', 'Orestis - Hacking for fun and profit'))",
+            "output_pattern": "character_pairs_for_key_derivation",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "known_plaintext_available",
+          "consistent_signature_pattern",
+          "vigenere_cipher_suspected"
+        ],
+        "success_indicators": [
+          "encryption_key_derived",
+          "additional_messages_decrypted",
+          "sensitive_information_revealed"
+        ],
+        "common_failures": [
+          "insufficient_known_plaintext",
+          "incorrect_cipher_identification",
+          "key_length_miscalculation"
+        ],
+        "follow_up_techniques": [
+          "message_decryption",
+          "key_reuse_exploitation",
+          "cryptographic_pattern_analysis"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wpscan",
+        "use_case": "wordpress_vulnerability_assessment",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "wordpress_penetration_testing"
+        ],
+        "alternatives": [
+          "manual_enumeration",
+          "nuclei",
+          "nikto"
+        ],
+        "best_practices": [
+          "use_api_token_for_vulnerability_details",
+          "focus_on_plugin_versions",
+          "disable_tls_checks_for_self_signed_certs"
+        ]
+      },
+      {
+        "tool": "Evolution",
+        "use_case": "email_client_access",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "email_server_exploitation"
+        ],
+        "alternatives": [
+          "thunderbird",
+          "mutt",
+          "telnet"
+        ],
+        "best_practices": [
+          "configure_unencrypted_connections_for_testing",
+          "use_standard_ports_143_110_25",
+          "verify_credentials_before_full_setup"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "wordpress_plugin_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wpscan --url https://brainfuck.htb --disable-tls-checks --api-token $WPSCAN_API",
+            "purpose": "Identify vulnerable WordPress plugins",
+            "expected_output": "wp-support-plus-responsive-ticket-system version 7.1.3"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST https://brainfuck.htb/wp-admin/admin-ajax.php -d 'username=admin&email=sth&action=loginGuestFacebook'",
+            "purpose": "Exploit privilege escalation vulnerability",
+            "expected_output": "Authentication cookies set"
+          },
+          {
+            "step": 3,
+            "command": "Browse to WordPress admin panel with obtained cookies",
+            "purpose": "Verify administrative access",
+            "expected_output": "Full WordPress admin dashboard access"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-15 minutes"
+      },
+      {
+        "sequence_name": "tls_certificate_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p 443 -sCV 10.10.10.17",
+            "purpose": "Extract TLS certificate information",
+            "expected_output": "Subject Alternative Names and email addresses"
+          },
+          {
+            "step": 2,
+            "command": "echo '10.10.10.17 brainfuck.htb www.brainfuck.htb sup3rs3cr3t.brainfuck.htb' >> /etc/hosts",
+            "purpose": "Add discovered hostnames to hosts file",
+            "expected_output": "Hostnames added for virtual host access"
+          },
+          {
+            "step": 3,
+            "command": "wfuzz -w /usr/share/wordlists/subdomains.txt -H 'Host: FUZZ.brainfuck.htb' https://10.10.10.17",
+            "purpose": "Enumerate additional subdomains",
+            "expected_output": "Additional virtual hosts discovered"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Brainfuck",
+      "difficulty": "Insane",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2017-04-29",
+      "author": "ch4p",
+      "estimated_time": "4-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "wordpress_exploitation",
+        "cryptographic_attacks"
+      ],
+      "key_vulnerabilities": [
+        "wordpress_vulnerabilities",
+        "weak_cryptographic_implementation",
+        "rsa_attacks",
+        "vigenere_cipher"
+      ],
+      "environment_type": "web_application_with_mail_services",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "wordpress_security",
+        "cryptanalysis",
+        "rsa_cryptography",
+        "classical_ciphers"
+      ],
+      "prerequisite_knowledge": [
+        "wordpress_exploitation",
+        "cryptography_fundamentals",
+        "rsa_mathematics",
+        "cipher_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "cryptography",
+      "subcategories": [
+        "web_exploitation",
+        "wordpress",
+        "rsa_attacks",
+        "classical_cryptography"
+      ],
+      "attack_types": [
+        "web_application_attacks",
+        "cryptographic_attacks",
+        "information_disclosure"
+      ],
+      "defensive_lessons": [
+        "wordpress_hardening",
+        "strong_cryptographic_practices",
+        "proper_key_management",
+        "secure_cipher_implementation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blocky",
+        "Apocalyst",
+        "Nineveh"
+      ],
+      "similarity_reasons": [
+        "wordpress_exploitation",
+        "multi_step_cryptographic_challenges",
+        "ctf_style_puzzles"
+      ],
+      "unique_aspects": [
+        "heavy_cryptography_focus",
+        "rsa_and_vigenere_combination",
+        "early_htb_ctf_style"
+      ],
+      "difficulty_factors": [
+        "complex_cryptographic_analysis",
+        "multiple_cipher_types",
+        "mathematical_problem_solving"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T23:55:13.498002",
+    "original_file": "0xdf_writeups/Htb Brainfuck.md",
+    "content_length": 32139,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

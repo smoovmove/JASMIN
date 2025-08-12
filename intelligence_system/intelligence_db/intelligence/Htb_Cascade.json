@@ -1,0 +1,1016 @@
+{
+  "writeup_id": "Htb_Cascade",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_ldap_credential_recovery",
+    "primary_services": [
+      "dns",
+      "kerberos",
+      "ldap",
+      "smb",
+      "winrm"
+    ],
+    "port_signature": "53+88+389+445+5985",
+    "service_combination": "dns+kerberos+ldap+smb+winrm",
+    "os_family": "windows_server_2008",
+    "environment_type": "active_directory",
+    "entry_vector": "ldap_anonymous_enumeration",
+    "privilege_path": "credential_recovery_chain",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "ldap_anonymous_access",
+      "custom_legacy_password_attribute",
+      "base64_encoded_credentials",
+      "credential_chaining_required"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "legacy_password_attributes",
+      "anonymous_ldap_enumeration",
+      "smb_share_escalation"
+    ],
+    "similar_scenarios": [
+      "forest_htb_easy",
+      "resolute_htb_medium"
+    ],
+    "unique_aspects": [
+      "cascadeLegacyPwd_attribute",
+      "tightvnc_config_files",
+      "sqlite_database_enumeration",
+      "ad_recycle_bin_abuse"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "LDAP_Anonymous_Enumeration",
+        "success_reason": "Anonymous LDAP access allowed with sensitive data exposed in custom attributes",
+        "prerequisite_indicators": [
+          "ldap_port_389_open",
+          "anonymous_bind_allowed",
+          "domain_controller_accessible"
+        ],
+        "recognition_patterns": [
+          "custom LDAP attributes (cascadeLegacyPwd)",
+          "base64 encoded passwords in user objects",
+          "legacy password fields in directory"
+        ],
+        "failure_modes": [
+          "anonymous_ldap_disabled",
+          "custom_attributes_removed",
+          "ldap_access_restricted"
+        ],
+        "environmental_factors": [
+          "legacy_active_directory_config",
+          "custom_schema_extensions",
+          "insufficient_ldap_hardening"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "SMB_Share_Enumeration",
+        "success_reason": "Valid credentials provided access to Data share containing TightVNC configuration",
+        "prerequisite_indicators": [
+          "smb_port_445_open",
+          "valid_domain_credentials",
+          "readable_shares_available"
+        ],
+        "recognition_patterns": [
+          "additional shares visible with authentication",
+          "application config files in shares",
+          "VNC registry files with encrypted passwords"
+        ],
+        "failure_modes": [
+          "no_readable_shares",
+          "empty_share_contents",
+          "config_files_removed"
+        ],
+        "environmental_factors": [
+          "shared_application_configs",
+          "legacy_file_sharing",
+          "insufficient_share_permissions"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "TightVNC_Password_Decryption",
+        "success_reason": "TightVNC stores passwords with weak DES encryption using known key",
+        "prerequisite_indicators": [
+          "tightvnc_config_files_found",
+          "encrypted_password_present",
+          "vnc_registry_exports_available"
+        ],
+        "recognition_patterns": [
+          "Registry.pol files",
+          "VNC password hex values",
+          "known VNC encryption patterns"
+        ],
+        "failure_modes": [
+          "no_vnc_configs_found",
+          "passwords_not_stored",
+          "different_vnc_software"
+        ],
+        "environmental_factors": [
+          "remote_desktop_solutions_deployed",
+          "legacy_vnc_installations",
+          "weak_encryption_standards"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "20-40 minutes"
+      },
+      {
+        "technique": "AD_Recycle_Bin_Enumeration",
+        "success_reason": "Service account had AD Recycle Bin permissions revealing deleted admin account",
+        "prerequisite_indicators": [
+          "ad_recycle_bin_enabled",
+          "account_with_recycle_permissions",
+          "deleted_objects_container_accessible"
+        ],
+        "recognition_patterns": [
+          "AD Recycle Bin group membership",
+          "deleted temporary admin accounts",
+          "password reuse patterns"
+        ],
+        "failure_modes": [
+          "recycle_bin_disabled",
+          "no_recycle_permissions",
+          "deleted_objects_purged"
+        ],
+        "environmental_factors": [
+          "ad_recycle_bin_feature_enabled",
+          "temporary_admin_account_practices",
+          "password_reuse_policies"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "cascadeLegacyPwd attribute in LDAP",
+        "discovery_method": "Anonymous LDAP enumeration",
+        "why_critical": "Provided initial domain credentials for r.thompson",
+        "how_to_recognize": [
+          "custom LDAP schema attributes",
+          "base64 encoded values in user objects",
+          "legacy password field names"
+        ],
+        "follow_up_actions": [
+          "decode_base64_password",
+          "test_smb_access",
+          "enumerate_accessible_shares"
+        ]
+      },
+      {
+        "discovery": "TightVNC Registry.pol file",
+        "discovery_method": "SMB share enumeration with valid credentials",
+        "why_critical": "Contained encrypted password for s.smith account",
+        "how_to_recognize": [
+          "Registry.pol files in shares",
+          "VNC configuration directories",
+          "hex encoded password values"
+        ],
+        "follow_up_actions": [
+          "decrypt_vnc_password",
+          "test_winrm_access",
+          "enumerate_user_permissions"
+        ]
+      },
+      {
+        "discovery": "AD Recycle Bin group membership",
+        "discovery_method": "User enumeration after gaining shell access",
+        "why_critical": "Allowed access to deleted TempAdmin account with reused password",
+        "how_to_recognize": [
+          "special AD group memberships",
+          "recycle bin permissions",
+          "deleted object access capabilities"
+        ],
+        "follow_up_actions": [
+          "enumerate_deleted_objects",
+          "extract_deleted_account_info",
+          "test_password_reuse"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "SMB_to_VNC_Config",
+        "why_possible": "Valid domain credentials provided access to application configuration files",
+        "recognition_signs": [
+          "readable_data_shares",
+          "application_config_directories",
+          "vnc_installation_artifacts"
+        ],
+        "exploitation_path": "LDAP creds → SMB access → VNC config → s.smith shell"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "AD_Recycle_Bin_to_Admin",
+        "why_possible": "Service account had AD Recycle Bin permissions and admin used password reuse",
+        "recognition_signs": [
+          "ad_recycle_bin_group_membership",
+          "deleted_admin_accounts",
+          "password_reuse_patterns"
+        ],
+        "exploitation_path": "s.smith shell → AD Recycle enumeration → TempAdmin password → Administrator access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,135,389,445,636,3268,3269,5985 open on Windows host",
+        "decision": "Identify as Domain Controller and prioritize LDAP enumeration",
+        "reasoning": "Port combination indicates AD DC with LDAP accessible anonymously",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if ldap fails"
+          },
+          {
+            "option": "rpc_enumeration",
+            "when": "if anonymous access available"
+          }
+        ],
+        "success_indicators": [
+          "domain_name_discovered",
+          "ldap_base_dn_found",
+          "anonymous_ldap_access"
+        ],
+        "next_decision": "enumerate_ldap_for_credentials"
+      },
+      {
+        "step": 2,
+        "situation": "Anonymous LDAP access confirmed on AD environment",
+        "decision": "Dump all LDAP data and search for credential attributes",
+        "reasoning": "LDAP often contains legacy passwords in custom attributes",
+        "confidence": 0.85,
+        "prerequisites": [
+          "ldap_anonymous_access",
+          "domain_context_known"
+        ],
+        "success_indicators": [
+          "custom_password_attributes_found",
+          "base64_encoded_data"
+        ],
+        "failure_fallbacks": [
+          "rpc_user_enumeration",
+          "smb_null_session"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found cascadeLegacyPwd attribute with base64 encoded password",
+        "decision": "Decode password and test against discovered username",
+        "reasoning": "Custom password attributes often contain valid credentials",
+        "confidence": 0.9,
+        "prerequisites": [
+          "encoded_password_found",
+          "associated_username_identified"
+        ],
+        "success_indicators": [
+          "successful_smb_authentication",
+          "additional_shares_visible"
+        ],
+        "failure_fallbacks": [
+          "try_other_users",
+          "password_variations"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Valid domain credentials obtained, SMB shares accessible",
+        "decision": "Enumerate all accessible shares recursively for sensitive files",
+        "reasoning": "Domain user access often reveals configuration files with credentials",
+        "confidence": 0.8,
+        "prerequisites": [
+          "valid_domain_credentials",
+          "smb_read_access"
+        ],
+        "success_indicators": [
+          "config_files_found",
+          "registry_files_discovered",
+          "log_files_accessible"
+        ],
+        "failure_fallbacks": [
+          "winrm_access_attempt",
+          "kerberoasting"
+        ]
+      },
+      {
+        "step": 5,
+        "situation": "Found VNC registry file in user temp directory",
+        "decision": "Extract and decrypt VNC password from registry",
+        "reasoning": "VNC passwords in registry are encrypted with known static key",
+        "confidence": 0.95,
+        "prerequisites": [
+          "vnc_registry_file_found",
+          "password_hex_value_present"
+        ],
+        "success_indicators": [
+          "vnc_password_decrypted",
+          "new_username_identified"
+        ],
+        "failure_fallbacks": [
+          "search_other_config_files",
+          "enumerate_more_shares"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_ldap_enumeration_succeeds": {
+        "action": "search_for_password_attributes",
+        "tools": [
+          "ldapsearch",
+          "grep",
+          "base64"
+        ],
+        "next_phase": "credential_validation"
+      },
+      "if_credentials_found_in_ldap": {
+        "action": "test_smb_access_and_enumerate_shares",
+        "tools": [
+          "crackmapexec",
+          "smbclient",
+          "smbmap"
+        ],
+        "next_phase": "file_enumeration"
+      },
+      "if_smb_access_gained": {
+        "action": "recursive_file_download_and_analysis",
+        "tools": [
+          "smbclient",
+          "find",
+          "grep"
+        ],
+        "next_phase": "credential_extraction_from_files"
+      },
+      "if_vnc_config_found": {
+        "action": "decrypt_vnc_password",
+        "tools": [
+          "vncpwd",
+          "custom_decryption"
+        ],
+        "next_phase": "lateral_movement_attempt"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_ldap_for_custom_password_attributes",
+        "reasoning": "legacy_environments_often_store_passwords_in_ldap",
+        "applicability": "active_directory_with_anonymous_ldap"
+      },
+      {
+        "rule": "prioritize_temp_and_config_directories_in_smb_shares",
+        "reasoning": "configuration_files_commonly_contain_credentials",
+        "applicability": "domain_user_smb_access"
+      },
+      {
+        "rule": "always_decrypt_vnc_passwords_when_found",
+        "reasoning": "vnc_uses_static_encryption_key_easily_broken",
+        "applicability": "vnc_registry_or_config_files_discovered"
+      },
+      {
+        "rule": "enumerate_all_accessible_shares_recursively",
+        "reasoning": "credentials_often_scattered_across_multiple_locations",
+        "applicability": "any_smb_read_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "LDAP Anonymous Enumeration",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "ldap"
+        ],
+        "required_ports": [
+          389,
+          636,
+          3268,
+          3269
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "anonymous_ldap_bind_enabled",
+          "ldap_service_accessible"
+        ],
+        "success_indicators": [
+          "naming_contexts_returned",
+          "user_objects_enumerated",
+          "custom_attributes_present"
+        ],
+        "incompatible_with": [
+          "ldap_anonymous_bind_disabled",
+          "network_isolation",
+          "ldap_service_down"
+        ],
+        "confidence_boosters": [
+          "legacy_ad_configuration",
+          "custom_schema_attributes",
+          "password_attributes_in_cleartext"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "RPC Anonymous Enumeration",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "msrpc"
+        ],
+        "required_ports": [
+          135,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "rpc_anonymous_access_enabled",
+          "smb_service_running",
+          "domain_controller_accessible"
+        ],
+        "success_indicators": [
+          "enumdomusers_successful",
+          "user_list_returned",
+          "rid_enumeration_works"
+        ],
+        "incompatible_with": [
+          "rpc_anonymous_access_disabled",
+          "restrictanonymous_enabled",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "legacy_windows_version",
+          "default_domain_configuration",
+          "service_accounts_present"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "3-8 minutes"
+      },
+      {
+        "technique": "SMB Credential Validation",
+        "mitre_id": "T1021.002",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_running",
+          "valid_credentials_available",
+          "smb_shares_configured"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "shares_enumerated",
+          "file_access_granted"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "credential_guard_enabled",
+          "share_permissions_restrictive"
+        ],
+        "confidence_boosters": [
+          "domain_joined_machine",
+          "file_shares_present",
+          "legacy_smb_versions"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Base64 Password Decoding",
+        "mitre_id": "T1552.001",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [],
+        "environmental_prerequisites": [
+          "encoded_passwords_in_ldap",
+          "custom_password_attributes",
+          "legacy_password_storage"
+        ],
+        "success_indicators": [
+          "base64_string_identified",
+          "decoded_password_valid",
+          "authentication_successful"
+        ],
+        "incompatible_with": [
+          "proper_password_encryption",
+          "modern_credential_storage",
+          "password_policies_enforced"
+        ],
+        "confidence_boosters": [
+          "custom_ldap_attributes",
+          "legacy_applications",
+          "migration_artifacts"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "1-2 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          636,
+          3268,
+          3269
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Microsoft Windows Kerberos"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "legacy_windows": {
+        "port_indicators": [
+          135,
+          139,
+          445
+        ],
+        "service_indicators": [
+          "netbios-ssn",
+          "microsoft-ds",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Windows Server 2008",
+          "Windows 6.1 Build 7601"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          636,
+          3268,
+          3269
+        ],
+        "service_indicators": [
+          "domain",
+          "kerberos-sec",
+          "ldap",
+          "globalcatLDAP"
+        ],
+        "banner_indicators": [
+          "cascade.local",
+          "Default-First-Site-Name"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ldap_anonymous_enumeration",
+          "when": "active_directory_detected",
+          "reason": "often_reveals_users_and_sensitive_attributes"
+        },
+        {
+          "attack": "rpc_anonymous_enumeration",
+          "when": "legacy_windows_detected",
+          "reason": "reliable_user_enumeration_on_older_systems"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "may_reveal_shares_but_often_restricted"
+        },
+        {
+          "attack": "credential_validation",
+          "when": "credentials_discovered",
+          "reason": "validates_access_and_reveals_additional_resources"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "LDAP Anonymous Enumeration",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ldapsearch",
+            "command_template": "ldapsearch -h {ip} -x -b \"DC={domain},DC={tld}\" > {output_file}",
+            "actual_command": "ldapsearch -h 10.10.10.182 -x -b \"DC=cascade,DC=local\" > ldap-anonymous",
+            "output_pattern": "cascadeLegacyPwd: {base64_encoded_password}",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "base64",
+            "command_template": "echo {encoded_string} | base64 -d",
+            "actual_command": "echo clk0bjVldmE= | base64 -d",
+            "success_factors": [
+              "custom_ldap_attributes",
+              "legacy_password_storage"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "ldap_anonymous_access_enabled",
+          "custom_attributes_in_user_objects"
+        ],
+        "success_indicators": [
+          "user_objects_enumerated",
+          "custom_password_attributes_found",
+          "credentials_decoded_successfully"
+        ],
+        "common_failures": [
+          "ldap_anonymous_access_disabled",
+          "no_custom_attributes_present",
+          "encoding_not_base64"
+        ],
+        "follow_up_techniques": [
+          "smb_enumeration_with_creds",
+          "credential_validation",
+          "share_enumeration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SMB Share Enumeration with Credentials",
+        "mitre_id": "T1021.002",
+        "category": "lateral_movement",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec smb -u {username} -p {password} --shares {ip}",
+            "actual_command": "crackmapexec smb -u r.thompson -p rY4n5eva --shares 10.10.10.182",
+            "output_pattern": "Share           Permissions     Remark",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "smbclient",
+            "command_template": "smbclient --user {username} //{ip}/{share} {password}",
+            "actual_command": "smbclient --user r.thompson //10.10.10.182/data rY4n5eva",
+            "success_factors": [
+              "valid_credentials",
+              "accessible_shares"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "valid_domain_credentials",
+          "smb_service_accessible",
+          "shares_with_read_permissions"
+        ],
+        "success_indicators": [
+          "shares_enumerated_successfully",
+          "files_downloaded",
+          "sensitive_data_discovered"
+        ],
+        "common_failures": [
+          "invalid_credentials",
+          "no_accessible_shares",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "file_analysis",
+          "credential_extraction",
+          "registry_analysis"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "TightVNC Password Decryption",
+        "mitre_id": "T1552.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "vncpwd",
+            "command_template": "/opt/vncpwd/vncpwd <(echo '{hex_password}' | xxd -r -p)",
+            "actual_command": "/opt/vncpwd/vncpwd <(echo '6bcf2a4b6e5aca0f' | xxd -r -p)",
+            "output_pattern": "Password: {plaintext_password}",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "metasploit_irb",
+            "command_template": "Rex::Proto::RFB::Cipher.decrypt [\"{hex_password}\"].pack('H*'), fixedkey",
+            "actual_command": "Rex::Proto::RFB::Cipher.decrypt [\"6bcf2a4b6e5aca0f\"].pack('H*'), fixedkey",
+            "success_factors": [
+              "tightvnc_registry_file",
+              "static_encryption_key"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "tightvnc_registry_file_access",
+          "hex_encoded_password_in_registry"
+        ],
+        "success_indicators": [
+          "password_decrypted_successfully",
+          "plaintext_credentials_obtained"
+        ],
+        "common_failures": [
+          "incorrect_hex_format",
+          "missing_vncpwd_tool",
+          "corrupted_registry_data"
+        ],
+        "follow_up_techniques": [
+          "winrm_authentication",
+          "credential_validation",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "WinRM Authentication",
+        "mitre_id": "T1021.006",
+        "category": "lateral_movement",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec winrm {ip} -u {username} -p {password}",
+            "actual_command": "crackmapexec winrm 10.10.10.182 -u s.smith -p sT333ve2",
+            "output_pattern": "(Pwn3d!)",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "winrm_service_enabled",
+          "valid_user_credentials",
+          "user_in_remote_management_group"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "pwn3d_status_displayed",
+          "remote_shell_access_available"
+        ],
+        "common_failures": [
+          "user_not_in_winrm_group",
+          "winrm_service_disabled",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "evil_winrm_shell",
+          "local_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ldapsearch",
+        "use_case": "anonymous_domain_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "ldapdomaindump",
+          "bloodhound_ingestor"
+        ],
+        "best_practices": [
+          "always_check_for_anonymous_access",
+          "look_for_custom_attributes",
+          "enumerate_all_user_objects"
+        ]
+      },
+      {
+        "tool": "crackmapexec",
+        "use_case": "credential_validation_and_service_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments",
+          "credential_validation"
+        ],
+        "alternatives": [
+          "smbmap",
+          "enum4linux"
+        ],
+        "best_practices": [
+          "validate_credentials_across_multiple_services",
+          "use_for_share_enumeration",
+          "check_winrm_access_immediately"
+        ]
+      },
+      {
+        "tool": "vncpwd",
+        "use_case": "tightvnc_password_decryption",
+        "effectiveness_rating": 5,
+        "reliability": 1.0,
+        "learning_curve": "low",
+        "essential_for": [
+          "vnc_password_recovery"
+        ],
+        "alternatives": [
+          "metasploit_irb",
+          "custom_python_scripts"
+        ],
+        "best_practices": [
+          "always_check_registry_files_for_vnc_passwords",
+          "use_xxd_for_hex_conversion",
+          "validate_decrypted_passwords_immediately"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ldap_to_smb_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ldapsearch -h 10.10.10.182 -x -s base namingcontexts",
+            "purpose": "Get LDAP naming context",
+            "expected_output": "namingContexts: DC=cascade,DC=local"
+          },
+          {
+            "step": 2,
+            "command": "ldapsearch -h 10.10.10.182 -x -b \"DC=cascade,DC=local\" > ldap-anonymous",
+            "purpose": "Dump all LDAP objects",
+            "expected_output": "User objects with custom attributes"
+          },
+          {
+            "step": 3,
+            "command": "echo clk0bjVldmE= | base64 -d",
+            "purpose": "Decode base64 password",
+            "expected_output": "rY4n5eva"
+          },
+          {
+            "step": 4,
+            "command": "crackmapexec smb -u r.thompson -p rY4n5eva --shares 10.10.10.182",
+            "purpose": "Validate credentials and enumerate shares",
+            "expected_output": "Share enumeration with READ permissions"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-30 minutes"
+      },
+      {
+        "sequence_name": "vnc_password_to_winrm_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbclient --user r.thompson //10.10.10.182/data rY4n5eva",
+            "purpose": "Access SMB share with credentials",
+            "expected_output": "SMB connection established"
+          },
+          {
+            "step": 2,
+            "command": "/opt/vncpwd/vncpwd <(echo '6bcf2a4b6e5aca0f' | xxd -r -p)",
+            "purpose": "Decrypt TightVNC password",
+            "expected_output": "Password: sT333ve2"
+          },
+          {
+            "step": 3,
+            "command": "crackmapexec winrm 10.10.10.182 -u s.smith -p sT333ve2",
+            "purpose": "Validate WinRM access",
+            "expected_output": "(Pwn3d!) status"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Cascade",
+      "difficulty": "Medium",
+      "os": "Windows Server 2008 R2 SP1",
+      "platform": "HackTheBox",
+      "release_date": "2020-03-28",
+      "author": "VbScrub",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "ldap_enumeration",
+        "credential_recovery",
+        "smb_access"
+      ],
+      "key_vulnerabilities": [
+        "exposed_credentials_in_ldap",
+        "weak_vnc_encryption",
+        "ad_recycle_bin_abuse"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ldap_credential_hunting",
+        "vnc_password_decryption",
+        "ad_recycle_bin_enumeration",
+        "sqlite_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "active_directory_basics",
+        "ldap_enumeration",
+        "smb_protocols",
+        "windows_enumeration"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "credential_recovery",
+        "windows_enumeration",
+        "database_analysis"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "secure_ldap_attributes",
+        "proper_credential_storage",
+        "ad_recycle_bin_permissions",
+        "service_account_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Active",
+        "Resolute"
+      ],
+      "similarity_reasons": [
+        "ad_environment",
+        "credential_hunting",
+        "windows_enumeration"
+      ],
+      "unique_aspects": [
+        "vnc_password_decryption",
+        "ad_recycle_bin_abuse",
+        "sqlite_database_analysis",
+        "multi_stage_credential_recovery"
+      ],
+      "difficulty_factors": [
+        "complex_credential_chain",
+        "custom_decryption_analysis",
+        "deleted_object_recovery"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-03T23:22:51.230794",
+    "original_file": "0xdf_writeups/Htb Cascade.md",
+    "content_length": 35918,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

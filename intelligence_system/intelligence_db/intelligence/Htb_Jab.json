@@ -1,0 +1,1073 @@
+{
+  "writeup_id": "Htb_Jab",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_xmpp_asreproast",
+    "primary_services": [
+      "kerberos",
+      "ldap",
+      "smb",
+      "dns",
+      "xmpp",
+      "jabber"
+    ],
+    "port_signature": "53+88+389+445+5222+5223+5269+7070+7443",
+    "service_combination": "dns+kerberos+ldap+smb+xmpp+openfire",
+    "os_family": "windows_server",
+    "environment_type": "active_directory_with_chat",
+    "entry_vector": "xmpp_enumeration_to_asreproast",
+    "privilege_path": "chat_user_to_dcom_to_system",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "openfire_jabber_server",
+      "xmpp_user_enumeration",
+      "chat_credential_disclosure",
+      "dcom_lateral_movement",
+      "openfire_plugin_upload"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "ignite_realtime_openfire",
+      "jabber_xmpp_ports_5222_5223_5269",
+      "openfire_admin_panel_7070_7443",
+      "large_user_base_enumeration"
+    ],
+    "similar_scenarios": [
+      "forest_htb_hard",
+      "sauna_htb_easy"
+    ],
+    "unique_aspects": [
+      "xmpp_chat_server_integration",
+      "pidgin_client_enumeration",
+      "private_chat_intelligence_gathering",
+      "openfire_malicious_plugin_upload"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "ASREPRoast",
+        "success_reason": "Service account svc-alfresco had pre-authentication disabled",
+        "prerequisite_indicators": [
+          "kerberos_service_available",
+          "domain_controller_accessible",
+          "accounts_without_preauth_exist"
+        ],
+        "recognition_patterns": [
+          "service account naming (svc-*)",
+          "GetNPUsers returns hashes",
+          "no preauth required error"
+        ],
+        "failure_modes": [
+          "all_accounts_require_preauth",
+          "kerberos_not_accessible",
+          "no_service_accounts"
+        ],
+        "environmental_factors": [
+          "default_active_directory_config",
+          "legacy_service_configurations",
+          "insufficient_hardening"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "XMPP_User_Enumeration",
+        "success_reason": "Openfire Jabber server allowed anonymous user enumeration",
+        "prerequisite_indicators": [
+          "xmpp_service_running",
+          "openfire_server_detected",
+          "anonymous_access_allowed"
+        ],
+        "recognition_patterns": [
+          "ports 5222/5223 open (XMPP)",
+          "Ignite Realtime Openfire banner",
+          "successful Pidgin connection"
+        ],
+        "failure_modes": [
+          "anonymous_access_disabled",
+          "user_enumeration_blocked",
+          "authentication_required"
+        ],
+        "environmental_factors": [
+          "default_openfire_configuration",
+          "internal_chat_server_deployment",
+          "lack_of_access_controls"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "DCOM_Lateral_Movement",
+        "success_reason": "Account had DCOM execution permissions on target system",
+        "prerequisite_indicators": [
+          "valid_domain_credentials",
+          "dcom_service_accessible",
+          "execution_permissions_granted"
+        ],
+        "recognition_patterns": [
+          "port 135 RPC accessible",
+          "successful DCOM enumeration",
+          "execution via MMC20.Application"
+        ],
+        "failure_modes": [
+          "dcom_disabled",
+          "insufficient_permissions",
+          "endpoint_protection_blocking"
+        ],
+        "environmental_factors": [
+          "windows_default_dcom_config",
+          "privileged_user_account",
+          "lateral_movement_paths_available"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Openfire_Plugin_Upload",
+        "success_reason": "Admin panel accessible with system-level plugin execution",
+        "prerequisite_indicators": [
+          "openfire_admin_access",
+          "plugin_upload_functionality",
+          "system_execution_context"
+        ],
+        "recognition_patterns": [
+          "port 7070/7443 admin interface",
+          "plugin management available",
+          "malicious plugin accepted"
+        ],
+        "failure_modes": [
+          "admin_panel_protected",
+          "plugin_restrictions_enabled",
+          "code_signing_required"
+        ],
+        "environmental_factors": [
+          "openfire_running_as_system",
+          "default_security_settings",
+          "unrestricted_plugin_installation"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "2000+ domain users via XMPP enumeration",
+        "discovery_method": "Pidgin client user enumeration",
+        "why_critical": "Massive attack surface for AS-REP roasting and credential attacks",
+        "how_to_recognize": [
+          "large user base in chat system",
+          "service accounts mixed with regular users",
+          "naming patterns indicating roles"
+        ],
+        "follow_up_actions": [
+          "extract_all_usernames",
+          "run_asreproast_against_list",
+          "identify_service_accounts"
+        ]
+      },
+      {
+        "discovery": "AS-REP roastable accounts with weak passwords",
+        "discovery_method": "GetNPUsers.py against enumerated users",
+        "why_critical": "Direct path to valid domain credentials",
+        "how_to_recognize": [
+          "accounts without kerberos preauth",
+          "crackable hash patterns",
+          "service account naming conventions"
+        ],
+        "follow_up_actions": [
+          "crack_hashes_with_wordlists",
+          "test_winrm_access",
+          "enumerate_permissions"
+        ]
+      },
+      {
+        "discovery": "Pentest discussion in private chat",
+        "discovery_method": "XMPP chat monitoring as compromised user",
+        "why_critical": "Revealed additional credentials and insider information",
+        "how_to_recognize": [
+          "technical discussions in chat",
+          "credential sharing patterns",
+          "administrative conversations"
+        ],
+        "follow_up_actions": [
+          "monitor_all_accessible_chats",
+          "extract_shared_credentials",
+          "identify_privileged_users"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "XMPP_to_Additional_Creds",
+        "why_possible": "Private chat contained shared administrative credentials",
+        "recognition_signs": [
+          "access_to_private_channels",
+          "administrative_discussions",
+          "credential_sharing_behavior"
+        ],
+        "exploitation_path": "XMPP Access → Chat Monitoring → Credential Extraction → DCOM Access"
+      },
+      {
+        "privilege_level": "dcom_user",
+        "escalation_method": "DCOM_to_System_Shell",
+        "why_possible": "DCOM permissions allowed remote code execution",
+        "recognition_signs": [
+          "dcom_enumeration_successful",
+          "mmc20_application_available",
+          "remote_execution_possible"
+        ],
+        "exploitation_path": "DCOM Access → Remote Shell → Openfire Admin → System Plugin"
+      },
+      {
+        "privilege_level": "local_admin",
+        "escalation_method": "Openfire_Plugin_to_System",
+        "why_possible": "Openfire service running as SYSTEM with plugin upload capability",
+        "recognition_signs": [
+          "openfire_admin_panel_accessible",
+          "plugin_upload_available",
+          "service_running_as_system"
+        ],
+        "exploitation_path": "Admin Panel → Malicious Plugin → SYSTEM Execution"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445 open on Windows host plus XMPP ports 5222,5223,5269",
+        "decision": "Identify as Domain Controller with XMPP service and prioritize XMPP enumeration",
+        "reasoning": "Port combination indicates AD DC with Jabber/XMPP service - unique attack surface",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "standard_ad_enumeration",
+            "when": "if xmpp enumeration fails"
+          },
+          {
+            "option": "smb_enumeration",
+            "when": "if anonymous access available"
+          }
+        ],
+        "success_indicators": [
+          "xmpp_service_responds",
+          "domain_name_discovered",
+          "jabber_users_enumerable"
+        ],
+        "next_decision": "enumerate_xmpp_users"
+      },
+      {
+        "step": 2,
+        "situation": "XMPP service accessible with user enumeration possible",
+        "decision": "Use Pidgin or similar client to enumerate all XMPP users",
+        "reasoning": "XMPP often allows user enumeration and provides domain user list",
+        "confidence": 0.9,
+        "prerequisites": [
+          "xmpp_service_accessible"
+        ],
+        "success_indicators": [
+          "user_list_obtained",
+          "large_user_count_discovered"
+        ],
+        "failure_fallbacks": [
+          "ldap_enumeration",
+          "smb_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Large list of domain users obtained from XMPP enumeration",
+        "decision": "Perform AS-REP-Roasting against all enumerated users",
+        "reasoning": "With extensive user list, AS-REP-Roasting has high probability of success",
+        "confidence": 0.85,
+        "prerequisites": [
+          "domain_users_list",
+          "kerberos_accessible"
+        ],
+        "success_indicators": [
+          "asrep_hashes_obtained",
+          "crackable_hashes_found"
+        ],
+        "failure_fallbacks": [
+          "password_spraying",
+          "kerberoasting"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "AS-REP-Roast successful with cracked credentials",
+        "decision": "Login to XMPP service with cracked credentials to access chat history",
+        "reasoning": "XMPP chat logs may contain sensitive information or additional credentials",
+        "confidence": 0.8,
+        "prerequisites": [
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "chat_access_granted",
+          "private_messages_accessible"
+        ],
+        "failure_fallbacks": [
+          "bloodhound_enumeration",
+          "winrm_access"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_xmpp_enumeration_succeeds": {
+        "action": "collect_all_users_and_asrep_roast",
+        "tools": [
+          "pidgin",
+          "impacket-GetNPUsers"
+        ],
+        "next_phase": "credential_cracking"
+      },
+      "if_asrep_roast_succeeds": {
+        "action": "crack_hashes_and_access_xmpp",
+        "tools": [
+          "hashcat",
+          "pidgin"
+        ],
+        "next_phase": "chat_history_analysis"
+      },
+      "if_chat_access_obtained": {
+        "action": "search_for_credentials_in_messages",
+        "purpose": "find_additional_accounts_or_escalation_paths",
+        "next_phase": "lateral_movement"
+      },
+      "if_additional_credentials_found": {
+        "action": "test_dcom_and_winrm_access",
+        "tools": [
+          "evil-winrm",
+          "impacket-dcomexec"
+        ],
+        "next_phase": "privilege_escalation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_xmpp_enumeration_when_present",
+        "reasoning": "xmpp_services_often_allow_extensive_user_enumeration",
+        "applicability": "xmpp_ports_detected"
+      },
+      {
+        "rule": "always_check_chat_history_with_valid_credentials",
+        "reasoning": "chat_logs_frequently_contain_sensitive_information",
+        "applicability": "xmpp_access_obtained"
+      },
+      {
+        "rule": "asrep_roast_large_user_lists_immediately",
+        "reasoning": "high_success_rate_with_extensive_user_enumeration",
+        "applicability": "large_domain_user_list_obtained"
+      },
+      {
+        "rule": "test_dcom_access_after_obtaining_domain_credentials",
+        "reasoning": "common_privilege_escalation_vector_in_ad_environments",
+        "applicability": "valid_domain_user_credentials"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos",
+          "ldap"
+        ],
+        "required_ports": [
+          88,
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist",
+          "domain_controller_accessible"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present",
+          "user_enumeration_successful"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "large_user_base",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "XMPP_User_Enumeration",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "xmpp",
+          "jabber"
+        ],
+        "required_ports": [
+          5222,
+          5223,
+          5262,
+          5263,
+          5269,
+          5270,
+          5275,
+          5276
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "xmpp_server_accessible",
+          "openfire_server_detected",
+          "user_registration_enabled"
+        ],
+        "success_indicators": [
+          "user_list_enumerated",
+          "chat_client_connection_successful",
+          "roster_information_accessible"
+        ],
+        "incompatible_with": [
+          "anonymous_access_disabled",
+          "strict_authentication_required",
+          "user_enumeration_blocked"
+        ],
+        "confidence_boosters": [
+          "openfire_default_configuration",
+          "large_user_directory",
+          "corporate_environment"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "DCOM_Lateral_Movement",
+        "mitre_id": "T1021.003",
+        "required_services": [
+          "msrpc",
+          "dcom"
+        ],
+        "required_ports": [
+          135,
+          593
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "valid_domain_credentials",
+          "dcom_access_permissions",
+          "rpc_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "dcom_object_instantiation_successful",
+          "remote_process_execution",
+          "administrative_access_gained"
+        ],
+        "incompatible_with": [
+          "dcom_disabled",
+          "insufficient_privileges",
+          "endpoint_filtering_enabled"
+        ],
+        "confidence_boosters": [
+          "domain_admin_credentials",
+          "service_account_privileges",
+          "legacy_windows_versions"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Openfire_Plugin_Upload",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          7070,
+          7443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "openfire_admin_panel_accessible",
+          "administrative_credentials",
+          "plugin_upload_functionality_enabled"
+        ],
+        "success_indicators": [
+          "admin_panel_login_successful",
+          "malicious_plugin_uploaded",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "admin_panel_disabled",
+          "plugin_upload_restricted",
+          "insufficient_admin_privileges"
+        ],
+        "confidence_boosters": [
+          "default_admin_credentials",
+          "unrestricted_plugin_installation",
+          "system_level_execution"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          3269,
+          636,
+          464,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "adws"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Microsoft Windows Kerberos"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "xmpp_server": {
+        "port_indicators": [
+          5222,
+          5223,
+          5262,
+          5263,
+          5269,
+          5270,
+          5275,
+          5276
+        ],
+        "service_indicators": [
+          "jabber",
+          "xmpp"
+        ],
+        "banner_indicators": [
+          "Openfire",
+          "Ignite Realtime",
+          "Wildfire XMPP"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "openfire_admin": {
+        "port_indicators": [
+          7070,
+          7443,
+          9090,
+          9091
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Openfire",
+          "Ignite Realtime"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "windows_domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445,
+          464,
+          593,
+          636,
+          3268,
+          3269,
+          5985,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "msrpc",
+          "winrm"
+        ],
+        "banner_indicators": [
+          "Microsoft Windows",
+          "Active Directory"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "xmpp_user_enumeration",
+          "when": "xmpp_server_detected",
+          "reason": "often_reveals_large_user_lists_for_further_attacks"
+        },
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected_and_users_enumerated",
+          "reason": "high_success_rate_with_user_list_no_creds_needed"
+        },
+        {
+          "attack": "openfire_admin_access",
+          "when": "openfire_admin_panel_detected_and_creds_available",
+          "reason": "direct_system_level_access_via_plugin_upload"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "dcom_lateral_movement",
+          "when": "valid_domain_credentials_obtained",
+          "reason": "reliable_lateral_movement_with_proper_permissions"
+        },
+        {
+          "attack": "smb_enumeration",
+          "when": "smb_service_detected",
+          "reason": "may_reveal_additional_attack_vectors"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ldap_enumeration",
+          "when": "ldap_accessible_without_creds",
+          "reason": "information_gathering_but_limited_direct_access"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "GetNPUsers.py",
+            "command_template": "GetNPUsers.py {domain}/ -dc-ip {ip} -no-pass",
+            "actual_command": "GetNPUsers.py jab.htb/ -dc-ip 10.10.11.4 -no-pass",
+            "output_pattern": "$krb5asrep$23${username}@{domain}:",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 18200 {hash_file} {wordlist}",
+            "actual_command": "hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt",
+            "success_factors": [
+              "weak_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "kerberos_service_accessible",
+          "domain_name_known",
+          "accounts_without_preauth"
+        ],
+        "success_indicators": [
+          "hash_extracted_successfully",
+          "hash_cracked_within_reasonable_time",
+          "credentials_provide_system_access"
+        ],
+        "common_failures": [
+          "no_vulnerable_accounts",
+          "strong_passwords_resist_cracking",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "xmpp_authentication",
+          "winrm_authentication",
+          "credential_spraying"
+        ],
+        "time_investment": "5-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "XMPP User Enumeration",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "Pidgin",
+            "command_template": "pidgin --config={config_dir}",
+            "actual_command": "pidgin",
+            "output_pattern": "user_list_enumeration",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "xmpp_service_accessible",
+          "anonymous_access_allowed"
+        ],
+        "success_indicators": [
+          "user_list_retrieved",
+          "thousands_of_users_discovered",
+          "valid_domain_accounts_identified"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "service_unavailable",
+          "rate_limiting_applied"
+        ],
+        "follow_up_techniques": [
+          "asreproast",
+          "password_spraying",
+          "kerberoasting"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "DCOM Lateral Movement",
+        "mitre_id": "T1021.003",
+        "category": "lateral_movement",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "impacket-dcomexec",
+            "command_template": "dcomexec.py {domain}/{username}:{password}@{target}",
+            "actual_command": "dcomexec.py jab.htb/svc-alfresco:s3rvice@10.10.11.4",
+            "output_pattern": "C:\\Windows\\system32>",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "valid_domain_credentials",
+          "dcom_permissions",
+          "target_system_accessible"
+        ],
+        "success_indicators": [
+          "remote_shell_obtained",
+          "command_execution_successful",
+          "system_level_access"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "dcom_disabled",
+          "firewall_blocking"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "persistence_mechanisms",
+          "credential_dumping"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Openfire Plugin Upload RCE",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "malicious_openfire_plugin",
+            "command_template": "upload malicious .jar plugin via admin panel",
+            "actual_command": "browse to https://10.10.11.4:7443/plugins.jsp",
+            "output_pattern": "plugin_installed_successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "openfire_admin_access",
+          "plugin_upload_functionality",
+          "malicious_plugin_crafted"
+        ],
+        "success_indicators": [
+          "plugin_uploaded_successfully",
+          "code_execution_as_system",
+          "persistent_backdoor_installed"
+        ],
+        "common_failures": [
+          "admin_credentials_unavailable",
+          "plugin_validation_blocking",
+          "service_restrictions"
+        ],
+        "follow_up_techniques": [
+          "system_level_persistence",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Pidgin",
+        "use_case": "xmpp_user_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "xmpp_environments"
+        ],
+        "alternatives": [
+          "manual_xmpp_clients",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "configure_for_anonymous_access",
+          "export_user_lists_systematically",
+          "validate_discovered_accounts"
+        ]
+      },
+      {
+        "tool": "GetNPUsers.py",
+        "use_case": "asreproast_attack",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "rubeus",
+          "powerview"
+        ],
+        "best_practices": [
+          "use_comprehensive_user_lists",
+          "target_service_accounts_first",
+          "combine_with_password_spraying"
+        ]
+      },
+      {
+        "tool": "impacket-dcomexec",
+        "use_case": "lateral_movement_via_dcom",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "windows_domain_environments"
+        ],
+        "alternatives": [
+          "psexec",
+          "wmiexec",
+          "smbexec"
+        ],
+        "best_practices": [
+          "verify_dcom_permissions_first",
+          "use_with_valid_domain_credentials",
+          "combine_with_other_lateral_movement_techniques"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "xmpp_to_domain_compromise",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p 5222,5223 10.10.11.4",
+            "purpose": "Identify XMPP services",
+            "expected_output": "Open XMPP ports discovered"
+          },
+          {
+            "step": 2,
+            "command": "pidgin (configure for jab.htb domain)",
+            "purpose": "Enumerate XMPP users",
+            "expected_output": "List of 2000+ domain users"
+          },
+          {
+            "step": 3,
+            "command": "GetNPUsers.py jab.htb/ -dc-ip 10.10.11.4 -no-pass -usersfile users.txt",
+            "purpose": "AS-REP roast discovered users",
+            "expected_output": "Hashes for accounts without preauth"
+          },
+          {
+            "step": 4,
+            "command": "hashcat -m 18200 hashes.txt rockyou.txt",
+            "purpose": "Crack extracted hashes",
+            "expected_output": "Cracked password for service account"
+          },
+          {
+            "step": 5,
+            "command": "pidgin login with cracked credentials",
+            "purpose": "Access private chat channels",
+            "expected_output": "Additional credentials in chat history"
+          },
+          {
+            "step": 6,
+            "command": "dcomexec.py jab.htb/username:password@10.10.11.4",
+            "purpose": "Lateral movement via DCOM",
+            "expected_output": "Remote shell on target system"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "45-90 minutes"
+      },
+      {
+        "sequence_name": "openfire_admin_to_system",
+        "steps": [
+          {
+            "step": 1,
+            "command": "browse to https://10.10.11.4:7443/",
+            "purpose": "Access Openfire admin panel",
+            "expected_output": "Admin login interface"
+          },
+          {
+            "step": 2,
+            "command": "authenticate with discovered credentials",
+            "purpose": "Gain admin panel access",
+            "expected_output": "Administrative dashboard"
+          },
+          {
+            "step": 3,
+            "command": "navigate to plugins section",
+            "purpose": "Access plugin upload functionality",
+            "expected_output": "Plugin management interface"
+          },
+          {
+            "step": 4,
+            "command": "upload malicious .jar plugin",
+            "purpose": "Deploy backdoor via plugin",
+            "expected_output": "Plugin installed successfully"
+          },
+          {
+            "step": 5,
+            "command": "trigger plugin execution",
+            "purpose": "Execute payload as SYSTEM",
+            "expected_output": "SYSTEM level shell"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Jab",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2024-02-24",
+      "author": "mrb3n",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "xmpp",
+        "kerberos",
+        "dcom",
+        "openfire"
+      ],
+      "key_vulnerabilities": [
+        "asrep_roastable_accounts",
+        "dcom_access",
+        "openfire_plugin_upload"
+      ],
+      "environment_type": "corporate_domain_controller_with_chat_services",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "xmpp_enumeration",
+        "asrep_roasting",
+        "dcom_exploitation",
+        "openfire_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "active_directory_basics",
+        "kerberos_attacks",
+        "chat_protocols",
+        "windows_services"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "chat_services",
+        "kerberos_attacks",
+        "privilege_escalation",
+        "service_exploitation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "lateral_movement",
+        "privilege_escalation",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "secure_chat_configurations",
+        "disable_preauth_monitoring",
+        "dcom_hardening",
+        "plugin_upload_restrictions"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Sauna",
+        "Active"
+      ],
+      "similarity_reasons": [
+        "asrep_roasting",
+        "ad_environment",
+        "kerberos_attacks"
+      ],
+      "unique_aspects": [
+        "xmpp_jabber_enumeration",
+        "openfire_exploitation",
+        "chat_service_reconnaissance"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "service_specific_knowledge",
+        "large_user_enumeration"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T22:16:37.521041",
+    "original_file": "0xdf_writeups/Htb Jab.md",
+    "content_length": 58819,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

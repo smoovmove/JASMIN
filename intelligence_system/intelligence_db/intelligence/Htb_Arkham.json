@@ -1,0 +1,913 @@
+{
+  "writeup_id": "Htb_Arkham",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_jsf_deserialization_uac_bypass",
+    "primary_services": [
+      "http",
+      "smb",
+      "msrpc",
+      "tomcat"
+    ],
+    "port_signature": "80+135+139+445+8080",
+    "service_combination": "iis+tomcat+smb+rpc",
+    "os_family": "windows_server",
+    "environment_type": "web_application_server",
+    "entry_vector": "jsf_viewstate_deserialization",
+    "privilege_path": "web_shell_to_admin_via_uac_bypass",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "encrypted_luks_disk_image",
+      "jsf_viewstate_parameter",
+      "tomcat_8_5_37",
+      "uac_bypass_required"
+    ],
+    "environmental_clues": [
+      "faces_extension_urls",
+      "javax_faces_viewstate",
+      "batshare_smb_share",
+      "iis_10_default_page"
+    ],
+    "similar_scenarios": [
+      "jerry_htb_easy",
+      "tabby_htb_easy"
+    ],
+    "unique_aspects": [
+      "luks_disk_cracking",
+      "jsf_deserialization_attack",
+      "email_file_password_discovery",
+      "administrator_group_membership"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SMB_null_session_enumeration",
+        "success_reason": "SMB shares accessible with null authentication",
+        "prerequisite_indicators": [
+          "smb_port_445_open",
+          "null_session_allowed",
+          "guest_access_enabled"
+        ],
+        "recognition_patterns": [
+          "smbclient -N -L succeeds",
+          "shares listed without credentials",
+          "READ ONLY permissions granted"
+        ],
+        "failure_modes": [
+          "null_sessions_disabled",
+          "guest_account_disabled",
+          "smb_signing_required"
+        ],
+        "environmental_factors": [
+          "default_windows_smb_config",
+          "legacy_compatibility_settings",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "encrypted_disk_cracking",
+        "success_reason": "LUKS encrypted disk with weak passphrase",
+        "prerequisite_indicators": [
+          "encrypted_disk_image_found",
+          "luks_encryption_detected",
+          "dictionary_attack_feasible"
+        ],
+        "recognition_patterns": [
+          "file command shows LUKS data",
+          "cryptsetup identifies LUKS header",
+          "hashcat mode 14600 applicable"
+        ],
+        "failure_modes": [
+          "strong_passphrase_used",
+          "key_file_authentication",
+          "hardware_security_module"
+        ],
+        "environmental_factors": [
+          "weak_password_policy",
+          "default_encryption_settings",
+          "user_convenience_over_security"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "30-120 minutes"
+      },
+      {
+        "technique": "JSF_ViewState_deserialization",
+        "success_reason": "JSF application with exposed encryption keys and weak HMAC",
+        "prerequisite_indicators": [
+          "jsf_application_identified",
+          "viewstate_parameter_present",
+          "encryption_keys_accessible"
+        ],
+        "recognition_patterns": [
+          "URL ends with .faces",
+          "javax.faces.ViewState parameter",
+          "web.xml contains JSF config"
+        ],
+        "failure_modes": [
+          "strong_encryption_keys",
+          "viewstate_encryption_disabled",
+          "input_validation_present"
+        ],
+        "environmental_factors": [
+          "default_jsf_configuration",
+          "exposed_application_config",
+          "weak_cryptographic_implementation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "45-90 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "appserver.zip with LUKS encrypted disk",
+        "discovery_method": "SMB null session enumeration",
+        "why_critical": "Contains JSF application configuration with encryption keys",
+        "how_to_recognize": [
+          "large zip file in accessible SMB share",
+          "batman/arkham themed naming",
+          "encrypted disk image inside archive"
+        ],
+        "follow_up_actions": [
+          "extract_zip_contents",
+          "identify_luks_encryption",
+          "attempt_dictionary_attack"
+        ]
+      },
+      {
+        "discovery": "JSF encryption keys in web.xml",
+        "discovery_method": "LUKS disk decryption and filesystem analysis",
+        "why_critical": "Enables ViewState deserialization attack for RCE",
+        "how_to_recognize": [
+          "javax.faces.SECRET parameter",
+          "org.apache.myfaces.SECRET parameter",
+          "base64 encoded key values"
+        ],
+        "follow_up_actions": [
+          "craft_malicious_viewstate",
+          "use_ysoserial_payload",
+          "target_jsf_application"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "credential_discovery_to_admin",
+        "why_possible": "Email file contains administrator password",
+        "recognition_signs": [
+          "ost_email_files_present",
+          "administrator_credentials_in_email",
+          "local_admin_group_membership"
+        ],
+        "exploitation_path": "JSF RCE → File system access → Email extraction → Admin credentials"
+      },
+      {
+        "privilege_level": "administrator_user",
+        "escalation_method": "UAC_bypass",
+        "why_possible": "Administrator account with UAC restrictions",
+        "recognition_signs": [
+          "admin_group_membership_confirmed",
+          "uac_enabled_environment",
+          "medium_integrity_level"
+        ],
+        "exploitation_path": "Admin credentials → UAC bypass → SYSTEM privileges"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 80,135,139,445,8080 open on Windows host",
+        "decision": "Enumerate SMB shares first for quick wins before web exploitation",
+        "reasoning": "SMB often provides direct file access and credentials faster than web attacks",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if smb_null_session_fails"
+          },
+          {
+            "option": "tomcat_exploitation",
+            "when": "if_tomcat_vulnerabilities_found"
+          }
+        ],
+        "success_indicators": [
+          "smb_shares_accessible",
+          "interesting_files_found",
+          "credentials_discovered"
+        ],
+        "next_decision": "analyze_smb_contents"
+      },
+      {
+        "step": 2,
+        "situation": "Found encrypted LUKS image in SMB share",
+        "decision": "Attempt targeted bruteforce based on box theme",
+        "reasoning": "CTF environments often use thematic passwords, more efficient than full wordlist",
+        "confidence": 0.75,
+        "prerequisites": [
+          "encrypted_file_identified",
+          "box_theme_recognized"
+        ],
+        "success_indicators": [
+          "luks_password_cracked",
+          "filesystem_mounted"
+        ],
+        "failure_fallbacks": [
+          "full_rockyou_bruteforce",
+          "web_exploitation_pivot"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Discovered JSF application with ViewState parameter",
+        "decision": "Look for JSF configuration files to enable deserialization attack",
+        "reasoning": "JSF ViewState deserialization requires application keys found in config files",
+        "confidence": 0.9,
+        "prerequisites": [
+          "jsf_application_identified",
+          "viewstate_parameter_present"
+        ],
+        "success_indicators": [
+          "jsf_keys_found",
+          "deserialization_payload_successful"
+        ],
+        "failure_fallbacks": [
+          "parameter_tampering",
+          "file_upload_attacks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_smb_accessible": {
+        "action": "enumerate_all_readable_shares",
+        "tools": [
+          "smbclient",
+          "smbmap"
+        ],
+        "next_phase": "analyze_discovered_files"
+      },
+      "if_encrypted_files_found": {
+        "action": "attempt_themed_bruteforce",
+        "tools": [
+          "bruteforce-luks",
+          "hashcat"
+        ],
+        "decision_criteria": "based_on_file_type_and_box_theme"
+      },
+      "if_jsf_application_found": {
+        "action": "search_for_configuration_files",
+        "purpose": "obtain_encryption_keys_for_viewstate",
+        "tools": [
+          "file_enumeration",
+          "config_analysis"
+        ]
+      },
+      "if_initial_shell_obtained": {
+        "action": "enumerate_for_privilege_escalation",
+        "alternatives": [
+          "uac_bypass",
+          "credential_hunting",
+          "service_exploitation"
+        ],
+        "decision_criteria": "based_on_user_privileges_and_os_version"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_smb_null_sessions_first",
+        "reasoning": "fastest_path_to_file_access_and_credentials",
+        "applicability": "windows_targets_with_smb_exposed"
+      },
+      {
+        "rule": "use_themed_wordlists_for_ctf_environments",
+        "reasoning": "significantly_reduces_bruteforce_time",
+        "applicability": "themed_ctf_boxes_and_challenges"
+      },
+      {
+        "rule": "prioritize_config_file_hunting_for_java_apps",
+        "reasoning": "config_files_often_contain_keys_for_exploitation",
+        "applicability": "java_web_applications_identified"
+      },
+      {
+        "rule": "check_user_group_membership_immediately_after_shell",
+        "reasoning": "determines_privilege_escalation_strategy",
+        "applicability": "windows_initial_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb",
+          "netbios-ssn"
+        ],
+        "required_ports": [
+          139,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "null_session_allowed",
+          "guest_access_enabled"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "guest_session_established",
+          "readable_shares_found"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "null_session_blocked",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_windows_configuration",
+          "legacy_smb_settings",
+          "administrative_shares_visible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "JSF ViewState Deserialization",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "tomcat"
+        ],
+        "required_ports": [
+          8080,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "jsf_framework_detected",
+          "viewstate_parameter_present",
+          "deserialization_keys_obtained"
+        ],
+        "success_indicators": [
+          "faces_extension_detected",
+          "javax_faces_viewstate_parameter",
+          "tomcat_server_identified"
+        ],
+        "incompatible_with": [
+          "viewstate_encryption_strong",
+          "deserialization_protections",
+          "waf_present"
+        ],
+        "confidence_boosters": [
+          "default_jsf_configuration",
+          "weak_encryption_keys",
+          "apache_tomcat_detected"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "directory_listing_disabled",
+          "common_paths_exist"
+        ],
+        "success_indicators": [
+          "http_200_responses",
+          "directory_redirects_found",
+          "file_extensions_discovered"
+        ],
+        "incompatible_with": [
+          "rate_limiting_strict",
+          "waf_blocking_requests",
+          "custom_error_pages"
+        ],
+        "confidence_boosters": [
+          "default_web_server_install",
+          "common_cms_detected",
+          "standard_directory_structure"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_smb": {
+        "port_indicators": [
+          135,
+          139,
+          445
+        ],
+        "service_indicators": [
+          "msrpc",
+          "netbios-ssn",
+          "microsoft-ds"
+        ],
+        "banner_indicators": [
+          "Microsoft Windows",
+          "SMB2"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "jsf_application": {
+        "port_indicators": [
+          8080,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "tomcat"
+        ],
+        "technology_indicators": [
+          ".faces",
+          "javax.faces.ViewState",
+          "Apache Tomcat"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis",
+          "tomcat"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "windows_server": {
+        "port_indicators": [
+          135,
+          139,
+          445,
+          3389
+        ],
+        "service_indicators": [
+          "msrpc",
+          "microsoft-ds",
+          "ms-wbt-server"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "Windows Server"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_shares_and_files_no_creds_needed"
+        },
+        {
+          "attack": "jsf_viewstate_deserialization",
+          "when": "jsf_framework_detected",
+          "reason": "direct_code_execution_if_keys_obtained"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_but_time_consuming"
+        },
+        {
+          "attack": "web_application_enumeration",
+          "when": "multiple_web_ports_detected",
+          "reason": "may_reveal_additional_attack_surface"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "rpc_enumeration",
+          "when": "msrpc_service_detected",
+          "reason": "limited_information_disclosure"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "LUKS Disk Encryption Brute Force",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "bruteforce-luks",
+            "command_template": "bruteforce-luks -t {threads} -f {wordlist} -w {state_file} -v {interval} {image_file}",
+            "actual_command": "bruteforce-luks -t 10 -f rockyou_batman.txt -w batman_state.txt -v 30 backup.img",
+            "output_pattern": "Password found: {password}",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "grep",
+            "command_template": "grep {theme} {wordlist} > {filtered_wordlist}",
+            "actual_command": "grep batman /usr/share/wordlists/rockyou.txt > rockyou_batman.txt",
+            "success_factors": [
+              "themed_passwords",
+              "context_clues_from_target"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "cryptsetup",
+            "command_template": "cryptsetup open --type luks {image_file} {device_name}",
+            "actual_command": "cryptsetup open --type luks backup.img arkham",
+            "success_factors": [
+              "correct_password_obtained"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "luks_encrypted_image_available",
+          "bruteforce_luks_installed",
+          "contextual_password_hints"
+        ],
+        "success_indicators": [
+          "password_found_message",
+          "device_mapper_created",
+          "filesystem_mountable"
+        ],
+        "common_failures": [
+          "password_not_in_wordlist",
+          "insufficient_computational_resources",
+          "luks_version_compatibility_issues"
+        ],
+        "follow_up_techniques": [
+          "filesystem_enumeration",
+          "configuration_file_analysis",
+          "credential_extraction"
+        ],
+        "time_investment": "1-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SMB Null Session Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -N -L //{target_ip}",
+            "actual_command": "smbclient -N -L //10.10.10.130",
+            "output_pattern": "Sharename       Type      Comment",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "smbmap",
+            "command_template": "smbmap -u {fake_user} -H {target_ip}",
+            "actual_command": "smbmap -u 0xdf -H 10.10.10.130",
+            "success_factors": [
+              "null_session_allowed",
+              "guest_access_enabled"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "smb_service_accessible",
+          "null_sessions_enabled",
+          "guest_access_permitted"
+        ],
+        "success_indicators": [
+          "share_list_retrieved",
+          "readable_shares_identified",
+          "files_accessible_without_authentication"
+        ],
+        "common_failures": [
+          "null_sessions_disabled",
+          "network_connectivity_issues",
+          "smb_signing_required"
+        ],
+        "follow_up_techniques": [
+          "file_download_from_shares",
+          "credential_harvesting",
+          "configuration_analysis"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "JavaServer Faces (JSF) Reconnaissance",
+        "mitre_id": "T1592.002",
+        "category": "reconnaissance",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster -u http://{target}:{port} -w {wordlist} -t {threads}",
+            "actual_command": "gobuster -u http://10.10.10.130:8080 -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -t 50",
+            "output_pattern": "/{path} (Status: {code})",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "manual_browsing",
+            "command_template": "Browse to {url}.faces endpoints",
+            "actual_command": "Browse to http://10.10.10.130:8080/userSubscribe.faces",
+            "success_factors": [
+              ".faces_extension_identified",
+              "jsf_framework_detected"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "jsf_framework_in_use",
+          "functional_endpoints_available"
+        ],
+        "success_indicators": [
+          "faces_endpoints_discovered",
+          "viewstate_parameters_identified",
+          "jsf_configuration_accessible"
+        ],
+        "common_failures": [
+          "endpoints_not_functional",
+          "access_controls_blocking_enumeration",
+          "framework_version_incompatible"
+        ],
+        "follow_up_techniques": [
+          "jsf_viewstate_deserialization",
+          "configuration_file_analysis",
+          "parameter_manipulation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "bruteforce-luks",
+        "use_case": "luks_encryption_password_recovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "luks_encrypted_volumes"
+        ],
+        "alternatives": [
+          "hashcat_luks_mode",
+          "john_the_ripper"
+        ],
+        "best_practices": [
+          "use_contextual_wordlists",
+          "leverage_threading_for_speed",
+          "maintain_state_files_for_resumption",
+          "target_themed_passwords_based_on_context"
+        ]
+      },
+      {
+        "tool": "smbclient",
+        "use_case": "smb_share_enumeration_and_access",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments",
+          "smb_enabled_systems"
+        ],
+        "alternatives": [
+          "smbmap",
+          "enum4linux",
+          "crackmapexec"
+        ],
+        "best_practices": [
+          "always_try_null_sessions_first",
+          "enumerate_all_accessible_shares",
+          "download_interesting_files_immediately",
+          "check_for_backup_and_config_files"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists_for_target_technology",
+          "adjust_thread_count_based_on_target_stability",
+          "check_for_technology_specific_extensions",
+          "combine_with_manual_browsing"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "luks_crack_to_filesystem_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "grep batman /usr/share/wordlists/rockyou.txt > rockyou_batman.txt",
+            "purpose": "Create themed wordlist based on context clues",
+            "expected_output": "Filtered wordlist with 906 entries"
+          },
+          {
+            "step": 2,
+            "command": "bruteforce-luks -t 10 -f rockyou_batman.txt -w batman_state.txt -v 30 backup.img",
+            "purpose": "Brute force LUKS encryption password",
+            "expected_output": "Password found: batmanforever"
+          },
+          {
+            "step": 3,
+            "command": "cryptsetup open --type luks backup.img arkham",
+            "purpose": "Decrypt and open LUKS volume",
+            "expected_output": "Device mapper created at /dev/mapper/arkham"
+          },
+          {
+            "step": 4,
+            "command": "mount /dev/mapper/arkham /mnt/arkham/",
+            "purpose": "Mount decrypted filesystem",
+            "expected_output": "Filesystem mounted and accessible"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "5-90 minutes"
+      },
+      {
+        "sequence_name": "smb_enumeration_to_file_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbclient -N -L //10.10.10.130",
+            "purpose": "Enumerate SMB shares with null session",
+            "expected_output": "List of available shares including BatShare"
+          },
+          {
+            "step": 2,
+            "command": "smbmap -u 0xdf -H 10.10.10.130",
+            "purpose": "Verify share permissions",
+            "expected_output": "READ ONLY access to BatShare and Users"
+          },
+          {
+            "step": 3,
+            "command": "smbclient -N //10.10.10.130/batshare",
+            "purpose": "Connect to accessible share",
+            "expected_output": "SMB session established"
+          },
+          {
+            "step": 4,
+            "command": "get appserver.zip",
+            "purpose": "Download interesting files",
+            "expected_output": "appserver.zip downloaded successfully"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Arkham",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2019-03-16",
+      "author": "MinatoTW",
+      "estimated_time": "3-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "intermediate_advanced",
+      "primary_attack_vectors": [
+        "deserialization",
+        "disk_encryption_cracking",
+        "uac_bypass"
+      ],
+      "key_vulnerabilities": [
+        "jsf_viewstate_deserialization",
+        "weak_luks_encryption",
+        "uac_misconfiguration"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "java_deserialization",
+        "disk_forensics",
+        "windows_privilege_escalation",
+        "uac_bypass"
+      ],
+      "prerequisite_knowledge": [
+        "java_serialization",
+        "cryptography_basics",
+        "windows_internals",
+        "web_application_security"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application_security",
+      "subcategories": [
+        "deserialization_attacks",
+        "cryptography",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation",
+        "defense_evasion"
+      ],
+      "defensive_lessons": [
+        "secure_serialization",
+        "strong_encryption",
+        "uac_hardening",
+        "input_validation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Jerry",
+        "Tabby",
+        "Jeeves"
+      ],
+      "similarity_reasons": [
+        "java_applications",
+        "tomcat_servers",
+        "deserialization_attacks",
+        "windows_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "luks_disk_cracking",
+        "jsf_viewstate_exploitation",
+        "email_credential_discovery"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "cryptographic_challenges",
+        "advanced_deserialization",
+        "uac_bypass_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T22:03:22.073288",
+    "original_file": "0xdf_writeups/Htb Arkham.md",
+    "content_length": 92113,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

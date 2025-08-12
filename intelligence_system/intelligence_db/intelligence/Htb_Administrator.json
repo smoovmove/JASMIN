@@ -1,0 +1,1197 @@
+{
+  "writeup_id": "Htb_Administrator",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_bloodhound_privilege_escalation",
+    "primary_services": [
+      "kerberos",
+      "ldap",
+      "smb",
+      "dns",
+      "ftp",
+      "winrm"
+    ],
+    "port_signature": "21+53+88+389+445+5985",
+    "service_combination": "ftp+dns+kerberos+ldap+smb+winrm",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "provided_credentials",
+    "privilege_path": "bloodhound_acl_abuse_to_domain_admin",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "bloodhound_acl_enumeration",
+      "password_modification_rights",
+      "genericwrite_permissions",
+      "targeted_kerberoasting",
+      "dcsync_attack"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "ftp_service_on_dc",
+      "winrm_enabled",
+      "password_safe_files",
+      "acl_misconfiguration"
+    ],
+    "similar_scenarios": [
+      "forest_htb_hard",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "ftp_on_domain_controller",
+      "password_safe_cracking",
+      "multi_hop_acl_abuse"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Initial_Credential_Access",
+        "success_reason": "Valid domain credentials provided for user Olivia",
+        "prerequisite_indicators": [
+          "domain_controller_accessible",
+          "winrm_service_enabled",
+          "smb_service_available",
+          "user_in_remote_management_group"
+        ],
+        "recognition_patterns": [
+          "credentials work across multiple protocols",
+          "WinRM shows (Pwn3d!) status",
+          "SMB authentication successful",
+          "user has Remote Management Users group membership"
+        ],
+        "failure_modes": [
+          "credentials_expired",
+          "account_locked_out",
+          "winrm_disabled",
+          "user_not_in_required_groups"
+        ],
+        "environmental_factors": [
+          "windows_domain_controller",
+          "winrm_enabled_by_default",
+          "standard_ad_configuration",
+          "user_provisioned_with_remote_access"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "1-2 minutes"
+      },
+      {
+        "technique": "Domain_Enumeration_Setup",
+        "success_reason": "Domain user access enables comprehensive AD enumeration",
+        "prerequisite_indicators": [
+          "authenticated_domain_user",
+          "ldap_service_accessible",
+          "bloodhound_collection_possible",
+          "smb_shares_enumerable"
+        ],
+        "recognition_patterns": [
+          "domain controller services exposed",
+          "LDAP queries return domain info",
+          "SMB enumeration successful",
+          "kerberos authentication working"
+        ],
+        "failure_modes": [
+          "ldap_queries_blocked",
+          "smb_access_restricted",
+          "bloodhound_collection_prevented",
+          "network_segmentation"
+        ],
+        "environmental_factors": [
+          "default_domain_permissions",
+          "authenticated_users_can_query_ad",
+          "standard_dc_service_configuration",
+          "no_additional_hardening"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "WinRM access with domain user",
+        "discovery_method": "evil-winrm authentication test",
+        "why_critical": "Provides interactive shell and filesystem access for further enumeration",
+        "how_to_recognize": [
+          "user in Remote Management Users group",
+          "WinRM service enabled (port 5985)",
+          "netexec shows (Pwn3d!) status",
+          "successful shell establishment"
+        ],
+        "follow_up_actions": [
+          "run_bloodhound_collection",
+          "enumerate_smb_shares",
+          "check_user_permissions",
+          "explore_filesystem_access"
+        ]
+      },
+      {
+        "discovery": "FTP service on domain controller",
+        "discovery_method": "nmap service discovery",
+        "why_critical": "Unusual service on DC suggests additional attack surface",
+        "how_to_recognize": [
+          "port 21 open on domain controller",
+          "ftproot directory in inetpub",
+          "access denied with current user",
+          "potential credential reuse target"
+        ],
+        "follow_up_actions": [
+          "test_ftp_access_with_found_credentials",
+          "enumerate_ftp_users",
+          "check_ftproot_permissions",
+          "look_for_ftp_related_accounts"
+        ]
+      },
+      {
+        "discovery": "Standard domain controller services",
+        "discovery_method": "nmap comprehensive scan",
+        "why_critical": "Full AD attack surface available for exploitation",
+        "how_to_recognize": [
+          "kerberos port 88 open",
+          "LDAP ports 389/636 accessible",
+          "SMB signing required",
+          "domain name administrator.htb identified"
+        ],
+        "follow_up_actions": [
+          "run_bloodhound_data_collection",
+          "enumerate_domain_trusts",
+          "check_for_adcs",
+          "identify_privilege_escalation_paths"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "AD_Enumeration_and_Privilege_Mapping",
+        "why_possible": "Authenticated domain user can query Active Directory for privilege escalation paths",
+        "recognition_signs": [
+          "bloodhound_collection_possible",
+          "ldap_queries_successful",
+          "domain_user_permissions_standard",
+          "additional_services_like_ftp_present"
+        ],
+        "exploitation_path": "Bloodhound Collection → Identify Privilege Paths → Exploit AD Misconfigurations"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,53,88,135,139,389,445,464,593,636,3268,3269,5985,9389 open on Windows host",
+        "decision": "Identify as Domain Controller and prioritize AD enumeration with provided credentials",
+        "reasoning": "Port combination indicates AD DC, and initial credentials provided for Olivia user",
+        "confidence": 0.98,
+        "alternatives": [
+          {
+            "option": "anonymous_enumeration",
+            "when": "if no credentials provided"
+          },
+          {
+            "option": "asreproast",
+            "when": "if no valid credentials"
+          }
+        ],
+        "success_indicators": [
+          "winrm_access_confirmed",
+          "smb_authentication_successful",
+          "domain_name_discovered"
+        ],
+        "next_decision": "run_bloodhound_enumeration"
+      },
+      {
+        "step": 2,
+        "situation": "Valid domain credentials obtained for low-privilege user",
+        "decision": "Run Bloodhound enumeration immediately to map privilege escalation paths",
+        "reasoning": "Bloodhound provides comprehensive AD attack paths and is essential for privilege escalation",
+        "confidence": 0.95,
+        "prerequisites": [
+          "valid_domain_credentials",
+          "ldap_accessible"
+        ],
+        "success_indicators": [
+          "bloodhound_data_collected",
+          "privilege_escalation_paths_identified"
+        ],
+        "failure_fallbacks": [
+          "manual_ldap_enumeration",
+          "smb_share_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Bloodhound reveals password modification rights over other users",
+        "decision": "Exploit ForceChangePassword privilege to reset target user passwords",
+        "reasoning": "Direct privilege escalation path through password reset capabilities",
+        "confidence": 0.9,
+        "prerequisites": [
+          "bloodhound_analysis_complete",
+          "forcechangepassword_rights_identified"
+        ],
+        "success_indicators": [
+          "password_reset_successful",
+          "new_user_access_obtained"
+        ],
+        "failure_fallbacks": [
+          "genericwrite_abuse",
+          "kerberoasting_targeted"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Access to user with FTP permissions obtained",
+        "decision": "Enumerate FTP share for sensitive files and credentials",
+        "reasoning": "FTP access often contains backup files, configuration data, or credential stores",
+        "confidence": 0.85,
+        "prerequisites": [
+          "ftp_user_credentials",
+          "ftp_service_accessible"
+        ],
+        "success_indicators": [
+          "sensitive_files_found",
+          "password_safe_discovered"
+        ],
+        "failure_fallbacks": [
+          "continue_bloodhound_path",
+          "check_other_services"
+        ]
+      },
+      {
+        "step": 5,
+        "situation": "Password Safe file discovered on FTP share",
+        "decision": "Crack Password Safe master password to extract stored credentials",
+        "reasoning": "Password managers often contain high-value credentials for privilege escalation",
+        "confidence": 0.8,
+        "prerequisites": [
+          "password_safe_file_obtained"
+        ],
+        "success_indicators": [
+          "master_password_cracked",
+          "additional_credentials_extracted"
+        ],
+        "failure_fallbacks": [
+          "continue_with_current_access",
+          "explore_other_attack_vectors"
+        ]
+      },
+      {
+        "step": 6,
+        "situation": "User with GenericWrite permissions over service accounts identified",
+        "decision": "Perform targeted Kerberoasting attack by setting SPN on target user",
+        "reasoning": "GenericWrite allows SPN modification enabling Kerberoasting of previously non-kerberoastable accounts",
+        "confidence": 0.88,
+        "prerequisites": [
+          "genericwrite_permissions",
+          "target_user_identified"
+        ],
+        "success_indicators": [
+          "spn_set_successfully",
+          "kerberos_ticket_obtained",
+          "hash_cracked"
+        ],
+        "failure_fallbacks": [
+          "try_other_genericwrite_abuses",
+          "shadow_credentials_attack"
+        ]
+      },
+      {
+        "step": 7,
+        "situation": "High-privilege user credentials obtained",
+        "decision": "Perform DCSync attack to dump domain administrator hash",
+        "reasoning": "DCSync provides complete domain compromise by extracting all password hashes",
+        "confidence": 0.95,
+        "prerequisites": [
+          "dcsync_permissions",
+          "high_privilege_user_access"
+        ],
+        "success_indicators": [
+          "domain_admin_hash_obtained",
+          "full_domain_compromise"
+        ],
+        "failure_fallbacks": [
+          "golden_ticket_attack",
+          "silver_ticket_attack"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_initial_creds_provided": {
+        "action": "skip_initial_enumeration_and_run_bloodhound",
+        "tools": [
+          "bloodhound-python",
+          "evil-winrm",
+          "netexec"
+        ],
+        "next_phase": "privilege_escalation_via_bloodhound_paths"
+      },
+      "if_forcechangepassword_found": {
+        "action": "reset_target_user_password",
+        "tools": [
+          "bloodyAD",
+          "net_rpc",
+          "rpcclient"
+        ],
+        "next_phase": "access_additional_services"
+      },
+      "if_ftp_access_obtained": {
+        "action": "enumerate_ftp_for_sensitive_files",
+        "tools": [
+          "ftp_client",
+          "wget",
+          "curl"
+        ],
+        "next_phase": "analyze_discovered_files"
+      },
+      "if_password_safe_found": {
+        "action": "crack_password_safe",
+        "tools": [
+          "hashcat",
+          "john",
+          "keepass2john"
+        ],
+        "next_phase": "extract_and_test_credentials"
+      },
+      "if_genericwrite_identified": {
+        "action": "perform_targeted_kerberoasting",
+        "tools": [
+          "bloodyAD",
+          "GetUserSPNs.py",
+          "hashcat"
+        ],
+        "next_phase": "escalate_with_service_account"
+      },
+      "if_dcsync_permissions_obtained": {
+        "action": "dump_domain_hashes",
+        "tools": [
+          "secretsdump.py",
+          "mimikatz",
+          "dcsync"
+        ],
+        "next_phase": "complete_domain_compromise"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_run_bloodhound_with_valid_domain_creds",
+        "reasoning": "provides_comprehensive_attack_path_mapping_essential_for_ad_privilege_escalation",
+        "applicability": "any_valid_domain_user_access"
+      },
+      {
+        "rule": "prioritize_forcechangepassword_over_other_privileges",
+        "reasoning": "direct_password_reset_is_faster_than_hash_cracking_attacks",
+        "applicability": "when_multiple_privilege_escalation_paths_available"
+      },
+      {
+        "rule": "check_ftp_access_after_user_pivoting",
+        "reasoning": "ftp_often_contains_backup_files_and_credential_stores",
+        "applicability": "when_ftp_service_detected_and_new_user_access_obtained"
+      },
+      {
+        "rule": "use_genericwrite_for_targeted_kerberoasting",
+        "reasoning": "allows_kerberoasting_of_accounts_without_existing_spns",
+        "applicability": "genericwrite_permissions_over_user_accounts"
+      },
+      {
+        "rule": "perform_dcsync_for_complete_domain_compromise",
+        "reasoning": "most_comprehensive_method_for_full_domain_takeover",
+        "applicability": "when_dcsync_permissions_available"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Kerberoasting",
+        "mitre_id": "T1558.003",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "service_accounts_with_spn_exist",
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "GetUserSPNs_returns_tickets",
+          "service_accounts_enumerated",
+          "tgs_tickets_obtained"
+        ],
+        "incompatible_with": [
+          "no_service_accounts",
+          "strong_service_passwords",
+          "kerberos_disabled"
+        ],
+        "confidence_boosters": [
+          "default_service_passwords",
+          "legacy_service_accounts",
+          "sql_server_services"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "DCSync",
+        "mitre_id": "T1003.006",
+        "required_services": [
+          "ldap"
+        ],
+        "required_ports": [
+          389,
+          636
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "replication_permissions",
+          "domain_controller_accessible"
+        ],
+        "success_indicators": [
+          "secretsdump_successful",
+          "ntds_dit_accessible",
+          "domain_admin_hash_obtained"
+        ],
+        "incompatible_with": [
+          "no_replication_rights",
+          "network_isolation",
+          "ldap_disabled"
+        ],
+        "confidence_boosters": [
+          "genericall_permissions",
+          "replicating_directory_changes",
+          "domain_admin_group_membership"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Bloodhound_Enumeration",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "ldap"
+        ],
+        "required_ports": [
+          389,
+          636
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "valid_domain_credentials",
+          "ldap_accessible"
+        ],
+        "success_indicators": [
+          "bloodhound_data_collected",
+          "attack_paths_identified",
+          "privilege_escalation_routes_found"
+        ],
+        "incompatible_with": [
+          "ldap_disabled",
+          "network_isolation",
+          "no_domain_access"
+        ],
+        "confidence_boosters": [
+          "complex_ad_environment",
+          "multiple_domains",
+          "service_accounts_present"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "SMB_Share_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "network_shares_exist",
+          "valid_credentials_or_anonymous_access"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "readable_shares_found",
+          "sensitive_files_discovered"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "no_shares_configured",
+          "strict_access_controls"
+        ],
+        "confidence_boosters": [
+          "default_share_configurations",
+          "legacy_systems",
+          "administrative_shares"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "FTP_Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_enabled",
+          "valid_credentials_or_anonymous_access",
+          "accessible_ftp_directories"
+        ],
+        "success_indicators": [
+          "ftp_login_successful",
+          "files_enumerated",
+          "sensitive_data_found"
+        ],
+        "incompatible_with": [
+          "ftp_disabled",
+          "strict_authentication",
+          "empty_directories"
+        ],
+        "confidence_boosters": [
+          "anonymous_ftp_enabled",
+          "default_credentials",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "ldap",
+          "microsoft-ds",
+          "kpasswd5",
+          "globalcatLDAP"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Domain Controller"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "domain",
+          "kerberos-sec",
+          "ldap",
+          "globalcatLDAP",
+          "adws"
+        ],
+        "banner_indicators": [
+          "Simple DNS Plus",
+          "Microsoft Windows Kerberos",
+          "Active Directory LDAP"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "windows_server": {
+        "port_indicators": [
+          135,
+          139,
+          445,
+          593,
+          5985
+        ],
+        "service_indicators": [
+          "msrpc",
+          "netbios-ssn",
+          "microsoft-ds",
+          "wsman"
+        ],
+        "banner_indicators": [
+          "Windows Server",
+          "Microsoft Windows",
+          "WinRM"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "ftp_service": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp"
+        ],
+        "banner_indicators": [
+          "Microsoft ftpd",
+          "FTP"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "bloodhound_enumeration",
+          "when": "active_directory_detected_and_valid_creds",
+          "reason": "reveals_attack_paths_and_privilege_escalation_routes"
+        },
+        {
+          "attack": "smb_share_enumeration",
+          "when": "smb_service_detected_and_valid_creds",
+          "reason": "often_contains_sensitive_files_and_credentials"
+        },
+        {
+          "attack": "dcsync",
+          "when": "replication_permissions_confirmed",
+          "reason": "direct_domain_compromise_high_success_rate"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "kerberoasting",
+          "when": "service_accounts_with_spn_found",
+          "reason": "reliable_credential_extraction_method"
+        },
+        {
+          "attack": "asreproast",
+          "when": "accounts_without_preauth_found",
+          "reason": "no_authentication_required_moderate_success"
+        },
+        {
+          "attack": "ftp_enumeration",
+          "when": "ftp_service_detected",
+          "reason": "uncommon_on_dc_may_contain_sensitive_data"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "BloodHound Enumeration",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "bloodhound-python",
+            "command_template": "bloodhound-python -u {username} -p {password} -d {domain} -dc {dc_ip} -c all",
+            "actual_command": "bloodhound-python -u olivia -p ichliebedich -d administrator.htb -dc 10.10.11.42 -c all",
+            "output_pattern": "JSON files for BloodHound analysis",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "valid_domain_credentials",
+          "network_access_to_domain_controller",
+          "ldap_accessible"
+        ],
+        "success_indicators": [
+          "json_files_generated",
+          "privilege_escalation_paths_identified",
+          "user_relationships_mapped"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "network_connectivity_issues",
+          "ldap_access_denied"
+        ],
+        "follow_up_techniques": [
+          "targeted_kerberoasting",
+          "password_reset_attacks",
+          "dcsync_attack"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Targeted Kerberoasting",
+        "mitre_id": "T1558.003",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "targetedKerberoast.py",
+            "command_template": "targetedKerberoast.py -u {username} -p {password} -d {domain} --dc-ip {dc_ip}",
+            "actual_command": "targetedKerberoast.py -u emily -p password123 -d administrator.htb --dc-ip 10.10.11.42",
+            "output_pattern": "$krb5tgs$23$*{username}${domain}*${hash}",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 13100 {hash_file} {wordlist}",
+            "actual_command": "hashcat -m 13100 kerberoast_hash.txt /usr/share/wordlists/rockyou.txt",
+            "success_factors": [
+              "weak_spn_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "genericwrite_permissions",
+          "target_user_identified",
+          "domain_credentials_available"
+        ],
+        "success_indicators": [
+          "spn_set_successfully",
+          "tgs_ticket_extracted",
+          "hash_cracked_successfully"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "strong_service_passwords",
+          "spn_setting_blocked"
+        ],
+        "follow_up_techniques": [
+          "dcsync_attack",
+          "lateral_movement",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "DCSync Attack",
+        "mitre_id": "T1003.006",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "secretsdump.py",
+            "command_template": "secretsdump.py {domain}/{username}:{password}@{dc_ip}",
+            "actual_command": "secretsdump.py administrator.htb/alexander:password@10.10.11.42",
+            "output_pattern": "administrator:500:aad3b435b51404eeaad3b435b51404ee:{ntlm_hash}:::",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "dcsync_permissions",
+          "domain_controller_accessible",
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "ntds_secrets_dumped",
+          "administrator_hash_obtained",
+          "domain_compromise_achieved"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "network_connectivity_issues",
+          "detection_by_security_tools"
+        ],
+        "follow_up_techniques": [
+          "pass_the_hash",
+          "golden_ticket_attack",
+          "persistence_mechanisms"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Password Safe Cracking",
+        "mitre_id": "T1555.005",
+        "category": "credential_access",
+        "phase": "credential_harvesting",
+        "tools_used": [
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 5200 {psafe_hash} {wordlist}",
+            "actual_command": "hashcat -m 5200 psafe_hash.txt /usr/share/wordlists/rockyou.txt",
+            "output_pattern": "master_password_cracked",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "password_safe_file_access",
+          "hash_extraction_successful",
+          "appropriate_wordlist_available"
+        ],
+        "success_indicators": [
+          "master_password_cracked",
+          "stored_credentials_accessible",
+          "additional_accounts_compromised"
+        ],
+        "common_failures": [
+          "strong_master_password",
+          "file_corruption",
+          "unsupported_psafe_version"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "lateral_movement",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Force Change Password",
+        "mitre_id": "T1098.001",
+        "category": "persistence",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "net",
+            "command_template": "net user {target_user} {new_password} /domain",
+            "actual_command": "net user michael NewPassword123! /domain",
+            "output_pattern": "The command completed successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "bloodyAD",
+            "command_template": "bloodyAD --host {dc_ip} -d {domain} -u {username} -p {password} set password {target_user} {new_password}",
+            "actual_command": "bloodyAD --host 10.10.11.42 -d administrator.htb -u olivia -p ichliebedich set password michael NewPassword123!",
+            "output_pattern": "Password changed successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "forcechangepassword_permissions",
+          "target_user_identified",
+          "domain_controller_accessible"
+        ],
+        "success_indicators": [
+          "password_changed_successfully",
+          "authentication_with_new_password",
+          "access_to_target_resources"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "password_policy_violations",
+          "account_lockout_policies"
+        ],
+        "follow_up_techniques": [
+          "lateral_movement",
+          "resource_enumeration",
+          "further_privilege_escalation"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "BloodHound",
+        "use_case": "active_directory_privilege_escalation_path_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "manual_ldap_enumeration",
+          "powerview"
+        ],
+        "best_practices": [
+          "run_after_obtaining_domain_credentials",
+          "focus_on_shortest_path_to_domain_admin",
+          "validate_paths_before_exploitation",
+          "collect_all_data_types_for_comprehensive_analysis"
+        ]
+      },
+      {
+        "tool": "netexec",
+        "use_case": "smb_enumeration_and_credential_validation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments",
+          "smb_enumeration"
+        ],
+        "alternatives": [
+          "smbclient",
+          "enum4linux",
+          "rpcclient"
+        ],
+        "best_practices": [
+          "use_for_initial_credential_validation",
+          "enumerate_shares_and_users",
+          "generate_hosts_file_automatically",
+          "test_multiple_protocols_simultaneously"
+        ]
+      },
+      {
+        "tool": "evil-winrm",
+        "use_case": "windows_remote_management_shell_access",
+        "effectiveness_rating": 5,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_post_exploitation"
+        ],
+        "alternatives": [
+          "psexec",
+          "wmiexec",
+          "rdp"
+        ],
+        "best_practices": [
+          "verify_remote_management_users_group_membership",
+          "use_for_interactive_shell_access",
+          "combine_with_powershell_for_advanced_enumeration"
+        ]
+      },
+      {
+        "tool": "secretsdump.py",
+        "use_case": "dcsync_attack_credential_dumping",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "domain_controller_compromise"
+        ],
+        "alternatives": [
+          "mimikatz",
+          "lsassy",
+          "pypykatz"
+        ],
+        "best_practices": [
+          "ensure_dcsync_permissions_before_execution",
+          "target_specific_users_when_possible",
+          "extract_both_lm_and_ntlm_hashes",
+          "use_for_complete_domain_compromise"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "bloodhound_to_domain_admin",
+        "steps": [
+          {
+            "step": 1,
+            "command": "bloodhound-python -u olivia -p ichliebedich -d administrator.htb -dc 10.10.11.42 -c all",
+            "purpose": "Collect AD enumeration data",
+            "expected_output": "JSON files for BloodHound analysis"
+          },
+          {
+            "step": 2,
+            "command": "bloodyAD --host 10.10.11.42 -d administrator.htb -u olivia -p ichliebedich set password michael NewPassword123!",
+            "purpose": "Change michael's password using ForceChangePassword",
+            "expected_output": "Password changed successfully"
+          },
+          {
+            "step": 3,
+            "command": "evil-winrm -i administrator.htb -u michael -p NewPassword123!",
+            "purpose": "Authenticate as michael with new password",
+            "expected_output": "Remote shell as michael"
+          },
+          {
+            "step": 4,
+            "command": "ftp 10.10.11.42",
+            "purpose": "Access FTP share with michael credentials",
+            "expected_output": "FTP access to retrieve Password Safe file"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-45 minutes"
+      },
+      {
+        "sequence_name": "targeted_kerberoast_to_dcsync",
+        "steps": [
+          {
+            "step": 1,
+            "command": "targetedKerberoast.py -u emily -p password123 -d administrator.htb --dc-ip 10.10.11.42",
+            "purpose": "Set SPN and extract TGS ticket",
+            "expected_output": "Kerberos TGS hash for alexander"
+          },
+          {
+            "step": 2,
+            "command": "hashcat -m 13100 alexander_hash.txt /usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack alexander's service ticket",
+            "expected_output": "Password for alexander account"
+          },
+          {
+            "step": 3,
+            "command": "secretsdump.py administrator.htb/alexander:password@10.10.11.42",
+            "purpose": "Perform DCSync attack",
+            "expected_output": "Domain administrator NTLM hash"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "30-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Administrator",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2024-11-09",
+      "author": "nirza",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "active_directory",
+        "bloodhound",
+        "kerberoasting",
+        "dcsync"
+      ],
+      "key_vulnerabilities": [
+        "password_reuse",
+        "excessive_ad_permissions",
+        "genericwrite_abuse",
+        "weak_password_policies"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "bloodhound_analysis",
+        "ad_permission_chains",
+        "targeted_kerberoasting",
+        "dcsync_attacks",
+        "password_safe_cracking"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_ad_concepts",
+        "bloodhound_usage",
+        "kerberos_attacks",
+        "dacl_abuse"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "privilege_escalation",
+        "credential_access",
+        "lateral_movement"
+      ],
+      "attack_types": [
+        "password_modification",
+        "targeted_kerberoasting",
+        "dcsync",
+        "dacl_abuse"
+      ],
+      "defensive_lessons": [
+        "implement_tiered_admin_model",
+        "audit_ad_permissions",
+        "monitor_dcsync_attempts",
+        "secure_password_storage"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Sauna",
+        "Active",
+        "Blackfield"
+      ],
+      "similarity_reasons": [
+        "pure_ad_challenge",
+        "bloodhound_enumeration",
+        "permission_chain_exploitation",
+        "domain_compromise"
+      ],
+      "unique_aspects": [
+        "password_safe_integration",
+        "multi_hop_permission_chain",
+        "ftp_credential_storage",
+        "genericwrite_kerberoasting"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "multiple_privilege_escalation_steps",
+        "password_cracking_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T22:37:56.623840",
+    "original_file": "0xdf_writeups/Htb Administrator.md",
+    "content_length": 41496,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

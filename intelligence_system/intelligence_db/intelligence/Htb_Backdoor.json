@@ -1,0 +1,947 @@
+{
+  "writeup_id": "Htb_Backdoor",
+  "scenario_fingerprint": {
+    "scenario_name": "wordpress_plugin_directory_traversal_to_gdbserver",
+    "primary_services": [
+      "http",
+      "ssh",
+      "gdbserver"
+    ],
+    "port_signature": "22+80+1337",
+    "service_combination": "ssh+apache+wordpress+gdbserver",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "wordpress_plugin_vulnerability",
+    "privilege_path": "directory_traversal_to_gdbserver_to_screen_session",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "wordpress_ebook_download_plugin",
+      "directory_traversal_via_proc_filesystem",
+      "gdbserver_on_non_standard_port",
+      "root_screen_session_multiuser"
+    ],
+    "environmental_clues": [
+      "ubuntu_20_04_focal",
+      "apache_2_4_41",
+      "wordpress_5_8_1",
+      "unknown_service_port_1337",
+      "proc_filesystem_enumeration"
+    ],
+    "similar_scenarios": [
+      "wordpress_lfi_scenarios",
+      "gdbserver_exploitation"
+    ],
+    "unique_aspects": [
+      "proc_directory_enumeration_for_service_discovery",
+      "gdbserver_remote_code_execution",
+      "screen_session_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "WordPress Plugin Directory Traversal",
+        "success_reason": "Ebook Download plugin v1.1 vulnerable to CVE-2016-10924 directory traversal",
+        "prerequisite_indicators": [
+          "wordpress_site_detected",
+          "plugin_enumeration_possible",
+          "vulnerable_plugin_version_installed"
+        ],
+        "recognition_patterns": [
+          "wp-content/plugins/ directory accessible",
+          "plugin version < 1.2 in readme.txt",
+          "directory listing enabled on plugin folder",
+          "wpscan identifies CVE-2016-10924"
+        ],
+        "failure_modes": [
+          "plugin_updated_to_secure_version",
+          "directory_listing_disabled",
+          "web_application_firewall_blocking",
+          "plugin_not_installed"
+        ],
+        "environmental_factors": [
+          "default_wordpress_installation",
+          "outdated_plugin_management",
+          "insufficient_security_hardening",
+          "aggressive_plugin_detection_required"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "30-45 minutes"
+      },
+      {
+        "technique": "Proc Filesystem Enumeration",
+        "success_reason": "Directory traversal allowed reading /proc/net/tcp to discover hidden gdbserver on port 1337",
+        "prerequisite_indicators": [
+          "directory_traversal_vulnerability_exists",
+          "linux_target_system",
+          "proc_filesystem_accessible"
+        ],
+        "recognition_patterns": [
+          "can read /proc/net/tcp",
+          "unknown ports in nmap scan",
+          "listening services not externally identifiable",
+          "hex port conversion reveals service mapping"
+        ],
+        "failure_modes": [
+          "proc_filesystem_restricted",
+          "no_hidden_services_running",
+          "services_properly_firewalled",
+          "directory_traversal_path_restricted"
+        ],
+        "environmental_factors": [
+          "default_linux_proc_permissions",
+          "development_services_running",
+          "insufficient_service_hardening"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "GDBServer Exploitation",
+        "success_reason": "Unauthenticated gdbserver running on port 1337 allows remote code execution",
+        "prerequisite_indicators": [
+          "gdbserver_service_identified",
+          "service_running_without_authentication",
+          "remote_debugging_enabled"
+        ],
+        "recognition_patterns": [
+          "port 1337 responds to gdb connection",
+          "no authentication required",
+          "can attach to running processes",
+          "remote debugging capabilities exposed"
+        ],
+        "failure_modes": [
+          "gdbserver_requires_authentication",
+          "service_not_running_as_privileged_user",
+          "debugging_capabilities_restricted",
+          "network_access_filtered"
+        ],
+        "environmental_factors": [
+          "development_environment_practices",
+          "debugging_tools_left_enabled",
+          "insufficient_service_configuration"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "15-25 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Ebook Download Plugin v1.1",
+        "discovery_method": "wpscan aggressive plugin enumeration",
+        "why_critical": "Directory traversal vulnerability enables filesystem access and service discovery",
+        "how_to_recognize": [
+          "wpscan --plugins-detection aggressive finds it",
+          "readme.txt shows version 1.1 < 1.2",
+          "CVE-2016-10924 directory traversal identified",
+          "directory listing enabled on plugin folder"
+        ],
+        "follow_up_actions": [
+          "test_directory_traversal_payloads",
+          "read_proc_filesystem_files",
+          "enumerate_running_services",
+          "identify_hidden_attack_surface"
+        ]
+      },
+      {
+        "discovery": "Hidden GDBServer on port 1337",
+        "discovery_method": "proc filesystem enumeration via directory traversal",
+        "why_critical": "Unauthenticated remote debugging service allows code execution",
+        "how_to_recognize": [
+          "port 1337 in nmap but service unknown",
+          "/proc/net/tcp shows listening service",
+          "hex conversion 0539 = 1337 decimal",
+          "gdb can connect without authentication"
+        ],
+        "follow_up_actions": [
+          "connect_with_gdb_client",
+          "test_remote_debugging_capabilities",
+          "attempt_process_attachment",
+          "execute_shellcode_via_debugging"
+        ]
+      },
+      {
+        "discovery": "Root screen session in multiuser mode",
+        "discovery_method": "process enumeration after initial access",
+        "why_critical": "Allows privilege escalation to root without exploiting vulnerabilities",
+        "how_to_recognize": [
+          "screen process running as root",
+          "multiuser mode enabled",
+          "session joinable by other users",
+          "screen -ls shows available sessions"
+        ],
+        "follow_up_actions": [
+          "identify_screen_session_names",
+          "attempt_session_attachment",
+          "verify_root_privileges",
+          "maintain_persistent_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application",
+        "escalation_method": "directory_traversal_to_service_discovery",
+        "why_possible": "Plugin vulnerability allows reading arbitrary files including proc filesystem",
+        "recognition_signs": [
+          "wordpress_with_vulnerable_plugins",
+          "directory_traversal_in_file_operations",
+          "proc_filesystem_readable",
+          "hidden_services_discoverable"
+        ],
+        "exploitation_path": "Plugin LFI → /proc/net/tcp → Service Discovery → GDBServer"
+      },
+      {
+        "privilege_level": "service_exploitation",
+        "escalation_method": "gdbserver_to_user_shell",
+        "why_possible": "Unauthenticated debugging service allows arbitrary code execution",
+        "recognition_signs": [
+          "gdbserver_without_authentication",
+          "remote_debugging_enabled",
+          "process_attachment_possible",
+          "shellcode_execution_capability"
+        ],
+        "exploitation_path": "GDB Connect → Process Attach → Shellcode Injection → User Shell"
+      },
+      {
+        "privilege_level": "user_access",
+        "escalation_method": "screen_session_hijacking",
+        "why_possible": "Root screen session running in multiuser mode allows joining",
+        "recognition_signs": [
+          "screen_process_as_root",
+          "multiuser_mode_enabled",
+          "session_attachment_permitted",
+          "no_session_authentication_required"
+        ],
+        "exploitation_path": "User Shell → Screen Session Discovery → Session Join → Root Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,1337 open on Linux host with WordPress",
+        "decision": "Enumerate WordPress plugins aggressively",
+        "reasoning": "WordPress plugins are common attack vectors with known vulnerabilities",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "directory_brute_force",
+            "when": "if plugin enumeration fails"
+          },
+          {
+            "option": "check_wp_content_plugins_listing",
+            "when": "if directory listing enabled"
+          }
+        ],
+        "success_indicators": [
+          "plugins_discovered",
+          "vulnerable_plugin_identified",
+          "directory_listing_enabled"
+        ],
+        "next_decision": "analyze_plugin_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Found ebook-download plugin v1.1 with directory traversal CVE-2016-10924",
+        "decision": "Exploit directory traversal for local file read",
+        "reasoning": "Directory traversal allows reading sensitive files without authentication",
+        "confidence": 0.95,
+        "prerequisites": [
+          "plugin_version_confirmed",
+          "vulnerable_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "wp_config_readable",
+          "proc_filesystem_accessible"
+        ],
+        "failure_fallbacks": [
+          "other_plugin_exploits",
+          "wordpress_core_exploits"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Directory traversal working, unknown service on port 1337",
+        "decision": "Use /proc filesystem to identify unknown service",
+        "reasoning": "/proc contains process and network information for service identification",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "read_proc_net_tcp",
+            "when": "to identify listening processes"
+          },
+          {
+            "option": "read_proc_cmdline",
+            "when": "to get process command lines"
+          },
+          {
+            "option": "brute_force_service",
+            "when": "if proc enumeration fails"
+          }
+        ],
+        "success_indicators": [
+          "service_identified_as_gdbserver",
+          "process_cmdline_discovered",
+          "listening_port_mapped_to_pid"
+        ],
+        "next_decision": "exploit_identified_service"
+      },
+      {
+        "step": 4,
+        "situation": "Identified gdbserver on port 1337",
+        "decision": "Exploit gdbserver for remote code execution",
+        "reasoning": "gdbserver allows remote debugging and code execution",
+        "confidence": 0.9,
+        "prerequisites": [
+          "gdbserver_accessible",
+          "gdb_client_available"
+        ],
+        "success_indicators": [
+          "gdb_connection_established",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "other_services_enumeration",
+          "credential_attacks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_directory_traversal_succeeds": {
+        "action": "enumerate_sensitive_files_and_processes",
+        "tools": [
+          "curl",
+          "burp_suite"
+        ],
+        "targets": [
+          "wp-config.php",
+          "/proc/net/tcp",
+          "/proc/*/cmdline"
+        ],
+        "next_phase": "service_identification"
+      },
+      "if_unknown_service_found": {
+        "action": "use_proc_filesystem_for_identification",
+        "method": "read_process_information_via_lfi",
+        "decision_criteria": "based_on_proc_cmdline_and_network_connections"
+      },
+      "if_gdbserver_identified": {
+        "action": "exploit_gdb_remote_debugging",
+        "tools": [
+          "gdb",
+          "custom_exploit"
+        ],
+        "purpose": "achieve_remote_code_execution"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_privilege_escalation_vectors",
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ],
+        "focus": [
+          "screen_sessions",
+          "sudo_permissions",
+          "suid_binaries"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_wp_content_plugins_directory_listing",
+        "reasoning": "faster_than_brute_force_if_enabled",
+        "applicability": "wordpress_environments"
+      },
+      {
+        "rule": "use_proc_filesystem_for_unknown_service_identification",
+        "reasoning": "proc_contains_comprehensive_process_and_network_info",
+        "applicability": "linux_systems_with_lfi"
+      },
+      {
+        "rule": "prioritize_unauthenticated_directory_traversal_over_authenticated_attacks",
+        "reasoning": "no_credentials_required_and_high_impact",
+        "applicability": "wordpress_plugin_vulnerabilities"
+      },
+      {
+        "rule": "enumerate_all_listening_services_via_proc_when_lfi_available",
+        "reasoning": "discovers_internal_services_not_visible_externally",
+        "applicability": "local_file_inclusion_vulnerabilities"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "WordPress Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "wordpress_detected",
+          "vulnerable_plugin_present",
+          "directory_listing_enabled"
+        ],
+        "success_indicators": [
+          "wp_content_plugins_accessible",
+          "plugin_directory_browsable",
+          "file_inclusion_parameter_exists"
+        ],
+        "incompatible_with": [
+          "plugin_directory_protected",
+          "file_access_restrictions",
+          "waf_blocking_traversal"
+        ],
+        "confidence_boosters": [
+          "outdated_plugin_versions",
+          "default_wordpress_structure",
+          "directory_listing_enabled"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Proc Filesystem Enumeration",
+        "mitre_id": "T1057",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "linux_target",
+          "file_read_capability",
+          "proc_filesystem_accessible"
+        ],
+        "success_indicators": [
+          "proc_net_tcp_readable",
+          "process_cmdline_accessible",
+          "hidden_services_discovered"
+        ],
+        "incompatible_with": [
+          "proc_filesystem_restricted",
+          "container_isolation",
+          "chroot_environment"
+        ],
+        "confidence_boosters": [
+          "directory_traversal_available",
+          "unrestricted_file_access",
+          "standard_proc_structure"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "GDB Server Exploitation",
+        "mitre_id": "T1203",
+        "required_services": [
+          "gdbserver"
+        ],
+        "required_ports": [
+          1337,
+          2345,
+          4444
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "gdbserver_running",
+          "remote_debugging_enabled",
+          "no_authentication_required"
+        ],
+        "success_indicators": [
+          "gdb_connection_successful",
+          "target_binary_attached",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "gdbserver_authentication",
+          "network_filtering",
+          "process_restrictions"
+        ],
+        "confidence_boosters": [
+          "development_environment",
+          "debugging_ports_open",
+          "unrestricted_gdbserver"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Screen Session Hijacking",
+        "mitre_id": "T1548.001",
+        "required_services": [
+          "screen"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "screen_multiuser_enabled",
+          "privileged_screen_sessions",
+          "user_shell_access"
+        ],
+        "success_indicators": [
+          "screen_sessions_listable",
+          "multiuser_mode_active",
+          "root_session_accessible"
+        ],
+        "incompatible_with": [
+          "screen_access_restricted",
+          "no_privileged_sessions",
+          "session_isolation"
+        ],
+        "confidence_boosters": [
+          "development_server",
+          "shared_system_usage",
+          "administrative_screen_sessions"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "wordpress": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "WordPress",
+          "wp-content",
+          "wp-admin"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "development_environment": {
+        "port_indicators": [
+          1337,
+          2345,
+          4444,
+          8000,
+          9000
+        ],
+        "service_indicators": [
+          "gdbserver",
+          "debug",
+          "development"
+        ],
+        "banner_indicators": [
+          "debug",
+          "gdb",
+          "development"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "wordpress_plugin_enumeration",
+          "when": "wordpress_detected",
+          "reason": "plugins_often_vulnerable_high_success_rate"
+        },
+        {
+          "attack": "proc_filesystem_enumeration",
+          "when": "linux_file_read_available",
+          "reason": "reveals_hidden_services_and_processes"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "gdbserver_exploitation",
+          "when": "unknown_port_detected",
+          "reason": "development_ports_often_gdbserver"
+        },
+        {
+          "attack": "screen_session_hijacking",
+          "when": "user_shell_obtained",
+          "reason": "common_privilege_escalation_vector"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "WordPress Plugin Directory Traversal",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wpscan",
+            "command_template": "wpscan -e ap --plugins-detection aggressive --url http://{target} --api-token {token}",
+            "actual_command": "wpscan -e ap --plugins-detection aggressive --url http://backdoor.htb --api-token $WPSCAN_API",
+            "output_pattern": "ebook-download plugin with directory traversal vulnerability",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/wp-content/plugins/ebook-download/filedownload.php?ebookdownloadurl=../../../{file_path}",
+            "actual_command": "curl http://backdoor.htb/wp-content/plugins/ebook-download/filedownload.php?ebookdownloadurl=../../../wp-config.php",
+            "success_factors": [
+              "vulnerable_plugin_version",
+              "file_exists",
+              "readable_permissions"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "wordpress_site_identified",
+          "vulnerable_ebook_download_plugin_installed",
+          "plugin_version_1.1_or_lower"
+        ],
+        "success_indicators": [
+          "wp_config_file_contents_retrieved",
+          "database_credentials_exposed",
+          "system_files_accessible"
+        ],
+        "common_failures": [
+          "plugin_not_installed",
+          "patched_version_in_use",
+          "file_permissions_deny_access"
+        ],
+        "follow_up_techniques": [
+          "proc_filesystem_enumeration",
+          "credential_harvesting",
+          "service_discovery"
+        ],
+        "time_investment": "10-45 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Process Discovery via /proc",
+        "mitre_id": "T1057",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/wp-content/plugins/ebook-download/filedownload.php?ebookdownloadurl=../../../../../../../proc/{pid}/cmdline",
+            "actual_command": "curl http://backdoor.htb/wp-content/plugins/ebook-download/filedownload.php?ebookdownloadurl=../../../../../../../proc/1/cmdline",
+            "output_pattern": "process command line arguments",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "directory_traversal_vulnerability",
+          "proc_filesystem_accessible",
+          "linux_target_system"
+        ],
+        "success_indicators": [
+          "process_command_lines_retrieved",
+          "hidden_services_discovered",
+          "service_configurations_exposed"
+        ],
+        "common_failures": [
+          "proc_access_restricted",
+          "process_enumeration_blocked",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "gdbserver_exploitation",
+          "service_exploitation",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "GDB Server Remote Code Execution",
+        "mitre_id": "T1203",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "gdb",
+            "command_template": "gdb -q && target extended-remote {ip}:{port}",
+            "actual_command": "gdb -q && target extended-remote 10.10.11.125:1337",
+            "output_pattern": "Remote debugging using",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "gdbserver_service_running",
+          "network_access_to_gdb_port",
+          "gdb_client_available"
+        ],
+        "success_indicators": [
+          "gdb_connection_established",
+          "remote_code_execution_achieved",
+          "shell_access_obtained"
+        ],
+        "common_failures": [
+          "gdbserver_not_accessible",
+          "authentication_required",
+          "network_filtering"
+        ],
+        "follow_up_techniques": [
+          "shell_stabilization",
+          "privilege_escalation",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wpscan",
+        "use_case": "wordpress_plugin_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "wordpress_security_testing"
+        ],
+        "alternatives": [
+          "feroxbuster_with_plugin_wordlist",
+          "manual_directory_listing"
+        ],
+        "best_practices": [
+          "use_aggressive_plugin_detection_for_comprehensive_results",
+          "combine_with_api_token_for_vulnerability_details",
+          "verify_findings_with_manual_testing"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "directory_traversal_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "file_inclusion_vulnerabilities"
+        ],
+        "alternatives": [
+          "wget",
+          "burp_suite",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "url_encode_special_characters_when_needed",
+          "test_multiple_traversal_depths",
+          "target_sensitive_files_first"
+        ]
+      },
+      {
+        "tool": "gdb",
+        "use_case": "gdbserver_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "debugging_service_exploitation"
+        ],
+        "alternatives": [
+          "custom_gdb_scripts",
+          "metasploit_gdbserver_module"
+        ],
+        "best_practices": [
+          "verify_gdbserver_version_compatibility",
+          "prepare_shellcode_in_advance",
+          "test_connection_before_exploitation"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "wordpress_to_shell_via_lfi",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wpscan -e ap --plugins-detection aggressive --url http://backdoor.htb",
+            "purpose": "Enumerate WordPress plugins",
+            "expected_output": "ebook-download plugin version 1.1 identified"
+          },
+          {
+            "step": 2,
+            "command": "curl http://backdoor.htb/wp-content/plugins/ebook-download/filedownload.php?ebookdownloadurl=../../../wp-config.php",
+            "purpose": "Test directory traversal vulnerability",
+            "expected_output": "WordPress configuration file contents"
+          },
+          {
+            "step": 3,
+            "command": "curl http://backdoor.htb/wp-content/plugins/ebook-download/filedownload.php?ebookdownloadurl=../../../../../../../proc/1/cmdline",
+            "purpose": "Enumerate running processes",
+            "expected_output": "Process command line information"
+          },
+          {
+            "step": 4,
+            "command": "gdb -q",
+            "purpose": "Start GDB client",
+            "expected_output": "GDB prompt ready"
+          },
+          {
+            "step": 5,
+            "command": "target extended-remote 10.10.11.125:1337",
+            "purpose": "Connect to remote gdbserver",
+            "expected_output": "Remote debugging session established"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-60 minutes"
+      },
+      {
+        "sequence_name": "proc_filesystem_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://backdoor.htb/wp-content/plugins/ebook-download/filedownload.php?ebookdownloadurl=../../../../../../../etc/passwd",
+            "purpose": "Identify system users",
+            "expected_output": "System user accounts list"
+          },
+          {
+            "step": 2,
+            "command": "for i in {1..100}; do curl -s http://backdoor.htb/wp-content/plugins/ebook-download/filedownload.php?ebookdownloadurl=../../../../../../../proc/$i/cmdline; done",
+            "purpose": "Enumerate process command lines",
+            "expected_output": "Running process details including gdbserver"
+          },
+          {
+            "step": 3,
+            "command": "curl http://backdoor.htb/wp-content/plugins/ebook-download/filedownload.php?ebookdownloadurl=../../../../../../../proc/net/tcp",
+            "purpose": "Identify listening services",
+            "expected_output": "Network connection information"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "10-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Backdoor",
+      "difficulty": "Easy",
+      "os": "Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2021-11-20",
+      "author": "hkabubaker17",
+      "estimated_time": "45-60 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "directory_traversal",
+        "gdbserver_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "wordpress_plugin_lfi",
+        "gdbserver_rce",
+        "screen_session_hijacking"
+      ],
+      "environment_type": "web_server_wordpress",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "wordpress_enumeration",
+        "proc_filesystem_analysis",
+        "gdbserver_exploitation",
+        "screen_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "file_system_navigation",
+        "process_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "directory_traversal",
+        "remote_code_execution",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_plugin_configuration",
+        "disable_debug_services",
+        "secure_screen_sessions"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Lame",
+        "Blocky",
+        "Apocalyst"
+      ],
+      "similarity_reasons": [
+        "wordpress_exploitation",
+        "file_disclosure",
+        "service_enumeration"
+      ],
+      "unique_aspects": [
+        "gdbserver_exploitation",
+        "proc_filesystem_enumeration",
+        "screen_session_hijacking"
+      ],
+      "difficulty_factors": [
+        "straightforward_lfi",
+        "clear_attack_path",
+        "well_known_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T01:32:44.246724",
+    "original_file": "0xdf_writeups/Htb Backdoor.md",
+    "content_length": 33067,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

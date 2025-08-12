@@ -1,0 +1,943 @@
+{
+  "writeup_id": "Htb_Tentacle",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_kerberos_proxy_chain_exploitation",
+    "primary_services": [
+      "ssh",
+      "dns",
+      "kerberos",
+      "squid_proxy"
+    ],
+    "port_signature": "22+53+88+3128",
+    "service_combination": "ssh+dns+kerberos+squid",
+    "os_family": "redhat_linux",
+    "environment_type": "linux_active_directory",
+    "entry_vector": "proxy_chain_traversal",
+    "privilege_path": "kerberos_keytab_abuse",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "squid_proxy_chaining",
+      "wpad_configuration_disclosure",
+      "opensmtpd_exploitation",
+      "linux_kerberos_integration",
+      "keytab_file_access"
+    ],
+    "environmental_clues": [
+      "multiple_internal_networks",
+      "proxy_infrastructure",
+      "linux_domain_controller",
+      "kerberos_ssh_authentication",
+      "backup_script_privileges"
+    ],
+    "similar_scenarios": [
+      "forest_htb_hard",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "linux_based_kerberos_domain",
+      "multi_proxy_network_traversal",
+      "keytab_domain_administration"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "DNS_Subdomain_Enumeration",
+        "success_reason": "DNS server allowed recursive queries and subdomain brute forcing",
+        "prerequisite_indicators": [
+          "dns_server_accessible",
+          "recursive_queries_enabled",
+          "internal_domain_configured"
+        ],
+        "recognition_patterns": [
+          "SOA record reveals domain structure",
+          "dnsenum returns internal subdomains",
+          "different IP ranges in DNS responses"
+        ],
+        "failure_modes": [
+          "dns_recursion_disabled",
+          "rate_limiting_enabled",
+          "no_internal_domains_configured"
+        ],
+        "environmental_factors": [
+          "internal_dns_server_exposed",
+          "misconfigured_dns_permissions",
+          "development_environment_settings"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Squid_Proxy_Pivoting",
+        "success_reason": "Squid proxy allowed access to internal networks without authentication",
+        "prerequisite_indicators": [
+          "squid_proxy_accessible",
+          "internal_networks_reachable",
+          "proxy_acl_misconfigured"
+        ],
+        "recognition_patterns": [
+          "port 3128 open with squid banner",
+          "proxy allows internal network access",
+          "multiple network segments discoverable"
+        ],
+        "failure_modes": [
+          "proxy_authentication_required",
+          "strict_acl_configuration",
+          "network_segmentation_enforced"
+        ],
+        "environmental_factors": [
+          "corporate_proxy_infrastructure",
+          "legacy_proxy_configurations",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "WPAD_Configuration_Discovery",
+        "success_reason": "WPAD file exposed internal network topology and additional proxy servers",
+        "prerequisite_indicators": [
+          "wpad_subdomain_exists",
+          "proxy_infrastructure_present",
+          "internal_network_accessible"
+        ],
+        "recognition_patterns": [
+          "wpad.domain.tld DNS resolution",
+          "wpad.dat file accessible",
+          "proxy configuration reveals networks"
+        ],
+        "failure_modes": [
+          "wpad_not_configured",
+          "wpad_file_protected",
+          "no_proxy_infrastructure"
+        ],
+        "environmental_factors": [
+          "windows_domain_environment",
+          "automatic_proxy_configuration",
+          "corporate_network_setup"
+        ],
+        "success_probability": 0.68,
+        "typical_timeframe": "5-20 minutes"
+      },
+      {
+        "technique": "Kerberos_Linux_Environment",
+        "success_reason": "Linux system integrated with Kerberos domain allowing credential reuse",
+        "prerequisite_indicators": [
+          "kerberos_port_open",
+          "linux_kerberos_integration",
+          "domain_credentials_available"
+        ],
+        "recognition_patterns": [
+          "port 88 open on Linux system",
+          "SSH accepts Kerberos authentication",
+          "keytab files present"
+        ],
+        "failure_modes": [
+          "no_kerberos_integration",
+          "strict_authentication_controls",
+          "keytab_files_protected"
+        ],
+        "environmental_factors": [
+          "mixed_windows_linux_domain",
+          "enterprise_authentication_setup",
+          "centralized_identity_management"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "30-90 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Internal network topology via DNS",
+        "discovery_method": "dnsenum subdomain brute forcing",
+        "why_critical": "Revealed multiple internal networks and proxy infrastructure",
+        "how_to_recognize": [
+          "DNS server responds to subdomain queries",
+          "Internal IP ranges in DNS responses",
+          "Infrastructure naming patterns (ns, proxy, wpad)"
+        ],
+        "follow_up_actions": [
+          "enumerate_all_discovered_subdomains",
+          "test_proxy_access_to_internal_networks",
+          "download_wpad_configuration_file"
+        ]
+      },
+      {
+        "discovery": "Squid proxy access to internal networks",
+        "discovery_method": "Direct connection to port 3128",
+        "why_critical": "Provided pivot point to access otherwise unreachable internal services",
+        "how_to_recognize": [
+          "Squid banner on port 3128",
+          "Proxy accepts requests to internal IPs",
+          "No authentication required"
+        ],
+        "follow_up_actions": [
+          "configure_proxychains_for_internal_access",
+          "scan_internal_networks_through_proxy",
+          "identify_exploitable_internal_services"
+        ]
+      },
+      {
+        "discovery": "WPAD configuration revealing network architecture",
+        "discovery_method": "HTTP request to wpad.realcorp.htb/wpad.dat",
+        "why_critical": "Exposed additional internal network segments and proxy chains",
+        "how_to_recognize": [
+          "WPAD subdomain resolves",
+          "wpad.dat file accessible via HTTP",
+          "JavaScript proxy configuration syntax"
+        ],
+        "follow_up_actions": [
+          "parse_proxy_configuration_for_networks",
+          "test_access_to_additional_proxy_servers",
+          "map_complete_internal_topology"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "external_reconnaissance",
+        "escalation_method": "DNS_to_Internal_Network_Access",
+        "why_possible": "DNS enumeration revealed internal infrastructure accessible via proxy",
+        "recognition_signs": [
+          "internal_subdomains_discovered",
+          "proxy_server_accessible",
+          "internal_ip_ranges_identified"
+        ],
+        "exploitation_path": "DNS Enum → Proxy Discovery → Internal Network Access"
+      },
+      {
+        "privilege_level": "network_pivot",
+        "escalation_method": "Proxy_Chain_to_Service_Exploitation",
+        "why_possible": "Multiple proxy servers allowed deep network penetration",
+        "recognition_signs": [
+          "wpad_configuration_accessible",
+          "multiple_proxy_servers_chained",
+          "internal_services_reachable"
+        ],
+        "exploitation_path": "Proxy Chain → Internal Service Discovery → Service Exploitation"
+      },
+      {
+        "privilege_level": "service_compromise",
+        "escalation_method": "Kerberos_Integration_Abuse",
+        "why_possible": "Linux system integrated with Kerberos domain allowing credential reuse",
+        "recognition_signs": [
+          "kerberos_on_linux_system",
+          "ssh_kerberos_authentication",
+          "keytab_files_accessible"
+        ],
+        "exploitation_path": "Service Creds → Kerberos Auth → Keytab Access → Domain Admin"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,53,88,3128 open on Linux host",
+        "decision": "Identify as Kerberos-enabled Linux with proxy infrastructure",
+        "reasoning": "Port combination indicates Kerberos authentication with DNS and proxy services",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "dns_enumeration",
+            "when": "if proxy access fails"
+          },
+          {
+            "option": "kerberos_user_enum",
+            "when": "if domain info available"
+          }
+        ],
+        "success_indicators": [
+          "domain_name_discovered",
+          "proxy_accessible",
+          "dns_zone_transfer_possible"
+        ],
+        "next_decision": "enumerate_dns_for_internal_networks"
+      },
+      {
+        "step": 2,
+        "situation": "DNS enumeration reveals internal network hosts (wpad, ns, proxy)",
+        "decision": "Use squid proxy to access internal networks",
+        "reasoning": "Internal IPs suggest network segmentation requiring proxy traversal",
+        "confidence": 0.85,
+        "prerequisites": [
+          "squid_proxy_accessible",
+          "internal_hosts_discovered"
+        ],
+        "success_indicators": [
+          "proxy_chain_established",
+          "internal_services_accessible"
+        ],
+        "failure_fallbacks": [
+          "direct_connection_attempts",
+          "alternative_proxy_configs"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "WPAD configuration file accessible through proxy",
+        "decision": "Analyze WPAD for additional network segments",
+        "reasoning": "WPAD files often reveal network topology and additional subnets",
+        "confidence": 0.8,
+        "prerequisites": [
+          "proxy_access_established"
+        ],
+        "success_indicators": [
+          "additional_networks_discovered",
+          "proxy_configs_found"
+        ],
+        "next_decision": "exploit_services_in_discovered_networks"
+      }
+    ],
+    "branching_logic": {
+      "if_dns_enumeration_succeeds": {
+        "action": "map_internal_network_topology",
+        "tools": [
+          "dig",
+          "dnsenum",
+          "nmap"
+        ],
+        "next_phase": "proxy_chain_establishment"
+      },
+      "if_proxy_access_gained": {
+        "action": "enumerate_internal_services",
+        "alternatives": [
+          "wpad_analysis",
+          "service_discovery",
+          "vulnerability_scanning"
+        ],
+        "decision_criteria": "based_on_accessible_internal_hosts"
+      },
+      "if_opensmtpd_found": {
+        "action": "exploit_mail_server_vulnerability",
+        "purpose": "gain_initial_foothold",
+        "tools": [
+          "custom_exploit",
+          "smtp_enumeration"
+        ]
+      },
+      "if_foothold_obtained": {
+        "action": "kerberos_credential_hunting",
+        "purpose": "find_keytab_files_and_principals",
+        "tools": [
+          "find",
+          "klist",
+          "kinit"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_enumerate_dns_thoroughly_when_present",
+        "reasoning": "dns_often_reveals_internal_network_topology",
+        "applicability": "environments_with_dns_services"
+      },
+      {
+        "rule": "chain_proxies_for_network_traversal",
+        "reasoning": "multiple_proxy_hops_often_required_for_segmented_networks",
+        "applicability": "squid_proxy_environments"
+      },
+      {
+        "rule": "prioritize_wpad_analysis_in_corporate_environments",
+        "reasoning": "wpad_files_reveal_network_architecture_and_additional_targets",
+        "applicability": "corporate_network_penetration"
+      },
+      {
+        "rule": "hunt_keytab_files_after_linux_kerberos_foothold",
+        "reasoning": "keytab_files_provide_domain_admin_equivalent_access",
+        "applicability": "linux_kerberos_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Squid Proxy Pivoting",
+        "mitre_id": "T1090.002",
+        "required_services": [
+          "squid-http",
+          "http-proxy"
+        ],
+        "required_ports": [
+          3128,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "squid_proxy_accessible",
+          "internal_networks_reachable",
+          "proxy_authentication_not_required"
+        ],
+        "success_indicators": [
+          "proxy_accepts_connections",
+          "internal_services_accessible",
+          "wpad_config_discoverable"
+        ],
+        "incompatible_with": [
+          "proxy_authentication_required",
+          "strict_acl_rules",
+          "network_segmentation_enforced"
+        ],
+        "confidence_boosters": [
+          "multiple_proxy_chains",
+          "internal_network_discovery",
+          "default_squid_configuration"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Kerberos Authentication Abuse",
+        "mitre_id": "T1558",
+        "required_services": [
+          "kerberos-sec"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "kerberos_authentication_enabled",
+          "valid_credentials_available",
+          "keytab_files_accessible"
+        ],
+        "success_indicators": [
+          "ssh_kerberos_auth_successful",
+          "keytab_file_readable",
+          "domain_admin_privileges_obtained"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "keytab_files_protected",
+          "strict_privilege_separation"
+        ],
+        "confidence_boosters": [
+          "backup_scripts_with_elevated_privileges",
+          "shared_keytab_access",
+          "linux_kerberos_implementation"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "OpenSMTPd Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "smtp"
+        ],
+        "required_ports": [
+          25,
+          587
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "opensmtpd_service_running",
+          "vulnerable_version_detected",
+          "smtp_port_accessible"
+        ],
+        "success_indicators": [
+          "service_banner_shows_opensmtpd",
+          "exploit_payload_accepted",
+          "command_execution_achieved"
+        ],
+        "incompatible_with": [
+          "patched_opensmtpd_version",
+          "smtp_service_disabled",
+          "strict_input_validation"
+        ],
+        "confidence_boosters": [
+          "default_opensmtpd_configuration",
+          "internal_network_access",
+          "unpatched_system"
+        ],
+        "typical_success_rate": 0.88,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "DNS Zone Transfer",
+        "mitre_id": "T1590.002",
+        "required_services": [
+          "domain",
+          "dns"
+        ],
+        "required_ports": [
+          53
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "dns_server_accessible",
+          "zone_transfer_enabled",
+          "target_domain_known"
+        ],
+        "success_indicators": [
+          "axfr_query_successful",
+          "domain_records_returned",
+          "internal_hostnames_discovered"
+        ],
+        "incompatible_with": [
+          "zone_transfer_disabled",
+          "dns_acl_restrictions",
+          "authoritative_server_only"
+        ],
+        "confidence_boosters": [
+          "tcp_dns_enabled",
+          "bind_version_detected",
+          "soa_records_present"
+        ],
+        "typical_success_rate": 0.25,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "kerberos_domain": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "domain",
+          "ldap"
+        ],
+        "banner_indicators": [
+          "MIT Kerberos",
+          "realcorp.htb"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "proxy_infrastructure": {
+        "port_indicators": [
+          3128,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "squid-http",
+          "http-proxy"
+        ],
+        "banner_indicators": [
+          "squid",
+          "proxy"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "internal_network": {
+        "port_indicators": [
+          25,
+          80,
+          443,
+          9090
+        ],
+        "service_indicators": [
+          "smtp",
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "opensmtpd",
+          "wpad"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "squid_proxy_pivoting",
+          "when": "squid_proxy_detected",
+          "reason": "enables_internal_network_access"
+        },
+        {
+          "attack": "opensmtpd_exploitation",
+          "when": "opensmtpd_service_detected",
+          "reason": "high_success_rate_rce_available"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "kerberos_authentication_abuse",
+          "when": "kerberos_service_detected_with_creds",
+          "reason": "requires_valid_credentials_first"
+        },
+        {
+          "attack": "dns_zone_transfer",
+          "when": "tcp_dns_detected",
+          "reason": "low_success_rate_but_quick_check"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "DNS Subdomain Enumeration",
+        "mitre_id": "T1590.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "dnsenum",
+            "command_template": "dnsenum --dnsserver {dns_server} -f {wordlist} -o {output_file} {domain}",
+            "actual_command": "dnsenum --dnsserver 10.10.10.224 -f /usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt -o scans/dnsenum-bitquark-realcorp.htb realcorp.htb",
+            "output_pattern": "subdomain.domain.tld. IN A {ip_address}",
+            "effectiveness_rating": 5,
+            "reliability": 0.92
+          },
+          {
+            "name": "nmap",
+            "command_template": "nmap -sL --dns-servers {dns_server} {network_range} | grep -F '('",
+            "actual_command": "nmap -sL --dns-servers 10.10.10.224 10.197.243.0/24 | grep -F '('",
+            "success_factors": [
+              "custom_dns_server",
+              "network_range_targeting"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "dig",
+            "command_template": "dig +noall +answer @{dns_server} -x {ip_address}",
+            "actual_command": "dig +noall +answer @10.10.10.224 -x 10.197.243.31",
+            "success_factors": [
+              "reverse_dns_configured"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "dns_server_accessible",
+          "domain_name_known",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "internal_ip_addresses_revealed",
+          "additional_attack_surface_identified"
+        ],
+        "common_failures": [
+          "dns_server_not_authoritative",
+          "no_reverse_dns_configured",
+          "rate_limiting_enabled"
+        ],
+        "follow_up_techniques": [
+          "zone_transfer_attempts",
+          "subdomain_brute_forcing",
+          "network_scanning"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "DNS Zone Transfer",
+        "mitre_id": "T1590.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "dig",
+            "command_template": "dig axfr @{dns_server} {domain}",
+            "actual_command": "dig axfr @10.10.10.224 realcorp.htb",
+            "output_pattern": "Transfer failed. OR zone records",
+            "effectiveness_rating": 3,
+            "reliability": 0.15
+          }
+        ],
+        "prerequisites": [
+          "dns_server_accessible",
+          "zone_transfer_enabled",
+          "domain_name_known"
+        ],
+        "success_indicators": [
+          "complete_zone_data_retrieved",
+          "multiple_subdomains_discovered",
+          "internal_infrastructure_mapped"
+        ],
+        "common_failures": [
+          "zone_transfer_disabled",
+          "access_restrictions_in_place",
+          "not_authoritative_server"
+        ],
+        "follow_up_techniques": [
+          "subdomain_enumeration",
+          "host_discovery",
+          "service_enumeration"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Kerberos User Enumeration",
+        "mitre_id": "T1589.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "kerbrute",
+            "command_template": "kerbrute userenum -d {domain} --dc {domain_controller} {wordlist}",
+            "actual_command": "kerbrute userenum -d realcorp.htb --dc realcorp.htb /usr/share/seclists/Usernames/cirt-default-usernames.txt",
+            "output_pattern": "VALID USERNAME: {username}@{domain}",
+            "effectiveness_rating": 4,
+            "reliability": 0.88
+          }
+        ],
+        "prerequisites": [
+          "kerberos_service_accessible",
+          "domain_name_known",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "valid_usernames_identified",
+          "domain_users_enumerated",
+          "no_account_lockout_triggered"
+        ],
+        "common_failures": [
+          "no_valid_users_in_wordlist",
+          "kerberos_pre_auth_required",
+          "rate_limiting_active"
+        ],
+        "follow_up_techniques": [
+          "asreproast_attack",
+          "password_spraying",
+          "kerberoasting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Proxy Authentication Bypass",
+        "mitre_id": "T1090.002",
+        "category": "command_and_control",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s --proxy {proxy_ip}:{proxy_port} http://{target}",
+            "actual_command": "curl -s --proxy 10.10.10.224:3128 http://10.10.10.224",
+            "output_pattern": "407 Proxy Authentication Required",
+            "effectiveness_rating": 3,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "proxy_server_accessible",
+          "target_reachable_through_proxy",
+          "authentication_bypass_possible"
+        ],
+        "success_indicators": [
+          "proxy_error_pages_reveal_info",
+          "internal_hostnames_discovered",
+          "administrator_contact_found"
+        ],
+        "common_failures": [
+          "strong_authentication_required",
+          "ip_restrictions_in_place",
+          "proxy_properly_configured"
+        ],
+        "follow_up_techniques": [
+          "credential_brute_forcing",
+          "proxy_chaining",
+          "internal_network_discovery"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "dnsenum",
+        "use_case": "dns_subdomain_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "internal_network_mapping"
+        ],
+        "alternatives": [
+          "gobuster_dns",
+          "fierce",
+          "dnsrecon"
+        ],
+        "best_practices": [
+          "use_target_dns_server_directly",
+          "try_multiple_wordlists",
+          "combine_with_reverse_dns_lookups"
+        ]
+      },
+      {
+        "tool": "kerbrute",
+        "use_case": "kerberos_user_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_reconnaissance"
+        ],
+        "alternatives": [
+          "nmap_krb5_enum",
+          "enum4linux",
+          "rpcclient"
+        ],
+        "best_practices": [
+          "use_comprehensive_username_lists",
+          "monitor_for_account_lockouts",
+          "combine_with_asreproast_attacks"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "dns_reconnaissance_to_internal_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "dig axfr @10.10.10.224 realcorp.htb",
+            "purpose": "Attempt zone transfer",
+            "expected_output": "Transfer failed or zone data"
+          },
+          {
+            "step": 2,
+            "command": "dnsenum --dnsserver 10.10.10.224 -f /usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt realcorp.htb",
+            "purpose": "Brute force subdomains",
+            "expected_output": "ns.realcorp.htb, proxy.realcorp.htb, wpad.realcorp.htb"
+          },
+          {
+            "step": 3,
+            "command": "nmap -sL --dns-servers 10.10.10.224 10.197.243.0/24 | grep -F '('",
+            "purpose": "Reverse DNS lookup on discovered network",
+            "expected_output": "Additional hostnames and IP mappings"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "15-25 minutes"
+      },
+      {
+        "sequence_name": "proxy_information_gathering",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -s --proxy 10.10.10.224:3128 http://10.10.10.224 > error.html",
+            "purpose": "Trigger proxy error page",
+            "expected_output": "407 Proxy Authentication Required with details"
+          },
+          {
+            "step": 2,
+            "command": "firefox error.html",
+            "purpose": "Analyze error page for information disclosure",
+            "expected_output": "Administrator email and hostname information"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Tentacle",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2021-01-23",
+      "author": "polarbearer",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "proxy_pivoting",
+        "kerberos",
+        "smtp_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "squid_proxy_misconfiguration",
+        "opensmtpd_rce",
+        "kerberos_keytab_abuse"
+      ],
+      "environment_type": "linux_kerberos_domain",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "proxy_chaining",
+        "linux_kerberos",
+        "network_pivoting",
+        "keytab_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "proxy_configuration",
+        "kerberos_fundamentals",
+        "network_pivoting",
+        "smtp_protocols"
+      ]
+    },
+    "categorization": {
+      "primary_category": "network_pivoting",
+      "subcategories": [
+        "kerberos_attacks",
+        "proxy_exploitation",
+        "smtp_exploitation"
+      ],
+      "attack_types": [
+        "network_traversal",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "proxy_hardening",
+        "keytab_security",
+        "network_segmentation",
+        "smtp_patching"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blackfield",
+        "Multimaster",
+        "Cascade"
+      ],
+      "similarity_reasons": [
+        "kerberos_environment",
+        "complex_network_topology",
+        "credential_extraction"
+      ],
+      "unique_aspects": [
+        "linux_kerberos_implementation",
+        "squid_proxy_chaining",
+        "opensmtpd_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_network_pivots",
+        "complex_kerberos_abuse",
+        "keytab_understanding"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:59:30.409813",
+    "original_file": "0xdf_writeups/Htb Tentacle.md",
+    "content_length": 60861,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

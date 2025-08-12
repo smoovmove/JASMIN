@@ -1,0 +1,1103 @@
+{
+  "writeup_id": "Htb_Rebound",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_advanced_kerberos_attacks",
+    "primary_services": [
+      "kerberos",
+      "ldap",
+      "smb",
+      "dns",
+      "winrm"
+    ],
+    "port_signature": "53+88+389+445+5985+636+3268+3269+9389",
+    "service_combination": "dns+kerberos+ldap+smb+winrm+adws",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "rid_cycling_asreproast_kerberoast",
+    "privilege_path": "service_account_to_domain_admin_via_delegation",
+    "attack_complexity": "insane",
+    "estimated_time": "8-12 hours",
+    "scenario_confidence": 0.98,
+    "distinguishing_factors": [
+      "constrained_delegation_abuse",
+      "rbcd_attack_chain",
+      "cross_session_relay",
+      "gmsa_password_extraction",
+      "shadow_credentials",
+      "bad_acl_permissions"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "guest_smb_access",
+      "multiple_ldap_ports",
+      "adws_service_running",
+      "kerberos_authentication"
+    ],
+    "similar_scenarios": [
+      "forest_htb_insane",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "remotepotato0_krbrelay_combo",
+      "constrained_delegation_with_rbcd",
+      "gmsa_service_account_abuse",
+      "machine_account_impersonation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "ASREPRoast",
+        "success_reason": "Service account svc-alfresco had pre-authentication disabled",
+        "prerequisite_indicators": [
+          "kerberos_service_available",
+          "domain_controller_accessible",
+          "accounts_without_preauth_exist"
+        ],
+        "recognition_patterns": [
+          "service account naming (svc-*)",
+          "GetNPUsers returns hashes",
+          "no preauth required error"
+        ],
+        "failure_modes": [
+          "all_accounts_require_preauth",
+          "kerberos_not_accessible",
+          "no_service_accounts"
+        ],
+        "environmental_factors": [
+          "default_active_directory_config",
+          "legacy_service_configurations",
+          "insufficient_hardening"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "RID_Cycling",
+        "success_reason": "Guest account had sufficient privileges to enumerate domain users",
+        "prerequisite_indicators": [
+          "guest_account_enabled",
+          "smb_accessible_anonymously",
+          "domain_controller_available"
+        ],
+        "recognition_patterns": [
+          "guest login successful",
+          "IPC$ share readable",
+          "RPC enumeration possible"
+        ],
+        "failure_modes": [
+          "guest_account_disabled",
+          "anonymous_access_blocked",
+          "rpc_restrictions_enabled"
+        ],
+        "environmental_factors": [
+          "default_windows_configuration",
+          "legacy_compatibility_settings",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "2-10 minutes"
+      },
+      {
+        "technique": "WriteDACL_Abuse",
+        "success_reason": "Service account had WriteDACL permission on domain objects",
+        "prerequisite_indicators": [
+          "service_account_compromised",
+          "bloodhound_collection_possible",
+          "acl_permissions_misconfigured"
+        ],
+        "recognition_patterns": [
+          "bloodhound shows WriteDACL edges",
+          "exchange-related service accounts",
+          "privileged group memberships"
+        ],
+        "failure_modes": [
+          "proper_acl_hardening",
+          "service_account_isolation",
+          "permission_auditing_enabled"
+        ],
+        "environmental_factors": [
+          "exchange_server_integration",
+          "complex_ad_environment",
+          "legacy_permission_inheritance"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Cross_Session_Relay",
+        "success_reason": "Multiple users logged in simultaneously with different privilege levels",
+        "prerequisite_indicators": [
+          "multiple_active_sessions",
+          "winrm_access_available",
+          "kerberos_relay_possible"
+        ],
+        "recognition_patterns": [
+          "RemotePotato0 successful",
+          "KrbRelay exploitation",
+          "session enumeration shows targets"
+        ],
+        "failure_modes": [
+          "single_user_sessions",
+          "relay_protections_enabled",
+          "network_segmentation"
+        ],
+        "environmental_factors": [
+          "shared_server_usage",
+          "administrative_overlap",
+          "insufficient_session_isolation"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Constrained_Delegation_Abuse",
+        "success_reason": "Service account configured with constrained delegation to domain controller",
+        "prerequisite_indicators": [
+          "service_account_with_delegation",
+          "gmsa_password_readable",
+          "delegation_target_accessible"
+        ],
+        "recognition_patterns": [
+          "msDS-AllowedToDelegateTo attribute set",
+          "GMSA account enumeration",
+          "delegation chains in bloodhound"
+        ],
+        "failure_modes": [
+          "delegation_not_configured",
+          "gmsa_permissions_restricted",
+          "kerberos_hardening_enabled"
+        ],
+        "environmental_factors": [
+          "service_architecture_complexity",
+          "gmsa_implementation",
+          "kerberos_delegation_requirements"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "20-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "svc-alfresco service account",
+        "discovery_method": "RID cycling + ASREPRoast enumeration",
+        "why_critical": "Entry point with crackable hash and privileged permissions",
+        "how_to_recognize": [
+          "service account naming pattern",
+          "AS-REP roastable accounts",
+          "weak password patterns",
+          "exchange-related service accounts"
+        ],
+        "follow_up_actions": [
+          "crack_hash_with_hashcat",
+          "test_winrm_access",
+          "run_bloodhound_collection",
+          "enumerate_acl_permissions"
+        ]
+      },
+      {
+        "discovery": "WriteDACL permission on domain",
+        "discovery_method": "BloodHound ACL analysis",
+        "why_critical": "Direct path to DCSync and domain admin privileges",
+        "how_to_recognize": [
+          "bloodhound_shows_writedacl_edges",
+          "service_account_in_privileged_context",
+          "exchange_permissions_inheritance"
+        ],
+        "follow_up_actions": [
+          "add_dcsync_permissions",
+          "perform_dcsync_attack",
+          "dump_domain_hashes"
+        ]
+      },
+      {
+        "discovery": "GMSA password access",
+        "discovery_method": "Cross-session relay to privileged user",
+        "why_critical": "Access to service account with constrained delegation",
+        "how_to_recognize": [
+          "gmsa_accounts_enumerated",
+          "msds_managedpassword_readable",
+          "delegation_configured_accounts"
+        ],
+        "follow_up_actions": [
+          "read_gmsa_password",
+          "analyze_delegation_targets",
+          "perform_s4u2self_s4u2proxy"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "guest_user",
+        "escalation_method": "RID_cycling_to_ASREPRoast",
+        "why_possible": "Guest account enabled with user enumeration privileges",
+        "recognition_signs": [
+          "guest_login_successful",
+          "ipc_share_accessible",
+          "rpc_enumeration_allowed"
+        ],
+        "exploitation_path": "Guest → User Enum → ASREPRoast → Service Account"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "WriteDACL_to_DCSync",
+        "why_possible": "Service account had WriteDACL permission on domain",
+        "recognition_signs": [
+          "bloodhound_shows_writedacl",
+          "service_account_in_privileged_groups",
+          "exchange_related_permissions"
+        ],
+        "exploitation_path": "Service Account → WriteDACL → DCSync → Domain Admin"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "Cross_Session_Relay",
+        "why_possible": "Multiple user sessions with different privilege levels",
+        "recognition_signs": [
+          "winrm_access_available",
+          "multiple_logged_in_users",
+          "relay_attack_vectors_present"
+        ],
+        "exploitation_path": "Domain User → Session Relay → Privileged User → GMSA Access"
+      },
+      {
+        "privilege_level": "gmsa_access",
+        "escalation_method": "Constrained_Delegation_RBCD",
+        "why_possible": "GMSA account configured with constrained delegation",
+        "recognition_signs": [
+          "constrained_delegation_configured",
+          "rbcd_attack_possible",
+          "domain_controller_delegation_target"
+        ],
+        "exploitation_path": "GMSA → Constrained Delegation → RBCD → DC Machine Account → Domain Admin"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445 open on Windows host",
+        "decision": "Identify as Domain Controller and prioritize SMB enumeration first",
+        "reasoning": "Port combination indicates AD DC, SMB often provides initial foothold without credentials",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "kerberos_enumeration",
+            "when": "if smb_enumeration_fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous_access_available"
+          }
+        ],
+        "success_indicators": [
+          "smb_shares_accessible",
+          "rid_cycling_successful",
+          "domain_name_discovered"
+        ],
+        "next_decision": "enumerate_users_and_shares"
+      },
+      {
+        "step": 2,
+        "situation": "SMB accessible with guest account, RID cycling successful",
+        "decision": "Perform RID cycling attack to enumerate domain users",
+        "reasoning": "Guest access allows user enumeration which is critical for subsequent Kerberos attacks",
+        "confidence": 0.9,
+        "prerequisites": [
+          "guest_account_access",
+          "smb_accessible"
+        ],
+        "success_indicators": [
+          "user_list_obtained",
+          "service_accounts_identified"
+        ],
+        "next_decision": "attempt_asreproast_attack"
+      },
+      {
+        "step": 3,
+        "situation": "Domain users enumerated successfully",
+        "decision": "Try AS-REP-Roasting before Kerberoasting",
+        "reasoning": "AS-REP-Roasting doesn't require valid credentials and has high success rate",
+        "confidence": 0.85,
+        "prerequisites": [
+          "user_list_available",
+          "kerberos_accessible"
+        ],
+        "success_indicators": [
+          "asrep_roastable_accounts_found",
+          "crackable_hash_obtained"
+        ],
+        "failure_fallbacks": [
+          "kerberoasting",
+          "password_spraying",
+          "ldap_enumeration"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "AS-REP-Roasting failed or insufficient",
+        "decision": "Combine AS-REP-Roasting with Kerberoasting for comprehensive attack",
+        "reasoning": "Service accounts often have weak passwords and are kerberoastable",
+        "confidence": 0.8,
+        "prerequisites": [
+          "service_accounts_identified",
+          "kerberos_accessible"
+        ],
+        "success_indicators": [
+          "service_account_hash_obtained"
+        ],
+        "next_decision": "crack_obtained_hashes"
+      }
+    ],
+    "branching_logic": {
+      "if_smb_enumeration_succeeds": {
+        "action": "perform_rid_cycling_attack",
+        "tools": [
+          "netexec",
+          "enum4linux"
+        ],
+        "next_phase": "kerberos_attacks"
+      },
+      "if_users_enumerated": {
+        "action": "attempt_asreproast_and_kerberoast",
+        "tools": [
+          "impacket-GetNPUsers",
+          "impacket-GetUserSPNs"
+        ],
+        "next_phase": "hash_cracking"
+      },
+      "if_hashes_obtained": {
+        "action": "crack_hashes_and_authenticate",
+        "tools": [
+          "hashcat",
+          "john",
+          "evil-winrm"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_domain_credentials_obtained": {
+        "action": "bloodhound_enumeration",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "bloodhound-python",
+          "sharphound"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_smb_enumeration_on_domain_controllers",
+        "reasoning": "guest_access_often_available_and_provides_user_enumeration",
+        "applicability": "active_directory_environments"
+      },
+      {
+        "rule": "always_try_rid_cycling_with_guest_access",
+        "reasoning": "essential_for_obtaining_user_list_for_kerberos_attacks",
+        "applicability": "smb_guest_access_available"
+      },
+      {
+        "rule": "combine_asreproast_and_kerberoast_attacks",
+        "reasoning": "maximizes_chances_of_obtaining_crackable_hashes",
+        "applicability": "user_enumeration_successful"
+      },
+      {
+        "rule": "run_bloodhound_after_any_domain_credentials",
+        "reasoning": "essential_for_privilege_escalation_paths_and_acl_analysis",
+        "applicability": "domain_user_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.87,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Kerberoasting",
+        "mitre_id": "T1558.003",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "service_accounts_with_spn_exist",
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "GetUserSPNs_returns_hashes",
+          "service_accounts_enumerated",
+          "crackable_passwords"
+        ],
+        "incompatible_with": [
+          "no_service_accounts",
+          "strong_service_passwords",
+          "kerberos_disabled"
+        ],
+        "confidence_boosters": [
+          "default_service_passwords",
+          "legacy_applications",
+          "service_account_naming_patterns"
+        ],
+        "typical_success_rate": 0.73,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "RID_Cycling",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "smb",
+          "rpc"
+        ],
+        "required_ports": [
+          445,
+          135
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_anonymous_access",
+          "rpc_null_session_allowed",
+          "domain_controller_accessible"
+        ],
+        "success_indicators": [
+          "user_enumeration_successful",
+          "rid_range_accessible",
+          "domain_users_discovered"
+        ],
+        "incompatible_with": [
+          "anonymous_access_disabled",
+          "restrictanonymous_enabled",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "guest_account_enabled",
+          "default_domain_configuration",
+          "legacy_windows_versions"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "SMB_Anonymous_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "anonymous_access_allowed",
+          "readable_shares_exist"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "files_accessible",
+          "credentials_discovered"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "anonymous_access_blocked",
+          "share_permissions_hardened"
+        ],
+        "confidence_boosters": [
+          "guest_account_enabled",
+          "default_share_permissions",
+          "legacy_configurations"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Cross_Session_Relay",
+        "mitre_id": "T1557.001",
+        "required_services": [
+          "smb",
+          "winrm"
+        ],
+        "required_ports": [
+          445,
+          5985
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "valid_domain_credentials",
+          "winrm_access_available",
+          "relay_conditions_met"
+        ],
+        "success_indicators": [
+          "session_established",
+          "relay_successful",
+          "privilege_escalation_achieved"
+        ],
+        "incompatible_with": [
+          "smb_signing_enforced",
+          "relay_protections_enabled",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "remotepotato_conditions",
+          "krbrelay_applicable",
+          "service_account_context"
+        ],
+        "typical_success_rate": 0.58,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "Constrained_Delegation_Abuse",
+        "mitre_id": "T1558.003",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "constrained_delegation_configured",
+          "service_account_access",
+          "target_service_accessible"
+        ],
+        "success_indicators": [
+          "delegation_rights_confirmed",
+          "service_ticket_obtained",
+          "impersonation_successful"
+        ],
+        "incompatible_with": [
+          "delegation_disabled",
+          "protected_users_group",
+          "kerberos_armoring"
+        ],
+        "confidence_boosters": [
+          "service_account_privileges",
+          "legacy_delegation_config",
+          "multiple_delegation_targets"
+        ],
+        "typical_success_rate": 0.71,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          636,
+          3269
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "domain controller"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "domain_controller": {
+        "port_indicators": [
+          88,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "ldap",
+          "microsoft-ds",
+          "kpasswd5"
+        ],
+        "banner_indicators": [
+          "DC01",
+          "rebound.htb",
+          "globalcatLDAP"
+        ],
+        "confidence_threshold": 0.98
+      },
+      "kerberos_environment": {
+        "port_indicators": [
+          88,
+          464
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "kpasswd5"
+        ],
+        "banner_indicators": [
+          "Microsoft Windows Kerberos"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected_and_guest_access",
+          "reason": "often_reveals_usernames_and_shares_no_creds_needed"
+        },
+        {
+          "attack": "rid_cycling",
+          "when": "domain_controller_detected_and_anonymous_access",
+          "reason": "reliable_user_enumeration_for_further_attacks"
+        },
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected_and_users_enumerated",
+          "reason": "high_success_rate_against_service_accounts"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "kerberoasting",
+          "when": "valid_domain_credentials_obtained",
+          "reason": "effective_against_service_accounts_with_spn"
+        },
+        {
+          "attack": "constrained_delegation_abuse",
+          "when": "service_account_compromised_and_delegation_configured",
+          "reason": "path_to_domain_controller_compromise"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "cross_session_relay",
+          "when": "winrm_access_and_relay_conditions_met",
+          "reason": "complex_setup_but_powerful_when_applicable"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "RID Cycling",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "netexec",
+            "command_template": "netexec smb {target} -u guest -p '' --rid-brute",
+            "actual_command": "netexec smb 10.10.11.231 -u guest -p '' --rid-brute",
+            "output_pattern": "rebound\\{username} (SidTypeUser)",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "lookupsid.py",
+            "command_template": "lookupsid.py -no-pass 'guest@{domain}' {max_rid}",
+            "actual_command": "lookupsid.py -no-pass 'guest@rebound.htb' 20000",
+            "success_factors": [
+              "null_session_allowed",
+              "guest_account_enabled"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "smb_accessible",
+          "null_session_or_guest_access",
+          "domain_controller_target"
+        ],
+        "success_indicators": [
+          "user_accounts_enumerated",
+          "service_accounts_identified",
+          "group_memberships_revealed"
+        ],
+        "common_failures": [
+          "null_sessions_disabled",
+          "guest_account_disabled",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "asreproast",
+          "password_spraying",
+          "kerberoasting"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SMB Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "netexec",
+            "command_template": "netexec smb {target} -u guest -p '' --shares",
+            "actual_command": "netexec smb 10.10.11.231 -u guest -p '' --shares",
+            "output_pattern": "Share\\s+Permissions\\s+Remark",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "netexec spider_plus",
+            "command_template": "netexec smb {target} -u guest -p '' -M spider_plus",
+            "actual_command": "netexec smb 10.10.11.231 -u guest -p '' -M spider_plus",
+            "success_factors": [
+              "readable_shares_available",
+              "files_present"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "smb_accessible",
+          "guest_or_null_session_access"
+        ],
+        "success_indicators": [
+          "shares_enumerated_successfully",
+          "readable_shares_identified",
+          "sensitive_files_discovered"
+        ],
+        "common_failures": [
+          "no_guest_access",
+          "empty_shares",
+          "permission_denied"
+        ],
+        "follow_up_techniques": [
+          "file_content_analysis",
+          "credential_extraction",
+          "configuration_review"
+        ],
+        "time_investment": "3-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Domain Controller Reconnaissance",
+        "mitre_id": "T1018",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 {target}",
+            "actual_command": "nmap -p- --min-rate 10000 10.10.11.231",
+            "output_pattern": "53/tcp.*domain|88/tcp.*kerberos|389/tcp.*ldap",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "nmap service scan",
+            "command_template": "nmap -p {ports} -sCV {target}",
+            "actual_command": "nmap -p 53,88,135,139,389,445,464,593,636,3268,3269,5985,9389 -sCV 10.10.11.231",
+            "success_factors": [
+              "standard_dc_ports_open",
+              "certificate_info_available"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "network_connectivity",
+          "target_responsive"
+        ],
+        "success_indicators": [
+          "domain_controller_identified",
+          "domain_name_extracted",
+          "service_versions_identified",
+          "certificate_hostnames_discovered"
+        ],
+        "common_failures": [
+          "firewall_blocking_scans",
+          "rate_limiting_triggered",
+          "incomplete_service_detection"
+        ],
+        "follow_up_techniques": [
+          "smb_enumeration",
+          "ldap_enumeration",
+          "kerberos_attacks",
+          "dns_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "netexec",
+        "use_case": "active_directory_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "smb_enumeration",
+          "credential_validation",
+          "share_discovery"
+        ],
+        "alternatives": [
+          "crackmapexec",
+          "smbclient",
+          "enum4linux"
+        ],
+        "best_practices": [
+          "start_with_null_and_guest_sessions",
+          "use_spider_plus_for_file_discovery",
+          "combine_with_rid_brute_for_user_enum"
+        ]
+      },
+      {
+        "tool": "lookupsid.py",
+        "use_case": "user_enumeration_via_rid_cycling",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "domain_user_discovery",
+          "service_account_identification"
+        ],
+        "alternatives": [
+          "netexec --rid-brute",
+          "enum4linux",
+          "rpcclient"
+        ],
+        "best_practices": [
+          "increase_max_rid_for_larger_domains",
+          "focus_on_user_accounts_for_further_attacks",
+          "note_service_accounts_for_kerberoasting"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "domain_controller_identification",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "port_discovery",
+          "service_identification",
+          "certificate_extraction"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan",
+          "unicornscan"
+        ],
+        "best_practices": [
+          "use_high_min_rate_for_initial_scan",
+          "follow_up_with_service_detection",
+          "extract_hostnames_from_certificates"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "domain_controller_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.231",
+            "purpose": "Discover all open ports",
+            "expected_output": "Standard DC ports: 53,88,135,139,389,445,464,593,636,3268,3269,5985,9389"
+          },
+          {
+            "step": 2,
+            "command": "nmap -p 53,88,135,139,389,445,464,593,636,3268,3269,5985,9389 -sCV 10.10.11.231",
+            "purpose": "Identify services and extract domain info",
+            "expected_output": "Domain: rebound.htb, DC: dc01.rebound.htb"
+          },
+          {
+            "step": 3,
+            "command": "netexec smb 10.10.11.231 -u guest -p '' --shares",
+            "purpose": "Enumerate SMB shares with guest access",
+            "expected_output": "Standard shares plus custom 'Shared' share"
+          },
+          {
+            "step": 4,
+            "command": "netexec smb 10.10.11.231 -u guest -p '' --rid-brute",
+            "purpose": "Enumerate domain users via RID cycling",
+            "expected_output": "Users: ppaul, llune, fflock, plus service accounts"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "extended_user_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "netexec smb 10.10.11.231 -u guest -p '' --rid-brute",
+            "purpose": "Initial RID cycling with default range",
+            "expected_output": "Basic user list up to RID 4000"
+          },
+          {
+            "step": 2,
+            "command": "lookupsid.py -no-pass 'guest@rebound.htb' 20000",
+            "purpose": "Extended RID cycling for larger domains",
+            "expected_output": "Complete user list including high RID accounts"
+          },
+          {
+            "step": 3,
+            "command": "netexec smb 10.10.11.231 -u guest -p '' -M spider_plus",
+            "purpose": "Search for accessible files in shares",
+            "expected_output": "File metadata and accessible content"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Rebound",
+      "difficulty": "Insane",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2023-09-09",
+      "author": "Geiseric",
+      "estimated_time": "6-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "kerberos",
+        "active_directory",
+        "cross_session_relay"
+      ],
+      "key_vulnerabilities": [
+        "asrep_roasting",
+        "kerberoasting",
+        "bad_acl",
+        "constrained_delegation",
+        "rbcd"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_kerberos_attacks",
+        "cross_session_relay",
+        "constrained_delegation",
+        "rbcd",
+        "gmsa_abuse"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_ad_concepts",
+        "kerberos_delegation",
+        "relay_attacks",
+        "shadow_credentials"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "advanced_kerberos_attacks",
+        "delegation_abuse",
+        "relay_attacks"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "proper_acl_configuration",
+        "delegation_restrictions",
+        "gmsa_security",
+        "cross_session_protections"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Blackfield",
+        "Intelligence"
+      ],
+      "similarity_reasons": [
+        "complex_ad_environment",
+        "multiple_kerberos_attacks",
+        "delegation_abuse"
+      ],
+      "unique_aspects": [
+        "cross_session_relay",
+        "remotepotato0",
+        "krbRelay",
+        "gmsa_password_reading"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_chains",
+        "advanced_kerberos_concepts",
+        "complex_delegation_abuse"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T00:05:06.015746",
+    "original_file": "0xdf_writeups/Htb Rebound.md",
+    "content_length": 95174,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,897 @@
+{
+  "writeup_id": "Htb_Topology",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_latex_injection_to_cron_privesc",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "ubuntu_linux",
+    "environment_type": "web_application",
+    "entry_vector": "latex_injection",
+    "privilege_path": "file_read_to_password_reuse_to_cron_exploit",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "latex_equation_generator",
+      "virtual_host_enumeration",
+      "htpasswd_file_exposure",
+      "gnuplot_cron_exploitation"
+    ],
+    "environmental_clues": [
+      "university_math_department_theme",
+      "multiple_subdomains",
+      "apache_directory_listing",
+      "dev_subdomain_basic_auth"
+    ],
+    "similar_scenarios": [
+      "latex_injection_boxes",
+      "web_file_read_scenarios"
+    ],
+    "unique_aspects": [
+      "latex_to_image_conversion",
+      "gnuplot_privilege_escalation",
+      "academic_institution_context",
+      "password_reuse_across_services"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "LaTeX_injection_file_read",
+        "success_reason": "LaTeX processor allowed file inclusion without proper input sanitization",
+        "prerequisite_indicators": [
+          "latex_processing_service_available",
+          "user_input_processed_by_latex",
+          "file_system_access_from_latex_context"
+        ],
+        "recognition_patterns": [
+          "latex equation generator interface",
+          "tex file processing endpoints",
+          "mathematical formula input fields",
+          "png/pdf output generation"
+        ],
+        "failure_modes": [
+          "input_sanitization_blocks_commands",
+          "latex_runs_in_sandboxed_environment",
+          "file_read_permissions_restricted"
+        ],
+        "environmental_factors": [
+          "default_latex_configuration",
+          "web_service_file_system_access",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "password_reuse_attack",
+        "success_reason": "Credentials from .htpasswd file reused for SSH access",
+        "prerequisite_indicators": [
+          "credential_files_accessible",
+          "users_reuse_passwords_across_services",
+          "ssh_service_available"
+        ],
+        "recognition_patterns": [
+          "htpasswd file discovery",
+          "bcrypt/md5 password hashes",
+          "matching usernames across services"
+        ],
+        "failure_modes": [
+          "unique_passwords_per_service",
+          "strong_password_policies",
+          "ssh_key_only_authentication"
+        ],
+        "environmental_factors": [
+          "poor_password_hygiene",
+          "shared_development_credentials",
+          "basic_auth_implementations"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-20 minutes"
+      },
+      {
+        "technique": "cron_job_exploitation",
+        "success_reason": "Gnuplot cron job processed user-writable files with elevated privileges",
+        "prerequisite_indicators": [
+          "scheduled_tasks_running_as_root",
+          "user_writable_directories_processed",
+          "command_injection_in_processed_files"
+        ],
+        "recognition_patterns": [
+          "regular_file_updates_in_web_directories",
+          "gnuplot_or_similar_processing_tools",
+          "timestamp_patterns_indicating_automation"
+        ],
+        "failure_modes": [
+          "cron_runs_with_minimal_privileges",
+          "input_validation_in_processing_scripts",
+          "read_only_data_directories"
+        ],
+        "environmental_factors": [
+          "automated_report_generation",
+          "root_cron_jobs_processing_user_data",
+          "insufficient_privilege_separation"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "LaTeX file inclusion vulnerability",
+        "discovery_method": "Testing LaTeX injection payloads in equation generator",
+        "why_critical": "Enabled reading sensitive files like .htpasswd",
+        "how_to_recognize": [
+          "latex processing endpoints",
+          "user input converted to mathematical images",
+          "tex file examples visible"
+        ],
+        "follow_up_actions": [
+          "test_file_inclusion_payloads",
+          "enumerate_readable_files",
+          "extract_credential_files"
+        ]
+      },
+      {
+        "discovery": "dev.topology.htb subdomain with basic auth",
+        "discovery_method": "Subdomain enumeration with ffuf",
+        "why_critical": "Protected area likely containing sensitive development resources",
+        "how_to_recognize": [
+          "401 authentication required responses",
+          "dev/staging subdomain patterns",
+          "basic auth prompts"
+        ],
+        "follow_up_actions": [
+          "attempt_credential_extraction",
+          "test_common_credentials",
+          "enumerate_protected_resources"
+        ]
+      },
+      {
+        "discovery": "Automated file generation in stats subdomain",
+        "discovery_method": "Observing timestamp patterns and file updates",
+        "why_critical": "Indicated automated processing that could be exploited for privilege escalation",
+        "how_to_recognize": [
+          "files_with_current_timestamps",
+          "regular_update_patterns",
+          "broken_or_zero_byte_files"
+        ],
+        "follow_up_actions": [
+          "identify_processing_mechanism",
+          "test_file_injection_capabilities",
+          "monitor_update_intervals"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "cron_job_gnuplot_exploitation",
+        "why_possible": "Root cron job processed user-writable gnuplot files without validation",
+        "recognition_signs": [
+          "automated_graph_generation",
+          "gnuplot_files_in_user_directories",
+          "regular_processing_schedules"
+        ],
+        "exploitation_path": "Write malicious gnuplot file → Wait for cron execution → Root shell"
+      },
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "password_reuse_from_htpasswd",
+        "why_possible": "Development credentials reused for system authentication",
+        "recognition_signs": [
+          "htpasswd_file_accessible",
+          "matching_usernames_across_services",
+          "weak_password_policies"
+        ],
+        "exploitation_path": "Extract .htpasswd → Crack hash → SSH with reused credentials"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and subdomain discovery",
+        "reasoning": "Limited attack surface requires thorough web reconnaissance",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "virtual_hosts_found",
+          "application_functionality_identified"
+        ],
+        "next_decision": "analyze_discovered_subdomains"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered multiple subdomains including LaTeX equation generator",
+        "decision": "Test LaTeX injection for file read capabilities",
+        "reasoning": "LaTeX processors often allow file inclusion and command execution",
+        "confidence": 0.85,
+        "prerequisites": [
+          "latex_functionality_confirmed",
+          "input_validation_tested"
+        ],
+        "success_indicators": [
+          "file_read_achieved",
+          "system_files_accessible"
+        ],
+        "failure_fallbacks": [
+          "http_auth_bypass",
+          "directory_traversal",
+          "other_subdomain_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "LaTeX injection successful for file read",
+        "decision": "Target .htpasswd and configuration files for credential discovery",
+        "reasoning": "Web applications often store credentials in accessible configuration files",
+        "confidence": 0.8,
+        "prerequisites": [
+          "file_read_capability_confirmed"
+        ],
+        "success_indicators": [
+          "credentials_found",
+          "password_hashes_obtained"
+        ],
+        "failure_fallbacks": [
+          "ssh_key_extraction",
+          "application_source_code_review"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_latex_injection_succeeds": {
+        "action": "enumerate_sensitive_files",
+        "targets": [
+          ".htpasswd",
+          "config files",
+          "/etc/passwd",
+          "ssh keys"
+        ],
+        "next_phase": "credential_extraction_and_testing"
+      },
+      "if_credentials_found": {
+        "action": "test_credential_reuse",
+        "services": [
+          "ssh",
+          "http_auth",
+          "other_discovered_services"
+        ],
+        "tools": [
+          "ssh",
+          "hydra",
+          "manual_testing"
+        ]
+      },
+      "if_initial_access_gained": {
+        "action": "enumerate_privilege_escalation",
+        "focus": [
+          "cron_jobs",
+          "suid_binaries",
+          "writable_files"
+        ],
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_latex_injection_when_latex_processor_found",
+        "reasoning": "high_success_rate_for_file_read_and_potential_rce",
+        "applicability": "latex_equation_generators_or_processors"
+      },
+      {
+        "rule": "prioritize_configuration_files_over_system_files",
+        "reasoning": "application_configs_more_likely_to_contain_useful_credentials",
+        "applicability": "file_read_vulnerabilities"
+      },
+      {
+        "rule": "test_credential_reuse_across_all_discovered_services",
+        "reasoning": "users_often_reuse_passwords_across_services",
+        "applicability": "any_credentials_discovered"
+      },
+      {
+        "rule": "examine_cron_jobs_for_privilege_escalation_on_linux",
+        "reasoning": "cron_jobs_often_run_as_root_with_exploitable_configurations",
+        "applicability": "linux_systems_with_user_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "LaTeX Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "latex_processing_service",
+          "web_application_with_latex_input",
+          "file_system_access_from_latex"
+        ],
+        "success_indicators": [
+          "latex_equation_generator_present",
+          "user_input_processed_by_latex",
+          "file_read_capability_confirmed"
+        ],
+        "incompatible_with": [
+          "latex_commands_fully_sanitized",
+          "sandboxed_latex_environment",
+          "input_validation_blocks_commands"
+        ],
+        "confidence_boosters": [
+          "equation_php_endpoint",
+          "math_department_context",
+          "latex_to_image_conversion"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "HTTP Basic Auth Bruteforce",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "http_basic_authentication_enabled",
+          "htpasswd_file_accessible",
+          "weak_or_reused_passwords"
+        ],
+        "success_indicators": [
+          "401_unauthorized_response",
+          "www_authenticate_basic_header",
+          "htpasswd_file_obtained"
+        ],
+        "incompatible_with": [
+          "account_lockout_enabled",
+          "rate_limiting_active",
+          "strong_unique_passwords"
+        ],
+        "confidence_boosters": [
+          "dev_subdomain_detected",
+          "apache_server_detected",
+          "shared_password_patterns"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Cron Job Exploitation",
+        "mitre_id": "T1053.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "cron_service_running",
+          "writable_files_in_cron_path",
+          "predictable_cron_execution"
+        ],
+        "success_indicators": [
+          "cron_jobs_enumerated",
+          "writable_script_or_config",
+          "regular_execution_confirmed"
+        ],
+        "incompatible_with": [
+          "cron_disabled",
+          "strict_file_permissions",
+          "cron_job_validation"
+        ],
+        "confidence_boosters": [
+          "gnuplot_cron_detected",
+          "user_writable_plot_files",
+          "automated_image_generation"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "apache_virtual_hosts_configured",
+          "subdomain_references_in_content",
+          "dns_resolution_available"
+        ],
+        "success_indicators": [
+          "different_response_sizes",
+          "subdomain_links_found",
+          "varying_http_status_codes"
+        ],
+        "incompatible_with": [
+          "single_site_configuration",
+          "wildcard_blocking_enabled",
+          "strict_host_header_validation"
+        ],
+        "confidence_boosters": [
+          "university_domain_context",
+          "multiple_department_services",
+          "apache_server_detected"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "latex_service": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "LaTeX",
+          "equation",
+          "math"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "apache_virtual_hosts": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "virtual_host_discovery",
+          "when": "apache_server_detected",
+          "reason": "reveals_additional_attack_surface"
+        },
+        {
+          "attack": "latex_injection",
+          "when": "latex_service_detected",
+          "reason": "direct_file_read_capability"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "http_basic_auth_attack",
+          "when": "401_response_detected",
+          "reason": "common_weak_authentication"
+        },
+        {
+          "attack": "cron_exploitation",
+          "when": "linux_system_access_gained",
+          "reason": "reliable_privilege_escalation"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "LaTeX Injection File Read",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "LaTeX listings package",
+            "command_template": "$\\lstinputlisting{{filename}}$",
+            "actual_command": "$\\lstinputlisting{/etc/passwd}$",
+            "output_pattern": "file_contents_in_png_image",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "latex_processing_endpoint",
+          "listings_package_available",
+          "inline_math_mode_supported"
+        ],
+        "success_indicators": [
+          "file_contents_rendered_in_image",
+          "no_error_message_in_response",
+          "readable_text_in_png_output"
+        ],
+        "common_failures": [
+          "command_execution_functions_blocked",
+          "file_permissions_deny_access",
+          "latex_syntax_errors"
+        ],
+        "follow_up_techniques": [
+          "apache_config_enumeration",
+          "credential_file_extraction",
+          "password_hash_cracking"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Apache Configuration Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "LaTeX file read",
+            "command_template": "$\\lstinputlisting{{config_path}}$",
+            "actual_command": "$\\lstinputlisting{/etc/apache2/sites-enabled/000-default.conf}$",
+            "output_pattern": "virtual_host_configurations",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "file_read_capability",
+          "apache_web_server_present"
+        ],
+        "success_indicators": [
+          "virtual_hosts_discovered",
+          "document_roots_identified",
+          "auth_configurations_found"
+        ],
+        "common_failures": [
+          "non_standard_config_locations",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "htaccess_file_enumeration",
+          "htpasswd_extraction"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "HTTP Basic Auth Credential Extraction",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "LaTeX file read",
+            "command_template": "$\\lstinputlisting{{htpasswd_path}}$",
+            "actual_command": "$\\lstinputlisting{/var/www/dev/.htpasswd}$",
+            "output_pattern": "username:hash_format",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat {hash_file} --username {wordlist}",
+            "actual_command": "hashcat vdaisley.hash --username /opt/SecLists/Passwords/Leaked-Databases/rockyou.txt",
+            "success_factors": [
+              "apr1_hash_format",
+              "weak_password"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "htaccess_file_found",
+          "htpasswd_file_accessible",
+          "file_read_capability"
+        ],
+        "success_indicators": [
+          "hash_extracted_successfully",
+          "hash_format_identified_as_apr1",
+          "password_cracked_quickly"
+        ],
+        "common_failures": [
+          "strong_passwords_resist_cracking",
+          "non_standard_hash_formats"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "ssh_authentication",
+          "web_application_access"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Subdomain Enumeration",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u http://{target_ip} -H \"Host: FUZZ.{domain}\" -w {wordlist} -mc all -ac",
+            "actual_command": "ffuf -u http://10.10.11.217 -H \"Host: FUZZ.topology.htb\" -w /opt/SecLists/Discovery/DNS/subdomains-top1million-5000.txt -mc all -ac",
+            "output_pattern": "subdomain_status_responses",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "domain_name_identified",
+          "virtual_host_routing_suspected"
+        ],
+        "success_indicators": [
+          "multiple_subdomains_discovered",
+          "different_response_codes_found",
+          "additional_attack_surface_identified"
+        ],
+        "common_failures": [
+          "no_virtual_hosts_configured",
+          "rate_limiting_blocks_requests"
+        ],
+        "follow_up_techniques": [
+          "individual_subdomain_enumeration",
+          "technology_stack_identification"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "LaTeX listings package",
+        "use_case": "arbitrary_file_read",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "latex_injection_scenarios"
+        ],
+        "alternatives": [
+          "input_command",
+          "write18_if_available"
+        ],
+        "best_practices": [
+          "wrap_in_math_mode_delimiters",
+          "test_with_common_files_first",
+          "use_ocr_for_image_text_extraction"
+        ]
+      },
+      {
+        "tool": "hashcat",
+        "use_case": "apache_apr1_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "password_hash_cracking"
+        ],
+        "alternatives": [
+          "john_the_ripper",
+          "online_crackers"
+        ],
+        "best_practices": [
+          "use_username_flag_for_user_hash_format",
+          "start_with_rockyou_wordlist",
+          "auto_detect_hash_mode_when_unsure"
+        ]
+      },
+      {
+        "tool": "ffuf",
+        "use_case": "virtual_host_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_enumeration"
+        ],
+        "alternatives": [
+          "gobuster_vhost",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_auto_calibration_flag",
+          "match_all_status_codes_initially",
+          "use_comprehensive_subdomain_wordlists"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "latex_injection_to_ssh_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ffuf -u http://10.10.11.217 -H \"Host: FUZZ.topology.htb\" -w /opt/SecLists/Discovery/DNS/subdomains-top1million-5000.txt -mc all -ac",
+            "purpose": "Discover virtual hosts",
+            "expected_output": "dev, stats, latex subdomains found"
+          },
+          {
+            "step": 2,
+            "command": "$\\lstinputlisting{/etc/apache2/sites-enabled/000-default.conf}$",
+            "purpose": "Enumerate Apache configuration",
+            "expected_output": "Virtual host configurations and paths"
+          },
+          {
+            "step": 3,
+            "command": "$\\lstinputlisting{/var/www/dev/.htpasswd}$",
+            "purpose": "Extract password hash",
+            "expected_output": "vdaisley:$apr1$1ONUB/S2$58eeNVirnRDB5zAIbIxTY0"
+          },
+          {
+            "step": 4,
+            "command": "hashcat vdaisley.hash --username /opt/SecLists/Passwords/Leaked-Databases/rockyou.txt",
+            "purpose": "Crack extracted hash",
+            "expected_output": "Password: calculus20"
+          },
+          {
+            "step": 5,
+            "command": "sshpass -p calculus20 ssh vdaisley@topology.htb",
+            "purpose": "Authenticate via SSH",
+            "expected_output": "Shell access as vdaisley user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Topology",
+      "difficulty": "Easy",
+      "os": "Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2023-06-10",
+      "author": "gedsic",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "latex_injection",
+        "file_read",
+        "password_reuse"
+      ],
+      "key_vulnerabilities": [
+        "latex_command_injection",
+        "credential_reuse",
+        "cron_exploitation"
+      ],
+      "environment_type": "university_web_application",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "latex_injection",
+        "virtual_host_enumeration",
+        "cron_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_exploitation",
+        "linux_fundamentals",
+        "file_system_navigation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "injection_attacks",
+        "privilege_escalation",
+        "credential_attacks"
+      ],
+      "attack_types": [
+        "command_injection",
+        "file_read",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_sanitization",
+        "secure_file_permissions",
+        "cron_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Knife",
+        "Shocker",
+        "Bashed"
+      ],
+      "similarity_reasons": [
+        "web_to_shell",
+        "cron_exploitation",
+        "file_read_vulnerabilities"
+      ],
+      "unique_aspects": [
+        "latex_injection",
+        "gnuplot_exploitation",
+        "university_theme"
+      ],
+      "difficulty_factors": [
+        "straightforward_injection",
+        "clear_attack_path",
+        "basic_privilege_escalation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T20:23:15.317128",
+    "original_file": "0xdf_writeups/Htb Topology.md",
+    "content_length": 32368,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

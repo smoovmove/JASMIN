@@ -1,0 +1,1063 @@
+{
+  "writeup_id": "Htb_Escapetwo",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_mssql_privilege_escalation",
+    "primary_services": [
+      "mssql",
+      "ldap",
+      "smb",
+      "dns",
+      "kerberos",
+      "winrm"
+    ],
+    "port_signature": "53+88+389+445+1433+5985",
+    "service_combination": "dns+kerberos+ldap+smb+mssql+winrm",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "assume_breach_with_credentials",
+    "privilege_path": "mssql_sa_to_xp_cmdshell_to_adcs_esc4",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "mssql_on_domain_controller",
+      "excel_password_recovery",
+      "writeowner_privilege_abuse",
+      "adcs_esc4_vulnerability"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "mssql_integrated_authentication",
+      "certificate_services_present",
+      "service_account_permissions"
+    ],
+    "similar_scenarios": [
+      "escape_htb_easy",
+      "sequel_htb_easy"
+    ],
+    "unique_aspects": [
+      "broken_excel_workbook",
+      "sa_credentials_in_spreadsheet",
+      "mssql_xp_cmdshell_enabled"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Excel_Password_Recovery",
+        "success_reason": "Corrupted Excel workbook contained recoverable password hashes",
+        "prerequisite_indicators": [
+          "smb_share_access",
+          "excel_files_present",
+          "file_corruption_or_protection"
+        ],
+        "recognition_patterns": [
+          "Excel files with .xlsx extension",
+          "File corruption errors when opening",
+          "Password-protected workbooks",
+          "ZIP structure analysis reveals hashes"
+        ],
+        "failure_modes": [
+          "no_password_protection",
+          "complete_file_corruption",
+          "strong_passwords_used",
+          "no_smb_access"
+        ],
+        "environmental_factors": [
+          "users_store_credentials_in_spreadsheets",
+          "weak_password_policies",
+          "file_sharing_via_smb"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "MSSQL_xp_cmdshell_escalation",
+        "success_reason": "SA credentials enabled xp_cmdshell for command execution",
+        "prerequisite_indicators": [
+          "mssql_service_accessible",
+          "sa_or_sysadmin_credentials",
+          "xp_cmdshell_configurable"
+        ],
+        "recognition_patterns": [
+          "MSSQL port 1433 open",
+          "Authentication successful",
+          "RECONFIGURE permissions available",
+          "xp_cmdshell can be enabled"
+        ],
+        "failure_modes": [
+          "xp_cmdshell_permanently_disabled",
+          "insufficient_sql_permissions",
+          "network_isolation"
+        ],
+        "environmental_factors": [
+          "default_mssql_configurations",
+          "sa_account_enabled",
+          "integrated_windows_auth"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "WriteOwner_to_Service_Account",
+        "success_reason": "User had WriteOwner permission on service account object",
+        "prerequisite_indicators": [
+          "bloodhound_data_collected",
+          "writeowner_permissions_exist",
+          "service_accounts_present"
+        ],
+        "recognition_patterns": [
+          "BloodHound shows WriteOwner edge",
+          "Service account naming patterns",
+          "ACL modification possible",
+          "Ownership change successful"
+        ],
+        "failure_modes": [
+          "no_writeowner_permissions",
+          "service_account_hardened",
+          "acl_modification_blocked"
+        ],
+        "environmental_factors": [
+          "complex_ad_permissions",
+          "service_account_misconfigurations",
+          "insufficient_acl_auditing"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "15-25 minutes"
+      },
+      {
+        "technique": "ADCS_ESC4_Template_Abuse",
+        "success_reason": "Certificate template allowed privilege escalation via ESC4",
+        "prerequisite_indicators": [
+          "adcs_service_available",
+          "vulnerable_certificate_templates",
+          "service_account_access"
+        ],
+        "recognition_patterns": [
+          "Certificate templates with weak ACLs",
+          "ESC4 conditions met",
+          "Template modification possible",
+          "Certificate enrollment available"
+        ],
+        "failure_modes": [
+          "no_adcs_present",
+          "templates_properly_secured",
+          "enrollment_restrictions"
+        ],
+        "environmental_factors": [
+          "default_adcs_templates",
+          "weak_template_permissions",
+          "certificate_based_auth_enabled"
+        ],
+        "success_probability": 0.72,
+        "typical_timeframe": "20-40 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Excel workbook with recoverable passwords",
+        "discovery_method": "SMB share enumeration and file analysis",
+        "why_critical": "Contained SA credentials for MSSQL privilege escalation",
+        "how_to_recognize": [
+          "Password-protected Excel files",
+          "File corruption indicators",
+          "ZIP structure contains password hashes",
+          "Weak password patterns in corporate files"
+        ],
+        "follow_up_actions": [
+          "extract_password_hashes",
+          "crack_with_hashcat_or_john",
+          "test_credentials_across_services",
+          "enumerate_mssql_with_sa_access"
+        ]
+      },
+      {
+        "discovery": "WriteOwner permission on service account",
+        "discovery_method": "BloodHound analysis",
+        "why_critical": "Enabled takeover of service account with ADCS privileges",
+        "how_to_recognize": [
+          "BloodHound WriteOwner edges",
+          "Service account targets",
+          "ACL modification capabilities",
+          "Privilege escalation paths shown"
+        ],
+        "follow_up_actions": [
+          "change_object_ownership",
+          "modify_acls_for_access",
+          "compromise_service_account",
+          "enumerate_service_account_privileges"
+        ]
+      },
+      {
+        "discovery": "ESC4 vulnerable certificate template",
+        "discovery_method": "ADCS enumeration with service account",
+        "why_critical": "Direct path to Administrator via certificate abuse",
+        "how_to_recognize": [
+          "Certificate templates with weak ACLs",
+          "Template modification permissions",
+          "ESC4 vulnerability conditions",
+          "Certificate enrollment capabilities"
+        ],
+        "follow_up_actions": [
+          "modify_certificate_template",
+          "request_administrator_certificate",
+          "authenticate_with_certificate",
+          "achieve_domain_admin_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "domain_user_rose",
+        "escalation_method": "Excel_to_MSSQL_SA",
+        "why_possible": "Weak password in recoverable Excel file provided SA access",
+        "recognition_signs": [
+          "smb_share_access_available",
+          "excel_files_with_passwords",
+          "mssql_service_accessible",
+          "weak_password_policies"
+        ],
+        "exploitation_path": "SMB enumeration → Excel recovery → SA creds → xp_cmdshell"
+      },
+      {
+        "privilege_level": "mssql_sa",
+        "escalation_method": "xp_cmdshell_to_system_shell",
+        "why_possible": "SA role allowed enabling xp_cmdshell for command execution",
+        "recognition_signs": [
+          "sa_or_sysadmin_role",
+          "xp_cmdshell_configurable",
+          "reconfigure_permissions_available"
+        ],
+        "exploitation_path": "SA access → enable xp_cmdshell → system command execution"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "WriteOwner_to_ServiceAccount",
+        "why_possible": "WriteOwner permission allowed taking control of service account",
+        "recognition_signs": [
+          "bloodhound_shows_writeowner",
+          "service_account_targets_available",
+          "acl_modification_possible"
+        ],
+        "exploitation_path": "WriteOwner → Change ownership → Modify ACLs → Service account access"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "ESC4_Certificate_Abuse",
+        "why_possible": "Service account had permissions to modify certificate templates",
+        "recognition_signs": [
+          "adcs_environment_present",
+          "vulnerable_certificate_templates",
+          "template_modification_permissions",
+          "esc4_conditions_met"
+        ],
+        "exploitation_path": "Service account → Modify template → Request admin cert → Administrator"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445,1433 open on Windows host with initial credentials",
+        "decision": "Prioritize MSSQL and SMB enumeration with valid credentials",
+        "reasoning": "Domain controller with MSSQL and valid creds - high probability of lateral movement",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "bloodhound_enumeration",
+            "when": "after initial access attempts"
+          },
+          {
+            "option": "adcs_enumeration",
+            "when": "if standard attacks fail"
+          }
+        ],
+        "success_indicators": [
+          "mssql_connection_successful",
+          "smb_shares_accessible",
+          "non_standard_shares_found"
+        ],
+        "next_decision": "choose_initial_attack_vector"
+      },
+      {
+        "step": 2,
+        "situation": "MSSQL access as guest role, non-standard SMB shares found",
+        "decision": "Enumerate SMB shares for sensitive files before attempting MSSQL privilege escalation",
+        "reasoning": "Guest MSSQL role limits options, SMB shares may contain credentials or config files",
+        "confidence": 0.85,
+        "prerequisites": [
+          "valid_domain_credentials",
+          "smb_access_confirmed"
+        ],
+        "success_indicators": [
+          "sensitive_files_found",
+          "additional_credentials_discovered"
+        ],
+        "failure_fallbacks": [
+          "mssql_database_enumeration",
+          "bloodhound_collection",
+          "adcs_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found Accounting Department and Users shares with read access",
+        "decision": "Search for Excel files, config files, and credential stores in shares",
+        "reasoning": "Accounting departments often have sensitive files with embedded credentials",
+        "confidence": 0.8,
+        "prerequisites": [
+          "smb_share_access"
+        ],
+        "success_indicators": [
+          "excel_files_found",
+          "config_files_discovered",
+          "credential_files_located"
+        ],
+        "failure_fallbacks": [
+          "user_directory_enumeration",
+          "default_profile_analysis"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_excel_files_found": {
+        "action": "extract_and_analyze_for_credentials",
+        "tools": [
+          "office2john",
+          "john",
+          "hashcat"
+        ],
+        "next_phase": "credential_validation_and_escalation"
+      },
+      "if_mssql_sa_credentials_found": {
+        "action": "connect_as_sa_and_enable_xp_cmdshell",
+        "tools": [
+          "mssqlclient.py",
+          "netexec"
+        ],
+        "next_phase": "command_execution_and_foothold"
+      },
+      "if_additional_domain_creds_found": {
+        "action": "test_winrm_and_run_bloodhound",
+        "tools": [
+          "evil-winrm",
+          "bloodhound-python"
+        ],
+        "next_phase": "privilege_escalation_path_analysis"
+      },
+      "if_service_account_access_obtained": {
+        "action": "check_for_adcs_vulnerabilities",
+        "tools": [
+          "certipy",
+          "bloodhound"
+        ],
+        "next_phase": "certificate_authority_exploitation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_file_shares_over_database_enumeration_with_guest_access",
+        "reasoning": "guest_database_roles_have_limited_attack_surface",
+        "applicability": "mssql_guest_access_scenarios"
+      },
+      {
+        "rule": "always_check_accounting_shares_for_excel_files",
+        "reasoning": "high_probability_of_embedded_database_credentials",
+        "applicability": "corporate_environments_with_accounting_shares"
+      },
+      {
+        "rule": "test_discovered_credentials_against_mssql_sa_account",
+        "reasoning": "sa_access_enables_xp_cmdshell_for_code_execution",
+        "applicability": "mssql_environments_with_recovered_credentials"
+      },
+      {
+        "rule": "run_bloodhound_after_any_privilege_escalation",
+        "reasoning": "essential_for_identifying_adcs_and_service_account_paths",
+        "applicability": "active_directory_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "MSSQL_xp_cmdshell",
+        "mitre_id": "T1505.001",
+        "required_services": [
+          "mssql"
+        ],
+        "required_ports": [
+          1433
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "mssql_service_accessible",
+          "valid_database_credentials",
+          "sysadmin_or_elevated_privileges"
+        ],
+        "success_indicators": [
+          "xp_cmdshell_enabled",
+          "command_execution_successful",
+          "system_level_access"
+        ],
+        "incompatible_with": [
+          "xp_cmdshell_disabled_permanently",
+          "restricted_sql_permissions",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "sa_account_access",
+          "default_mssql_configuration",
+          "legacy_sql_server_version"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "SMB_Share_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_accessible",
+          "valid_domain_credentials",
+          "readable_shares_exist"
+        ],
+        "success_indicators": [
+          "shares_enumerated_successfully",
+          "sensitive_files_discovered",
+          "additional_credentials_found"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "all_shares_restricted",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "default_share_configurations",
+          "administrative_shares_accessible",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "ADCS_ESC4_Exploitation",
+        "mitre_id": "T1649",
+        "required_services": [
+          "adcs",
+          "ldap"
+        ],
+        "required_ports": [
+          389,
+          636
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_certificate_services",
+          "vulnerable_certificate_template",
+          "writeowner_privilege_on_service_account"
+        ],
+        "success_indicators": [
+          "certificate_template_modified",
+          "malicious_certificate_issued",
+          "administrator_access_obtained"
+        ],
+        "incompatible_with": [
+          "adcs_not_deployed",
+          "secure_certificate_templates",
+          "privilege_restrictions"
+        ],
+        "confidence_boosters": [
+          "default_adcs_configuration",
+          "legacy_certificate_templates",
+          "service_account_privileges"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "Excel_Password_Recovery",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "password_protected_excel_files",
+          "file_system_access",
+          "weak_excel_encryption"
+        ],
+        "success_indicators": [
+          "excel_file_recovered",
+          "passwords_extracted",
+          "database_credentials_found"
+        ],
+        "incompatible_with": [
+          "strong_excel_encryption",
+          "no_office_files_present",
+          "file_access_restricted"
+        ],
+        "confidence_boosters": [
+          "legacy_excel_versions",
+          "default_password_protection",
+          "backup_file_locations"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          636,
+          3269
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Domain Controller"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "mssql_server": {
+        "port_indicators": [
+          1433
+        ],
+        "service_indicators": [
+          "ms-sql-s"
+        ],
+        "banner_indicators": [
+          "Microsoft SQL Server",
+          "MSSQL"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "adcs_environment": {
+        "port_indicators": [
+          389,
+          636
+        ],
+        "service_indicators": [
+          "ldap",
+          "certificate_services"
+        ],
+        "banner_indicators": [
+          "Certificate Services",
+          "ADCS"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_share_enumeration",
+          "when": "valid_domain_credentials_available",
+          "reason": "high_success_rate_quick_wins"
+        },
+        {
+          "attack": "mssql_exploitation",
+          "when": "mssql_service_detected_with_creds",
+          "reason": "direct_path_to_system_access"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "bloodhound_enumeration",
+          "when": "active_directory_detected",
+          "reason": "comprehensive_privilege_escalation_paths"
+        },
+        {
+          "attack": "adcs_enumeration",
+          "when": "certificate_services_detected",
+          "reason": "potential_esc_vulnerabilities"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "excel_password_recovery",
+          "when": "office_files_discovered",
+          "reason": "time_intensive_uncertain_outcome"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Excel Workbook Password Recovery",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "zip2john",
+            "command_template": "zip2john {excel_file} > {hash_file}",
+            "actual_command": "zip2john accounting_2024.xlsx > hash.txt",
+            "output_pattern": "accounting_2024.xlsx:$pkzip2$",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "john",
+            "command_template": "john --wordlist={wordlist} {hash_file}",
+            "actual_command": "john --wordlist=/usr/share/wordlists/rockyou.txt hash.txt",
+            "success_factors": [
+              "weak_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "unzip",
+            "command_template": "unzip -P {password} {excel_file}",
+            "actual_command": "unzip -P recovered_password accounting_2024.xlsx",
+            "success_factors": [
+              "correct_password_recovered"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "password_protected_excel_file",
+          "file_accessible_via_smb_or_other_means"
+        ],
+        "success_indicators": [
+          "zip_hash_extracted_successfully",
+          "password_cracked_within_reasonable_time",
+          "excel_content_accessible_after_extraction"
+        ],
+        "common_failures": [
+          "strong_password_resists_cracking",
+          "file_corruption_prevents_extraction",
+          "insufficient_wordlist_coverage"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction_from_documents",
+          "mssql_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "MSSQL xp_cmdshell Exploitation",
+        "mitre_id": "T1505.001",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "mssqlclient.py",
+            "command_template": "mssqlclient.py -windows-auth {domain}/{user}:{password}@{target}",
+            "actual_command": "mssqlclient.py -windows-auth sequel.htb/sa:recovered_password@dc01.sequel.htb",
+            "output_pattern": "SQL (SEQUEL\\sa  dbo@master)>",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "enable_xp_cmdshell",
+            "command_template": "enable_xp_cmdshell",
+            "actual_command": "enable_xp_cmdshell",
+            "success_factors": [
+              "sa_or_sysadmin_privileges"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "xp_cmdshell",
+            "command_template": "xp_cmdshell {command}",
+            "actual_command": "xp_cmdshell whoami",
+            "success_factors": [
+              "xp_cmdshell_enabled",
+              "sufficient_privileges"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "mssql_access_with_elevated_privileges",
+          "xp_cmdshell_feature_available"
+        ],
+        "success_indicators": [
+          "command_execution_successful",
+          "system_level_access_achieved",
+          "reverse_shell_established"
+        ],
+        "common_failures": [
+          "insufficient_database_privileges",
+          "xp_cmdshell_disabled_by_policy",
+          "network_restrictions_prevent_execution"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "WriteOwner Privilege Abuse",
+        "mitre_id": "T1484.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "bloodhound",
+            "command_template": "bloodhound-python -u {user} -p {password} -d {domain} -dc {dc_ip} -c all",
+            "actual_command": "bloodhound-python -u user -p password -d sequel.htb -dc 10.10.11.51 -c all",
+            "output_pattern": "INFO: Done in",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "powerview",
+            "command_template": "Set-DomainObjectOwner -Identity {target_user} -OwnerIdentity {current_user}",
+            "actual_command": "Set-DomainObjectOwner -Identity svc-sql -OwnerIdentity current_user",
+            "success_factors": [
+              "writeowner_privilege_present"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "writeowner_privilege_on_target_account",
+          "domain_user_access",
+          "powershell_or_equivalent_access"
+        ],
+        "success_indicators": [
+          "ownership_change_successful",
+          "password_reset_capability_gained",
+          "target_account_access_achieved"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "account_protection_mechanisms",
+          "detection_by_security_controls"
+        ],
+        "follow_up_techniques": [
+          "adcs_esc4_exploitation",
+          "service_account_abuse",
+          "certificate_template_modification"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "ADCS ESC4 Exploitation",
+        "mitre_id": "T1649",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "certipy",
+            "command_template": "certipy find -u {user} -p {password} -dc-ip {dc_ip}",
+            "actual_command": "certipy find -u svc-sql -p password -dc-ip 10.10.11.51",
+            "output_pattern": "Certificate Templates",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "certipy_template_modification",
+            "command_template": "certipy template -u {user} -p {password} -template {template_name} -save-old",
+            "actual_command": "certipy template -u svc-sql -p password -template vulnerable_template -save-old",
+            "success_factors": [
+              "template_modification_privileges"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "adcs_environment_present",
+          "service_account_with_template_modification_rights",
+          "vulnerable_certificate_template"
+        ],
+        "success_indicators": [
+          "certificate_template_modified_successfully",
+          "administrator_certificate_requested",
+          "domain_admin_access_achieved"
+        ],
+        "common_failures": [
+          "template_protection_mechanisms",
+          "insufficient_service_account_privileges",
+          "adcs_security_hardening"
+        ],
+        "follow_up_techniques": [
+          "golden_ticket_creation",
+          "persistence_establishment",
+          "domain_enumeration"
+        ],
+        "time_investment": "20-60 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "zip2john",
+        "use_case": "excel_password_recovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "password_protected_office_documents"
+        ],
+        "alternatives": [
+          "office2john",
+          "hashcat_office_mode"
+        ],
+        "best_practices": [
+          "verify_file_is_actually_password_protected",
+          "use_appropriate_john_format",
+          "combine_with_strong_wordlists"
+        ]
+      },
+      {
+        "tool": "mssqlclient.py",
+        "use_case": "mssql_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "mssql_environments"
+        ],
+        "alternatives": [
+          "sqlcmd",
+          "dbeaver",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_windows_auth_flag_for_domain_accounts",
+          "check_user_privileges_before_exploitation",
+          "enable_xp_cmdshell_for_command_execution"
+        ]
+      },
+      {
+        "tool": "BloodHound",
+        "use_case": "active_directory_privilege_escalation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "manual_ldap_enumeration",
+          "powerview"
+        ],
+        "best_practices": [
+          "run_after_obtaining_domain_credentials",
+          "focus_on_writeowner_and_similar_privileges",
+          "validate_attack_paths_before_exploitation"
+        ]
+      },
+      {
+        "tool": "Certipy",
+        "use_case": "adcs_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "adcs_environments"
+        ],
+        "alternatives": [
+          "certify",
+          "manual_certificate_requests"
+        ],
+        "best_practices": [
+          "enumerate_all_certificate_templates",
+          "identify_esc4_vulnerable_templates",
+          "backup_original_template_before_modification"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "excel_to_mssql_compromise",
+        "steps": [
+          {
+            "step": 1,
+            "command": "zip2john accounting_2024.xlsx > hash.txt",
+            "purpose": "Extract password hash from Excel file",
+            "expected_output": "Hash extracted successfully"
+          },
+          {
+            "step": 2,
+            "command": "john --wordlist=/usr/share/wordlists/rockyou.txt hash.txt",
+            "purpose": "Crack Excel password",
+            "expected_output": "Password recovered"
+          },
+          {
+            "step": 3,
+            "command": "unzip -P recovered_password accounting_2024.xlsx",
+            "purpose": "Extract Excel contents",
+            "expected_output": "Files extracted successfully"
+          },
+          {
+            "step": 4,
+            "command": "mssqlclient.py -windows-auth sequel.htb/sa:found_password@dc01.sequel.htb",
+            "purpose": "Connect to MSSQL as sa",
+            "expected_output": "SQL shell as sa user"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "writeowner_to_domain_admin",
+        "steps": [
+          {
+            "step": 1,
+            "command": "bloodhound-python -u user -p password -d sequel.htb -dc 10.10.11.51 -c all",
+            "purpose": "Enumerate AD for privilege escalation paths",
+            "expected_output": "BloodHound data collected"
+          },
+          {
+            "step": 2,
+            "command": "Set-DomainObjectOwner -Identity svc-sql -OwnerIdentity current_user",
+            "purpose": "Take ownership of service account",
+            "expected_output": "Ownership changed successfully"
+          },
+          {
+            "step": 3,
+            "command": "certipy find -u svc-sql -p password -dc-ip 10.10.11.51",
+            "purpose": "Enumerate ADCS for ESC4 vulnerabilities",
+            "expected_output": "Vulnerable certificate templates found"
+          },
+          {
+            "step": 4,
+            "command": "certipy template -u svc-sql -p password -template vulnerable_template -save-old",
+            "purpose": "Modify certificate template for ESC4",
+            "expected_output": "Template modified for exploitation"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "EscapeTwo",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2025-01-11",
+      "author": "ruycr4ft, Llo0zy",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "mssql_exploitation",
+        "adcs_attacks",
+        "active_directory"
+      ],
+      "key_vulnerabilities": [
+        "xp_cmdshell_enabled",
+        "esc4_certificate_template",
+        "writeowner_privilege"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "mssql_attacks",
+        "adcs_exploitation",
+        "ad_privilege_escalation",
+        "excel_password_recovery"
+      ],
+      "prerequisite_knowledge": [
+        "mssql_basics",
+        "adcs_fundamentals",
+        "active_directory_permissions",
+        "certificate_attacks"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "mssql_exploitation",
+        "adcs_attacks",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "certificate_abuse"
+      ],
+      "defensive_lessons": [
+        "disable_xp_cmdshell",
+        "secure_certificate_templates",
+        "audit_ad_permissions",
+        "protect_service_accounts"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Escape",
+        "Manager",
+        "Authority"
+      ],
+      "similarity_reasons": [
+        "mssql_exploitation",
+        "adcs_environment",
+        "certificate_attacks",
+        "assume_breach_scenario"
+      ],
+      "unique_aspects": [
+        "excel_password_recovery",
+        "esc4_exploitation",
+        "writeowner_abuse"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "certificate_template_exploitation",
+        "service_account_pivoting"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:43:04.777005",
+    "original_file": "0xdf_writeups/Htb Escapetwo.md",
+    "content_length": 47600,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

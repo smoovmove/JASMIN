@@ -1,0 +1,980 @@
+{
+  "writeup_id": "Htb_Crossfittwo",
+  "scenario_fingerprint": {
+    "scenario_name": "openbsd_web_xss_dns_hijack",
+    "primary_services": [
+      "http",
+      "ssh",
+      "dns-control"
+    ],
+    "port_signature": "22+80+8953",
+    "service_combination": "ssh+http+unbound_dns_control",
+    "os_family": "openbsd",
+    "environment_type": "web_application",
+    "entry_vector": "xss_dns_hijack",
+    "privilege_path": "web_xss_to_root_ssh",
+    "attack_complexity": "insane",
+    "estimated_time": "8-12 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "unbound_dns_control_port_8953",
+      "password_reset_xss_vector",
+      "dns_redirect_attack",
+      "socket_io_message_hijacking",
+      "nodejs_module_load_abuse",
+      "yubikey_seed_extraction"
+    ],
+    "environmental_clues": [
+      "openbsd_httpd_server",
+      "php_7_4_12",
+      "employees_subdomain",
+      "crossfit_gym_theme",
+      "unbound_ssl_certificate"
+    ],
+    "similar_scenarios": [
+      "crossfit_htb_hard",
+      "node_js_web_apps"
+    ],
+    "unique_aspects": [
+      "dns_control_interface_exposed",
+      "changelist_backup_exploitation",
+      "yubikey_2fa_bypass",
+      "complex_xss_chain_attack"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "DNS_Subdomain_Discovery",
+        "success_reason": "Multiple subdomains exposed through JavaScript and HTTP requests",
+        "prerequisite_indicators": [
+          "web_application_present",
+          "javascript_files_accessible",
+          "http_traffic_observable"
+        ],
+        "recognition_patterns": [
+          "subdomain references in JS files",
+          "websocket connections to different hosts",
+          "HTTP requests to alternate domains"
+        ],
+        "failure_modes": [
+          "no_subdomain_enumeration",
+          "javascript_obfuscated",
+          "traffic_not_monitored"
+        ],
+        "environmental_factors": [
+          "complex_web_application",
+          "microservices_architecture",
+          "client_side_routing"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Cross_Site_Scripting_via_DNS",
+        "success_reason": "Password reset functionality vulnerable to DNS redirection attacks",
+        "prerequisite_indicators": [
+          "password_reset_feature_exists",
+          "dns_control_available",
+          "admin_interaction_possible"
+        ],
+        "recognition_patterns": [
+          "password reset sends emails",
+          "DNS queries observable",
+          "admin clicks malicious links"
+        ],
+        "failure_modes": [
+          "no_admin_interaction",
+          "dns_validation_present",
+          "email_filtering_active"
+        ],
+        "environmental_factors": [
+          "unbound_dns_control_exposed",
+          "admin_automation_present",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "2-4 hours"
+      },
+      {
+        "technique": "Socket_IO_Message_Hijacking",
+        "success_reason": "WebSocket communications interceptable and modifiable",
+        "prerequisite_indicators": [
+          "websocket_connections_present",
+          "socket_io_implementation",
+          "chat_functionality_exists"
+        ],
+        "recognition_patterns": [
+          "ws:// or wss:// connections",
+          "socket.io library loaded",
+          "real-time communication features"
+        ],
+        "failure_modes": [
+          "websocket_authentication_strong",
+          "message_encryption_present",
+          "no_sensitive_data_transmitted"
+        ],
+        "environmental_factors": [
+          "nodejs_backend",
+          "real_time_features",
+          "insufficient_websocket_security"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "1-2 hours"
+      },
+      {
+        "technique": "NodeJS_Module_Load_Order_Abuse",
+        "success_reason": "NodeJS module resolution allows local file override",
+        "prerequisite_indicators": [
+          "nodejs_application",
+          "file_write_permissions",
+          "module_loading_observable"
+        ],
+        "recognition_patterns": [
+          "node_modules directory writable",
+          "package.json accessible",
+          "require() statements in code"
+        ],
+        "failure_modes": [
+          "strict_file_permissions",
+          "module_integrity_checks",
+          "containerized_environment"
+        ],
+        "environmental_factors": [
+          "nodejs_runtime",
+          "local_file_access",
+          "insufficient_privilege_separation"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "employees.crossfit.htb subdomain",
+        "discovery_method": "JavaScript source analysis",
+        "why_critical": "Led to employee portal with additional attack surface",
+        "how_to_recognize": [
+          "subdomain references in client-side code",
+          "different hostnames in AJAX requests",
+          "websocket connections to alternate domains"
+        ],
+        "follow_up_actions": [
+          "add_to_hosts_file",
+          "enumerate_subdomain_functionality",
+          "test_authentication_mechanisms"
+        ]
+      },
+      {
+        "discovery": "gym.crossfit.htb websocket endpoint",
+        "discovery_method": "HTTP traffic analysis in Burp",
+        "why_critical": "Exposed real-time communication channel for message hijacking",
+        "how_to_recognize": [
+          "websocket upgrade requests",
+          "/ws/ URI patterns",
+          "socket.io library presence"
+        ],
+        "follow_up_actions": [
+          "intercept_websocket_traffic",
+          "analyze_message_format",
+          "test_message_injection"
+        ]
+      },
+      {
+        "discovery": "Unbound DNS control port 8953",
+        "discovery_method": "nmap service enumeration",
+        "why_critical": "Enabled DNS manipulation for XSS attack chain",
+        "how_to_recognize": [
+          "port 8953 open with SSL",
+          "unbound certificate common name",
+          "DNS resolver control interface"
+        ],
+        "follow_up_actions": [
+          "test_dns_control_access",
+          "analyze_dns_configuration",
+          "plan_dns_redirection_attack"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_user",
+        "escalation_method": "DNS_XSS_to_Admin_Account",
+        "why_possible": "Admin interaction with malicious DNS-redirected content",
+        "recognition_signs": [
+          "password_reset_functionality",
+          "admin_email_interaction",
+          "dns_control_available"
+        ],
+        "exploitation_path": "DNS Redirect → XSS → Admin Registration → Account Access"
+      },
+      {
+        "privilege_level": "application_user",
+        "escalation_method": "NodeJS_Module_Override",
+        "why_possible": "NodeJS module resolution allows local file precedence",
+        "recognition_signs": [
+          "nodejs_runtime_detected",
+          "file_write_permissions",
+          "module_loading_paths_accessible"
+        ],
+        "exploitation_path": "File Write → Module Override → Code Execution"
+      },
+      {
+        "privilege_level": "local_user",
+        "escalation_method": "SSH_Key_Extraction_from_Backup",
+        "why_possible": "Root SSH keys stored in accessible backup files",
+        "recognition_signs": [
+          "backup_files_present",
+          "changelist_directories",
+          "ssh_key_material_in_backups"
+        ],
+        "exploitation_path": "Backup Access → SSH Key Extraction → Root Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,8953 open on OpenBSD host",
+        "decision": "Enumerate web application and identify subdomains",
+        "reasoning": "Port 8953 indicates DNS control interface, suggesting DNS-based attacks possible",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "dns_enumeration",
+            "when": "if web enum fails"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "web_technologies_identified",
+          "websocket_endpoints_found"
+        ],
+        "next_decision": "analyze_web_application_attack_surface"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered multiple subdomains and websocket functionality",
+        "decision": "Focus on XSS through password reset with DNS redirection",
+        "reasoning": "DNS control port suggests ability to manipulate DNS responses for XSS payload delivery",
+        "confidence": 0.85,
+        "prerequisites": [
+          "subdomains_enumerated",
+          "websocket_endpoints_identified"
+        ],
+        "success_indicators": [
+          "admin_visits_controlled_site",
+          "account_registration_triggered"
+        ],
+        "failure_fallbacks": [
+          "websocket_hijacking",
+          "direct_web_exploitation"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Successfully executed DNS-based XSS attack",
+        "decision": "Hijack socket.io messages to access admin chats",
+        "reasoning": "WebSocket traffic likely contains sensitive information including credentials",
+        "confidence": 0.8,
+        "prerequisites": [
+          "admin_account_access",
+          "websocket_connection_established"
+        ],
+        "success_indicators": [
+          "chat_messages_intercepted",
+          "credentials_captured"
+        ],
+        "next_decision": "establish_initial_shell_access"
+      }
+    ],
+    "branching_logic": {
+      "if_dns_xss_succeeds": {
+        "action": "hijack_websocket_communications",
+        "tools": [
+          "burp_suite",
+          "custom_websocket_client"
+        ],
+        "next_phase": "credential_extraction_from_chats"
+      },
+      "if_websocket_hijack_succeeds": {
+        "action": "extract_credentials_and_authenticate",
+        "purpose": "establish_initial_foothold",
+        "tools": [
+          "ssh",
+          "web_authentication"
+        ]
+      },
+      "if_shell_access_obtained": {
+        "action": "enumerate_nodejs_environment",
+        "purpose": "identify_privilege_escalation_vectors",
+        "focus": [
+          "module_load_order",
+          "backup_files",
+          "ssh_keys"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "leverage_dns_control_for_xss_delivery",
+        "reasoning": "dns_control_port_indicates_manipulation_capability",
+        "applicability": "environments_with_dns_control_access"
+      },
+      {
+        "rule": "prioritize_websocket_traffic_analysis",
+        "reasoning": "real_time_communications_often_contain_credentials",
+        "applicability": "applications_with_websocket_functionality"
+      },
+      {
+        "rule": "examine_nodejs_module_load_order_for_privilege_escalation",
+        "reasoning": "nodejs_environments_vulnerable_to_module_hijacking",
+        "applicability": "nodejs_based_applications"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "DNS_Subdomain_Takeover",
+        "mitre_id": "T1584.001",
+        "required_services": [
+          "dns",
+          "http"
+        ],
+        "required_ports": [
+          53,
+          80,
+          443,
+          8953
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "dns_resolver_control_exposed",
+          "subdomain_redirects_present",
+          "unbound_dns_service"
+        ],
+        "success_indicators": [
+          "ub_dns_control_port_open",
+          "subdomain_enumeration_reveals_targets",
+          "dns_zone_manipulation_possible"
+        ],
+        "incompatible_with": [
+          "dns_sec_enabled",
+          "strict_dns_validation",
+          "isolated_dns_infrastructure"
+        ],
+        "confidence_boosters": [
+          "unbound_certificate_present",
+          "multiple_subdomains_detected",
+          "dns_control_port_accessible"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Cross_Site_Scripting_Password_Reset",
+        "mitre_id": "T1189",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "password_reset_functionality",
+          "admin_interaction_possible"
+        ],
+        "success_indicators": [
+          "contact_forms_present",
+          "member_area_detected",
+          "php_application_identified"
+        ],
+        "incompatible_with": [
+          "csp_headers_strict",
+          "input_validation_comprehensive",
+          "admin_isolation_complete"
+        ],
+        "confidence_boosters": [
+          "php_version_disclosed",
+          "multiple_subdomains",
+          "contact_functionality_present"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "60-120 minutes"
+      },
+      {
+        "technique": "Directory_Traversal_Brute_Force",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_present",
+          "directory_listing_possible",
+          "weak_access_controls"
+        ],
+        "success_indicators": [
+          "301_redirects_found",
+          "standard_web_directories_present",
+          "openbsd_httpd_identified"
+        ],
+        "incompatible_with": [
+          "strict_access_controls",
+          "comprehensive_input_filtering",
+          "minimal_web_footprint"
+        ],
+        "confidence_boosters": [
+          "multiple_directories_enumerated",
+          "standard_web_structure",
+          "php_application_detected"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "NodeJS_Module_Load_Order_Abuse",
+        "mitre_id": "T1574.001",
+        "required_services": [
+          "nodejs",
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443,
+          3000,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "unix",
+          "openbsd"
+        ],
+        "environmental_prerequisites": [
+          "nodejs_application_present",
+          "writable_module_directories",
+          "predictable_module_loading"
+        ],
+        "success_indicators": [
+          "nodejs_application_identified",
+          "socket_io_present",
+          "module_directories_accessible"
+        ],
+        "incompatible_with": [
+          "strict_file_permissions",
+          "containerized_environment",
+          "module_integrity_checks"
+        ],
+        "confidence_boosters": [
+          "package_json_accessible",
+          "node_modules_enumerable",
+          "development_environment_indicators"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "20-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "openbsd_web_server": {
+        "port_indicators": [
+          22,
+          80,
+          443,
+          8953
+        ],
+        "service_indicators": [
+          "ssh",
+          "http",
+          "ub-dns-control"
+        ],
+        "banner_indicators": [
+          "OpenBSD httpd",
+          "OpenSSH 8.4",
+          "PHP/7.4.12"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "dns_infrastructure": {
+        "port_indicators": [
+          53,
+          8953
+        ],
+        "service_indicators": [
+          "dns",
+          "ub-dns-control"
+        ],
+        "banner_indicators": [
+          "unbound",
+          "dns"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "php_web_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "PHP/7.4.12",
+          "index.php"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "subdomain_infrastructure": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "employees.crossfit.htb",
+          "subdomain"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_brute_force",
+          "when": "web_service_detected",
+          "reason": "high_success_rate_quick_enumeration"
+        },
+        {
+          "attack": "subdomain_enumeration",
+          "when": "subdomain_references_found",
+          "reason": "often_reveals_additional_attack_surface"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "dns_control_port_investigation",
+          "when": "ub_dns_control_detected",
+          "reason": "unique_attack_vector_moderate_complexity"
+        },
+        {
+          "attack": "xss_through_contact_forms",
+          "when": "contact_functionality_present",
+          "reason": "potential_admin_interaction_vector"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "nodejs_module_abuse",
+          "when": "nodejs_indicators_present",
+          "reason": "requires_initial_access_first"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Cross-Site Scripting via DNS Redirection",
+        "mitre_id": "T1189",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "DNS Server",
+            "command_template": "Configure DNS to redirect admin to attacker-controlled site",
+            "actual_command": "DNS redirection through password reset interface",
+            "output_pattern": "Admin redirected to malicious site",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "password_reset_functionality",
+          "admin_interaction_required",
+          "dns_control_capability"
+        ],
+        "success_indicators": [
+          "admin_visits_malicious_site",
+          "account_registration_triggered",
+          "session_hijacking_successful"
+        ],
+        "common_failures": [
+          "admin_does_not_interact",
+          "dns_redirection_blocked",
+          "timing_issues"
+        ],
+        "follow_up_techniques": [
+          "websocket_hijacking",
+          "session_manipulation",
+          "credential_capture"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "WebSocket Message Hijacking",
+        "mitre_id": "T1557",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "Browser Developer Tools",
+            "command_template": "Intercept and modify WebSocket messages",
+            "actual_command": "ws.send(JSON.stringify({message: 'help', token: token}))",
+            "output_pattern": "Available commands response",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "Burp Suite",
+            "command_template": "Proxy WebSocket traffic for analysis",
+            "actual_command": "WebSocket history tab monitoring",
+            "output_pattern": "Token and message interception",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "websocket_connection_established",
+          "token_based_authentication",
+          "chat_functionality_available"
+        ],
+        "success_indicators": [
+          "websocket_messages_intercepted",
+          "token_extracted_successfully",
+          "chat_access_gained"
+        ],
+        "common_failures": [
+          "websocket_connection_drops",
+          "token_validation_fails",
+          "rate_limiting_triggered"
+        ],
+        "follow_up_techniques": [
+          "password_extraction_from_chat",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "NodeJS Module Load Order Abuse",
+        "mitre_id": "T1574.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "Custom Module",
+            "command_template": "Create malicious module in higher priority path",
+            "actual_command": "Module hijacking through load order manipulation",
+            "output_pattern": "Code execution as higher privileged user",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "nodejs_application_running",
+          "write_access_to_module_path",
+          "understanding_of_load_order"
+        ],
+        "success_indicators": [
+          "malicious_module_loaded",
+          "code_execution_achieved",
+          "privilege_escalation_successful"
+        ],
+        "common_failures": [
+          "module_path_restrictions",
+          "application_restart_required",
+          "detection_by_monitoring"
+        ],
+        "follow_up_techniques": [
+          "ssh_key_extraction",
+          "yubikey_seed_recovery",
+          "persistent_access"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "SSH Key Extraction from Backup",
+        "mitre_id": "T1552.004",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "File System Search",
+            "command_template": "find / -name '*backup*' -o -name '*changelist*' 2>/dev/null",
+            "actual_command": "Search for backup files containing SSH keys",
+            "output_pattern": "SSH private key discovered",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "file_system_access",
+          "backup_files_present",
+          "ssh_service_running"
+        ],
+        "success_indicators": [
+          "ssh_private_key_found",
+          "key_format_valid",
+          "ssh_authentication_successful"
+        ],
+        "common_failures": [
+          "encrypted_private_keys",
+          "key_permissions_issues",
+          "backup_files_corrupted"
+        ],
+        "follow_up_techniques": [
+          "yubikey_seed_extraction",
+          "root_access_achievement",
+          "persistence_establishment"
+        ],
+        "time_investment": "10-25 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite WebSocket",
+        "use_case": "websocket_traffic_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "websocket_applications"
+        ],
+        "alternatives": [
+          "browser_dev_tools",
+          "custom_websocket_client"
+        ],
+        "best_practices": [
+          "monitor_websocket_history_tab",
+          "intercept_token_exchanges",
+          "analyze_message_structure"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "adjust_thread_count_for_target",
+          "recursive_scanning_when_needed"
+        ]
+      },
+      {
+        "tool": "JSNice",
+        "use_case": "javascript_deobfuscation",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "javascript_analysis"
+        ],
+        "alternatives": [
+          "js-beautify",
+          "manual_formatting"
+        ],
+        "best_practices": [
+          "analyze_minified_javascript",
+          "identify_websocket_connections",
+          "extract_api_endpoints"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "websocket_enumeration_to_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Add gym.crossfit.htb to /etc/hosts",
+            "purpose": "Enable websocket connection",
+            "expected_output": "DNS resolution for subdomain"
+          },
+          {
+            "step": 2,
+            "command": "Monitor WebSocket traffic in Burp Suite",
+            "purpose": "Capture websocket messages and tokens",
+            "expected_output": "Hello message with token"
+          },
+          {
+            "step": 3,
+            "command": "ws.send(JSON.stringify({message: 'help', token: token}))",
+            "purpose": "Enumerate available commands",
+            "expected_output": "Commands: coaches, classes, memberships"
+          },
+          {
+            "step": 4,
+            "command": "Send coaches/classes/memberships commands",
+            "purpose": "Extract information and credentials",
+            "expected_output": "Chat data with potential passwords"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "20-40 minutes"
+      },
+      {
+        "sequence_name": "dns_xss_to_account_creation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Setup malicious DNS server",
+            "purpose": "Redirect admin traffic",
+            "expected_output": "DNS server responding to queries"
+          },
+          {
+            "step": 2,
+            "command": "Trigger password reset with XSS payload",
+            "purpose": "Force admin to visit malicious site",
+            "expected_output": "Admin visits attacker-controlled domain"
+          },
+          {
+            "step": 3,
+            "command": "Capture admin session/credentials",
+            "purpose": "Hijack admin functionality",
+            "expected_output": "Account registration or session hijack"
+          }
+        ],
+        "success_rate": 0.7,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "CrossFitTwo",
+      "difficulty": "Insane",
+      "os": "OpenBSD",
+      "platform": "HackTheBox",
+      "release_date": "2021-03-20",
+      "author": "MinatoTW, polarbearer",
+      "estimated_time": "6-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "xss",
+        "dns_manipulation",
+        "socket_hijacking"
+      ],
+      "key_vulnerabilities": [
+        "cross_site_scripting",
+        "insecure_password_reset",
+        "nodejs_module_hijacking",
+        "ssh_key_extraction"
+      ],
+      "environment_type": "web_application_nodejs",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_xss_techniques",
+        "dns_redirection",
+        "socket_io_exploitation",
+        "nodejs_security",
+        "yubikey_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_web_exploitation",
+        "nodejs_internals",
+        "dns_configuration",
+        "ssh_key_management"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "xss_attacks",
+        "nodejs_exploitation",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "cross_site_scripting",
+        "dns_manipulation",
+        "socket_hijacking",
+        "module_hijacking"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "secure_password_reset",
+        "nodejs_security_hardening",
+        "ssh_key_protection"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Node",
+        "Celestial",
+        "Canape"
+      ],
+      "similarity_reasons": [
+        "nodejs_exploitation",
+        "web_application_focus",
+        "complex_attack_chains"
+      ],
+      "unique_aspects": [
+        "dns_redirection_xss",
+        "yubikey_seed_extraction",
+        "socket_io_hijacking",
+        "openbsd_environment"
+      ],
+      "difficulty_factors": [
+        "multi_stage_attack_chain",
+        "advanced_xss_techniques",
+        "nodejs_internals_knowledge",
+        "dns_manipulation_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:51:26.247086",
+    "original_file": "0xdf_writeups/Htb Crossfittwo.md",
+    "content_length": 122682,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

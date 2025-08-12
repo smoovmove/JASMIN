@@ -1,0 +1,908 @@
+{
+  "writeup_id": "Htb_Sherlock_Meerkat",
+  "scenario_fingerprint": {
+    "scenario_name": "bonitasoft_bpm_credential_stuffing_to_rce",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "80+443+22",
+    "service_combination": "web_application+ssh",
+    "os_family": "linux",
+    "environment_type": "business_management_platform",
+    "entry_vector": "credential_stuffing",
+    "privilege_path": "default_credentials_to_rce_to_persistence",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "bonitasoft_bpm_server",
+      "cve_2022_25237_authorization_bypass",
+      "default_user_credentials",
+      "malicious_extension_upload"
+    ],
+    "environmental_clues": [
+      "suricata_ids_alerts",
+      "python_requests_user_agent",
+      "pastebin_script_download",
+      "ssh_key_persistence"
+    ],
+    "similar_scenarios": [
+      "business_app_default_creds",
+      "web_app_rce_via_upload"
+    ],
+    "unique_aspects": [
+      "bonitasoft_specific_cve",
+      "api_authorization_bypass_string",
+      "bash_script_from_paste_site",
+      "authorized_keys_backdoor"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Credential Stuffing",
+        "success_reason": "Weak default credentials on Bonitasoft BPM server",
+        "prerequisite_indicators": [
+          "web_application_accessible",
+          "default_credentials_enabled",
+          "no_account_lockout_policy"
+        ],
+        "recognition_patterns": [
+          "multiple login attempts with different credentials",
+          "python-requests user agent",
+          "systematic username/password combinations",
+          "successful authentication after multiple failures"
+        ],
+        "failure_modes": [
+          "account_lockout_enabled",
+          "strong_password_policy",
+          "rate_limiting_implemented",
+          "default_credentials_changed"
+        ],
+        "environmental_factors": [
+          "default_bonitasoft_installation",
+          "poor_security_awareness",
+          "insufficient_documentation",
+          "startup_environment_shortcuts"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "CVE-2022-25237 Authorization Bypass",
+        "success_reason": "Overly broad exclude pattern in RestAPIAuthorizationFilter",
+        "prerequisite_indicators": [
+          "bonitasoft_version_vulnerable",
+          "api_endpoints_accessible",
+          "authentication_filter_bypassable"
+        ],
+        "recognition_patterns": [
+          "URLs containing ;i18ntranslation",
+          "URLs containing /../i18ntranslation/",
+          "privileged API access without authentication",
+          "successful responses to bypass attempts"
+        ],
+        "failure_modes": [
+          "patched_bonitasoft_version",
+          "custom_authorization_filters",
+          "api_endpoints_disabled"
+        ],
+        "environmental_factors": [
+          "unpatched_software",
+          "default_configurations",
+          "exposed_api_endpoints"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Malicious Extension Upload",
+        "success_reason": "Privileged API access allowed arbitrary file upload",
+        "prerequisite_indicators": [
+          "authenticated_session_available",
+          "file_upload_functionality_present",
+          "insufficient_upload_validation"
+        ],
+        "recognition_patterns": [
+          "POST requests to upload endpoints",
+          "java extension files",
+          "successful upload responses",
+          "execution of uploaded content"
+        ],
+        "failure_modes": [
+          "file_type_restrictions",
+          "upload_directory_restrictions",
+          "code_execution_prevention"
+        ],
+        "environmental_factors": [
+          "java_execution_environment",
+          "web_server_write_permissions",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-25 minutes"
+      },
+      {
+        "technique": "SSH Key Persistence",
+        "success_reason": "Command execution allowed modification of authorized_keys",
+        "prerequisite_indicators": [
+          "command_execution_achieved",
+          "user_home_directory_writable",
+          "ssh_service_running"
+        ],
+        "recognition_patterns": [
+          "downloads from paste sites",
+          "bash script execution",
+          "authorized_keys file modification",
+          "public key installation"
+        ],
+        "failure_modes": [
+          "restricted_file_permissions",
+          "ssh_key_authentication_disabled",
+          "command_execution_blocked"
+        ],
+        "environmental_factors": [
+          "ssh_enabled",
+          "writable_user_directories",
+          "internet_access_available"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Bonitasoft BPM server with default credentials",
+        "discovery_method": "Suricata alert analysis and PCAP examination",
+        "why_critical": "Provided initial access for credential stuffing attack",
+        "how_to_recognize": [
+          "business management platform signatures",
+          "default user login attempt alerts",
+          "systematic authentication patterns"
+        ],
+        "follow_up_actions": [
+          "enumerate_default_credentials",
+          "test_credential_combinations",
+          "identify_successful_authentication"
+        ]
+      },
+      {
+        "discovery": "CVE-2022-25237 authorization bypass vulnerability",
+        "discovery_method": "Suricata signature matching",
+        "why_critical": "Allowed privilege escalation to admin API access",
+        "how_to_recognize": [
+          "specific CVE signatures in IDS",
+          "URL patterns with bypass strings",
+          "successful API access without proper auth"
+        ],
+        "follow_up_actions": [
+          "test_bypass_strings",
+          "enumerate_privileged_endpoints",
+          "attempt_code_execution"
+        ]
+      },
+      {
+        "discovery": "Successful credential combination",
+        "discovery_method": "PCAP analysis of HTTP authentication",
+        "why_critical": "Provided authenticated access to vulnerable application",
+        "how_to_recognize": [
+          "HTTP 200 responses after failed attempts",
+          "session establishment patterns",
+          "successful login indicators"
+        ],
+        "follow_up_actions": [
+          "use_valid_credentials",
+          "explore_application_functionality",
+          "look_for_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "authenticated_user",
+        "escalation_method": "authorization_bypass_to_admin_api",
+        "why_possible": "CVE-2022-25237 bypass filter vulnerability",
+        "recognition_signs": [
+          "vulnerable_bonitasoft_version",
+          "api_endpoints_accessible",
+          "bypass_strings_effective"
+        ],
+        "exploitation_path": "Credential Stuffing → Auth Bypass → Privileged API → RCE"
+      },
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "malicious_extension_upload",
+        "why_possible": "Privileged API allowed arbitrary file upload and execution",
+        "recognition_signs": [
+          "file_upload_functionality",
+          "java_execution_environment",
+          "insufficient_upload_validation"
+        ],
+        "exploitation_path": "API Access → File Upload → Code Execution → System Access"
+      },
+      {
+        "privilege_level": "system_command_execution",
+        "escalation_method": "ssh_key_persistence",
+        "why_possible": "Command execution allowed authorized_keys modification",
+        "recognition_signs": [
+          "ssh_service_enabled",
+          "writable_user_directories",
+          "internet_access_for_downloads"
+        ],
+        "exploitation_path": "RCE → Download Script → Install SSH Key → Persistent Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found HTTP traffic with business management platform alerts",
+        "decision": "Analyze Suricata alerts to identify attack patterns and target application",
+        "reasoning": "Alert signatures provide immediate context about attack types and target applications",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "pcap_analysis_first",
+            "when": "if no alert data available"
+          },
+          {
+            "option": "endpoint_analysis",
+            "when": "if multiple services detected"
+          }
+        ],
+        "success_indicators": [
+          "application_identified",
+          "attack_patterns_discovered",
+          "cve_references_found"
+        ],
+        "next_decision": "correlate_alerts_with_pcap"
+      },
+      {
+        "step": 2,
+        "situation": "Identified Bonitasoft BPM with CVE-2022-25237 alerts",
+        "decision": "Focus on credential stuffing attempts before authorization bypass",
+        "reasoning": "Alert histogram shows 59 default login attempts vs 12 bypass attempts - indicates progression",
+        "confidence": 0.9,
+        "prerequisites": [
+          "target_application_confirmed",
+          "attack_signatures_analyzed"
+        ],
+        "success_indicators": [
+          "login_attempts_enumerated",
+          "successful_authentication_found"
+        ],
+        "failure_fallbacks": [
+          "direct_exploit_analysis",
+          "network_flow_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Credential stuffing attack identified in alerts",
+        "decision": "Extract POST requests to /bonita/loginservice from PCAP",
+        "reasoning": "Need to quantify attempts and identify successful credentials",
+        "confidence": 0.95,
+        "prerequisites": [
+          "http_traffic_available",
+          "login_endpoint_identified"
+        ],
+        "success_indicators": [
+          "username_password_pairs_extracted",
+          "response_codes_analyzed"
+        ],
+        "failure_fallbacks": [
+          "form_data_analysis",
+          "session_cookie_tracking"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Successful authentication achieved by attacker",
+        "decision": "Look for CVE-2022-25237 exploitation with bypass strings",
+        "reasoning": "Alerts show authorization bypass after successful login - logical attack progression",
+        "confidence": 0.85,
+        "prerequisites": [
+          "valid_credentials_obtained",
+          "authenticated_session_established"
+        ],
+        "success_indicators": [
+          "bypass_strings_in_urls",
+          "privileged_api_access",
+          "file_upload_attempts"
+        ],
+        "failure_fallbacks": [
+          "session_hijacking_analysis",
+          "privilege_escalation_enum"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_credential_stuffing_succeeds": {
+        "action": "analyze_post_authentication_activity",
+        "tools": [
+          "wireshark",
+          "tshark"
+        ],
+        "next_phase": "authorization_bypass_exploitation"
+      },
+      "if_authorization_bypass_found": {
+        "action": "look_for_rce_attempts",
+        "indicators": [
+          "file_uploads",
+          "command_execution",
+          "reverse_shells"
+        ],
+        "next_phase": "persistence_mechanism_analysis"
+      },
+      "if_rce_achieved": {
+        "action": "trace_persistence_activities",
+        "focus_areas": [
+          "ssh_key_deployment",
+          "backdoor_installation",
+          "lateral_movement"
+        ],
+        "tools": [
+          "network_flow_analysis",
+          "file_transfer_detection"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_alert_analysis_over_raw_pcap",
+        "reasoning": "suricata_signatures_provide_immediate_context_and_filter_noise",
+        "applicability": "when_ids_logs_available"
+      },
+      {
+        "rule": "correlate_alert_timestamps_with_pcap_flows",
+        "reasoning": "validates_alert_accuracy_and_provides_detailed_payload_analysis",
+        "applicability": "forensic_investigation_scenarios"
+      },
+      {
+        "rule": "analyze_attack_progression_chronologically",
+        "reasoning": "credential_stuffing_before_exploit_shows_logical_attack_chain",
+        "applicability": "multi_stage_attack_analysis"
+      },
+      {
+        "rule": "extract_iocs_from_successful_attack_components",
+        "reasoning": "successful_credentials_and_exploit_strings_are_high_value_indicators",
+        "applicability": "threat_hunting_and_detection_improvement"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Credential Stuffing",
+        "mitre_id": "T1110.004",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_login",
+          "authentication_endpoint_accessible",
+          "no_rate_limiting_or_weak_rate_limiting"
+        ],
+        "success_indicators": [
+          "multiple_login_attempts_different_credentials",
+          "successful_authentication_response",
+          "session_token_received"
+        ],
+        "incompatible_with": [
+          "strong_rate_limiting",
+          "account_lockout_after_few_attempts",
+          "captcha_protection",
+          "ip_blocking_after_failures"
+        ],
+        "confidence_boosters": [
+          "default_credentials_attempted",
+          "common_password_patterns",
+          "business_management_platforms",
+          "bonitasoft_bpm_detected"
+        ],
+        "typical_success_rate": 0.15,
+        "estimated_time": "10-60 minutes"
+      },
+      {
+        "technique": "Authorization Bypass",
+        "mitre_id": "T1548",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_api",
+          "vulnerable_authorization_filter",
+          "api_endpoints_accessible"
+        ],
+        "success_indicators": [
+          "api_responses_without_authentication",
+          "privileged_operations_executed",
+          "cve_2022_25237_vulnerable_version"
+        ],
+        "incompatible_with": [
+          "proper_authorization_checks",
+          "updated_software_versions",
+          "api_gateway_protection"
+        ],
+        "confidence_boosters": [
+          "bonitasoft_platform_detected",
+          "specific_api_path_manipulation",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "SSH Key Persistence",
+        "mitre_id": "T1098.004",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_running",
+          "user_home_directory_writable",
+          "authorized_keys_file_accessible"
+        ],
+        "success_indicators": [
+          "public_key_added_to_authorized_keys",
+          "ssh_connection_with_key_successful",
+          "persistent_access_established"
+        ],
+        "incompatible_with": [
+          "authorized_keys_file_immutable",
+          "ssh_key_authentication_disabled",
+          "file_integrity_monitoring"
+        ],
+        "confidence_boosters": [
+          "existing_rce_capability",
+          "bash_script_execution_capability",
+          "paste_site_access_for_key_retrieval"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "2-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "bonitasoft_bpm": {
+        "port_indicators": [
+          8080,
+          8443,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Bonitasoft",
+          "BPM"
+        ],
+        "api_indicators": [
+          "/bonita/API/",
+          "/bonita/loginservice"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_ssh": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "credential_stuffing",
+          "when": "web_login_detected_no_rate_limiting",
+          "reason": "often_successful_against_default_credentials"
+        },
+        {
+          "attack": "cve_2022_25237_bonitasoft_bypass",
+          "when": "bonitasoft_platform_detected",
+          "reason": "high_success_rate_known_vulnerability"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_key_persistence",
+          "when": "rce_achieved_and_ssh_available",
+          "reason": "reliable_persistence_mechanism"
+        },
+        {
+          "attack": "api_enumeration",
+          "when": "web_api_endpoints_discovered",
+          "reason": "may_reveal_additional_attack_surface"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Credential Stuffing",
+        "mitre_id": "T1110.004",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "python-requests",
+            "command_template": "POST /bonita/loginservice with username={username}&password={password}",
+            "actual_command": "POST /bonita/loginservice with username=seb.broom@forela.co.uk&password=g0vernm3nt",
+            "output_pattern": "HTTP response codes indicating success/failure",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "leaked_credential_database",
+          "login_endpoint_identified"
+        ],
+        "success_indicators": [
+          "http_200_response_to_login",
+          "session_cookies_received",
+          "access_to_authenticated_endpoints"
+        ],
+        "common_failures": [
+          "account_lockout_mechanisms",
+          "rate_limiting_implemented",
+          "credentials_not_in_breach_database"
+        ],
+        "follow_up_techniques": [
+          "authorization_bypass_exploitation",
+          "privilege_escalation",
+          "remote_code_execution"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Authorization Bypass",
+        "mitre_id": "T1548",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "curl/python-requests",
+            "command_template": "GET /api/privileged/endpoint;i18ntranslation",
+            "actual_command": "GET /bonita/API/privileged/endpoint;i18ntranslation",
+            "output_pattern": "Access to privileged API endpoints",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_bonitasoft_version",
+          "knowledge_of_cve_2022_25237",
+          "basic_web_application_access"
+        ],
+        "success_indicators": [
+          "access_to_admin_api_endpoints",
+          "ability_to_upload_files",
+          "privilege_escalation_confirmed"
+        ],
+        "common_failures": [
+          "patched_application_version",
+          "web_application_firewall_blocking",
+          "incorrect_bypass_string"
+        ],
+        "follow_up_techniques": [
+          "malicious_file_upload",
+          "remote_code_execution",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "SSH Key Persistence",
+        "mitre_id": "T1098.004",
+        "category": "persistence",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "bash_script",
+            "command_template": "echo '{public_key}' >> ~/.ssh/authorized_keys",
+            "actual_command": "Downloaded script from paste site and executed",
+            "output_pattern": "Public key added to authorized_keys",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "remote_code_execution_capability",
+          "ssh_service_running",
+          "write_access_to_user_directory"
+        ],
+        "success_indicators": [
+          "public_key_in_authorized_keys",
+          "ssh_access_with_private_key",
+          "persistent_access_established"
+        ],
+        "common_failures": [
+          "ssh_service_disabled",
+          "file_permissions_preventing_write",
+          "key_format_incorrect"
+        ],
+        "follow_up_techniques": [
+          "lateral_movement",
+          "data_exfiltration",
+          "additional_persistence_mechanisms"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Wireshark",
+        "use_case": "network_traffic_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "medium",
+        "essential_for": [
+          "pcap_analysis",
+          "network_forensics"
+        ],
+        "alternatives": [
+          "tshark",
+          "tcpdump"
+        ],
+        "best_practices": [
+          "use_display_filters_for_focused_analysis",
+          "export_specific_protocols_for_detailed_review",
+          "combine_with_log_analysis_for_complete_picture"
+        ]
+      },
+      {
+        "tool": "tshark",
+        "use_case": "command_line_pcap_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "medium",
+        "essential_for": [
+          "automated_pcap_processing",
+          "bulk_data_extraction"
+        ],
+        "alternatives": [
+          "wireshark_gui",
+          "tcpdump"
+        ],
+        "best_practices": [
+          "use_field_extraction_for_specific_data",
+          "combine_with_grep_and_cut_for_data_processing",
+          "leverage_display_filters_for_targeted_analysis"
+        ]
+      },
+      {
+        "tool": "Suricata",
+        "use_case": "network_intrusion_detection",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "high",
+        "essential_for": [
+          "network_monitoring",
+          "threat_detection"
+        ],
+        "alternatives": [
+          "snort",
+          "zeek"
+        ],
+        "best_practices": [
+          "regularly_update_rule_sets",
+          "tune_rules_for_environment",
+          "correlate_alerts_with_packet_data"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "credential_stuffing_to_rce",
+        "steps": [
+          {
+            "step": 1,
+            "command": "tshark -r meerkat.pcap -Y \"http.request.method == POST\" -T fields -e text | grep '/bonita/loginservice'",
+            "purpose": "Extract login attempts from PCAP",
+            "expected_output": "118 login attempts including credential stuffing"
+          },
+          {
+            "step": 2,
+            "command": "POST /bonita/loginservice with credentials from breach database",
+            "purpose": "Attempt authentication with stolen credentials",
+            "expected_output": "Successful login with seb.broom@forela.co.uk:g0vernm3nt"
+          },
+          {
+            "step": 3,
+            "command": "GET /bonita/API/privileged/endpoint;i18ntranslation",
+            "purpose": "Bypass authorization using CVE-2022-25237",
+            "expected_output": "Access to privileged API endpoints"
+          },
+          {
+            "step": 4,
+            "command": "Upload malicious extension via privileged API",
+            "purpose": "Achieve remote code execution",
+            "expected_output": "Code execution on target system"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "30-90 minutes"
+      },
+      {
+        "sequence_name": "pcap_forensic_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "tshark -r meerkat.pcap -Y \"http.request.uri\" | head -20",
+            "purpose": "Identify HTTP request patterns",
+            "expected_output": "Login attempts and API calls visible"
+          },
+          {
+            "step": 2,
+            "command": "cat meerkat-alerts.json | jq '.[].alert.signature' | sort | uniq -c | sort -nr",
+            "purpose": "Analyze Suricata alert patterns",
+            "expected_output": "Bonitasoft-related alerts dominating"
+          },
+          {
+            "step": 3,
+            "command": "tshark -r meerkat.pcap -Y \"http.request.method == POST\" -T fields -e text | grep loginservice",
+            "purpose": "Extract credential stuffing attempts",
+            "expected_output": "Multiple username/password combinations"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Meerkat",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox Sherlock",
+      "release_date": "2023-11-13",
+      "author": "sebh24",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "credential_stuffing",
+        "cve_exploitation",
+        "web_application"
+      ],
+      "key_vulnerabilities": [
+        "weak_authentication",
+        "authorization_bypass",
+        "file_upload"
+      ],
+      "environment_type": "business_management_platform",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "network_forensics",
+        "pcap_analysis",
+        "incident_response",
+        "persistence_mechanisms"
+      ],
+      "prerequisite_knowledge": [
+        "basic_networking",
+        "web_applications",
+        "log_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "digital_forensics",
+      "subcategories": [
+        "network_forensics",
+        "incident_response",
+        "malware_analysis"
+      ],
+      "attack_types": [
+        "credential_access",
+        "initial_access",
+        "persistence",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "implement_rate_limiting",
+        "proper_authorization",
+        "file_upload_restrictions",
+        "ssh_key_monitoring"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Noted",
+        "Ophiuchi",
+        "Forge"
+      ],
+      "similarity_reasons": [
+        "web_application_exploitation",
+        "cve_exploitation",
+        "file_upload_attacks"
+      ],
+      "unique_aspects": [
+        "bonitasoft_bpm",
+        "credential_stuffing_analysis",
+        "suricata_logs",
+        "ssh_persistence"
+      ],
+      "difficulty_factors": [
+        "requires_pcap_analysis",
+        "multiple_attack_phases",
+        "forensic_investigation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T01:37:06.815633",
+    "original_file": "0xdf_writeups/Htb Sherlock Meerkat.md",
+    "content_length": 31981,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

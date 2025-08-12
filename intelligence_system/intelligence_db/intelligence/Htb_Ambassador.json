@@ -1,0 +1,952 @@
+{
+  "writeup_id": "Htb_Ambassador",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_grafana_directory_traversal_to_consul",
+    "primary_services": [
+      "http",
+      "grafana",
+      "mysql",
+      "ssh",
+      "consul"
+    ],
+    "port_signature": "22+80+3000+3306",
+    "service_combination": "ssh+apache+grafana+mysql",
+    "os_family": "ubuntu_linux",
+    "environment_type": "development_server",
+    "entry_vector": "grafana_directory_traversal",
+    "privilege_path": "config_read_to_database_to_git_secrets_to_consul_root",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "grafana_file_read_vulnerability",
+      "mysql_credential_exposure",
+      "git_repository_token_leak",
+      "consul_service_exploitation"
+    ],
+    "environmental_clues": [
+      "grafana_on_port_3000",
+      "mysql_publicly_accessible",
+      "development_server_naming",
+      "hugo_static_site_generator"
+    ],
+    "similar_scenarios": [
+      "devvortex_htb_easy",
+      "opensource_htb_easy"
+    ],
+    "unique_aspects": [
+      "consul_token_in_git_history",
+      "multi_stage_credential_chain",
+      "grafana_admin_panel_access"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Directory Traversal / File Read",
+        "success_reason": "Grafana instance vulnerable to directory traversal allowing config file access",
+        "prerequisite_indicators": [
+          "grafana_service_running",
+          "vulnerable_grafana_version",
+          "config_files_accessible"
+        ],
+        "recognition_patterns": [
+          "grafana login page on port 3000",
+          "302 redirects to /login",
+          "X-Frame-Options and security headers present",
+          "specific grafana response patterns"
+        ],
+        "failure_modes": [
+          "patched_grafana_version",
+          "config_files_protected",
+          "directory_traversal_blocked"
+        ],
+        "environmental_factors": [
+          "default_grafana_installation",
+          "unpatched_system",
+          "accessible_config_directory"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Credential Reuse",
+        "success_reason": "Admin credentials from Grafana config worked for MySQL access",
+        "prerequisite_indicators": [
+          "mysql_service_exposed",
+          "shared_credentials_across_services",
+          "weak_credential_management"
+        ],
+        "recognition_patterns": [
+          "mysql port 3306 open",
+          "credentials in config files",
+          "service account patterns"
+        ],
+        "failure_modes": [
+          "unique_passwords_per_service",
+          "mysql_access_restricted",
+          "credential_rotation_implemented"
+        ],
+        "environmental_factors": [
+          "development_environment",
+          "shared_service_accounts",
+          "insufficient_segmentation"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Git History Analysis",
+        "success_reason": "Consul token leaked in old git commits accessible to developer account",
+        "prerequisite_indicators": [
+          "git_repository_access",
+          "commit_history_contains_secrets",
+          "developer_account_compromise"
+        ],
+        "recognition_patterns": [
+          "git repository in user directory",
+          "commit history with configuration changes",
+          "token/credential patterns in commits"
+        ],
+        "failure_modes": [
+          "git_history_cleaned",
+          "no_secrets_in_commits",
+          "repository_access_restricted"
+        ],
+        "environmental_factors": [
+          "development_practices",
+          "version_control_hygiene",
+          "secret_management_maturity"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Consul API Exploitation",
+        "success_reason": "Valid Consul token allowed service registration and command execution",
+        "prerequisite_indicators": [
+          "consul_service_running",
+          "valid_authentication_token",
+          "service_registration_permissions"
+        ],
+        "recognition_patterns": [
+          "consul api endpoints accessible",
+          "token authentication successful",
+          "service registration capabilities"
+        ],
+        "failure_modes": [
+          "token_expired_or_invalid",
+          "consul_api_restricted",
+          "insufficient_token_permissions"
+        ],
+        "environmental_factors": [
+          "consul_default_configuration",
+          "permissive_token_policies",
+          "service_mesh_architecture"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "10-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Grafana admin credentials",
+        "discovery_method": "Directory traversal to read config files",
+        "why_critical": "Provided access to MySQL database with developer credentials",
+        "how_to_recognize": [
+          "grafana service on port 3000",
+          "directory traversal vulnerability",
+          "config files with embedded passwords"
+        ],
+        "follow_up_actions": [
+          "test_mysql_connection",
+          "enumerate_database_contents",
+          "look_for_additional_credentials"
+        ]
+      },
+      {
+        "discovery": "Developer SSH credentials in MySQL",
+        "discovery_method": "Database enumeration after Grafana credential reuse",
+        "why_critical": "Enabled shell access and git repository access",
+        "how_to_recognize": [
+          "user credential tables in database",
+          "ssh service available",
+          "developer account patterns"
+        ],
+        "follow_up_actions": [
+          "establish_ssh_connection",
+          "enumerate_user_privileges",
+          "search_for_development_artifacts"
+        ]
+      },
+      {
+        "discovery": "Consul token in git history",
+        "discovery_method": "Git log analysis of developer repositories",
+        "why_critical": "Provided administrative access to Consul service for privilege escalation",
+        "how_to_recognize": [
+          "git repositories in user directories",
+          "commit messages mentioning configuration",
+          "token patterns in commit diffs"
+        ],
+        "follow_up_actions": [
+          "test_consul_api_access",
+          "enumerate_consul_permissions",
+          "attempt_service_registration"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "grafana_admin",
+        "escalation_method": "credential_reuse_to_mysql",
+        "why_possible": "Same credentials used across multiple services",
+        "recognition_signs": [
+          "mysql_service_exposed",
+          "credential_reuse_patterns",
+          "development_environment_indicators"
+        ],
+        "exploitation_path": "Grafana Config → MySQL Access → Developer Credentials"
+      },
+      {
+        "privilege_level": "developer_user",
+        "escalation_method": "consul_token_abuse",
+        "why_possible": "Historical commit contained valid Consul administrative token",
+        "recognition_signs": [
+          "git_repository_access",
+          "consul_service_running",
+          "token_in_commit_history"
+        ],
+        "exploitation_path": "Git History → Consul Token → Service Registration → Root Execution"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,3000,3306 open on Linux host",
+        "decision": "Prioritize web services over SSH/MySQL without credentials",
+        "reasoning": "Web services often provide initial foothold without authentication",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "mysql_enumeration",
+            "when": "if web services fail"
+          },
+          {
+            "option": "ssh_bruteforce",
+            "when": "if no other options"
+          }
+        ],
+        "success_indicators": [
+          "web_application_identified",
+          "version_information_found",
+          "login_pages_discovered"
+        ],
+        "next_decision": "identify_web_application_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Identified Grafana v8.2.0 on port 3000",
+        "decision": "Search for version-specific exploits before attempting default credentials",
+        "reasoning": "Specific version exploits have higher success rate than credential attacks",
+        "confidence": 0.95,
+        "prerequisites": [
+          "version_identified",
+          "searchsploit_available"
+        ],
+        "success_indicators": [
+          "exploit_found_for_version"
+        ],
+        "failure_fallbacks": [
+          "default_credentials",
+          "directory_brute_force"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found directory traversal exploit for Grafana 8.3.0",
+        "decision": "Test exploit compatibility with v8.2.0",
+        "reasoning": "Close version numbers often share vulnerabilities",
+        "confidence": 0.8,
+        "prerequisites": [
+          "exploit_code_available"
+        ],
+        "success_indicators": [
+          "file_read_successful",
+          "config_files_accessible"
+        ],
+        "failure_fallbacks": [
+          "try_other_grafana_exploits",
+          "credential_attacks"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Directory traversal successful, can read arbitrary files",
+        "decision": "Target Grafana configuration files for credentials",
+        "reasoning": "Config files often contain database credentials and secrets",
+        "confidence": 0.9,
+        "target_files": [
+          "/etc/grafana/grafana.ini",
+          "/var/lib/grafana/grafana.db"
+        ],
+        "success_indicators": [
+          "database_credentials_found",
+          "admin_password_discovered"
+        ],
+        "next_decision": "authenticate_with_discovered_credentials"
+      }
+    ],
+    "branching_logic": {
+      "if_file_read_succeeds": {
+        "action": "extract_credentials_from_config",
+        "priority_targets": [
+          "grafana_config",
+          "database_config",
+          "application_secrets"
+        ],
+        "next_phase": "credential_validation"
+      },
+      "if_grafana_admin_obtained": {
+        "action": "explore_grafana_features_for_further_access",
+        "tools": [
+          "data_source_enumeration",
+          "mysql_connection_strings"
+        ],
+        "next_phase": "lateral_movement_to_database"
+      },
+      "if_database_credentials_found": {
+        "action": "connect_to_mysql_and_enumerate",
+        "purpose": "find_additional_credentials_or_data",
+        "tools": [
+          "mysql_client",
+          "database_enumeration_scripts"
+        ]
+      },
+      "if_ssh_credentials_discovered": {
+        "action": "authenticate_via_ssh",
+        "validation": "test_credential_reuse_patterns",
+        "next_phase": "privilege_escalation_enumeration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_version_specific_exploits_first",
+        "reasoning": "higher_success_rate_than_generic_attacks",
+        "applicability": "any_versioned_web_application"
+      },
+      {
+        "rule": "prioritize_config_file_reads_in_directory_traversal",
+        "reasoning": "config_files_most_likely_to_contain_credentials",
+        "applicability": "file_read_vulnerabilities"
+      },
+      {
+        "rule": "test_credential_reuse_across_all_discovered_services",
+        "reasoning": "developers_often_reuse_passwords_across_services",
+        "applicability": "multi_service_environments"
+      },
+      {
+        "rule": "enumerate_git_repositories_for_historical_secrets",
+        "reasoning": "old_commits_often_contain_leaked_credentials",
+        "applicability": "developer_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Grafana Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          3000,
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "grafana_service_detected",
+          "vulnerable_grafana_version",
+          "config_files_accessible"
+        ],
+        "success_indicators": [
+          "grafana_login_page_accessible",
+          "directory_traversal_response",
+          "config_file_contents_returned"
+        ],
+        "incompatible_with": [
+          "patched_grafana_version",
+          "file_access_restrictions",
+          "waf_protection"
+        ],
+        "confidence_boosters": [
+          "grafana_default_port_3000",
+          "login_redirect_detected",
+          "grafana_headers_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "MySQL Credential Reuse",
+        "mitre_id": "T1078",
+        "required_services": [
+          "mysql"
+        ],
+        "required_ports": [
+          3306
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "mysql_service_accessible",
+          "credentials_obtained_elsewhere",
+          "network_connectivity_to_mysql"
+        ],
+        "success_indicators": [
+          "mysql_authentication_successful",
+          "database_enumeration_possible",
+          "sensitive_data_accessible"
+        ],
+        "incompatible_with": [
+          "mysql_access_restrictions",
+          "credential_validation_failed",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "mysql_default_port_exposed",
+          "weak_authentication_config",
+          "shared_credential_patterns"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Git Repository Secret Mining",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "ssh",
+          "git"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "git_repository_accessible",
+          "commit_history_available",
+          "secrets_in_commit_history"
+        ],
+        "success_indicators": [
+          "git_log_accessible",
+          "sensitive_files_in_history",
+          "credentials_or_tokens_found"
+        ],
+        "incompatible_with": [
+          "repository_access_denied",
+          "history_sanitized",
+          "encrypted_secrets"
+        ],
+        "confidence_boosters": [
+          "developer_account_access",
+          "config_files_in_commits",
+          "token_naming_patterns"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Consul Token Exploitation",
+        "mitre_id": "T1078.004",
+        "required_services": [
+          "consul"
+        ],
+        "required_ports": [
+          8500,
+          8501
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "consul_service_running",
+          "valid_consul_token",
+          "consul_api_accessible"
+        ],
+        "success_indicators": [
+          "consul_api_responds",
+          "token_authentication_successful",
+          "service_manipulation_possible"
+        ],
+        "incompatible_with": [
+          "consul_acl_restrictions",
+          "invalid_token",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "consul_default_ports",
+          "administrative_token_access",
+          "service_registration_allowed"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "10-25 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "grafana_service": {
+        "port_indicators": [
+          3000,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "grafana",
+          "login",
+          "redirect_to"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "mysql_database": {
+        "port_indicators": [
+          3306
+        ],
+        "service_indicators": [
+          "mysql",
+          "nagios-nsca"
+        ],
+        "banner_indicators": [
+          "mysql-info",
+          "Protocol: 10"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          3000
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "Server",
+          "Hugo"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "consul_service": {
+        "port_indicators": [
+          8500,
+          8501
+        ],
+        "service_indicators": [
+          "consul",
+          "http"
+        ],
+        "banner_indicators": [
+          "consul",
+          "hashicorp"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "grafana_directory_traversal",
+          "when": "grafana_service_detected",
+          "reason": "high_success_rate_leads_to_credential_disclosure"
+        },
+        {
+          "attack": "mysql_credential_reuse",
+          "when": "mysql_exposed_and_creds_available",
+          "reason": "often_contains_additional_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "git_secret_mining",
+          "when": "developer_access_obtained",
+          "reason": "reliable_for_finding_tokens_and_keys"
+        },
+        {
+          "attack": "consul_exploitation",
+          "when": "consul_token_discovered",
+          "reason": "high_privilege_escalation_potential"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Directory Traversal File Read",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl --path-as-is http://{target}:3000/public/plugins/{plugin}/../../../../../../../../{file_path}",
+            "actual_command": "curl --path-as-is http://10.10.11.183:3000/public/plugins/alertlist/../../../../../../../../etc/passwd",
+            "output_pattern": "File contents displayed directly",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "searchsploit",
+            "command_template": "searchsploit {application_name}",
+            "actual_command": "searchsploit grafana",
+            "success_factors": [
+              "known_vulnerabilities_exist",
+              "version_match"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "grafana_version_8.0.0-beta1_to_8.3.0",
+          "public_plugins_directory_accessible",
+          "target_files_readable_by_grafana_user"
+        ],
+        "success_indicators": [
+          "file_contents_returned_instead_of_plugin_file_not_found",
+          "sensitive_configuration_files_accessible",
+          "credentials_extracted_from_config_files"
+        ],
+        "common_failures": [
+          "plugin_file_not_found_error",
+          "permission_denied_on_target_files",
+          "grafana_version_not_vulnerable"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "configuration_file_analysis",
+          "service_authentication"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Service Enumeration",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 {target}",
+            "actual_command": "nmap -p- --min-rate 10000 10.10.11.183",
+            "output_pattern": "PORT     STATE SERVICE",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "nmap",
+            "command_template": "nmap -p {ports} -sCV {target}",
+            "actual_command": "nmap -p 22,80,3000,3306 -sCV 10.10.11.183",
+            "success_factors": [
+              "service_version_detection",
+              "script_enumeration"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "network_connectivity_to_target",
+          "target_services_running"
+        ],
+        "success_indicators": [
+          "multiple_services_identified",
+          "service_versions_detected",
+          "potential_attack_vectors_identified"
+        ],
+        "common_failures": [
+          "firewall_blocking_scans",
+          "rate_limiting_affecting_results",
+          "services_not_responding"
+        ],
+        "follow_up_techniques": [
+          "web_application_enumeration",
+          "service_specific_exploitation",
+          "credential_attacks"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u http://{target}",
+            "actual_command": "feroxbuster -u http://10.10.11.183",
+            "output_pattern": "200      GET",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "administrative_interfaces_found",
+          "sensitive_files_identified"
+        ],
+        "common_failures": [
+          "rate_limiting_blocking_requests",
+          "no_interesting_directories_found",
+          "false_positives_in_results"
+        ],
+        "follow_up_techniques": [
+          "manual_directory_exploration",
+          "file_extension_enumeration",
+          "parameter_fuzzing"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "directory_traversal_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "file_read_vulnerabilities"
+        ],
+        "alternatives": [
+          "wget",
+          "burp_suite",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_path_as_is_flag_for_traversal",
+          "test_multiple_plugin_paths",
+          "target_configuration_files_first"
+        ]
+      },
+      {
+        "tool": "searchsploit",
+        "use_case": "vulnerability_research",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "known_vulnerability_identification"
+        ],
+        "alternatives": [
+          "exploit-db_website",
+          "cve_databases",
+          "github_searches"
+        ],
+        "best_practices": [
+          "search_by_application_name_and_version",
+          "examine_exploit_code_before_use",
+          "verify_version_compatibility"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "network_service_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "initial_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan",
+          "manual_port_checking"
+        ],
+        "best_practices": [
+          "use_high_min_rate_for_fast_scanning",
+          "follow_up_with_service_version_detection",
+          "save_results_for_later_reference"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "grafana_file_read_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.183",
+            "purpose": "Discover open ports",
+            "expected_output": "Port 3000 identified as running service"
+          },
+          {
+            "step": 2,
+            "command": "searchsploit grafana",
+            "purpose": "Find known vulnerabilities",
+            "expected_output": "Directory traversal exploit for version 8.3.0"
+          },
+          {
+            "step": 3,
+            "command": "curl --path-as-is http://10.10.11.183:3000/public/plugins/alertlist/../../../../../../../../etc/passwd",
+            "purpose": "Test file read vulnerability",
+            "expected_output": "Contents of /etc/passwd file"
+          },
+          {
+            "step": 4,
+            "command": "curl --path-as-is http://10.10.11.183:3000/public/plugins/alertlist/../../../../../../../../etc/grafana/grafana.ini",
+            "purpose": "Extract Grafana configuration",
+            "expected_output": "Grafana config with potential credentials"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "initial_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.183",
+            "purpose": "Fast port discovery",
+            "expected_output": "Open ports: 22,80,3000,3306"
+          },
+          {
+            "step": 2,
+            "command": "nmap -p 22,80,3000,3306 -sCV 10.10.11.183",
+            "purpose": "Service version detection",
+            "expected_output": "Service versions and additional details"
+          },
+          {
+            "step": 3,
+            "command": "feroxbuster -u http://10.10.11.183",
+            "purpose": "Web directory enumeration",
+            "expected_output": "Directory structure and hidden paths"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Ambassador",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2022-10-01",
+      "author": "DirectRoot",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "credential_access",
+        "git_secrets"
+      ],
+      "key_vulnerabilities": [
+        "directory_traversal",
+        "credential_exposure",
+        "token_leakage"
+      ],
+      "environment_type": "development_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "grafana_exploitation",
+        "consul_attacks",
+        "git_forensics"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "database_basics",
+        "git_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "credential_access",
+        "privilege_escalation",
+        "git_secrets"
+      ],
+      "attack_types": [
+        "directory_traversal",
+        "credential_harvesting",
+        "token_abuse"
+      ],
+      "defensive_lessons": [
+        "secure_config_storage",
+        "git_secret_scanning",
+        "service_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Knife",
+        "Previse",
+        "Secret"
+      ],
+      "similarity_reasons": [
+        "web_to_shell",
+        "credential_chaining",
+        "git_secrets"
+      ],
+      "unique_aspects": [
+        "grafana_exploitation",
+        "consul_service",
+        "mysql_credential_chain"
+      ],
+      "difficulty_factors": [
+        "multiple_service_chain",
+        "git_history_analysis",
+        "consul_token_usage"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:06:34.255867",
+    "original_file": "0xdf_writeups/Htb Ambassador.md",
+    "content_length": 35880,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

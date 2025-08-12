@@ -1,0 +1,677 @@
+{
+  "writeup_id": "Htb_Tartarsauce_Part_2_Backuperer_Follow_Up",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_cron_tar_privilege_escalation",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+web",
+    "os_family": "linux",
+    "environment_type": "web_server",
+    "entry_vector": "cron_script_exploitation",
+    "privilege_path": "web_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "root_cron_tar_extraction",
+      "backup_script_vulnerability",
+      "tar_permission_preservation"
+    ],
+    "environmental_clues": [
+      "automated_backup_scripts",
+      "tar_archive_processing",
+      "web_directory_monitoring"
+    ],
+    "similar_scenarios": [
+      "cronos_htb_medium",
+      "node_htb_medium"
+    ],
+    "unique_aspects": [
+      "diff_command_exit_status_logic",
+      "suid_binary_via_tar",
+      "bash_conditional_exploitation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "tar_privilege_escalation",
+        "success_reason": "backuperer script runs as root and preserves file permissions from tar archives",
+        "prerequisite_indicators": [
+          "script_runs_as_root",
+          "tar_extraction_preserves_permissions",
+          "writable_temp_directory_access",
+          "predictable_script_execution_timing"
+        ],
+        "recognition_patterns": [
+          "systemd timer or cron job running tar operations",
+          "script extracts user-controllable archives",
+          "root process handling file operations",
+          "temporary directory cleanup logic"
+        ],
+        "failure_modes": [
+          "tar_extracts_as_non_root",
+          "permissions_not_preserved",
+          "immediate_cleanup_prevents_exploitation",
+          "archive_location_not_writable"
+        ],
+        "environmental_factors": [
+          "linux_tar_permission_handling",
+          "systemd_timer_predictable_execution",
+          "writable_temp_directories",
+          "root_automated_processes"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "bash_conditional_logic_bypass",
+        "success_reason": "diff command exit codes create exploitable logic flaw in if statement",
+        "prerequisite_indicators": [
+          "bash_script_uses_diff_in_conditional",
+          "command_substitution_in_if_statement",
+          "cleanup_logic_depends_on_diff_result"
+        ],
+        "recognition_patterns": [
+          "if [[ $(diff ...) ]] pattern in scripts",
+          "exit status 1 (files differ) resolves to true",
+          "exit status 0 (files same) resolves to false",
+          "exit status 2 (error) resolves to false"
+        ],
+        "failure_modes": [
+          "proper_exit_status_checking",
+          "different_conditional_logic",
+          "immediate_cleanup_regardless"
+        ],
+        "environmental_factors": [
+          "bash_command_substitution_behavior",
+          "diff_exit_status_conventions",
+          "script_logic_implementation"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "backuperer script automated execution",
+        "discovery_method": "systemctl list-timers enumeration",
+        "why_critical": "Root-level script with exploitable tar extraction logic",
+        "how_to_recognize": [
+          "systemd timers running backup operations",
+          "scripts handling user-controllable archives",
+          "root processes with file manipulation"
+        ],
+        "follow_up_actions": [
+          "analyze_script_logic_flaws",
+          "identify_archive_replacement_timing",
+          "create_malicious_tar_with_suid_binary"
+        ]
+      },
+      {
+        "discovery": "tar permission preservation behavior",
+        "discovery_method": "manual testing and analysis",
+        "why_critical": "Allows suid binary creation when extracted by root",
+        "how_to_recognize": [
+          "root extraction preserves ownership",
+          "non-root extraction changes ownership",
+          "user/group IDs preserved across systems"
+        ],
+        "follow_up_actions": [
+          "create_suid_binary_payload",
+          "structure_archive_to_match_expected_paths",
+          "time_replacement_with_script_execution"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "low_privileged_user",
+        "escalation_method": "suid_binary_via_tar_extraction",
+        "why_possible": "Root script extracts user-controllable archive preserving permissions",
+        "recognition_signs": [
+          "automated_backup_scripts_as_root",
+          "tar_operations_on_user_writable_locations",
+          "predictable_timing_windows",
+          "conditional_logic_bypass_opportunities"
+        ],
+        "exploitation_path": "Create suid binary → Package in tar → Replace archive → Wait for root extraction → Execute suid binary"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found automated backup script running as root with predictable behavior",
+        "decision": "Analyze script logic for race conditions and file manipulation opportunities",
+        "reasoning": "Automated root processes often have exploitable timing windows",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_privilege_escalation",
+            "when": "if suid binaries found"
+          },
+          {
+            "option": "kernel_exploits",
+            "when": "if system outdated"
+          }
+        ],
+        "success_indicators": [
+          "script_source_readable",
+          "predictable_timing_found",
+          "writable_temp_locations_identified"
+        ],
+        "next_decision": "analyze_script_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Script uses diff command in bash if statement for integrity checking",
+        "decision": "Exploit bash if evaluation logic with diff exit codes",
+        "reasoning": "diff returns 0 (same files) = false in bash if, 1 (different) = true, 2 (error) = false",
+        "confidence": 0.95,
+        "prerequisites": [
+          "script_logic_understood",
+          "timing_predictable"
+        ],
+        "success_indicators": [
+          "can_control_diff_outcome"
+        ],
+        "failure_fallbacks": [
+          "direct_file_replacement",
+          "symlink_attacks"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Root extracts tar archive preserving permissions and ownership",
+        "decision": "Create malicious tar with suid binary using proper directory structure",
+        "reasoning": "Root extraction maintains file permissions including suid bits",
+        "confidence": 0.85,
+        "prerequisites": [
+          "tar_extraction_as_root",
+          "directory_structure_known"
+        ],
+        "success_indicators": [
+          "suid_binary_extracted",
+          "permissions_preserved"
+        ],
+        "failure_fallbacks": [
+          "script_injection",
+          "cron_manipulation"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_script_analysis_succeeds": {
+        "action": "create_malicious_archive",
+        "tools": [
+          "gcc",
+          "tar",
+          "chmod"
+        ],
+        "next_phase": "timing_attack_execution"
+      },
+      "if_timing_window_identified": {
+        "action": "replace_archive_during_execution",
+        "alternatives": [
+          "race_condition_exploit",
+          "file_replacement"
+        ],
+        "decision_criteria": "based_on_script_execution_frequency"
+      },
+      "if_suid_binary_deployed": {
+        "action": "execute_for_root_shell",
+        "purpose": "privilege_escalation_complete",
+        "tools": [
+          "custom_suid_binary"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_analyze_automated_root_scripts_first",
+        "reasoning": "high_privilege_processes_often_have_exploitable_logic_flaws",
+        "applicability": "systems_with_custom_automation"
+      },
+      {
+        "rule": "understand_bash_command_evaluation_in_conditionals",
+        "reasoning": "exit_codes_vs_output_evaluation_differs_significantly",
+        "applicability": "bash_script_analysis"
+      },
+      {
+        "rule": "leverage_tar_permission_preservation_when_root_extracts",
+        "reasoning": "root_extraction_maintains_ownership_and_suid_bits",
+        "applicability": "archive_manipulation_attacks"
+      },
+      {
+        "rule": "mirror_expected_directory_structure_in_malicious_archives",
+        "reasoning": "prevents_integrity_check_failures_that_trigger_cleanup",
+        "applicability": "file_replacement_attacks"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Tar Archive Privilege Escalation",
+        "mitre_id": "T1548.001",
+        "required_services": [
+          "cron",
+          "scheduled_task"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "root_scheduled_script_exists",
+          "tar_extraction_by_root",
+          "writable_source_directory",
+          "predictable_archive_location"
+        ],
+        "success_indicators": [
+          "suid_binary_extracted_as_root",
+          "permissions_preserved_in_extraction",
+          "script_runs_on_schedule"
+        ],
+        "incompatible_with": [
+          "tar_extracts_as_non_root",
+          "source_directory_not_writable",
+          "immediate_cleanup_after_extraction"
+        ],
+        "confidence_boosters": [
+          "backup_script_visible",
+          "cron_job_enumerated",
+          "tar_command_in_script"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Bash Command Injection via Exit Status",
+        "mitre_id": "T1059.004",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "bash_script_with_command_substitution",
+          "diff_command_in_conditional",
+          "controllable_file_comparison"
+        ],
+        "success_indicators": [
+          "diff_returns_non_zero_exit",
+          "command_substitution_executes",
+          "conditional_branch_triggered"
+        ],
+        "incompatible_with": [
+          "input_sanitization_present",
+          "restricted_shell_environment",
+          "files_not_controllable"
+        ],
+        "confidence_boosters": [
+          "backup_verification_script",
+          "automated_integrity_checking",
+          "writable_comparison_directory"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "scheduled_backup_system": {
+        "port_indicators": [],
+        "service_indicators": [
+          "cron",
+          "systemd-timer"
+        ],
+        "banner_indicators": [
+          "backup",
+          "tar",
+          "rsync"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "bash"
+        ],
+        "banner_indicators": [
+          "Linux",
+          "Ubuntu",
+          "CentOS"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "tar_privilege_escalation",
+          "when": "root_backup_script_detected",
+          "reason": "direct_path_to_root_via_suid_preservation"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "bash_command_injection",
+          "when": "bash_script_with_diff_detected",
+          "reason": "requires_specific_conditional_logic_but_reliable"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SUID Binary Privilege Escalation via Tar Archive",
+        "mitre_id": "T1548.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "gcc",
+            "command_template": "gcc -m32 -o {output} {source}",
+            "actual_command": "gcc -m32 -o suid suid.c",
+            "output_pattern": "compiled binary with warnings",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "tar",
+            "command_template": "tar zcvf {archive} {directory} --owner=root --group=root",
+            "actual_command": "tar zcvf suid.tar.gz var --owner=root --group=root",
+            "success_factors": [
+              "root_extraction",
+              "preserved_permissions"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "chmod",
+            "command_template": "chmod 6555 {file}",
+            "actual_command": "chmod 6555 suid",
+            "success_factors": [
+              "setuid_bit_preserved"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "scheduled_backup_script_running_as_root",
+          "writable_temp_directory",
+          "tar_preserves_permissions_when_extracted_by_root"
+        ],
+        "success_indicators": [
+          "suid_binary_extracted_with_root_ownership",
+          "setuid_bit_preserved",
+          "root_shell_obtained"
+        ],
+        "common_failures": [
+          "incorrect_directory_structure",
+          "permissions_not_preserved",
+          "timing_issues_with_replacement"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "10-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Bash Command Substitution Logic Bypass",
+        "mitre_id": "T1059.004",
+        "category": "defense_evasion",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "diff",
+            "command_template": "diff {file1} {file2}",
+            "actual_command": "diff test test-diff",
+            "output_pattern": "exit codes: 0=same, 1=different, 2=error",
+            "effectiveness_rating": 4,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "bash_script_using_command_substitution_in_if_statement",
+          "diff_command_available"
+        ],
+        "success_indicators": [
+          "if_statement_evaluates_to_true_on_differences",
+          "cleanup_code_bypassed"
+        ],
+        "common_failures": [
+          "misunderstanding_exit_code_evaluation",
+          "incorrect_file_structure"
+        ],
+        "follow_up_techniques": [
+          "file_replacement_attacks",
+          "timing_attacks"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "tar",
+        "use_case": "privilege_escalation_via_permission_preservation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "unix_privilege_escalation"
+        ],
+        "alternatives": [
+          "zip_with_permissions",
+          "cpio"
+        ],
+        "best_practices": [
+          "use_owner_and_group_flags_for_consistency",
+          "mirror_target_directory_structure",
+          "test_permission_preservation_locally"
+        ]
+      },
+      {
+        "tool": "systemctl",
+        "use_case": "timing_scheduled_tasks",
+        "effectiveness_rating": 4,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "systemd_environments"
+        ],
+        "alternatives": [
+          "crontab",
+          "ps_monitoring"
+        ],
+        "best_practices": [
+          "use_list_timers_for_precise_timing",
+          "monitor_multiple_cycles_for_consistency"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "suid_binary_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gcc -m32 -o suid suid.c",
+            "purpose": "Compile SUID binary for target architecture",
+            "expected_output": "Binary compiled with warnings"
+          },
+          {
+            "step": 2,
+            "command": "chmod 6555 suid",
+            "purpose": "Set SUID and SGID bits",
+            "expected_output": "Permissions set to -r-sr-sr-x"
+          },
+          {
+            "step": 3,
+            "command": "mkdir -p var/www/html && cp suid var/www/html/",
+            "purpose": "Create directory structure matching target",
+            "expected_output": "Directory structure created"
+          },
+          {
+            "step": 4,
+            "command": "tar zcvf suid.tar.gz var --owner=root --group=root",
+            "purpose": "Create archive with root ownership",
+            "expected_output": "Archive created with proper ownership"
+          },
+          {
+            "step": 5,
+            "command": "systemctl list-timers",
+            "purpose": "Monitor backup script timing",
+            "expected_output": "Timer schedule displayed"
+          },
+          {
+            "step": 6,
+            "command": "cp suid.tar.gz .8dc600473f3730872b2c52a44da6d0bd4efb2297",
+            "purpose": "Replace temporary backup file",
+            "expected_output": "File replaced successfully"
+          },
+          {
+            "step": 7,
+            "command": "./suid",
+            "purpose": "Execute SUID binary for root shell",
+            "expected_output": "Root shell obtained"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-15 minutes"
+      },
+      {
+        "sequence_name": "bash_if_statement_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "diff test test-cp && echo $?",
+            "purpose": "Test identical files exit code",
+            "expected_output": "Exit code 0"
+          },
+          {
+            "step": 2,
+            "command": "diff test test-diff && echo $?",
+            "purpose": "Test different files exit code",
+            "expected_output": "Exit code 1 with diff output"
+          },
+          {
+            "step": 3,
+            "command": "if [[ $(diff test test-diff) ]]; then echo \"True\"; else echo \"False\"; fi",
+            "purpose": "Test if statement evaluation",
+            "expected_output": "Resolved True"
+          }
+        ],
+        "success_rate": 1.0,
+        "typical_duration": "2-5 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "TartarSauce",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2018-04-21",
+      "author": "3mrgnc3",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "privilege_escalation",
+        "file_system_race_conditions"
+      ],
+      "key_vulnerabilities": [
+        "wordpress_plugin_rfi",
+        "tar_wildcard_injection",
+        "cron_job_exploitation"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "bash_scripting_flaws",
+        "file_permissions",
+        "tar_exploitation",
+        "race_conditions"
+      ],
+      "prerequisite_knowledge": [
+        "linux_fundamentals",
+        "web_exploitation_basics",
+        "bash_scripting"
+      ]
+    },
+    "categorization": {
+      "primary_category": "linux_privilege_escalation",
+      "subcategories": [
+        "web_exploitation",
+        "cron_exploitation",
+        "file_system_attacks"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "secure_cron_jobs",
+        "input_validation",
+        "file_permission_auditing",
+        "tar_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Sunday",
+        "Poison",
+        "Nibbles"
+      ],
+      "similarity_reasons": [
+        "linux_privesc",
+        "web_to_shell",
+        "cron_exploitation"
+      ],
+      "unique_aspects": [
+        "backuperer_script_exploitation",
+        "tar_wildcard_attacks",
+        "bash_exit_status_logic"
+      ],
+      "difficulty_factors": [
+        "complex_privilege_escalation_chain",
+        "timing_sensitive_attacks",
+        "bash_scripting_knowledge_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:56:32.003880",
+    "original_file": "0xdf_writeups/Htb Tartarsauce Part 2 Backuperer Follow Up.md",
+    "content_length": 13460,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

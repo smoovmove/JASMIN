@@ -1,0 +1,825 @@
+{
+  "writeup_id": "Htb_Bastion",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_smb_vhd_credential_extraction",
+    "primary_services": [
+      "smb",
+      "ssh"
+    ],
+    "port_signature": "22+135+139+445",
+    "service_combination": "ssh+smb+rpc",
+    "os_family": "windows_server",
+    "environment_type": "standalone_workgroup",
+    "entry_vector": "smb_anonymous_access",
+    "privilege_path": "registry_extraction_to_admin",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "vhd_files_on_smb_share",
+      "windows_image_backup_accessible",
+      "registry_hive_extraction",
+      "mremoteng_credential_store"
+    ],
+    "environmental_clues": [
+      "backups_share_writable",
+      "guest_smb_access",
+      "openssh_on_windows",
+      "workgroup_not_domain"
+    ],
+    "similar_scenarios": [
+      "access_htb_easy",
+      "secnotes_htb_easy"
+    ],
+    "unique_aspects": [
+      "vhd_mounting_required",
+      "sam_system_hive_extraction",
+      "password_manager_exploitation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SMB_Share_Enumeration",
+        "success_reason": "Guest access enabled on Backups share with READ/WRITE permissions",
+        "prerequisite_indicators": [
+          "smb_service_available",
+          "guest_access_enabled",
+          "shares_with_excessive_permissions"
+        ],
+        "recognition_patterns": [
+          "smbmap shows guest access",
+          "Backups share with READ/WRITE",
+          "no authentication required"
+        ],
+        "failure_modes": [
+          "guest_access_disabled",
+          "proper_share_permissions",
+          "smb_service_hardened"
+        ],
+        "environmental_factors": [
+          "default_smb_configuration",
+          "backup_shares_misconfigured",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "VHD_Mount_and_Registry_Access",
+        "success_reason": "Windows backup VHD files accessible via SMB share containing full filesystem",
+        "prerequisite_indicators": [
+          "vhd_files_in_backup_share",
+          "windows_image_backup_present",
+          "filesystem_access_available"
+        ],
+        "recognition_patterns": [
+          "WindowsImageBackup directory structure",
+          ".vhd file extensions",
+          "guestmount successful mounting"
+        ],
+        "failure_modes": [
+          "encrypted_vhd_files",
+          "corrupted_backup_images",
+          "missing_registry_hives"
+        ],
+        "environmental_factors": [
+          "unencrypted_backup_storage",
+          "full_system_backups",
+          "accessible_registry_hives"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Registry_Hash_Extraction",
+        "success_reason": "Direct access to SAM and SYSTEM registry hives from mounted VHD",
+        "prerequisite_indicators": [
+          "sam_hive_accessible",
+          "system_hive_accessible",
+          "registry_files_readable"
+        ],
+        "recognition_patterns": [
+          "Windows/System32/config/SAM exists",
+          "Windows/System32/config/SYSTEM exists",
+          "secretsdump.py successful execution"
+        ],
+        "failure_modes": [
+          "registry_hives_corrupted",
+          "insufficient_file_permissions",
+          "backup_incomplete"
+        ],
+        "environmental_factors": [
+          "complete_system_backup",
+          "unprotected_registry_access",
+          "standard_windows_structure"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Backups SMB share with guest access",
+        "discovery_method": "smbmap and smbclient enumeration",
+        "why_critical": "Provided access to Windows backup VHD files containing full filesystem",
+        "how_to_recognize": [
+          "guest smb session established",
+          "backup-related share names",
+          "read/write permissions for anonymous"
+        ],
+        "follow_up_actions": [
+          "mount_smb_share_locally",
+          "enumerate_backup_contents",
+          "identify_vhd_files"
+        ]
+      },
+      {
+        "discovery": "Windows Image Backup VHD files",
+        "discovery_method": "SMB share file enumeration",
+        "why_critical": "Contained complete Windows filesystem with registry hives",
+        "how_to_recognize": [
+          "WindowsImageBackup directory structure",
+          "multiple .vhd files present",
+          "backup timestamp patterns"
+        ],
+        "follow_up_actions": [
+          "mount_vhd_with_guestmount",
+          "access_registry_hives",
+          "extract_password_hashes"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_smb_access",
+        "escalation_method": "Registry_Hash_Extraction_to_User_Access",
+        "why_possible": "Backup VHD contained unprotected registry hives with user password hashes",
+        "recognition_signs": [
+          "sam_and_system_hives_accessible",
+          "secretsdump_successful",
+          "crackable_password_hashes"
+        ],
+        "exploitation_path": "SMB Access → VHD Mount → Registry Extraction → Hash Cracking → SSH Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,135,139,445 open on Windows host",
+        "decision": "Enumerate SMB shares first since no web service present",
+        "reasoning": "Port combination indicates Windows with SMB and unusual SSH service, no web ports found",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if smb fails"
+          },
+          {
+            "option": "rpc_enumeration",
+            "when": "if anonymous access available"
+          }
+        ],
+        "success_indicators": [
+          "smb_shares_accessible",
+          "guest_access_available",
+          "backup_data_found"
+        ],
+        "next_decision": "analyze_smb_share_contents"
+      },
+      {
+        "step": 2,
+        "situation": "Found Backups share with VHD files and warning note",
+        "decision": "Mount SMB share locally instead of transferring large VHD files",
+        "reasoning": "Note warns against local transfer due to size, mounting allows direct access",
+        "confidence": 0.95,
+        "prerequisites": [
+          "smb_share_accessible",
+          "read_permissions_confirmed"
+        ],
+        "success_indicators": [
+          "vhd_files_accessible",
+          "windows_backup_structure_found"
+        ],
+        "next_decision": "mount_and_analyze_vhd_files"
+      },
+      {
+        "step": 3,
+        "situation": "Successfully mounted VHD containing Windows filesystem",
+        "decision": "Extract registry hives for credential dumping",
+        "reasoning": "Full filesystem access allows registry extraction without file locks",
+        "confidence": 0.98,
+        "prerequisites": [
+          "vhd_mounted",
+          "windows_system32_accessible"
+        ],
+        "success_indicators": [
+          "sam_security_system_files_found"
+        ],
+        "next_decision": "dump_credentials_from_registry"
+      },
+      {
+        "step": 4,
+        "situation": "Obtained NTLM hashes and default password from registry",
+        "decision": "Try SSH authentication with discovered credentials",
+        "reasoning": "SSH service available and credentials extracted, unusual for Windows",
+        "confidence": 0.85,
+        "prerequisites": [
+          "credentials_obtained",
+          "ssh_service_confirmed"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "user_shell_obtained"
+        ],
+        "next_decision": "enumerate_for_privilege_escalation"
+      }
+    ],
+    "branching_logic": {
+      "if_smb_enumeration_succeeds": {
+        "action": "mount_share_locally",
+        "tools": [
+          "smbclient",
+          "smbmap",
+          "mount"
+        ],
+        "next_phase": "analyze_backup_contents"
+      },
+      "if_vhd_files_found": {
+        "action": "mount_vhd_and_extract_registry",
+        "tools": [
+          "guestmount",
+          "secretsdump.py"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_credentials_obtained": {
+        "action": "authenticate_via_ssh",
+        "purpose": "establish_user_access",
+        "tools": [
+          "ssh",
+          "crackstation"
+        ]
+      },
+      "if_user_access_obtained": {
+        "action": "enumerate_installed_programs",
+        "purpose": "find_privilege_escalation_vectors",
+        "focus": "password_managers_and_credential_stores"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "mount_smb_shares_for_large_files",
+        "reasoning": "avoids_slow_transfers_and_provides_direct_access",
+        "applicability": "backup_shares_with_large_files"
+      },
+      {
+        "rule": "extract_registry_from_offline_systems",
+        "reasoning": "no_file_locks_allow_complete_credential_extraction",
+        "applicability": "mounted_windows_filesystems"
+      },
+      {
+        "rule": "try_ssh_on_windows_when_available",
+        "reasoning": "unusual_service_often_indicates_easy_access_method",
+        "applicability": "windows_hosts_with_ssh_enabled"
+      },
+      {
+        "rule": "focus_on_password_managers_for_privesc",
+        "reasoning": "often_contain_administrative_credentials",
+        "applicability": "user_access_with_installed_password_tools"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_accessible",
+          "anonymous_access_enabled",
+          "guest_account_enabled"
+        ],
+        "success_indicators": [
+          "share_enumeration_successful",
+          "guest_session_established",
+          "readable_shares_found"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "anonymous_access_blocked",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_windows_configuration",
+          "backup_shares_present",
+          "administrative_shares_visible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "VHD Mount and Registry Extraction",
+        "mitre_id": "T1003.002",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "vhd_files_accessible",
+          "backup_shares_readable",
+          "windows_image_backup_present"
+        ],
+        "success_indicators": [
+          "vhd_mount_successful",
+          "registry_hives_accessible",
+          "sam_system_files_found"
+        ],
+        "incompatible_with": [
+          "encrypted_vhd",
+          "corrupted_backup_files",
+          "insufficient_permissions"
+        ],
+        "confidence_boosters": [
+          "windowsimagebackup_directory",
+          "multiple_vhd_files",
+          "backup_xml_files_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Password Manager Exploitation",
+        "mitre_id": "T1555.005",
+        "required_services": [
+          "ssh",
+          "rdp"
+        ],
+        "required_ports": [
+          22,
+          3389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "password_manager_installed",
+          "user_credentials_available",
+          "application_data_accessible"
+        ],
+        "success_indicators": [
+          "mremoteng_config_found",
+          "encrypted_passwords_extracted",
+          "master_password_crackable"
+        ],
+        "incompatible_with": [
+          "strong_master_password",
+          "encrypted_profile_data",
+          "application_not_installed"
+        ],
+        "confidence_boosters": [
+          "mremoteng_installation_detected",
+          "default_configuration_files",
+          "weak_encryption_settings"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_smb": {
+        "port_indicators": [
+          445,
+          139,
+          135
+        ],
+        "service_indicators": [
+          "microsoft-ds",
+          "netbios-ssn",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Windows Server",
+          "microsoft-ds"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "backup_environment": {
+        "port_indicators": [
+          445
+        ],
+        "service_indicators": [
+          "smb"
+        ],
+        "share_indicators": [
+          "Backups",
+          "WindowsImageBackup"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "ssh_windows": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH for_Windows"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_backup_shares_and_sensitive_data"
+        },
+        {
+          "attack": "vhd_registry_extraction",
+          "when": "backup_shares_with_vhd_detected",
+          "reason": "high_success_rate_for_credential_extraction"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "password_manager_exploitation",
+          "when": "user_access_obtained",
+          "reason": "common_privilege_escalation_vector"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SMB Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "smbmap",
+            "command_template": "smbmap -H {target_ip} -u {username}",
+            "actual_command": "smbmap -H 10.10.10.134 -u df",
+            "output_pattern": "Disk.*Permissions",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -N -L //{target_ip}",
+            "actual_command": "smbclient -N -L //10.10.10.134",
+            "success_factors": [
+              "guest_access_enabled",
+              "null_session_allowed"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "smb_service_accessible",
+          "guest_access_enabled"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "accessible_shares_identified",
+          "backup_shares_discovered"
+        ],
+        "common_failures": [
+          "guest_access_disabled",
+          "network_connectivity_issues",
+          "smb_signing_required"
+        ],
+        "follow_up_techniques": [
+          "smb_share_mounting",
+          "file_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "VHD Mounting and Analysis",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "mount",
+            "command_template": "mount -t cifs //{target_ip}/{share} {mount_point} -o user=,password=",
+            "actual_command": "mount -t cifs //10.10.10.134/backups /mnt -o user=,password=",
+            "output_pattern": "successful_mount",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "guestmount",
+            "command_template": "guestmount --add {vhd_path} --inspector --ro {mount_point}",
+            "actual_command": "guestmount --add /mnt/WindowsImageBackup/L4mpje-PC/Backup\\ 2019-02-22\\ 124351/9b9cfbc4-369e-11e9-a17c-806e6f6e6963.vhd --inspector --ro /mnt2/",
+            "success_factors": [
+              "valid_vhd_file",
+              "filesystem_recognized"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "vhd_files_accessible",
+          "libguestfs_tools_installed",
+          "sufficient_disk_space"
+        ],
+        "success_indicators": [
+          "vhd_mounted_successfully",
+          "windows_filesystem_accessible",
+          "registry_hives_accessible"
+        ],
+        "common_failures": [
+          "corrupted_vhd_files",
+          "unsupported_filesystem",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "registry_hive_dumping",
+          "credential_extraction",
+          "file_system_analysis"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Registry Credential Extraction",
+        "mitre_id": "T1003.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "secretsdump.py",
+            "command_template": "secretsdump.py -sam SAM -security SECURITY -system SYSTEM LOCAL",
+            "actual_command": "secretsdump.py -sam SAM -security SECURITY -system SYSTEM LOCAL",
+            "output_pattern": "Administrator:500:.*:::.*L4mpje:1000:.*:::",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "registry_hives_accessible",
+          "sam_security_system_files_available",
+          "impacket_installed"
+        ],
+        "success_indicators": [
+          "ntlm_hashes_extracted",
+          "default_passwords_discovered",
+          "lsa_secrets_dumped"
+        ],
+        "common_failures": [
+          "corrupted_registry_files",
+          "missing_system_hive",
+          "encrypted_sam_database"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "pass_the_hash",
+          "credential_validation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "mRemoteNG Credential Extraction",
+        "mitre_id": "T1555.003",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "file_enumeration",
+            "command_template": "dir C:\\Users\\{username}\\AppData\\Roaming\\mRemoteNG",
+            "actual_command": "dir C:\\Users\\L4mpje\\AppData\\Roaming\\mRemoteNG",
+            "output_pattern": "confCons.xml",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "mremoteng_installed",
+          "user_access_to_profile",
+          "configuration_files_present"
+        ],
+        "success_indicators": [
+          "confcons_xml_located",
+          "encrypted_passwords_found",
+          "connection_profiles_discovered"
+        ],
+        "common_failures": [
+          "no_saved_connections",
+          "encrypted_configuration",
+          "missing_profile_data"
+        ],
+        "follow_up_techniques": [
+          "mremoteng_decryption",
+          "credential_validation",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "secretsdump.py",
+        "use_case": "registry_credential_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_credential_access"
+        ],
+        "alternatives": [
+          "pwdump",
+          "fgdump",
+          "manual_registry_parsing"
+        ],
+        "best_practices": [
+          "ensure_all_three_hives_available",
+          "run_from_system32_config_directory",
+          "check_for_default_passwords_in_output"
+        ]
+      },
+      {
+        "tool": "guestmount",
+        "use_case": "virtual_disk_mounting",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "vhd_analysis",
+          "vmdk_analysis"
+        ],
+        "alternatives": [
+          "7zip_extraction",
+          "vhd_mounting_tools"
+        ],
+        "best_practices": [
+          "install_libguestfs_tools_first",
+          "use_readonly_flag_for_safety",
+          "try_multiple_vhd_files_if_available"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "smb_to_registry_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbmap -H 10.10.10.134 -u df",
+            "purpose": "Enumerate SMB shares with guest access",
+            "expected_output": "Backups share with READ, WRITE permissions"
+          },
+          {
+            "step": 2,
+            "command": "mount -t cifs //10.10.10.134/backups /mnt -o user=,password=",
+            "purpose": "Mount SMB share to local filesystem",
+            "expected_output": "Share mounted at /mnt"
+          },
+          {
+            "step": 3,
+            "command": "find /mnt/ -name '*.vhd'",
+            "purpose": "Locate VHD files in backup",
+            "expected_output": "Two VHD files in WindowsImageBackup directory"
+          },
+          {
+            "step": 4,
+            "command": "guestmount --add /mnt/WindowsImageBackup/L4mpje-PC/Backup\\ 2019-02-22\\ 124351/9b9cfbc4-369e-11e9-a17c-806e6f6e6963.vhd --inspector --ro /mnt2/",
+            "purpose": "Mount VHD file to access Windows filesystem",
+            "expected_output": "Windows filesystem accessible at /mnt2"
+          },
+          {
+            "step": 5,
+            "command": "cd /mnt2/Windows/System32/config && secretsdump.py -sam SAM -security SECURITY -system SYSTEM LOCAL",
+            "purpose": "Extract credentials from registry hives",
+            "expected_output": "NTLM hashes and default password bureaulampje"
+          },
+          {
+            "step": 6,
+            "command": "ssh L4mpje@10.10.10.134",
+            "purpose": "Authenticate with extracted credentials",
+            "expected_output": "Shell access as l4mpje user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Bastion",
+      "difficulty": "Easy",
+      "os": "Windows Server 2016",
+      "platform": "HackTheBox",
+      "release_date": "2019-04-27",
+      "author": "L4mpje",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "smb_enumeration",
+        "vhd_mounting",
+        "registry_extraction"
+      ],
+      "key_vulnerabilities": [
+        "exposed_backup_files",
+        "weak_credential_storage",
+        "password_manager_exploitation"
+      ],
+      "environment_type": "standalone_windows_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "backup_file_analysis",
+        "registry_credential_extraction",
+        "password_manager_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "smb_basics",
+        "windows_registry",
+        "file_system_mounting"
+      ]
+    },
+    "categorization": {
+      "primary_category": "credential_access",
+      "subcategories": [
+        "backup_exploitation",
+        "password_manager_attacks",
+        "registry_analysis"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_backup_storage",
+        "encrypt_sensitive_backups",
+        "secure_password_managers"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Access",
+        "Querier",
+        "Nest"
+      ],
+      "similarity_reasons": [
+        "backup_file_exploitation",
+        "credential_extraction",
+        "windows_enumeration"
+      ],
+      "unique_aspects": [
+        "vhd_mounting",
+        "mremoteng_exploitation",
+        "registry_hive_analysis"
+      ],
+      "difficulty_factors": [
+        "straightforward_enumeration",
+        "well_documented_tools",
+        "clear_attack_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T02:22:32.941017",
+    "original_file": "0xdf_writeups/Htb Bastion.md",
+    "content_length": 28331,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

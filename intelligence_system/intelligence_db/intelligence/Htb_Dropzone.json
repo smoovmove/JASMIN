@@ -1,0 +1,800 @@
+{
+  "writeup_id": "Htb_Dropzone",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_xp_tftp_mof_injection",
+    "primary_services": [
+      "tftp"
+    ],
+    "port_signature": "69",
+    "service_combination": "tftp_only",
+    "os_family": "windows_xp",
+    "environment_type": "legacy_windows",
+    "entry_vector": "unauthenticated_tftp",
+    "privilege_path": "direct_system_access",
+    "attack_complexity": "medium",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "no_tcp_ports_open",
+      "udp_tftp_only",
+      "mof_auto_compilation",
+      "system32_write_access"
+    ],
+    "environmental_clues": [
+      "windows_xp_sp3",
+      "solarwinds_tftpd",
+      "c_drive_root_access",
+      "wmi_repository_writable"
+    ],
+    "similar_scenarios": [
+      "legacy_windows_file_drop",
+      "wmi_persistence_attacks"
+    ],
+    "unique_aspects": [
+      "stuxnet_style_mof_injection",
+      "alternative_data_streams_flags",
+      "tftp_system32_upload"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "TFTP_File_Upload",
+        "success_reason": "Unauthenticated TFTP service allowed file writes to system directories",
+        "prerequisite_indicators": [
+          "udp_69_open",
+          "tftp_service_running",
+          "write_permissions_to_system32"
+        ],
+        "recognition_patterns": [
+          "no TCP ports open but UDP services available",
+          "SolarWinds Free tftpd service banner",
+          "successful file upload to C:\\ root"
+        ],
+        "failure_modes": [
+          "tftp_read_only_configuration",
+          "restricted_write_permissions",
+          "tftp_service_not_running"
+        ],
+        "environmental_factors": [
+          "legacy_windows_xp_system",
+          "minimal_security_hardening",
+          "tftp_running_with_system_privileges"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "MOF_File_WMI_Exploitation",
+        "success_reason": "Windows XP auto-compiles MOF files in wbem\\mof\\ directory",
+        "prerequisite_indicators": [
+          "windows_xp_target",
+          "write_access_to_system32",
+          "wmi_service_running"
+        ],
+        "recognition_patterns": [
+          "MOF self-install directory exists",
+          "automatic MOF compilation enabled",
+          "WMI repository accessible"
+        ],
+        "failure_modes": [
+          "mof_compilation_disabled",
+          "wmi_service_stopped",
+          "insufficient_privileges_for_wmi"
+        ],
+        "environmental_factors": [
+          "default_windows_xp_configuration",
+          "legacy_wmi_implementation",
+          "no_modern_security_controls"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "TFTP service with system-level write access",
+        "discovery_method": "UDP port scan and TFTP enumeration",
+        "why_critical": "Enabled file upload to system directories for MOF exploitation",
+        "how_to_recognize": [
+          "UDP 69 open with no TCP ports",
+          "successful file write to C:\\ root",
+          "error messages revealing Windows paths"
+        ],
+        "follow_up_actions": [
+          "test_write_permissions_to_system32",
+          "identify_os_version_via_eula_txt",
+          "prepare_mof_payload_for_upload"
+        ]
+      },
+      {
+        "discovery": "Windows XP SP3 target system",
+        "discovery_method": "Reading \\windows\\system32\\eula.txt via TFTP",
+        "why_critical": "Confirmed MOF auto-compilation vulnerability exists",
+        "how_to_recognize": [
+          "EULA file contains Windows XP references",
+          "legacy system behaviors",
+          "absence of modern security features"
+        ],
+        "follow_up_actions": [
+          "craft_mof_file_for_code_execution",
+          "upload_payload_executable",
+          "trigger_wmi_compilation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_network_access",
+        "escalation_method": "TFTP_to_MOF_WMI_Execution",
+        "why_possible": "TFTP service running with SYSTEM privileges and MOF auto-compilation enabled",
+        "recognition_signs": [
+          "tftp_write_access_to_wbem_mof_directory",
+          "windows_xp_default_wmi_configuration",
+          "no_access_controls_on_tftp"
+        ],
+        "exploitation_path": "TFTP Upload → MOF File → WMI Compilation → SYSTEM Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "No TCP ports open on target host",
+        "decision": "Scan UDP ports for alternative entry points",
+        "reasoning": "TCP scan shows all ports filtered, UDP may reveal services",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_application_fuzzing",
+            "when": "if common web ports respond"
+          },
+          {
+            "option": "snmp_enumeration",
+            "when": "if port 161 open"
+          }
+        ],
+        "success_indicators": [
+          "udp_service_discovered",
+          "service_responds_to_requests"
+        ],
+        "next_decision": "evaluate_udp_service_capabilities"
+      },
+      {
+        "step": 2,
+        "situation": "TFTP service discovered on UDP 69",
+        "decision": "Test TFTP read/write capabilities and determine OS",
+        "reasoning": "TFTP allows file transfer which could lead to code execution",
+        "confidence": 0.85,
+        "prerequisites": [
+          "tftp_service_accessible"
+        ],
+        "success_indicators": [
+          "can_read_system_files",
+          "can_write_to_system_directories",
+          "os_version_identified"
+        ],
+        "next_decision": "choose_tftp_exploitation_method"
+      },
+      {
+        "step": 3,
+        "situation": "TFTP allows write access to system32 on Windows XP",
+        "decision": "Use MOF file exploitation for code execution",
+        "reasoning": "Windows XP has MOF self-install directory that auto-compiles dropped MOF files",
+        "confidence": 0.95,
+        "prerequisites": [
+          "windows_xp_identified",
+          "write_access_to_system32",
+          "wmi_service_running"
+        ],
+        "success_indicators": [
+          "mof_file_uploaded_successfully",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "dll_hijacking",
+          "service_replacement"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_no_tcp_ports": {
+        "action": "comprehensive_udp_scan",
+        "tools": [
+          "nmap",
+          "unicornscan"
+        ],
+        "next_phase": "udp_service_enumeration"
+      },
+      "if_tftp_discovered": {
+        "action": "test_file_operations_and_os_detection",
+        "tests": [
+          "read_eula_txt",
+          "write_test_file",
+          "check_system32_access"
+        ],
+        "decision_criteria": "based_on_write_permissions_and_os"
+      },
+      "if_windows_xp_with_write_access": {
+        "action": "mof_file_exploitation",
+        "steps": [
+          "create_malicious_mof_file",
+          "upload_to_mof_directory",
+          "wait_for_auto_compilation"
+        ],
+        "tools": [
+          "tftp",
+          "custom_mof_template"
+        ]
+      },
+      "if_mof_exploitation_succeeds": {
+        "action": "establish_persistent_access",
+        "methods": [
+          "upload_netcat",
+          "create_backdoor_service"
+        ],
+        "privilege_level": "system"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_scan_udp_when_tcp_filtered",
+        "reasoning": "filtered_tcp_often_indicates_firewall_with_udp_services_exposed",
+        "applicability": "all_filtered_tcp_scenarios"
+      },
+      {
+        "rule": "test_tftp_write_capabilities_immediately",
+        "reasoning": "write_access_more_valuable_than_read_for_exploitation",
+        "applicability": "tftp_service_discovered"
+      },
+      {
+        "rule": "use_mof_exploitation_on_legacy_windows",
+        "reasoning": "highly_reliable_system_level_access_on_xp_2003",
+        "applicability": "windows_xp_or_2003_with_file_write"
+      },
+      {
+        "rule": "switch_to_binary_mode_for_executable_uploads",
+        "reasoning": "ascii_mode_corrupts_binary_files_in_tftp",
+        "applicability": "tftp_binary_file_transfers"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "TFTP_MOF_Exploitation",
+        "mitre_id": "T1047",
+        "required_services": [
+          "tftp"
+        ],
+        "required_ports": [
+          69
+        ],
+        "os_requirements": [
+          "windows_xp",
+          "windows_2003"
+        ],
+        "environmental_prerequisites": [
+          "tftp_service_running",
+          "write_access_to_system32",
+          "mof_auto_compilation_enabled",
+          "wmi_service_running"
+        ],
+        "success_indicators": [
+          "tftp_put_successful",
+          "system32_write_access",
+          "mof_file_compilation",
+          "wmi_event_triggered"
+        ],
+        "incompatible_with": [
+          "modern_windows_versions",
+          "mof_compilation_disabled",
+          "tftp_read_only_access",
+          "wmi_service_disabled"
+        ],
+        "confidence_boosters": [
+          "windows_xp_sp3_detected",
+          "solarwinds_tftp_banner",
+          "system32_directory_writable",
+          "legacy_wmi_configuration"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "TFTP_Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "tftp"
+        ],
+        "required_ports": [
+          69
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "tftp_service_accessible",
+          "file_read_permissions"
+        ],
+        "success_indicators": [
+          "tftp_get_successful",
+          "system_files_readable",
+          "eula_txt_accessible"
+        ],
+        "incompatible_with": [
+          "tftp_disabled",
+          "strict_file_permissions",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "c_drive_root_access",
+          "system32_readable",
+          "no_authentication_required"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Alternative_Data_Streams",
+        "mitre_id": "T1564.004",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ntfs_filesystem",
+          "file_system_access",
+          "ads_enabled"
+        ],
+        "success_indicators": [
+          "ads_streams_detected",
+          "hidden_data_found",
+          "stream_enumeration_successful"
+        ],
+        "incompatible_with": [
+          "fat32_filesystem",
+          "ads_disabled",
+          "file_access_restricted"
+        ],
+        "confidence_boosters": [
+          "ntfs_partition_detected",
+          "windows_desktop_environment",
+          "text_files_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "legacy_windows": {
+        "port_indicators": [
+          69,
+          135,
+          139,
+          445
+        ],
+        "service_indicators": [
+          "tftp",
+          "rpc",
+          "netbios",
+          "smb"
+        ],
+        "banner_indicators": [
+          "Windows XP",
+          "Windows 2003",
+          "SolarWinds"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "tftp_service": {
+        "port_indicators": [
+          69
+        ],
+        "service_indicators": [
+          "tftp"
+        ],
+        "banner_indicators": [
+          "SolarWinds Free tftpd",
+          "tftp"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "wmi_capable": {
+        "port_indicators": [
+          135
+        ],
+        "service_indicators": [
+          "rpc",
+          "wmi"
+        ],
+        "os_indicators": [
+          "windows"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "tftp_enumeration",
+          "when": "tftp_service_detected",
+          "reason": "immediate_file_access_no_authentication"
+        },
+        {
+          "attack": "mof_exploitation",
+          "when": "legacy_windows_and_tftp_write_access",
+          "reason": "direct_system_shell_high_success_rate"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "alternative_data_streams",
+          "when": "windows_file_access_obtained",
+          "reason": "hidden_data_often_contains_flags"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "sam_hive_extraction",
+          "when": "system_level_file_access",
+          "reason": "files_often_locked_by_system_processes"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "TFTP Enumeration and File Upload",
+        "mitre_id": "T1021.005",
+        "category": "lateral_movement",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -sU -p 69 {target_ip}",
+            "actual_command": "nmap -sU -p 69 10.10.10.90",
+            "output_pattern": "69/udp open  tftp",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "tftp",
+            "command_template": "tftp {target_ip}",
+            "actual_command": "tftp 10.10.10.90",
+            "success_factors": [
+              "unauthenticated_access",
+              "write_permissions"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "tftp_service_running",
+          "udp_69_accessible",
+          "write_permissions_to_system_directories"
+        ],
+        "success_indicators": [
+          "successful_file_upload",
+          "file_retrieval_confirms_placement",
+          "error_messages_reveal_file_paths"
+        ],
+        "common_failures": [
+          "service_not_running",
+          "insufficient_permissions",
+          "binary_mode_not_enabled"
+        ],
+        "follow_up_techniques": [
+          "mof_file_exploitation",
+          "system_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "MOF File WMI Code Execution",
+        "mitre_id": "T1047",
+        "category": "execution",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "custom_mof_file",
+            "command_template": "put {mof_file} \\windows\\system32\\wbem\\mof\\{filename}.mof",
+            "actual_command": "put malicious.mof \\windows\\system32\\wbem\\mof\\a.mof",
+            "output_pattern": "automatic_compilation_by_mofcomp",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "tftp_binary_mode",
+            "command_template": "binary",
+            "actual_command": "binary",
+            "success_factors": [
+              "proper_file_transfer",
+              "binary_integrity"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "write_access_to_wbem_mof_directory",
+          "windows_xp_or_vulnerable_system",
+          "wmi_service_running",
+          "mof_auto_compilation_enabled"
+        ],
+        "success_indicators": [
+          "mof_file_successfully_uploaded",
+          "automatic_compilation_occurs",
+          "payload_execution_confirmed",
+          "system_level_access_achieved"
+        ],
+        "common_failures": [
+          "mof_syntax_errors",
+          "insufficient_write_permissions",
+          "wmi_service_disabled",
+          "modern_windows_protections"
+        ],
+        "follow_up_techniques": [
+          "system_shell_access",
+          "credential_harvesting",
+          "persistence_establishment"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Alternative Data Streams Enumeration",
+        "mitre_id": "T1564.004",
+        "category": "defense_evasion",
+        "phase": "collection",
+        "tools_used": [
+          {
+            "name": "dir_command",
+            "command_template": "dir /r {file_path}",
+            "actual_command": "dir /r desktop.txt",
+            "output_pattern": "filename:streamname:$DATA",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "type_command",
+            "command_template": "type {filename}:{streamname}",
+            "actual_command": "type desktop.txt:user.txt",
+            "success_factors": [
+              "ads_present",
+              "readable_content"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "ntfs_file_system",
+          "files_with_alternate_data_streams",
+          "system_access_obtained"
+        ],
+        "success_indicators": [
+          "ads_streams_discovered",
+          "hidden_content_revealed",
+          "flags_or_data_extracted"
+        ],
+        "common_failures": [
+          "no_ads_present",
+          "incorrect_syntax",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "data_exfiltration",
+          "evidence_collection",
+          "forensic_analysis"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "TFTP",
+        "use_case": "unauthenticated_file_transfer",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "legacy_systems",
+          "embedded_devices"
+        ],
+        "alternatives": [
+          "ftp",
+          "smb",
+          "http_upload"
+        ],
+        "best_practices": [
+          "enable_binary_mode_for_executables",
+          "test_read_write_permissions_first",
+          "verify_file_integrity_after_transfer"
+        ]
+      },
+      {
+        "tool": "MOF_Files",
+        "use_case": "wmi_based_code_execution",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "high",
+        "essential_for": [
+          "windows_xp_exploitation",
+          "wmi_persistence"
+        ],
+        "alternatives": [
+          "scheduled_tasks",
+          "service_installation",
+          "registry_run_keys"
+        ],
+        "best_practices": [
+          "use_tested_mof_templates",
+          "include_cleanup_mechanisms",
+          "target_mof_auto_install_directory"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "tftp_to_system_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sU -p 69 10.10.10.90",
+            "purpose": "Discover TFTP service",
+            "expected_output": "69/udp open tftp"
+          },
+          {
+            "step": 2,
+            "command": "tftp 10.10.10.90",
+            "purpose": "Connect to TFTP service",
+            "expected_output": "tftp> prompt"
+          },
+          {
+            "step": 3,
+            "command": "get \\windows\\system32\\eula.txt",
+            "purpose": "Identify Windows version",
+            "expected_output": "Windows XP Professional Edition"
+          },
+          {
+            "step": 4,
+            "command": "binary",
+            "purpose": "Enable binary transfer mode",
+            "expected_output": "Mode changed to octet"
+          },
+          {
+            "step": 5,
+            "command": "put malicious.mof \\windows\\system32\\wbem\\mof\\a.mof",
+            "purpose": "Upload malicious MOF file",
+            "expected_output": "File transferred successfully"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-30 minutes"
+      },
+      {
+        "sequence_name": "ads_flag_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "dir /r desktop.txt",
+            "purpose": "Enumerate alternate data streams",
+            "expected_output": "desktop.txt:user.txt:$DATA"
+          },
+          {
+            "step": 2,
+            "command": "type desktop.txt:user.txt",
+            "purpose": "Extract user flag from ADS",
+            "expected_output": "User flag content"
+          },
+          {
+            "step": 3,
+            "command": "type desktop.txt:root.txt",
+            "purpose": "Extract root flag from ADS",
+            "expected_output": "Root flag content"
+          }
+        ],
+        "success_rate": 0.98,
+        "typical_duration": "2-5 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Dropzone",
+      "difficulty": "Hard",
+      "os": "Windows XP",
+      "platform": "HackTheBox",
+      "release_date": "2018-05-19",
+      "author": "eks, rjesh",
+      "estimated_time": "3-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "tftp",
+        "wmi_mof_injection"
+      ],
+      "key_vulnerabilities": [
+        "unauthenticated_tftp",
+        "automatic_mof_compilation",
+        "alternative_data_streams"
+      ],
+      "environment_type": "legacy_windows_system",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "wmi_exploitation",
+        "mof_file_attacks",
+        "alternative_data_streams",
+        "stuxnet_techniques"
+      ],
+      "prerequisite_knowledge": [
+        "wmi_fundamentals",
+        "windows_internals",
+        "legacy_windows_systems"
+      ]
+    },
+    "categorization": {
+      "primary_category": "legacy_exploitation",
+      "subcategories": [
+        "wmi_attacks",
+        "file_upload_exploitation",
+        "steganography"
+      ],
+      "attack_types": [
+        "initial_access",
+        "execution",
+        "defense_evasion"
+      ],
+      "defensive_lessons": [
+        "disable_unnecessary_services",
+        "network_segmentation",
+        "legacy_system_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Legacy",
+        "Blue",
+        "Devel"
+      ],
+      "similarity_reasons": [
+        "legacy_windows",
+        "unique_attack_vectors",
+        "historical_techniques"
+      ],
+      "unique_aspects": [
+        "tftp_only_access",
+        "mof_injection",
+        "alternative_data_streams",
+        "stuxnet_reference"
+      ],
+      "difficulty_factors": [
+        "no_tcp_ports",
+        "obscure_attack_method",
+        "hidden_flags_location"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:25:33.687674",
+    "original_file": "0xdf_writeups/Htb Dropzone.md",
+    "content_length": 22096,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

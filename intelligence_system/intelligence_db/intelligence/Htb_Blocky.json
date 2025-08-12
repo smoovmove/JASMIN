@@ -1,0 +1,990 @@
+{
+  "writeup_id": "Htb_Blocky",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_wordpress_jar_credential_reuse",
+    "primary_services": [
+      "http",
+      "ssh",
+      "ftp"
+    ],
+    "port_signature": "21+22+80",
+    "service_combination": "ftp+ssh+http",
+    "os_family": "linux",
+    "environment_type": "web_server",
+    "entry_vector": "jar_file_credential_extraction",
+    "privilege_path": "credential_reuse_to_sudo_all",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "java_jar_files_in_plugins_directory",
+      "credential_reuse_across_services",
+      "sudo_all_privileges"
+    ],
+    "environmental_clues": [
+      "wordpress_site",
+      "minecraft_theme",
+      "plugins_directory_accessible",
+      "phpmyadmin_present"
+    ],
+    "similar_scenarios": [
+      "lame_htb_easy",
+      "legacy_htb_easy"
+    ],
+    "unique_aspects": [
+      "minecraft_themed_wordpress",
+      "jar_file_credential_storage",
+      "plugins_path_enumeration_required"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Directory_Enumeration",
+        "success_reason": "Discovered /plugins directory containing exposed Java JAR files",
+        "prerequisite_indicators": [
+          "web_server_accessible",
+          "directory_listing_enabled",
+          "custom_application_paths_exist"
+        ],
+        "recognition_patterns": [
+          "minecraft-related naming conventions",
+          "jar files in web directories",
+          "custom plugin directories"
+        ],
+        "failure_modes": [
+          "directory_listing_disabled",
+          "proper_access_controls",
+          "files_not_web_accessible"
+        ],
+        "environmental_factors": [
+          "development_environment_exposed",
+          "insufficient_web_server_hardening",
+          "custom_application_deployment"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "JAR_File_Analysis",
+        "success_reason": "Java JAR files contained hardcoded credentials in decompiled source",
+        "prerequisite_indicators": [
+          "jar_files_accessible",
+          "java_decompilation_tools_available",
+          "credentials_hardcoded_in_source"
+        ],
+        "recognition_patterns": [
+          "downloadable jar files",
+          "minecraft plugin naming",
+          "configuration classes with credentials"
+        ],
+        "failure_modes": [
+          "obfuscated_code",
+          "encrypted_credentials",
+          "no_hardcoded_secrets"
+        ],
+        "environmental_factors": [
+          "developer_bad_practices",
+          "lack_of_secure_coding_standards",
+          "development_artifacts_in_production"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Credential_Reuse",
+        "success_reason": "Database credentials were reused for SSH access",
+        "prerequisite_indicators": [
+          "valid_credentials_discovered",
+          "ssh_service_available",
+          "user_account_exists"
+        ],
+        "recognition_patterns": [
+          "username matches system user",
+          "password reuse across services",
+          "ssh login successful"
+        ],
+        "failure_modes": [
+          "unique_passwords_per_service",
+          "ssh_key_authentication_only",
+          "account_lockout_policies"
+        ],
+        "environmental_factors": [
+          "poor_password_management",
+          "single_user_development_environment",
+          "lack_of_credential_separation"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Sudo_Privilege_Escalation",
+        "success_reason": "User had unrestricted sudo access with password",
+        "prerequisite_indicators": [
+          "user_shell_access_obtained",
+          "sudo_permissions_configured",
+          "user_password_known"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows ALL permissions",
+          "NOPASSWD not required",
+          "administrative user account"
+        ],
+        "failure_modes": [
+          "restricted_sudo_commands",
+          "password_not_known",
+          "sudo_not_configured"
+        ],
+        "environmental_factors": [
+          "development_system_configuration",
+          "overprivileged_user_accounts",
+          "insufficient_privilege_separation"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "2-5 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "JAR files in /plugins directory",
+        "discovery_method": "Directory enumeration with gobuster",
+        "why_critical": "Contained hardcoded database credentials leading to system access",
+        "how_to_recognize": [
+          "custom application directories",
+          "downloadable executable files",
+          "minecraft-related file naming"
+        ],
+        "follow_up_actions": [
+          "download_all_jar_files",
+          "decompile_with_java_tools",
+          "search_for_credentials_and_configs"
+        ]
+      },
+      {
+        "discovery": "Hardcoded credentials in JAR source",
+        "discovery_method": "Java decompilation and source analysis",
+        "why_critical": "Provided valid credentials for privilege escalation",
+        "how_to_recognize": [
+          "configuration classes in decompiled code",
+          "database connection strings",
+          "plaintext password variables"
+        ],
+        "follow_up_actions": [
+          "test_credentials_on_all_services",
+          "check_ssh_access",
+          "verify_database_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_files",
+        "escalation_method": "credential_reuse_to_ssh",
+        "why_possible": "Database credentials were reused for user SSH access",
+        "recognition_signs": [
+          "username_matches_system_account",
+          "ssh_service_available",
+          "credential_reuse_patterns"
+        ],
+        "exploitation_path": "JAR Analysis → Hardcoded Creds → SSH Access → Sudo Escalation"
+      },
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "unrestricted_sudo_access",
+        "why_possible": "User account had full sudo privileges with known password",
+        "recognition_signs": [
+          "sudo_all_permissions",
+          "password_authentication_enabled",
+          "development_environment_privileges"
+        ],
+        "exploitation_path": "sudo su → root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,80 open on Linux host with WordPress",
+        "decision": "Prioritize web enumeration over FTP without anonymous access",
+        "reasoning": "WordPress sites often have more attack surface than authenticated FTP",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "ftp_bruteforce",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "wordpress_version_identified",
+          "directory_enumeration_complete",
+          "custom_paths_discovered"
+        ],
+        "next_decision": "enumerate_custom_directories"
+      },
+      {
+        "step": 2,
+        "situation": "WordPress site with custom /plugins directory found",
+        "decision": "Investigate custom plugins directory before standard WordPress attacks",
+        "reasoning": "Custom directories often contain sensitive files or misconfigurations",
+        "confidence": 0.9,
+        "prerequisites": [
+          "directory_enumeration_complete"
+        ],
+        "success_indicators": [
+          "jar_files_found",
+          "source_code_accessible",
+          "config_files_discovered"
+        ],
+        "failure_fallbacks": [
+          "wpscan_vulnerabilities",
+          "wp_login_bruteforce",
+          "phpmyadmin_access"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Java JAR files found in /plugins directory",
+        "decision": "Download and decompile JAR files for credential extraction",
+        "reasoning": "JAR files often contain hardcoded credentials or configuration data",
+        "confidence": 0.95,
+        "prerequisites": [
+          "jar_files_accessible"
+        ],
+        "success_indicators": [
+          "credentials_extracted",
+          "database_config_found"
+        ],
+        "failure_fallbacks": [
+          "source_code_analysis",
+          "configuration_file_search"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Credentials extracted from JAR file",
+        "decision": "Test credential reuse on SSH before other services",
+        "reasoning": "SSH provides direct system access and credential reuse is common",
+        "confidence": 0.8,
+        "prerequisites": [
+          "valid_credentials_found",
+          "ssh_service_available"
+        ],
+        "success_indicators": [
+          "ssh_login_successful",
+          "shell_access_obtained"
+        ],
+        "failure_fallbacks": [
+          "ftp_login_attempt",
+          "phpmyadmin_login",
+          "wordpress_admin_login"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_jar_analysis_succeeds": {
+        "action": "test_credential_reuse_across_services",
+        "tools": [
+          "ssh",
+          "hydra",
+          "mysql"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_ssh_access_obtained": {
+        "action": "enumerate_sudo_privileges",
+        "purpose": "check_for_easy_privilege_escalation",
+        "tools": [
+          "sudo -l",
+          "linpeas",
+          "linenum"
+        ]
+      },
+      "if_wordpress_enumeration_fails": {
+        "action": "focus_on_service_specific_attacks",
+        "alternatives": [
+          "ftp_exploitation",
+          "ssh_bruteforce",
+          "version_specific_exploits"
+        ],
+        "decision_criteria": "based_on_service_versions_and_configurations"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_custom_directories_first",
+        "reasoning": "custom_paths_more_likely_to_contain_sensitive_data",
+        "applicability": "web_application_enumeration"
+      },
+      {
+        "rule": "decompile_any_accessible_compiled_code",
+        "reasoning": "compiled_files_often_contain_hardcoded_secrets",
+        "applicability": "jar_files_or_compiled_binaries_found"
+      },
+      {
+        "rule": "test_credential_reuse_on_ssh_first",
+        "reasoning": "ssh_provides_direct_system_access",
+        "applicability": "credentials_discovered_and_ssh_available"
+      },
+      {
+        "rule": "check_sudo_privileges_immediately_after_user_access",
+        "reasoning": "common_misconfiguration_leading_to_easy_privilege_escalation",
+        "applicability": "user_shell_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Brute Force",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_disabled",
+          "hidden_paths_exist"
+        ],
+        "success_indicators": [
+          "status_200_responses",
+          "status_301_redirects",
+          "interesting_directories_found"
+        ],
+        "incompatible_with": [
+          "rate_limiting_strict",
+          "waf_blocking_requests",
+          "ip_blocking_enabled"
+        ],
+        "confidence_boosters": [
+          "default_web_frameworks",
+          "cms_detected",
+          "standard_naming_conventions"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "WordPress Enumeration",
+        "mitre_id": "T1590.002",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "wordpress_detected",
+          "wp_content_accessible",
+          "xmlrpc_enabled"
+        ],
+        "success_indicators": [
+          "wp_version_identified",
+          "plugins_enumerated",
+          "users_discovered"
+        ],
+        "incompatible_with": [
+          "wordpress_hardened",
+          "xmlrpc_disabled",
+          "directory_listing_blocked"
+        ],
+        "confidence_boosters": [
+          "wp_generator_meta_tag",
+          "default_wp_paths_accessible",
+          "readme_html_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Jar File Analysis",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "java_application_detected",
+          "jar_files_accessible",
+          "plugins_directory_exposed"
+        ],
+        "success_indicators": [
+          "jar_files_downloaded",
+          "credentials_in_source",
+          "configuration_exposed"
+        ],
+        "incompatible_with": [
+          "jar_files_protected",
+          "obfuscated_code",
+          "access_controls_strict"
+        ],
+        "confidence_boosters": [
+          "minecraft_server_detected",
+          "plugins_path_accessible",
+          "development_environment"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Credential Reuse",
+        "mitre_id": "T1078",
+        "required_services": [
+          "ssh",
+          "ftp",
+          "smb"
+        ],
+        "required_ports": [
+          21,
+          22,
+          445
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "credentials_discovered",
+          "multiple_services_available",
+          "user_accounts_exist"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "shell_access_gained",
+          "service_access_granted"
+        ],
+        "incompatible_with": [
+          "unique_passwords_enforced",
+          "mfa_enabled",
+          "account_lockout_strict"
+        ],
+        "confidence_boosters": [
+          "default_configurations",
+          "single_admin_user",
+          "development_environment"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "wordpress": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "WordPress",
+          "wp-content",
+          "wp-admin"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "java_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          25565
+        ],
+        "service_indicators": [
+          "http",
+          "minecraft"
+        ],
+        "technology_indicators": [
+          ".jar",
+          "java",
+          "minecraft"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_server": {
+        "port_indicators": [
+          22,
+          80
+        ],
+        "service_indicators": [
+          "ssh",
+          "apache"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH",
+          "Apache"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "development_environment": {
+        "port_indicators": [
+          80,
+          3306
+        ],
+        "service_indicators": [
+          "phpmyadmin",
+          "mysql"
+        ],
+        "technology_indicators": [
+          "under construction",
+          "phpmyadmin"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_brute_force",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_paths_and_files"
+        },
+        {
+          "attack": "jar_file_analysis",
+          "when": "java_application_detected",
+          "reason": "often_contains_hardcoded_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "wordpress_enumeration",
+          "when": "wordpress_detected",
+          "reason": "reveals_users_and_vulnerabilities"
+        },
+        {
+          "attack": "credential_reuse_testing",
+          "when": "credentials_found",
+          "reason": "high_success_rate_across_services"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ftp_anonymous_access",
+          "when": "ftp_service_detected",
+          "reason": "rarely_enabled_on_modern_systems"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {url} -w {wordlist} -x {extensions} -t {threads} -o {output}",
+            "actual_command": "gobuster dir -u http://10.10.10.37 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php -t 40 -o scans/gobuster-root-medium",
+            "output_pattern": "/{path} (Status: {code})",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "appropriate_wordlist_selected"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "interesting_files_found",
+          "additional_attack_surface_identified"
+        ],
+        "common_failures": [
+          "insufficient_wordlist",
+          "rate_limiting_blocks_requests",
+          "false_positive_responses"
+        ],
+        "follow_up_techniques": [
+          "file_analysis",
+          "credential_extraction",
+          "further_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "WordPress Enumeration",
+        "mitre_id": "T1590.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wpscan",
+            "command_template": "wpscan --url {url} -e {enumerate_options}",
+            "actual_command": "wpscan --url http://10.10.10.37 -e ap,t,tt,u",
+            "output_pattern": "[+] {finding_type}: {details}",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "wordpress_site_identified",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "users_enumerated",
+          "plugins_identified",
+          "version_information_gathered",
+          "vulnerabilities_discovered"
+        ],
+        "common_failures": [
+          "waf_blocking_requests",
+          "hardened_wordpress_installation",
+          "rate_limiting_active"
+        ],
+        "follow_up_techniques": [
+          "credential_brute_force",
+          "plugin_exploitation",
+          "version_specific_attacks"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Java Archive Analysis",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "jd-gui",
+            "command_template": "jd-gui {jar_file}",
+            "actual_command": "jd-gui BlockCore.jar",
+            "output_pattern": "Decompiled Java source code",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "jar_files_accessible",
+          "java_decompiler_available"
+        ],
+        "success_indicators": [
+          "source_code_decompiled",
+          "hardcoded_credentials_found",
+          "configuration_details_extracted"
+        ],
+        "common_failures": [
+          "obfuscated_code",
+          "encrypted_strings",
+          "no_sensitive_data_present"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "database_access",
+          "ssh_authentication"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Credential Reuse Attack",
+        "mitre_id": "T1078.003",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "ssh",
+            "command_template": "ssh {username}@{target_ip}",
+            "actual_command": "ssh notch@10.10.10.37",
+            "output_pattern": "Welcome to Ubuntu",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "credentials_obtained",
+          "ssh_service_accessible",
+          "username_identified"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "shell_access_obtained",
+          "user_privileges_confirmed"
+        ],
+        "common_failures": [
+          "credentials_not_reused",
+          "account_locked_or_disabled",
+          "ssh_key_authentication_required"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "system_enumeration",
+          "lateral_movement"
+        ],
+        "time_investment": "1-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Sudo Privilege Escalation",
+        "mitre_id": "T1548.003",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "sudo",
+            "command_template": "sudo {command}",
+            "actual_command": "sudo su",
+            "output_pattern": "root@{hostname}",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "user_has_sudo_privileges",
+          "password_known",
+          "sudo_all_permissions"
+        ],
+        "success_indicators": [
+          "root_shell_obtained",
+          "uid_0_confirmed",
+          "full_system_access"
+        ],
+        "common_failures": [
+          "limited_sudo_permissions",
+          "password_required_but_unknown",
+          "sudo_restrictions_in_place"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "data_exfiltration",
+          "system_modification"
+        ],
+        "time_investment": "1-2 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "include_relevant_file_extensions",
+          "adjust_thread_count_for_target"
+        ]
+      },
+      {
+        "tool": "jd-gui",
+        "use_case": "java_decompilation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "java_application_analysis"
+        ],
+        "alternatives": [
+          "jadx",
+          "fernflower",
+          "procyon"
+        ],
+        "best_practices": [
+          "examine_all_classes_thoroughly",
+          "look_for_hardcoded_credentials",
+          "check_configuration_files"
+        ]
+      },
+      {
+        "tool": "wpscan",
+        "use_case": "wordpress_security_assessment",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "wordpress_penetration_testing"
+        ],
+        "alternatives": [
+          "manual_enumeration",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "enumerate_users_plugins_themes",
+          "check_for_known_vulnerabilities",
+          "use_api_token_for_vulnerability_data"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_to_root_via_jar_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.37",
+            "purpose": "Initial port discovery",
+            "expected_output": "Open ports: 21, 22, 80, 25565"
+          },
+          {
+            "step": 2,
+            "command": "gobuster dir -u http://10.10.10.37 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php -t 40",
+            "purpose": "Discover hidden directories",
+            "expected_output": "/plugins directory found"
+          },
+          {
+            "step": 3,
+            "command": "wget http://10.10.10.37/plugins/BlockCore.jar",
+            "purpose": "Download Java archive for analysis",
+            "expected_output": "JAR file downloaded successfully"
+          },
+          {
+            "step": 4,
+            "command": "jd-gui BlockCore.jar",
+            "purpose": "Decompile and analyze JAR file",
+            "expected_output": "Hardcoded credentials discovered"
+          },
+          {
+            "step": 5,
+            "command": "ssh notch@10.10.10.37",
+            "purpose": "Test credential reuse for SSH access",
+            "expected_output": "Successful SSH authentication"
+          },
+          {
+            "step": 6,
+            "command": "sudo su",
+            "purpose": "Escalate to root privileges",
+            "expected_output": "Root shell obtained"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Blocky",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu 16.04",
+      "platform": "HackTheBox",
+      "release_date": "2017-07-21",
+      "author": "Arrexel",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_enumeration",
+        "credential_reuse",
+        "sudo_misconfiguration"
+      ],
+      "key_vulnerabilities": [
+        "exposed_jar_files",
+        "password_reuse",
+        "sudo_all_privileges"
+      ],
+      "environment_type": "web_server_minecraft",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "web_enumeration",
+        "jar_file_analysis",
+        "credential_reuse",
+        "sudo_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "java_jar_basics",
+        "linux_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "credential_harvesting",
+        "privilege_escalation",
+        "enumeration"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "initial_access"
+      ],
+      "defensive_lessons": [
+        "secure_file_storage",
+        "avoid_credential_reuse",
+        "proper_sudo_configuration"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Lame",
+        "Legacy",
+        "Blue"
+      ],
+      "similarity_reasons": [
+        "straightforward_attack_path",
+        "beginner_friendly",
+        "clear_escalation"
+      ],
+      "unique_aspects": [
+        "minecraft_theme",
+        "jar_file_analysis",
+        "wordpress_enumeration"
+      ],
+      "difficulty_factors": [
+        "requires_thorough_enumeration",
+        "multiple_services_to_check"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:52:59.698718",
+    "original_file": "0xdf_writeups/Htb Blocky.md",
+    "content_length": 17412,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

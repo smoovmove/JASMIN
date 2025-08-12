@@ -1,0 +1,1325 @@
+{
+  "writeup_id": "Htb_Corporate",
+  "scenario_fingerprint": {
+    "scenario_name": "corporate_web_application_xss_to_infrastructure",
+    "primary_services": [
+      "http",
+      "ssh",
+      "nfs",
+      "docker"
+    ],
+    "port_signature": "80+22+2049+2376",
+    "service_combination": "web+ssh+nfs+docker_socket",
+    "os_family": "linux",
+    "environment_type": "corporate_infrastructure",
+    "entry_vector": "complex_xss_bypass",
+    "privilege_path": "xss_to_cookie_to_idor_to_vpn_to_root",
+    "attack_complexity": "insane",
+    "estimated_time": "8-12 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "csp_bypass_required",
+      "multiple_html_injections",
+      "dynamic_javascript_injection",
+      "idor_vulnerability",
+      "default_password_patterns",
+      "openvpn_configs_per_user"
+    ],
+    "environmental_clues": [
+      "openresty_web_server",
+      "multiple_subdomains",
+      "content_security_policy",
+      "custom_404_page",
+      "bitwarden_extension",
+      "gitea_instance",
+      "proxmox_backup_system"
+    ],
+    "similar_scenarios": [
+      "enterprise_web_to_infra",
+      "multi_stage_web_exploitation"
+    ],
+    "unique_aspects": [
+      "nfs_dynamic_home_directories",
+      "jwt_secret_in_git_history",
+      "docker_socket_privilege_escalation",
+      "proxmox_api_password_reset",
+      "totp_extraction_from_browser"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Complex_XSS_Chain",
+        "success_reason": "Multiple HTML injections combined with CSP bypass through dynamic JavaScript",
+        "prerequisite_indicators": [
+          "custom_404_page_reflects_url",
+          "csp_policy_present_but_bypassable",
+          "multiple_subdomains_available",
+          "dynamic_javascript_execution"
+        ],
+        "recognition_patterns": [
+          "URL reflection in error pages",
+          "CSP allows same-origin and wildcards",
+          "Multiple injection points available",
+          "Dynamic script generation"
+        ],
+        "failure_modes": [
+          "strict_csp_no_unsafe_inline",
+          "no_url_reflection",
+          "input_sanitization_present",
+          "x_frame_options_blocks_embedding"
+        ],
+        "environmental_factors": [
+          "complex_web_application_stack",
+          "multiple_interconnected_services",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "2-4 hours"
+      },
+      {
+        "technique": "IDOR_Password_Pattern_Discovery",
+        "success_reason": "Insecure direct object reference revealed default password syntax with user birthdays",
+        "prerequisite_indicators": [
+          "user_enumeration_possible",
+          "sequential_object_ids",
+          "default_password_policies",
+          "user_profile_data_accessible"
+        ],
+        "recognition_patterns": [
+          "predictable resource URLs",
+          "user ID enumeration works",
+          "birthday/personal info in profiles",
+          "default password documentation"
+        ],
+        "failure_modes": [
+          "proper_authorization_checks",
+          "randomized_object_identifiers",
+          "no_default_password_patterns",
+          "rate_limiting_on_enumeration"
+        ],
+        "environmental_factors": [
+          "corporate_environment_with_standards",
+          "user_onboarding_processes",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "JWT_Secret_Git_History",
+        "success_reason": "JWT signing secret exposed in old Git commits",
+        "prerequisite_indicators": [
+          "git_repository_accessible",
+          "application_source_code_available",
+          "jwt_authentication_in_use",
+          "secrets_in_version_control"
+        ],
+        "recognition_patterns": [
+          "Gitea/Git service available",
+          "JWT tokens in application",
+          "Configuration files in commits",
+          "Secret rotation not implemented"
+        ],
+        "failure_modes": [
+          "secrets_not_in_git_history",
+          "proper_secret_management",
+          "git_history_cleaned",
+          "rotating_jwt_secrets"
+        ],
+        "environmental_factors": [
+          "development_practices_poor",
+          "secret_management_lacking",
+          "version_control_exposed"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Docker_Socket_Privilege_Escalation",
+        "success_reason": "User had access to Docker socket allowing container escape",
+        "prerequisite_indicators": [
+          "docker_service_running",
+          "user_in_docker_group",
+          "docker_socket_accessible",
+          "container_runtime_available"
+        ],
+        "recognition_patterns": [
+          "docker.sock accessible",
+          "docker commands work",
+          "user group memberships",
+          "container environment detected"
+        ],
+        "failure_modes": [
+          "docker_socket_not_accessible",
+          "user_not_in_docker_group",
+          "docker_rootless_mode",
+          "container_security_policies"
+        ],
+        "environmental_factors": [
+          "containerized_infrastructure",
+          "development_environment_setup",
+          "insufficient_container_security"
+        ],
+        "success_probability": 0.91,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Proxmox_API_Password_Reset",
+        "success_reason": "Proxmox backup system allowed API access for password reset",
+        "prerequisite_indicators": [
+          "proxmox_service_running",
+          "backup_system_accessible",
+          "api_endpoints_available",
+          "authentication_bypass_possible"
+        ],
+        "recognition_patterns": [
+          "Proxmox web interface",
+          "Backup/restore functionality",
+          "API documentation accessible",
+          "Administrative interfaces"
+        ],
+        "failure_modes": [
+          "api_properly_secured",
+          "backup_system_isolated",
+          "strong_authentication_required",
+          "api_rate_limiting"
+        ],
+        "environmental_factors": [
+          "virtualization_infrastructure",
+          "backup_system_integration",
+          "administrative_tool_exposure"
+        ],
+        "success_probability": 0.73,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "URL reflection in 404 page",
+        "discovery_method": "Manual testing of error pages",
+        "why_critical": "Enabled complex XSS chain to steal authentication cookies",
+        "how_to_recognize": [
+          "custom error pages",
+          "user input reflected in responses",
+          "no input sanitization",
+          "CSP bypass opportunities"
+        ],
+        "follow_up_actions": [
+          "test_xss_payloads",
+          "analyze_csp_policy",
+          "chain_multiple_injections",
+          "steal_session_cookies"
+        ]
+      },
+      {
+        "discovery": "Default password pattern with birthdays",
+        "discovery_method": "IDOR exploitation of user profiles",
+        "why_critical": "Allowed mass credential harvesting and VPN access",
+        "how_to_recognize": [
+          "corporate password policies",
+          "user profile enumeration",
+          "birthday information accessible",
+          "default credential patterns"
+        ],
+        "follow_up_actions": [
+          "enumerate_all_users",
+          "collect_birthday_data",
+          "generate_password_lists",
+          "test_vpn_access"
+        ]
+      },
+      {
+        "discovery": "JWT secret in Git history",
+        "discovery_method": "Git commit analysis in Gitea",
+        "why_critical": "Enabled token forgery and password reset bypass",
+        "how_to_recognize": [
+          "accessible git repositories",
+          "configuration files in commits",
+          "jwt implementation present",
+          "secrets not properly managed"
+        ],
+        "follow_up_actions": [
+          "extract_jwt_secret",
+          "forge_admin_tokens",
+          "reset_user_passwords",
+          "escalate_privileges"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web_user",
+        "escalation_method": "XSS_to_authenticated_user",
+        "why_possible": "Complex XSS chain bypassed CSP and stole session cookies",
+        "recognition_signs": [
+          "url_reflection_in_errors",
+          "bypassable_csp_policy",
+          "multiple_injection_points",
+          "session_based_authentication"
+        ],
+        "exploitation_path": "HTML Injection → CSP Bypass → Cookie Theft → Authenticated Access"
+      },
+      {
+        "privilege_level": "authenticated_web_user",
+        "escalation_method": "IDOR_to_credential_harvest",
+        "why_possible": "User enumeration and profile access revealed password patterns",
+        "recognition_signs": [
+          "predictable_user_ids",
+          "profile_information_accessible",
+          "default_password_policies",
+          "birthday_data_available"
+        ],
+        "exploitation_path": "IDOR → User Enumeration → Password Pattern → VPN Access"
+      },
+      {
+        "privilege_level": "vpn_user",
+        "escalation_method": "bitwarden_extraction_to_gitea",
+        "why_possible": "Firefox extension data contained TOTP secrets",
+        "recognition_signs": [
+          "browser_extension_data_accessible",
+          "bitwarden_extension_present",
+          "totp_authentication_in_use",
+          "user_home_directory_access"
+        ],
+        "exploitation_path": "Home Directory → Bitwarden Data → TOTP → Gitea Access"
+      },
+      {
+        "privilege_level": "gitea_user",
+        "escalation_method": "jwt_secret_to_admin",
+        "why_possible": "JWT signing secret exposed in Git commit history",
+        "recognition_signs": [
+          "git_history_accessible",
+          "jwt_tokens_in_use",
+          "configuration_files_committed",
+          "secret_rotation_absent"
+        ],
+        "exploitation_path": "Git History → JWT Secret → Token Forgery → Admin Access"
+      },
+      {
+        "privilege_level": "docker_user",
+        "escalation_method": "docker_socket_to_root",
+        "why_possible": "User had access to Docker socket allowing container escape",
+        "recognition_signs": [
+          "docker_group_membership",
+          "docker_socket_accessible",
+          "container_runtime_available",
+          "privileged_container_creation"
+        ],
+        "exploitation_path": "Docker Socket → Privileged Container → Host Root"
+      },
+      {
+        "privilege_level": "vm_root",
+        "escalation_method": "ssh_key_to_host_access",
+        "why_possible": "SSH keys for sysadmin users found in compromised system",
+        "recognition_signs": [
+          "ssh_keys_in_user_directories",
+          "sysadmin_account_access",
+          "key_based_authentication",
+          "host_system_accessible"
+        ],
+        "exploitation_path": "VM Root → SSH Keys → Sysadmin Access → Host System"
+      },
+      {
+        "privilege_level": "host_user",
+        "escalation_method": "proxmox_api_to_root",
+        "why_possible": "Proxmox backup system allowed API-based password reset",
+        "recognition_signs": [
+          "proxmox_service_running",
+          "backup_system_accessible",
+          "api_endpoints_available",
+          "administrative_privileges"
+        ],
+        "exploitation_path": "Proxmox Backup → API Access → Password Reset → Root Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Single HTTP port (80) open with multiple subdomains discovered",
+        "decision": "Enumerate all subdomains and identify authentication flow",
+        "reasoning": "Multiple subdomains suggest complex web application with SSO authentication system",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_web_exploitation",
+            "when": "if obvious vulnerabilities found"
+          },
+          {
+            "option": "credential_stuffing",
+            "when": "if login forms discovered"
+          }
+        ],
+        "success_indicators": [
+          "sso_authentication_flow_mapped",
+          "subdomain_functionality_identified",
+          "csp_policy_analyzed"
+        ],
+        "next_decision": "analyze_authentication_bypass_methods"
+      },
+      {
+        "step": 2,
+        "situation": "CSP policy present with XSS potential via 404 page URL reflection",
+        "decision": "Craft multi-stage XSS attack to bypass CSP and steal authentication cookies",
+        "reasoning": "404 page reflects URL content and CSP allows same-origin scripts",
+        "confidence": 0.75,
+        "prerequisites": [
+          "csp_policy_analyzed",
+          "url_reflection_confirmed"
+        ],
+        "success_indicators": [
+          "xss_payload_executes",
+          "authentication_cookie_stolen"
+        ],
+        "failure_fallbacks": [
+          "direct_authentication_attacks",
+          "parameter_pollution",
+          "subdomain_takeover"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Authentication cookie obtained from XSS attack",
+        "decision": "Enumerate users and exploit IDOR vulnerabilities for credential harvesting",
+        "reasoning": "Cookie provides authenticated access to enumerate internal resources",
+        "confidence": 0.85,
+        "prerequisites": [
+          "valid_authentication_cookie"
+        ],
+        "success_indicators": [
+          "user_enumeration_successful",
+          "sensitive_documents_accessed"
+        ],
+        "failure_fallbacks": [
+          "privilege_escalation_via_cookie",
+          "api_enumeration"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Default password pattern discovered in leaked documents",
+        "decision": "Brute force user accounts using birthday-based password pattern",
+        "reasoning": "Default passwords often follow predictable patterns with personal information",
+        "confidence": 0.8,
+        "prerequisites": [
+          "user_profiles_enumerated",
+          "password_pattern_identified"
+        ],
+        "success_indicators": [
+          "valid_credentials_obtained",
+          "vpn_configs_accessible"
+        ],
+        "failure_fallbacks": [
+          "password_spraying",
+          "social_engineering"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_xss_succeeds": {
+        "action": "extract_authentication_cookies",
+        "tools": [
+          "burp_collaborator",
+          "custom_javascript_payload"
+        ],
+        "next_phase": "authenticated_enumeration"
+      },
+      "if_credentials_obtained": {
+        "action": "access_vpn_infrastructure",
+        "purpose": "lateral_movement_to_internal_systems",
+        "tools": [
+          "openvpn",
+          "ssh"
+        ]
+      },
+      "if_internal_access_gained": {
+        "action": "enumerate_internal_services",
+        "alternatives": [
+          "nfs_enumeration",
+          "docker_socket_abuse",
+          "git_repository_analysis"
+        ],
+        "decision_criteria": "based_on_available_services_and_user_privileges"
+      },
+      "if_git_access_obtained": {
+        "action": "extract_jwt_secrets_from_commits",
+        "purpose": "forge_administrative_tokens",
+        "tools": [
+          "git_log_analysis",
+          "jwt_manipulation"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_analyze_csp_for_xss_bypass_opportunities",
+        "reasoning": "csp_policies_often_have_subtle_misconfigurations_allowing_bypass",
+        "applicability": "web_applications_with_content_security_policy"
+      },
+      {
+        "rule": "check_404_pages_for_url_reflection",
+        "reasoning": "custom_404_pages_frequently_reflect_user_input_without_sanitization",
+        "applicability": "custom_web_applications"
+      },
+      {
+        "rule": "enumerate_git_history_for_secrets_after_any_repository_access",
+        "reasoning": "developers_often_commit_secrets_then_remove_them_in_later_commits",
+        "applicability": "git_repository_access_obtained"
+      },
+      {
+        "rule": "test_default_password_patterns_with_enumerated_user_data",
+        "reasoning": "organizations_often_use_predictable_patterns_combining_personal_info",
+        "applicability": "user_personal_information_available"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "XSS_CSP_Bypass",
+        "mitre_id": "T1189",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_input_reflection",
+          "csp_policy_present",
+          "multiple_injection_points"
+        ],
+        "success_indicators": [
+          "html_injection_possible",
+          "javascript_context_injection",
+          "cookie_accessible",
+          "custom_404_page_reflects_url"
+        ],
+        "incompatible_with": [
+          "strict_csp_no_unsafe_inline",
+          "no_user_input_reflection",
+          "httponly_cookies_only"
+        ],
+        "confidence_boosters": [
+          "unsafe_inline_in_csp",
+          "wildcard_domains_in_csp",
+          "multiple_subdomains_allowed"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "IDOR_Exploitation",
+        "mitre_id": "T1213",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "authenticated_web_application",
+          "user_enumeration_possible",
+          "predictable_resource_identifiers"
+        ],
+        "success_indicators": [
+          "user_profiles_accessible",
+          "sequential_user_ids",
+          "authorization_bypass_possible"
+        ],
+        "incompatible_with": [
+          "proper_authorization_checks",
+          "randomized_resource_identifiers",
+          "no_user_enumeration"
+        ],
+        "confidence_boosters": [
+          "exposed_user_data",
+          "default_password_patterns",
+          "birthday_information_available"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Default_Password_Attack",
+        "mitre_id": "T1110.002",
+        "required_services": [
+          "ssh",
+          "http",
+          "https",
+          "rdp"
+        ],
+        "required_ports": [
+          22,
+          80,
+          443,
+          3389
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "user_enumeration_complete",
+          "default_password_pattern_known",
+          "user_personal_info_available"
+        ],
+        "success_indicators": [
+          "password_policy_documentation",
+          "user_birthday_data",
+          "corporate_password_patterns"
+        ],
+        "incompatible_with": [
+          "forced_password_changes",
+          "strong_password_policies",
+          "account_lockout_enabled"
+        ],
+        "confidence_boosters": [
+          "new_user_welcome_documents",
+          "predictable_password_format",
+          "legacy_accounts_present"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "JWT_Secret_Exploitation",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "http",
+          "https",
+          "git"
+        ],
+        "required_ports": [
+          80,
+          443,
+          22,
+          9418
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "jwt_authentication_in_use",
+          "source_code_access",
+          "git_repository_accessible"
+        ],
+        "success_indicators": [
+          "jwt_tokens_present",
+          "hardcoded_secrets_in_code",
+          "git_history_accessible"
+        ],
+        "incompatible_with": [
+          "proper_secret_management",
+          "environment_variables_only",
+          "no_source_access"
+        ],
+        "confidence_boosters": [
+          "old_commits_with_secrets",
+          "development_configurations",
+          "weak_jwt_secrets"
+        ],
+        "typical_success_rate": 0.83,
+        "estimated_time": "20-40 minutes"
+      },
+      {
+        "technique": "Docker_Socket_Privilege_Escalation",
+        "mitre_id": "T1611",
+        "required_services": [
+          "docker"
+        ],
+        "required_ports": [
+          2375,
+          2376
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "docker_installed",
+          "user_in_docker_group",
+          "docker_socket_accessible"
+        ],
+        "success_indicators": [
+          "docker_commands_executable",
+          "container_mount_possible",
+          "host_filesystem_accessible"
+        ],
+        "incompatible_with": [
+          "rootless_docker",
+          "docker_socket_restricted",
+          "user_not_in_docker_group"
+        ],
+        "confidence_boosters": [
+          "docker_group_membership",
+          "writable_docker_socket",
+          "privileged_containers_allowed"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "openresty",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "OpenResty",
+          "nginx",
+          "Apache"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "docker_environment": {
+        "port_indicators": [
+          2375,
+          2376
+        ],
+        "service_indicators": [
+          "docker"
+        ],
+        "file_indicators": [
+          "/.dockerenv",
+          "/var/run/docker.sock"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "git_repository": {
+        "port_indicators": [
+          22,
+          9418,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "git",
+          "gitea",
+          "gitlab"
+        ],
+        "path_indicators": [
+          "/.git",
+          "/git",
+          "/gitea"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "jwt_authentication": {
+        "header_indicators": [
+          "Authorization: Bearer",
+          "JWT"
+        ],
+        "cookie_indicators": [
+          "jwt",
+          "token",
+          "auth"
+        ],
+        "response_indicators": [
+          "eyJ",
+          "JWT"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "xss_csp_bypass",
+          "when": "web_app_with_csp_detected",
+          "reason": "complex_but_high_impact_for_session_hijacking"
+        },
+        {
+          "attack": "docker_socket_escalation",
+          "when": "docker_environment_detected",
+          "reason": "nearly_guaranteed_root_access"
+        },
+        {
+          "attack": "jwt_secret_exploitation",
+          "when": "jwt_and_source_code_access",
+          "reason": "high_success_rate_full_auth_bypass"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "idor_exploitation",
+          "when": "authenticated_web_app_detected",
+          "reason": "reliable_for_data_extraction"
+        },
+        {
+          "attack": "default_password_attack",
+          "when": "user_enumeration_possible",
+          "reason": "effective_with_corporate_environments"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "XSS with CSP Bypass",
+        "mitre_id": "T1189",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "CSP Evaluator",
+            "command_template": "https://csp-evaluator.withgoogle.com/",
+            "actual_command": "Analyze CSP: base-uri 'self'; default-src 'self' http://corporate.htb http://*.corporate.htb",
+            "output_pattern": "CSP policy analysis and bypass opportunities",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "Custom XSS Payload",
+            "command_template": "Multiple HTML injections + dynamic JavaScript injection",
+            "actual_command": "Complex XSS utilizing 404 page URL reflection",
+            "success_factors": [
+              "url_reflection_on_404",
+              "csp_bypass_possible",
+              "cookie_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "url_reflection_vulnerability",
+          "csp_policy_allows_subdomain_sources",
+          "target_cookie_accessible"
+        ],
+        "success_indicators": [
+          "cookie_successfully_stolen",
+          "csp_bypass_achieved",
+          "javascript_execution_confirmed"
+        ],
+        "common_failures": [
+          "csp_blocks_execution",
+          "no_url_reflection",
+          "cookie_httponly_flag"
+        ],
+        "follow_up_techniques": [
+          "cookie_session_hijacking",
+          "authenticated_enumeration",
+          "idor_exploitation"
+        ],
+        "time_investment": "2-4 hours",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Insecure Direct Object Reference",
+        "mitre_id": "T1213",
+        "category": "collection",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "Intercept and modify user ID parameters",
+            "actual_command": "Enumerate user profiles via IDOR in people.corporate.htb",
+            "output_pattern": "User profile data including email and birthday",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "authenticated_session_cookie",
+          "user_enumeration_endpoint",
+          "predictable_user_identifiers"
+        ],
+        "success_indicators": [
+          "multiple_user_profiles_accessed",
+          "sensitive_data_extracted",
+          "birthday_information_obtained"
+        ],
+        "common_failures": [
+          "proper_authorization_checks",
+          "unpredictable_user_ids",
+          "rate_limiting_implemented"
+        ],
+        "follow_up_techniques": [
+          "default_password_generation",
+          "credential_spraying",
+          "user_profiling"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Default Password Pattern Exploitation",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "Custom Script",
+            "command_template": "Generate passwords using birthday + pattern",
+            "actual_command": "Create passwords from user birthday data",
+            "output_pattern": "Password format includes user birthday",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "user_birthday_information",
+          "default_password_pattern_known",
+          "authentication_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "default_password_confirmed",
+          "user_account_compromised"
+        ],
+        "common_failures": [
+          "passwords_already_changed",
+          "incorrect_pattern_assumption",
+          "account_lockout_policies"
+        ],
+        "follow_up_techniques": [
+          "openvpn_config_extraction",
+          "lateral_movement",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Bitwarden Extension Extraction",
+        "mitre_id": "T1555.003",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "Firefox Extension Analysis",
+            "command_template": "Extract TOTP secrets from browser extension",
+            "actual_command": "Analyze Bitwarden extension files for TOTP seeds",
+            "output_pattern": "Time-based OTP secret keys",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "file_system_access",
+          "firefox_profile_accessible",
+          "bitwarden_extension_installed"
+        ],
+        "success_indicators": [
+          "totp_secret_extracted",
+          "otp_generation_successful",
+          "gitea_access_obtained"
+        ],
+        "common_failures": [
+          "encrypted_extension_data",
+          "no_stored_credentials",
+          "extension_not_configured"
+        ],
+        "follow_up_techniques": [
+          "gitea_enumeration",
+          "source_code_analysis",
+          "jwt_secret_extraction"
+        ],
+        "time_investment": "45-90 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "JWT Secret Extraction from Git History",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "git log",
+            "command_template": "git log --oneline --all",
+            "actual_command": "git log --oneline --all | grep -i secret",
+            "output_pattern": "JWT signing secret in commit history",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "JWT Token Generation",
+            "command_template": "Generate JWT with extracted secret",
+            "actual_command": "Create admin JWT tokens for password reset",
+            "success_factors": [
+              "valid_jwt_secret",
+              "known_user_accounts"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "git_repository_access",
+          "source_code_available",
+          "jwt_implementation_present"
+        ],
+        "success_indicators": [
+          "jwt_secret_found_in_history",
+          "valid_tokens_generated",
+          "admin_access_achieved"
+        ],
+        "common_failures": [
+          "secrets_properly_managed",
+          "history_cleaned",
+          "jwt_validation_robust"
+        ],
+        "follow_up_techniques": [
+          "password_reset_abuse",
+          "admin_account_takeover",
+          "docker_socket_access"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Docker Socket Privilege Escalation",
+        "mitre_id": "T1611",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "docker",
+            "command_template": "docker run -v /:/host -it alpine chroot /host bash",
+            "actual_command": "docker run -v /:/host -it alpine chroot /host bash",
+            "output_pattern": "Root shell on host system",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "docker_socket_access",
+          "user_in_docker_group",
+          "docker_daemon_running"
+        ],
+        "success_indicators": [
+          "container_created_successfully",
+          "host_filesystem_mounted",
+          "root_access_achieved"
+        ],
+        "common_failures": [
+          "docker_socket_not_accessible",
+          "insufficient_permissions",
+          "docker_daemon_not_running"
+        ],
+        "follow_up_techniques": [
+          "ssh_key_extraction",
+          "system_enumeration",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Proxmox API Password Reset",
+        "mitre_id": "T1098",
+        "category": "persistence",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "Proxmox Backup Cookie",
+            "command_template": "Generate Proxmox authentication cookie",
+            "actual_command": "Use backup credentials to generate API cookie",
+            "output_pattern": "Valid Proxmox authentication token",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "Proxmox API",
+            "command_template": "curl -X PUT proxmox_api/users/root/password",
+            "actual_command": "Reset root password via Proxmox API",
+            "success_factors": [
+              "valid_api_token",
+              "admin_privileges"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "proxmox_backup_access",
+          "api_endpoint_accessible",
+          "administrative_privileges"
+        ],
+        "success_indicators": [
+          "cookie_generated_successfully",
+          "password_reset_completed",
+          "root_access_confirmed"
+        ],
+        "common_failures": [
+          "insufficient_api_permissions",
+          "backup_credentials_invalid",
+          "api_endpoint_restricted"
+        ],
+        "follow_up_techniques": [
+          "root_shell_access",
+          "system_persistence",
+          "data_exfiltration"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "include_relevant_extensions",
+          "handle_case_sensitivity_issues"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "port_scanning_service_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "start_with_fast_port_scan",
+          "follow_up_with_service_detection",
+          "use_appropriate_timing_options"
+        ]
+      },
+      {
+        "tool": "Burp Suite",
+        "use_case": "web_application_security_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_penetration_testing"
+        ],
+        "alternatives": [
+          "OWASP ZAP",
+          "Caido"
+        ],
+        "best_practices": [
+          "configure_proper_scope",
+          "use_intruder_for_parameter_fuzzing",
+          "analyze_all_http_traffic"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "subdomain_enumeration_to_csp_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ffuf -u http://10.10.11.246 -H \"Host: FUZZ.corporate.htb\" -w /opt/SecLists/Discovery/DNS/subdomains-top1million-20000.txt -ac",
+            "purpose": "Discover subdomains",
+            "expected_output": "support, git, sso, people subdomains found"
+          },
+          {
+            "step": 2,
+            "command": "curl -I http://corporate.htb",
+            "purpose": "Extract CSP policy",
+            "expected_output": "Content-Security-Policy header with subdomain allowlist"
+          },
+          {
+            "step": 3,
+            "command": "Analyze CSP at https://csp-evaluator.withgoogle.com/",
+            "purpose": "Identify CSP bypass opportunities",
+            "expected_output": "CSP allows *.corporate.htb sources"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "xss_to_cookie_theft",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Identify URL reflection on 404 page",
+            "purpose": "Find XSS injection point",
+            "expected_output": "URL parameter reflected in 404 response"
+          },
+          {
+            "step": 2,
+            "command": "Craft multi-stage XSS payload bypassing CSP",
+            "purpose": "Execute JavaScript despite CSP restrictions",
+            "expected_output": "JavaScript execution in victim browser"
+          },
+          {
+            "step": 3,
+            "command": "Extract session cookie via XSS",
+            "purpose": "Steal authentication cookie",
+            "expected_output": "Valid session cookie for people.corporate.htb"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "2-4 hours"
+      },
+      {
+        "sequence_name": "docker_socket_to_root",
+        "steps": [
+          {
+            "step": 1,
+            "command": "id",
+            "purpose": "Check group membership",
+            "expected_output": "User in docker group"
+          },
+          {
+            "step": 2,
+            "command": "docker run -v /:/host -it alpine chroot /host bash",
+            "purpose": "Mount host filesystem and get root shell",
+            "expected_output": "Root shell on host system"
+          },
+          {
+            "step": 3,
+            "command": "cat /root/.ssh/id_rsa",
+            "purpose": "Extract SSH keys for lateral movement",
+            "expected_output": "SSH private key for main host access"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Corporate",
+      "difficulty": "Insane",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2023-12-16",
+      "author": "JoshSH",
+      "estimated_time": "8-12 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "xss",
+        "idor",
+        "jwt_manipulation",
+        "nfs_abuse",
+        "docker_socket"
+      ],
+      "key_vulnerabilities": [
+        "csp_bypass",
+        "insecure_direct_object_reference",
+        "jwt_secret_exposure",
+        "docker_socket_access",
+        "proxmox_api_abuse"
+      ],
+      "environment_type": "complex_corporate_infrastructure",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_xss_techniques",
+        "csp_bypass",
+        "jwt_attacks",
+        "container_escape",
+        "infrastructure_pivoting"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_web_exploitation",
+        "javascript",
+        "jwt_tokens",
+        "docker",
+        "nfs",
+        "proxmox"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "xss",
+        "idor",
+        "jwt_attacks",
+        "container_escape",
+        "infrastructure_pivoting"
+      ],
+      "attack_types": [
+        "client_side_attacks",
+        "authentication_bypass",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "proper_csp_implementation",
+        "secure_jwt_handling",
+        "docker_socket_hardening",
+        "nfs_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Timing",
+        "Pandora",
+        "Seventeen"
+      ],
+      "similarity_reasons": [
+        "complex_web_exploitation",
+        "multi_stage_attacks",
+        "infrastructure_complexity"
+      ],
+      "unique_aspects": [
+        "bitwarden_extraction",
+        "proxmox_api_abuse",
+        "dynamic_nfs_mounting",
+        "multi_layer_xss"
+      ],
+      "difficulty_factors": [
+        "multiple_complex_vulnerabilities",
+        "long_attack_chain",
+        "advanced_techniques_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T23:17:34.666220",
+    "original_file": "0xdf_writeups/Htb Corporate.md",
+    "content_length": 343948,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,945 @@
+{
+  "writeup_id": "Htb_Toby",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_wordpress_webshell_backdoor_analysis",
+    "primary_services": [
+      "http",
+      "ssh",
+      "mysql"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx+wordpress",
+    "os_family": "linux_ubuntu",
+    "environment_type": "web_application",
+    "entry_vector": "webshell_backdoor_analysis",
+    "privilege_path": "webshell_to_container_to_host_root",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "existing_webshell_backdoor",
+      "previous_attacker_artifacts",
+      "mysql_container_pivot",
+      "pam_backdoor_discovery",
+      "reverse_engineering_required"
+    ],
+    "environmental_clues": [
+      "wordpress_blog_site",
+      "backup_subdomain",
+      "gogs_git_service",
+      "containerized_services",
+      "trouble_ticket_system"
+    ],
+    "similar_scenarios": [
+      "compromised_wordpress_forensics",
+      "backdoor_analysis_challenges"
+    ],
+    "unique_aspects": [
+      "tracing_previous_attacker_steps",
+      "webshell_communication_analysis",
+      "source_code_password_generation",
+      "pam_backdoor_bruteforce"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "PHP_webshell_discovery",
+        "success_reason": "Webshell backdoor left by previous attacker in WordPress source",
+        "prerequisite_indicators": [
+          "wordpress_site_accessible",
+          "source_code_available",
+          "previous_compromise_evidence"
+        ],
+        "recognition_patterns": [
+          "obfuscated PHP code in core files",
+          "unusual file modifications",
+          "backdoor communication patterns"
+        ],
+        "failure_modes": [
+          "webshell_removed_or_patched",
+          "source_code_not_accessible",
+          "backdoor_authentication_unknown"
+        ],
+        "environmental_factors": [
+          "unpatched_wordpress_installation",
+          "poor_incident_response",
+          "backdoor_persistence_mechanisms"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "container_pivot",
+        "success_reason": "MySQL container accessible from webshell with database credentials",
+        "prerequisite_indicators": [
+          "containerized_environment",
+          "database_connectivity",
+          "credential_reuse_patterns"
+        ],
+        "recognition_patterns": [
+          "docker container enumeration",
+          "mysql service discovery",
+          "hash extraction from databases"
+        ],
+        "failure_modes": [
+          "network_segmentation_blocks_access",
+          "database_credentials_changed",
+          "container_hardened"
+        ],
+        "environmental_factors": [
+          "docker_default_networking",
+          "weak_container_isolation",
+          "shared_credential_usage"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "source_code_analysis",
+        "success_reason": "Gogs repository contained application source with hardcoded secrets",
+        "prerequisite_indicators": [
+          "git_repository_access",
+          "source_code_available",
+          "developer_credential_patterns"
+        ],
+        "recognition_patterns": [
+          "hardcoded passwords in config",
+          "API keys in source",
+          "database connection strings"
+        ],
+        "failure_modes": [
+          "secrets_externalized",
+          "repository_access_restricted",
+          "credentials_rotated"
+        ],
+        "environmental_factors": [
+          "poor_secrets_management",
+          "development_practices",
+          "version_control_exposure"
+        ],
+        "success_probability": 0.68,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "PAM_backdoor_exploitation",
+        "success_reason": "Custom PAM module backdoor with brute-forceable password",
+        "prerequisite_indicators": [
+          "custom_pam_modules_present",
+          "system_authentication_modified",
+          "backdoor_password_patterns"
+        ],
+        "recognition_patterns": [
+          "unusual PAM configurations",
+          "custom shared libraries",
+          "authentication bypass mechanisms"
+        ],
+        "failure_modes": [
+          "strong_backdoor_password",
+          "pam_module_removed",
+          "system_hardening_applied"
+        ],
+        "environmental_factors": [
+          "persistent_access_requirements",
+          "system_level_compromise",
+          "weak_password_generation"
+        ],
+        "success_probability": 0.71,
+        "typical_timeframe": "45-90 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "WordPress webshell backdoor",
+        "discovery_method": "Source code analysis of PHP files",
+        "why_critical": "Provided initial code execution on web server",
+        "how_to_recognize": [
+          "obfuscated PHP in core WordPress files",
+          "unusual eval() or system() calls",
+          "base64 encoded payloads"
+        ],
+        "follow_up_actions": [
+          "reverse_engineer_communication_protocol",
+          "establish_reliable_shell_access",
+          "enumerate_container_environment"
+        ]
+      },
+      {
+        "discovery": "MySQL container with user hashes",
+        "discovery_method": "Container enumeration and database access",
+        "why_critical": "Contained credentials for Gogs repository access",
+        "how_to_recognize": [
+          "docker container networking",
+          "mysql service on non-standard ports",
+          "user credential tables"
+        ],
+        "follow_up_actions": [
+          "extract_and_crack_password_hashes",
+          "test_credential_reuse",
+          "access_git_repositories"
+        ]
+      },
+      {
+        "discovery": "Gogs repository with source code",
+        "discovery_method": "Credential reuse from MySQL hashes",
+        "why_critical": "Revealed application secrets and system architecture",
+        "how_to_recognize": [
+          "private repositories with sensitive data",
+          "configuration files with credentials",
+          "deployment scripts and secrets"
+        ],
+        "follow_up_actions": [
+          "analyze_source_for_hardcoded_secrets",
+          "identify_additional_services",
+          "map_application_architecture"
+        ]
+      },
+      {
+        "discovery": "PAM backdoor module",
+        "discovery_method": "System enumeration and trouble ticket analysis",
+        "why_critical": "Provided root-level system access",
+        "how_to_recognize": [
+          "custom PAM modules in /lib/security/",
+          "modified authentication flows",
+          "unusual system library dependencies"
+        ],
+        "follow_up_actions": [
+          "reverse_engineer_backdoor_mechanism",
+          "brute_force_backdoor_password",
+          "establish_persistent_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application",
+        "escalation_method": "webshell_to_container_access",
+        "why_possible": "Webshell provided execution context within containerized environment",
+        "recognition_signs": [
+          "docker_environment_variables",
+          "container_network_interfaces",
+          "limited_filesystem_access"
+        ],
+        "exploitation_path": "Webshell → Container enumeration → Database access"
+      },
+      {
+        "privilege_level": "container_user",
+        "escalation_method": "credential_reuse_to_git_access",
+        "why_possible": "Database contained reusable password hashes for external services",
+        "recognition_signs": [
+          "password_hash_formats",
+          "username_correlation_patterns",
+          "service_account_naming"
+        ],
+        "exploitation_path": "MySQL hashes → Hash cracking → Gogs access"
+      },
+      {
+        "privilege_level": "application_user",
+        "escalation_method": "source_code_to_system_access",
+        "why_possible": "Source code contained system-level credentials and configuration",
+        "recognition_signs": [
+          "hardcoded_system_passwords",
+          "deployment_configuration_files",
+          "service_account_credentials"
+        ],
+        "exploitation_path": "Source analysis → Credential extraction → System login"
+      },
+      {
+        "privilege_level": "system_user",
+        "escalation_method": "PAM_backdoor_to_root",
+        "why_possible": "Custom PAM module provided authentication bypass to root",
+        "recognition_signs": [
+          "custom_pam_configurations",
+          "backdoor_authentication_modules",
+          "privilege_escalation_mechanisms"
+        ],
+        "exploitation_path": "PAM backdoor discovery → Password brute force → Root access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with WordPress",
+        "decision": "Enumerate virtual hosts and WordPress structure",
+        "reasoning": "WordPress often uses vhosts and may have backup/admin interfaces",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_wordpress_exploitation",
+            "when": "if obvious vulns found"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if web fails"
+          }
+        ],
+        "success_indicators": [
+          "additional_vhosts_discovered",
+          "backup_interfaces_found",
+          "source_code_access"
+        ],
+        "next_decision": "analyze_discovered_services"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered backup.toby.htb with Gogs and source code access",
+        "decision": "Analyze source code for backdoors and credentials",
+        "reasoning": "Box description mentions tracing previous attacker steps and backdoors",
+        "confidence": 0.95,
+        "prerequisites": [
+          "source_code_downloaded",
+          "gogs_access_confirmed"
+        ],
+        "success_indicators": [
+          "webshell_code_found",
+          "database_credentials_found"
+        ],
+        "failure_fallbacks": [
+          "wordpress_exploitation",
+          "gogs_exploitation"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found webshell in PHP source but execution method unclear",
+        "decision": "Reverse engineer webshell communication protocol",
+        "reasoning": "Need to understand how backdoor accepts commands",
+        "confidence": 0.8,
+        "prerequisites": [
+          "webshell_location_known"
+        ],
+        "success_indicators": [
+          "command_execution_achieved"
+        ],
+        "alternatives": [
+          {
+            "option": "parameter_fuzzing",
+            "when": "if simple POST/GET"
+          },
+          {
+            "option": "header_analysis",
+            "when": "if custom headers used"
+          }
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_vhost_enumeration_succeeds": {
+        "action": "prioritize_backup_interfaces",
+        "tools": [
+          "wfuzz",
+          "feroxbuster"
+        ],
+        "next_phase": "source_code_analysis"
+      },
+      "if_source_code_obtained": {
+        "action": "search_for_backdoors_and_credentials",
+        "tools": [
+          "grep",
+          "find",
+          "manual_analysis"
+        ],
+        "focus_areas": [
+          "config_files",
+          "custom_php_code",
+          "database_connections"
+        ]
+      },
+      "if_webshell_found": {
+        "action": "reverse_engineer_communication",
+        "methods": [
+          "parameter_testing",
+          "header_analysis",
+          "code_review"
+        ],
+        "goal": "achieve_command_execution"
+      },
+      "if_database_access_obtained": {
+        "action": "extract_credentials_and_pivot",
+        "targets": [
+          "user_hashes",
+          "application_credentials"
+        ],
+        "next_phase": "lateral_movement"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_for_backup_vhosts_on_wordpress",
+        "reasoning": "common_pattern_for_exposing_source_code",
+        "applicability": "wordpress_environments"
+      },
+      {
+        "rule": "analyze_source_code_before_exploitation_attempts",
+        "reasoning": "reveals_backdoors_and_custom_vulnerabilities",
+        "applicability": "when_source_code_available"
+      },
+      {
+        "rule": "look_for_previous_attacker_artifacts",
+        "reasoning": "box_theme_involves_tracing_previous_compromise",
+        "applicability": "forensic_style_challenges"
+      },
+      {
+        "rule": "reverse_engineer_custom_backdoors_systematically",
+        "reasoning": "understanding_communication_protocol_essential",
+        "applicability": "when_webshells_found_but_unclear_usage"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "WordPress Enumeration",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "wordpress_detected",
+          "wp_admin_accessible",
+          "version_disclosure_available"
+        ],
+        "success_indicators": [
+          "wp_generator_meta_tag",
+          "wp_admin_login_page",
+          "xmlrpc_endpoint_accessible",
+          "wp_json_api_accessible"
+        ],
+        "incompatible_with": [
+          "wordpress_hardened",
+          "version_disclosure_disabled",
+          "admin_panel_blocked"
+        ],
+        "confidence_boosters": [
+          "default_wp_structure",
+          "wp_content_directory_accessible",
+          "outdated_wordpress_version"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_responds_to_host_headers",
+          "multiple_vhosts_configured",
+          "dns_resolution_available"
+        ],
+        "success_indicators": [
+          "different_response_sizes",
+          "different_status_codes",
+          "content_references_other_domains"
+        ],
+        "incompatible_with": [
+          "single_site_configuration",
+          "host_header_filtering",
+          "waf_blocking_fuzzing"
+        ],
+        "confidence_boosters": [
+          "subdomain_references_in_content",
+          "nginx_or_apache_server",
+          "shared_hosting_indicators"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Web Shell Discovery",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "php_enabled",
+          "file_upload_functionality",
+          "previous_compromise_indicators"
+        ],
+        "success_indicators": [
+          "suspicious_php_files",
+          "backdoor_parameters_respond",
+          "command_execution_possible"
+        ],
+        "incompatible_with": [
+          "php_disabled",
+          "strict_file_permissions",
+          "web_application_firewall"
+        ],
+        "confidence_boosters": [
+          "wordpress_site",
+          "outdated_cms_version",
+          "file_upload_features"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Source Code Analysis",
+        "mitre_id": "T1213.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "source_code_accessible",
+          "backup_files_exposed",
+          "development_files_present"
+        ],
+        "success_indicators": [
+          "php_source_readable",
+          "configuration_files_accessible",
+          "hardcoded_credentials_found"
+        ],
+        "incompatible_with": [
+          "source_code_protected",
+          "proper_file_permissions",
+          "production_hardening"
+        ],
+        "confidence_boosters": [
+          "backup_subdomain_found",
+          "development_environment",
+          "git_directories_exposed"
+        ],
+        "typical_success_rate": 0.73,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "wordpress": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "WordPress",
+          "wp-content",
+          "wp-admin"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "PHP",
+          "X-Powered-By: PHP"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "wordpress_enumeration",
+          "when": "wordpress_detected",
+          "reason": "high_success_rate_many_attack_vectors"
+        },
+        {
+          "attack": "vhost_discovery",
+          "when": "web_service_detected",
+          "reason": "often_reveals_additional_attack_surface"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "source_code_analysis",
+          "when": "backup_vhost_detected",
+          "reason": "may_reveal_credentials_or_vulnerabilities"
+        },
+        {
+          "attack": "web_shell_discovery",
+          "when": "php_application_detected",
+          "reason": "previous_compromise_indicators_present"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "WordPress Backdoor Analysis",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "grep",
+            "command_template": "grep -r {dangerous_function} {directory}/",
+            "actual_command": "grep -r wp_handle_comment_submission backup/",
+            "output_pattern": "Function calls and file locations",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "git",
+            "command_template": "git clone {repo_url}",
+            "actual_command": "git clone http://backup.toby.htb/toby-admin/backup.git",
+            "output_pattern": "Repository cloned successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "access_to_source_code",
+          "knowledge_of_php_dangerous_functions",
+          "git_repository_access"
+        ],
+        "success_indicators": [
+          "eval_function_found_in_unexpected_location",
+          "base64_encoded_content_in_eval",
+          "suspicious_comments_with_typos",
+          "hash_strings_in_comments"
+        ],
+        "common_failures": [
+          "backdoor_heavily_obfuscated",
+          "multiple_encoding_layers",
+          "dynamic_code_generation"
+        ],
+        "follow_up_techniques": [
+          "backdoor_reverse_engineering",
+          "webshell_exploitation",
+          "comment_form_abuse"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u http://{domain} -H \"Host: FUZZ.{domain}\" -w {wordlist} --hh {hide_chars}",
+            "actual_command": "wfuzz -u http://toby.htb -H \"Host: FUZZ.toby.htb\" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt --hh 10814",
+            "output_pattern": "200 response codes with different character counts",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "domain_name_identified",
+          "web_server_responds_to_host_headers",
+          "baseline_response_size_known"
+        ],
+        "success_indicators": [
+          "different_response_sizes_found",
+          "new_subdomains_discovered",
+          "additional_services_identified"
+        ],
+        "common_failures": [
+          "all_responses_same_size",
+          "server_ignores_host_headers",
+          "rate_limiting_blocks_requests"
+        ],
+        "follow_up_techniques": [
+          "subdomain_enumeration",
+          "service_fingerprinting",
+          "content_discovery"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Repository Enumeration",
+        "mitre_id": "T1213.003",
+        "category": "collection",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {base_url}/{username}",
+            "actual_command": "feroxbuster -u http://backup.toby.htb/toby-admin",
+            "output_pattern": "200 status codes for hidden repositories",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "git_service_identified",
+          "username_known",
+          "service_allows_brute_force"
+        ],
+        "success_indicators": [
+          "hidden_repositories_found",
+          "source_code_access_gained",
+          "sensitive_files_discovered"
+        ],
+        "common_failures": [
+          "rate_limiting_enabled",
+          "no_hidden_repositories",
+          "authentication_required"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "backdoor_identification"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wfuzz",
+        "use_case": "virtual_host_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_hide_chars_to_filter_default_responses",
+          "try_multiple_wordlists_for_coverage",
+          "validate_discovered_hosts_manually"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_and_repository_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_content_discovery"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists_for_target_type",
+          "adjust_thread_count_based_on_target_stability",
+          "check_for_case_sensitivity_issues"
+        ]
+      },
+      {
+        "tool": "wpscan",
+        "use_case": "wordpress_vulnerability_assessment",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "wordpress_security_testing"
+        ],
+        "alternatives": [
+          "manual_enumeration",
+          "nuclei"
+        ],
+        "best_practices": [
+          "use_api_token_for_vulnerability_details",
+          "enumerate_users_plugins_themes",
+          "check_for_config_backups"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "wordpress_reconnaissance_to_backdoor_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.140",
+            "purpose": "Initial port discovery",
+            "expected_output": "SSH and HTTP ports open"
+          },
+          {
+            "step": 2,
+            "command": "wfuzz -u http://toby.htb -H \"Host: FUZZ.toby.htb\" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt --hh 10814",
+            "purpose": "Discover virtual hosts",
+            "expected_output": "backup.toby.htb and wordpress.toby.htb found"
+          },
+          {
+            "step": 3,
+            "command": "feroxbuster -u http://backup.toby.htb/toby-admin",
+            "purpose": "Enumerate hidden repositories",
+            "expected_output": "backup repository discovered"
+          },
+          {
+            "step": 4,
+            "command": "git clone http://backup.toby.htb/toby-admin/backup.git",
+            "purpose": "Download source code",
+            "expected_output": "WordPress source code obtained"
+          },
+          {
+            "step": 5,
+            "command": "grep -r \"eval\" backup/ | grep -v \".git\"",
+            "purpose": "Find suspicious eval calls",
+            "expected_output": "Backdoor in wp-includes/comment.php identified"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Toby",
+      "difficulty": "Insane",
+      "os": "Linux Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2021-11-06",
+      "author": "InfoSecJack",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "webshell_analysis",
+        "backdoor_exploitation",
+        "container_pivoting"
+      ],
+      "key_vulnerabilities": [
+        "hidden_webshell",
+        "mysql_container_escape",
+        "pam_backdoor"
+      ],
+      "environment_type": "compromised_web_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "forensic_analysis",
+        "backdoor_identification",
+        "container_security",
+        "incident_response"
+      ],
+      "prerequisite_knowledge": [
+        "php_code_analysis",
+        "mysql_administration",
+        "linux_pam_modules",
+        "docker_containers"
+      ]
+    },
+    "categorization": {
+      "primary_category": "forensics_incident_response",
+      "subcategories": [
+        "webshell_analysis",
+        "backdoor_exploitation",
+        "container_pivoting"
+      ],
+      "attack_types": [
+        "persistence",
+        "lateral_movement",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "webshell_detection",
+        "container_hardening",
+        "pam_monitoring",
+        "code_review"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Arkham",
+        "Craft",
+        "Dyplesher"
+      ],
+      "similarity_reasons": [
+        "complex_multi_stage",
+        "source_code_analysis",
+        "container_environments"
+      ],
+      "unique_aspects": [
+        "following_attacker_footsteps",
+        "reverse_engineering_backdoors",
+        "pam_backdoor_exploitation"
+      ],
+      "difficulty_factors": [
+        "incomplete_information",
+        "multiple_pivot_points",
+        "custom_backdoor_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:37:39.427306",
+    "original_file": "0xdf_writeups/Htb Toby.md",
+    "content_length": 75591,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

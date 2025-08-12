@@ -1,0 +1,995 @@
+{
+  "writeup_id": "Htb_Skyfall",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_minio_vault_nginx_bypass",
+    "primary_services": [
+      "http",
+      "ssh",
+      "minio",
+      "vault"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx+minio+vault",
+    "os_family": "linux",
+    "environment_type": "cloud_storage_infrastructure",
+    "entry_vector": "nginx_parser_bypass",
+    "privilege_path": "minio_admin_to_vault_token_to_root",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "nginx_flask_parser_differential",
+      "minio_status_page_exposure",
+      "vault_token_in_bash_history",
+      "fuse_filesystem_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "demo_subdomain_reference",
+      "minio_cluster_deployment",
+      "vault_unsealing_mechanism",
+      "backup_directory_exposure"
+    ],
+    "similar_scenarios": [
+      "cloud_storage_misconfigurations",
+      "vault_token_exposure"
+    ],
+    "unique_aspects": [
+      "nginx_flask_request_parsing_bypass",
+      "minio_vulnerability_credential_leak",
+      "vault_root_unsealing_script",
+      "fuse_memory_filesystem_abuse"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "nginx_flask_parser_differential",
+        "success_reason": "nginx and Flask parse URLs differently, allowing bypass of nginx restrictions",
+        "prerequisite_indicators": [
+          "nginx_reverse_proxy_present",
+          "flask_backend_detected",
+          "restricted_endpoints_exist"
+        ],
+        "recognition_patterns": [
+          "nginx blocking specific paths",
+          "flask application behind proxy",
+          "URL encoding differences in parsers"
+        ],
+        "failure_modes": [
+          "consistent_url_parsing",
+          "proper_proxy_configuration",
+          "backend_validates_requests"
+        ],
+        "environmental_factors": [
+          "nginx_version_1.18.0",
+          "flask_backend_application",
+          "misconfigured_proxy_rules"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "minio_credential_disclosure",
+        "success_reason": "MinIO vulnerability exposes admin credentials through status endpoint",
+        "prerequisite_indicators": [
+          "minio_service_accessible",
+          "vulnerable_minio_version",
+          "status_endpoint_available"
+        ],
+        "recognition_patterns": [
+          "MinIO service identification",
+          "metrics/status pages accessible",
+          "credential exposure in responses"
+        ],
+        "failure_modes": [
+          "patched_minio_version",
+          "proper_access_controls",
+          "credentials_not_exposed"
+        ],
+        "environmental_factors": [
+          "unpatched_minio_installation",
+          "default_configurations",
+          "exposed_admin_interfaces"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "vault_token_in_backup",
+        "success_reason": "Sensitive Vault token found in bash history/config within backup files",
+        "prerequisite_indicators": [
+          "backup_files_accessible",
+          "version_control_present",
+          "bash_configuration_files"
+        ],
+        "recognition_patterns": [
+          "home directory backups",
+          "bash history files",
+          "vault token patterns",
+          "git repository with history"
+        ],
+        "failure_modes": [
+          "secrets_properly_managed",
+          "clean_backup_procedures",
+          "no_sensitive_data_in_configs"
+        ],
+        "environmental_factors": [
+          "poor_secret_management",
+          "backup_includes_sensitive_files",
+          "version_control_exposes_history"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "fuse_filesystem_privilege_escalation",
+        "success_reason": "FUSE allows creation of in-memory filesystem readable by user but writable by root",
+        "prerequisite_indicators": [
+          "fuse_available_to_user",
+          "root_process_writes_logs",
+          "user_can_mount_filesystems"
+        ],
+        "recognition_patterns": [
+          "FUSE permissions available",
+          "root processes writing files",
+          "mount capabilities present"
+        ],
+        "failure_modes": [
+          "fuse_not_available",
+          "mount_restrictions_enforced",
+          "proper_file_permissions"
+        ],
+        "environmental_factors": [
+          "fuse_enabled_system",
+          "user_mount_permissions",
+          "root_process_behavior"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "nginx_flask_parser_differential",
+        "discovery_method": "URL encoding bypass testing",
+        "why_critical": "Bypassed nginx restrictions to access MinIO metrics endpoint",
+        "how_to_recognize": [
+          "nginx blocking specific paths",
+          "flask backend present",
+          "different URL parsing behavior"
+        ],
+        "follow_up_actions": [
+          "test_various_url_encodings",
+          "access_restricted_endpoints",
+          "enumerate_backend_functionality"
+        ]
+      },
+      {
+        "discovery": "minio_admin_credentials",
+        "discovery_method": "MinIO metrics endpoint exploitation",
+        "why_critical": "Provided admin access to MinIO cluster and backup files",
+        "how_to_recognize": [
+          "MinIO service identification",
+          "credentials in status responses",
+          "admin interface accessibility"
+        ],
+        "follow_up_actions": [
+          "access_minio_admin_interface",
+          "enumerate_stored_files",
+          "download_backup_archives"
+        ]
+      },
+      {
+        "discovery": "vault_token_in_bash_config",
+        "discovery_method": "Git history analysis of backup files",
+        "why_critical": "Enabled Vault access and SSH authentication",
+        "how_to_recognize": [
+          "bash configuration files",
+          "git repository history",
+          "vault token patterns"
+        ],
+        "follow_up_actions": [
+          "test_vault_token_validity",
+          "enumerate_vault_secrets",
+          "attempt_ssh_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "guest_user",
+        "escalation_method": "nginx_bypass_to_minio_access",
+        "why_possible": "Parser differential allowed access to restricted MinIO endpoints",
+        "recognition_signs": [
+          "nginx_proxy_configuration",
+          "flask_backend_different_parsing",
+          "restricted_paths_bypassable"
+        ],
+        "exploitation_path": "URL encoding → nginx bypass → MinIO metrics → admin credentials"
+      },
+      {
+        "privilege_level": "minio_admin",
+        "escalation_method": "backup_analysis_to_vault_access",
+        "why_possible": "Backup files contained sensitive Vault tokens in version history",
+        "recognition_signs": [
+          "backup_files_accessible",
+          "git_history_present",
+          "bash_configs_with_secrets"
+        ],
+        "exploitation_path": "MinIO access → backup download → git history → Vault token → SSH"
+      },
+      {
+        "privilege_level": "ssh_user",
+        "escalation_method": "fuse_filesystem_root_escalation",
+        "why_possible": "FUSE allows creation of filesystem readable by user but writable by root",
+        "recognition_signs": [
+          "fuse_permissions_available",
+          "root_processes_writing_files",
+          "mount_capabilities_present"
+        ],
+        "exploitation_path": "SSH access → FUSE mount → root log access → privilege escalation"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with nginx",
+        "decision": "Enumerate web services and identify technology stack",
+        "reasoning": "Limited attack surface requires thorough web enumeration",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web fails"
+          },
+          {
+            "option": "subdomain_enumeration",
+            "when": "if main site is static"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "technology_stack_identified",
+          "authentication_mechanisms_found"
+        ],
+        "next_decision": "analyze_web_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered demo.skyfall.htb with Flask app and MinIO references",
+        "decision": "Focus on MinIO metrics page blocked by nginx",
+        "reasoning": "MinIO metrics often contain sensitive information and nginx blocking suggests valuable content",
+        "confidence": 0.85,
+        "prerequisites": [
+          "flask_app_access",
+          "minio_technology_identified"
+        ],
+        "success_indicators": [
+          "nginx_bypass_successful",
+          "minio_metrics_accessible"
+        ],
+        "failure_fallbacks": [
+          "file_upload_testing",
+          "url_fetch_exploitation",
+          "flask_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "nginx blocks /metrics but Flask serves it",
+        "decision": "Exploit nginx-Flask parser differential",
+        "reasoning": "Different URL parsing between reverse proxy and backend often allows bypasses",
+        "confidence": 0.8,
+        "prerequisites": [
+          "nginx_reverse_proxy_confirmed",
+          "flask_backend_confirmed"
+        ],
+        "success_indicators": [
+          "metrics_page_accessible",
+          "minio_credentials_exposed"
+        ],
+        "techniques": [
+          "path_traversal",
+          "url_encoding",
+          "parser_confusion"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_nginx_bypass_succeeds": {
+        "action": "extract_minio_credentials",
+        "tools": [
+          "curl",
+          "burp_suite"
+        ],
+        "next_phase": "minio_exploitation"
+      },
+      "if_minio_access_obtained": {
+        "action": "enumerate_minio_buckets_and_files",
+        "purpose": "find_sensitive_data_or_backups",
+        "tools": [
+          "minio_client",
+          "aws_cli"
+        ]
+      },
+      "if_backup_files_found": {
+        "action": "analyze_historical_configurations",
+        "purpose": "find_leaked_tokens_or_credentials",
+        "focus": [
+          "bash_history",
+          "config_files",
+          "vault_tokens"
+        ]
+      },
+      "if_vault_token_found": {
+        "action": "access_vault_instance",
+        "purpose": "obtain_ssh_credentials",
+        "tools": [
+          "vault_cli",
+          "curl"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_nginx_flask_parser_differential",
+        "reasoning": "common_misconfiguration_with_high_impact",
+        "applicability": "nginx_reverse_proxy_with_python_backend"
+      },
+      {
+        "rule": "prioritize_minio_metrics_when_blocked",
+        "reasoning": "metrics_pages_often_contain_admin_credentials",
+        "applicability": "minio_technology_stack_identified"
+      },
+      {
+        "rule": "examine_backup_files_for_historical_secrets",
+        "reasoning": "old_versions_may_contain_hardcoded_credentials",
+        "applicability": "backup_or_versioned_files_accessible"
+      },
+      {
+        "rule": "check_bash_configs_for_vault_tokens",
+        "reasoning": "developers_often_export_tokens_in_shell_configs",
+        "applicability": "vault_technology_stack_present"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Nginx Parser Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "nginx",
+          "flask"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "nginx_reverse_proxy",
+          "backend_application_server",
+          "path_based_routing"
+        ],
+        "success_indicators": [
+          "different_response_codes",
+          "backend_error_messages",
+          "access_to_blocked_paths"
+        ],
+        "incompatible_with": [
+          "single_application_server",
+          "consistent_path_parsing",
+          "strict_proxy_configuration"
+        ],
+        "confidence_boosters": [
+          "nginx_version_1_18_0",
+          "flask_backend_detected",
+          "path_normalization_differences"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "MinIO Information Disclosure",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "minio"
+        ],
+        "required_ports": [
+          9000,
+          9001
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "minio_service_accessible",
+          "vulnerable_minio_version",
+          "admin_interface_exposed"
+        ],
+        "success_indicators": [
+          "admin_credentials_leaked",
+          "status_page_accessible",
+          "configuration_exposed"
+        ],
+        "incompatible_with": [
+          "patched_minio_version",
+          "network_isolation",
+          "proper_access_controls"
+        ],
+        "confidence_boosters": [
+          "minio_console_detected",
+          "default_configuration",
+          "exposed_status_endpoints"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Vault Token Extraction",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "vault"
+        ],
+        "required_ports": [
+          8200
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "vault_service_running",
+          "backup_files_accessible",
+          "historical_configuration_files"
+        ],
+        "success_indicators": [
+          "vault_token_found",
+          "bash_history_accessible",
+          "configuration_backups_present"
+        ],
+        "incompatible_with": [
+          "token_rotation_enabled",
+          "secure_backup_practices",
+          "configuration_sanitization"
+        ],
+        "confidence_boosters": [
+          "vault_service_detected",
+          "backup_directories_found",
+          "bash_configuration_files"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "FUSE Filesystem Privilege Escalation",
+        "mitre_id": "T1068",
+        "required_services": [
+          "fuse"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "fuse_available",
+          "root_process_writes_logs",
+          "user_can_mount_fuse"
+        ],
+        "success_indicators": [
+          "in_memory_filesystem_created",
+          "root_writes_intercepted",
+          "log_files_readable"
+        ],
+        "incompatible_with": [
+          "fuse_disabled",
+          "mount_restrictions",
+          "apparmor_selinux_blocking"
+        ],
+        "confidence_boosters": [
+          "fuse_kernel_module_loaded",
+          "user_in_fuse_group",
+          "root_log_writing_processes"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "30-90 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "nginx_proxy": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "nginx"
+        ],
+        "banner_indicators": [
+          "nginx/1.18.0"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "minio_service": {
+        "port_indicators": [
+          9000,
+          9001
+        ],
+        "service_indicators": [
+          "minio"
+        ],
+        "banner_indicators": [
+          "MinIO",
+          "minio"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "vault_service": {
+        "port_indicators": [
+          8200
+        ],
+        "service_indicators": [
+          "vault"
+        ],
+        "banner_indicators": [
+          "Vault"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "ubuntu_linux": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH 8.9p1 Ubuntu"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "nginx_parser_bypass",
+          "when": "nginx_proxy_detected",
+          "reason": "often_reveals_hidden_backend_services"
+        },
+        {
+          "attack": "minio_info_disclosure",
+          "when": "minio_service_detected",
+          "reason": "frequently_exposes_admin_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "vault_token_extraction",
+          "when": "vault_service_detected",
+          "reason": "requires_file_system_access_first"
+        },
+        {
+          "attack": "subdomain_enumeration",
+          "when": "web_service_detected",
+          "reason": "may_reveal_additional_services"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "fuse_privilege_escalation",
+          "when": "linux_system_detected",
+          "reason": "complex_technique_requires_specific_conditions"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "HTTP Parser Differential",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "burp_suite",
+            "command_template": "Manual request modification in Repeater",
+            "actual_command": "GET /metrics\\x85 HTTP/1.1",
+            "output_pattern": "200 OK response bypassing nginx restrictions",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "nginx_version_1.20.2_or_earlier",
+          "flask_backend_application",
+          "nginx_location_blocks_configured"
+        ],
+        "success_indicators": [
+          "403_forbidden_becomes_200_ok",
+          "access_to_restricted_endpoints",
+          "different_response_content"
+        ],
+        "common_failures": [
+          "newer_nginx_versions",
+          "different_backend_frameworks",
+          "character_encoding_issues"
+        ],
+        "follow_up_techniques": [
+          "minio_credential_extraction",
+          "service_enumeration",
+          "information_disclosure"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "MinIO Information Disclosure",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -H 'Host: {minio_domain}' http://{target_ip}/minio/bootstrap/v1/verify",
+            "actual_command": "curl -H 'Host: prd23-s3-backend.skyfall.htb' http://10.10.11.254/minio/bootstrap/v1/verify",
+            "output_pattern": "MinIO credentials in JSON response",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "minio_domain_identified",
+          "minio_service_accessible",
+          "vulnerable_minio_version"
+        ],
+        "success_indicators": [
+          "admin_credentials_disclosed",
+          "json_response_with_secrets",
+          "access_key_and_secret_key_obtained"
+        ],
+        "common_failures": [
+          "patched_minio_version",
+          "incorrect_domain_name",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "minio_client_access",
+          "bucket_enumeration",
+          "file_system_access"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "MinIO Client Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "mc",
+            "command_template": "mc alias set {alias} http://{domain} {access_key} {secret_key}",
+            "actual_command": "mc alias set skyfall http://prd23-s3-backend.skyfall.htb 5GrE1B2YGGyZzNHZaIww GkpjkmiVmpFuL2d3v6OhXfeRuvDXCaQXLPVTl96p",
+            "output_pattern": "Added alias successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "mc_ls",
+            "command_template": "mc ls {alias}",
+            "actual_command": "mc ls skyfall",
+            "output_pattern": "Bucket listings and file structure",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "minio_credentials_obtained",
+          "minio_client_installed",
+          "network_access_to_minio"
+        ],
+        "success_indicators": [
+          "successful_alias_creation",
+          "bucket_enumeration_successful",
+          "file_access_confirmed"
+        ],
+        "common_failures": [
+          "incorrect_credentials",
+          "network_connectivity_issues",
+          "permission_restrictions"
+        ],
+        "follow_up_techniques": [
+          "file_download",
+          "backup_analysis",
+          "credential_hunting"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Vault Token Extraction from Backup",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "mc_cp",
+            "command_template": "mc cp --recursive {alias}/{bucket} {local_path}",
+            "actual_command": "mc cp --recursive skyfall/askyy ./askyy_backup",
+            "output_pattern": "Files downloaded successfully",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "grep",
+            "command_template": "grep -r 'vault' {directory}",
+            "actual_command": "grep -r 'vault' askyy_backup/",
+            "output_pattern": "Vault token in configuration files",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "minio_access_established",
+          "backup_files_identified",
+          "vault_service_present"
+        ],
+        "success_indicators": [
+          "vault_token_discovered",
+          "configuration_files_contain_secrets",
+          "historical_data_accessible"
+        ],
+        "common_failures": [
+          "no_vault_tokens_in_backup",
+          "encrypted_backup_files",
+          "incomplete_backup_data"
+        ],
+        "follow_up_techniques": [
+          "vault_authentication",
+          "ssh_key_extraction",
+          "privilege_escalation"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "http_parser_differential_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "manual_curl_requests",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_repeater_for_character_injection",
+          "test_multiple_bypass_characters",
+          "verify_response_differences"
+        ]
+      },
+      {
+        "tool": "MinIO Client (mc)",
+        "use_case": "object_storage_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "minio_environments"
+        ],
+        "alternatives": [
+          "aws_cli_with_s3_compatibility",
+          "custom_api_calls"
+        ],
+        "best_practices": [
+          "always_set_alias_first",
+          "use_recursive_operations_for_full_enumeration",
+          "download_entire_directory_structures"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_reconnaissance"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "include_common_extensions",
+          "use_appropriate_wordlists",
+          "filter_false_positives"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nginx_flask_bypass_to_minio_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://demo.skyfall.htb/metrics",
+            "purpose": "Confirm 403 forbidden response",
+            "expected_output": "403 Forbidden nginx error page"
+          },
+          {
+            "step": 2,
+            "command": "curl 'http://demo.skyfall.htb/metrics%C2%85'",
+            "purpose": "Bypass nginx restriction using parser differential",
+            "expected_output": "200 OK with MinIO metrics page"
+          },
+          {
+            "step": 3,
+            "command": "curl -H 'Host: prd23-s3-backend.skyfall.htb' http://10.10.11.254/minio/bootstrap/v1/verify",
+            "purpose": "Extract MinIO admin credentials",
+            "expected_output": "JSON response with access keys"
+          },
+          {
+            "step": 4,
+            "command": "mc alias set skyfall http://prd23-s3-backend.skyfall.htb [ACCESS_KEY] [SECRET_KEY]",
+            "purpose": "Configure MinIO client access",
+            "expected_output": "Added alias successfully"
+          },
+          {
+            "step": 5,
+            "command": "mc ls skyfall",
+            "purpose": "Enumerate available buckets",
+            "expected_output": "List of accessible buckets"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "30-60 minutes"
+      },
+      {
+        "sequence_name": "minio_to_vault_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "mc cp --recursive skyfall/askyy ./askyy_backup",
+            "purpose": "Download user backup files",
+            "expected_output": "Backup files downloaded locally"
+          },
+          {
+            "step": 2,
+            "command": "find askyy_backup -name '.*' -type f",
+            "purpose": "Find hidden configuration files",
+            "expected_output": "List of hidden files including .bashrc"
+          },
+          {
+            "step": 3,
+            "command": "grep -r 'vault' askyy_backup/",
+            "purpose": "Search for vault-related configuration",
+            "expected_output": "Vault token in bash configuration"
+          },
+          {
+            "step": 4,
+            "command": "export VAULT_TOKEN=[DISCOVERED_TOKEN]",
+            "purpose": "Set vault authentication token",
+            "expected_output": "Environment variable set"
+          },
+          {
+            "step": 5,
+            "command": "vault auth -method=userpass username=askyy",
+            "purpose": "Authenticate to vault service",
+            "expected_output": "Successful authentication"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Skyfall",
+      "difficulty": "Insane",
+      "os": "Ubuntu 22.04",
+      "platform": "HackTheBox",
+      "release_date": "2024-02-03",
+      "author": "ctrlzero & babywyrm",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_application",
+        "parser_differential",
+        "cloud_storage"
+      ],
+      "key_vulnerabilities": [
+        "nginx_flask_parser_bypass",
+        "minio_credential_leak",
+        "vault_token_exposure",
+        "fuse_filesystem_abuse"
+      ],
+      "environment_type": "cloud_infrastructure",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "parser_differentials",
+        "cloud_storage_security",
+        "vault_exploitation",
+        "fuse_filesystem_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_web_exploitation",
+        "cloud_technologies",
+        "linux_filesystems",
+        "vault_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "cloud_infrastructure",
+      "subcategories": [
+        "web_exploitation",
+        "cloud_storage",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "parser_bypass",
+        "credential_access",
+        "privilege_escalation",
+        "filesystem_manipulation"
+      ],
+      "defensive_lessons": [
+        "secure_parser_configuration",
+        "token_rotation",
+        "filesystem_permissions",
+        "cloud_security_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bucket",
+        "Forge",
+        "Timing"
+      ],
+      "similarity_reasons": [
+        "cloud_technologies",
+        "parser_differentials",
+        "complex_attack_chains"
+      ],
+      "unique_aspects": [
+        "minio_exploitation",
+        "vault_integration",
+        "fuse_filesystem_abuse"
+      ],
+      "difficulty_factors": [
+        "multiple_complex_technologies",
+        "advanced_exploitation_techniques",
+        "filesystem_manipulation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T11:53:05.413584",
+    "original_file": "0xdf_writeups/Htb Skyfall.md",
+    "content_length": 51513,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

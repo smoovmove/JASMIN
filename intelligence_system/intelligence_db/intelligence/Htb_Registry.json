@@ -1,0 +1,924 @@
+{
+  "writeup_id": "Htb_Registry",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_docker_registry_bolt_cms",
+    "primary_services": [
+      "http",
+      "https",
+      "ssh",
+      "docker_registry"
+    ],
+    "port_signature": "22+80+443",
+    "service_combination": "ssh+nginx+docker_registry",
+    "os_family": "linux_ubuntu",
+    "environment_type": "containerized_web_application",
+    "entry_vector": "weak_docker_registry_credentials",
+    "privilege_path": "docker_registry_to_bolt_cms_to_restic_backup",
+    "attack_complexity": "hard",
+    "estimated_time": "120-180 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "private_docker_registry",
+      "bolt_cms_installation",
+      "restic_backup_agent",
+      "ssl_cert_subdomain_enumeration"
+    ],
+    "environmental_clues": [
+      "docker_registry_htb_subdomain",
+      "nginx_default_pages",
+      "gzip_compressed_install_endpoint",
+      "certificate_reveals_docker_subdomain"
+    ],
+    "similar_scenarios": [
+      "docker_registry_exploitation",
+      "cms_pivot_scenarios"
+    ],
+    "unique_aspects": [
+      "docker_container_ssh_key_extraction",
+      "restic_backup_root_exploitation",
+      "multi_stage_containerized_pivot"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Docker Registry Enumeration",
+        "success_reason": "Private Docker registry exposed without proper authentication",
+        "prerequisite_indicators": [
+          "docker_registry_service_running",
+          "weak_or_default_credentials",
+          "registry_api_accessible"
+        ],
+        "recognition_patterns": [
+          "TLS certificate with docker.registry.htb",
+          "Docker registry API endpoints responding",
+          "Weak credential patterns (admin:admin)"
+        ],
+        "failure_modes": [
+          "strong_authentication_required",
+          "registry_not_exposed",
+          "network_segmentation"
+        ],
+        "environmental_factors": [
+          "default_docker_registry_config",
+          "insufficient_access_controls",
+          "exposed_internal_services"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Container Image Analysis",
+        "success_reason": "SSH credentials stored in Docker container layers",
+        "prerequisite_indicators": [
+          "docker_images_accessible",
+          "container_layers_downloadable",
+          "secrets_in_filesystem"
+        ],
+        "recognition_patterns": [
+          "Docker pull successful",
+          "Layer extraction possible",
+          "SSH keys or passwords in container"
+        ],
+        "failure_modes": [
+          "encrypted_container_layers",
+          "no_secrets_in_images",
+          "proper_secret_management"
+        ],
+        "environmental_factors": [
+          "poor_container_security_practices",
+          "secrets_baked_into_images",
+          "development_containers_in_production"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Bolt CMS Exploitation",
+        "success_reason": "Outdated Bolt CMS version 3.6.4 with known vulnerabilities",
+        "prerequisite_indicators": [
+          "bolt_cms_installed",
+          "vulnerable_version_detected",
+          "file_upload_functionality"
+        ],
+        "recognition_patterns": [
+          "Bolt CMS version 3.6.4 in changelog.md",
+          "Admin panel accessible",
+          "File upload capabilities"
+        ],
+        "failure_modes": [
+          "updated_cms_version",
+          "file_upload_restrictions",
+          "proper_input_validation"
+        ],
+        "environmental_factors": [
+          "unpatched_cms_installation",
+          "default_configurations",
+          "insufficient_hardening"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "20-40 minutes"
+      },
+      {
+        "technique": "Restic Backup Exploitation",
+        "success_reason": "Restic backup service running as root with accessible repository",
+        "prerequisite_indicators": [
+          "restic_service_running",
+          "backup_repository_accessible",
+          "service_running_as_root"
+        ],
+        "recognition_patterns": [
+          "Restic process in process list",
+          "Backup repository files accessible",
+          "Root-owned backup processes"
+        ],
+        "failure_modes": [
+          "encrypted_backup_repository",
+          "proper_service_isolation",
+          "restricted_file_permissions"
+        ],
+        "environmental_factors": [
+          "backup_service_misconfiguration",
+          "excessive_service_privileges",
+          "unencrypted_backup_data"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "docker.registry.htb subdomain",
+        "discovery_method": "TLS certificate analysis",
+        "why_critical": "Revealed private Docker registry service",
+        "how_to_recognize": [
+          "TLS certificate common name inspection",
+          "Subdomain enumeration results",
+          "Docker-related naming patterns"
+        ],
+        "follow_up_actions": [
+          "enumerate_docker_registry_api",
+          "test_default_credentials",
+          "list_available_images"
+        ]
+      },
+      {
+        "discovery": "SSH credentials in container",
+        "discovery_method": "Docker image layer analysis",
+        "why_critical": "Provided initial system access",
+        "how_to_recognize": [
+          "SSH keys in container filesystem",
+          "Password files in images",
+          "Credential artifacts in layers"
+        ],
+        "follow_up_actions": [
+          "test_ssh_access",
+          "enumerate_user_privileges",
+          "search_for_additional_secrets"
+        ]
+      },
+      {
+        "discovery": "Bolt CMS version 3.6.4",
+        "discovery_method": "changelog.md file analysis",
+        "why_critical": "Known vulnerable version with RCE capabilities",
+        "how_to_recognize": [
+          "Version information in changelog",
+          "Searchsploit results for version",
+          "CVE database matches"
+        ],
+        "follow_up_actions": [
+          "identify_applicable_exploits",
+          "test_file_upload_functionality",
+          "attempt_admin_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "bolt_user",
+        "escalation_method": "Bolt_CMS_RCE_to_www-data",
+        "why_possible": "File upload vulnerability in outdated CMS version",
+        "recognition_signs": [
+          "bolt_cms_admin_access",
+          "file_upload_functionality",
+          "insufficient_upload_filtering"
+        ],
+        "exploitation_path": "Admin Login → File Upload → PHP Shell → www-data"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "Restic_backup_exploitation",
+        "why_possible": "Restic backup service running as root with accessible repository",
+        "recognition_signs": [
+          "restic_processes_as_root",
+          "backup_repository_readable",
+          "restic_mount_capabilities"
+        ],
+        "exploitation_path": "Restic Mount → Root Filesystem Access → Root SSH Key"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,443 open on Linux host with docker.registry.htb certificate",
+        "decision": "Investigate Docker registry first before standard web enumeration",
+        "reasoning": "Certificate name strongly indicates Docker registry service, which often has weak authentication",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "standard_web_enumeration",
+            "when": "if docker registry inaccessible"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if other vectors fail"
+          }
+        ],
+        "success_indicators": [
+          "docker_registry_responds",
+          "v2_api_accessible",
+          "authentication_prompt_found"
+        ],
+        "next_decision": "attempt_docker_registry_access"
+      },
+      {
+        "step": 2,
+        "situation": "Docker registry /v2 endpoint found, requires authentication",
+        "decision": "Try weak credential combinations for Docker registry",
+        "reasoning": "Private registries often use default or weak credentials",
+        "confidence": 0.75,
+        "prerequisites": [
+          "docker_registry_confirmed",
+          "auth_required"
+        ],
+        "success_indicators": [
+          "registry_access_granted",
+          "image_list_retrieved"
+        ],
+        "failure_fallbacks": [
+          "web_directory_enumeration",
+          "certificate_analysis",
+          "install_file_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found /install endpoint with compressed data and /bolt CMS instance",
+        "decision": "Analyze install file for credentials before attacking Bolt CMS",
+        "reasoning": "Install files often contain configuration data including credentials",
+        "confidence": 0.8,
+        "prerequisites": [
+          "install_file_downloaded",
+          "bolt_cms_identified"
+        ],
+        "success_indicators": [
+          "credentials_extracted",
+          "certificates_found",
+          "configuration_data_found"
+        ],
+        "failure_fallbacks": [
+          "bolt_cms_version_exploitation",
+          "directory_traversal"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_docker_registry_accessible": {
+        "action": "enumerate_images_and_download",
+        "tools": [
+          "docker",
+          "curl",
+          "registry_api"
+        ],
+        "next_phase": "container_analysis_for_credentials"
+      },
+      "if_credentials_found_in_container": {
+        "action": "attempt_ssh_and_web_authentication",
+        "targets": [
+          "ssh_service",
+          "bolt_cms_admin"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_bolt_cms_access_gained": {
+        "action": "exploit_cms_for_shell",
+        "tools": [
+          "bolt_exploits",
+          "file_upload_abuse"
+        ],
+        "next_phase": "local_privilege_escalation"
+      },
+      "if_www_data_shell_obtained": {
+        "action": "enumerate_backup_services_and_root_processes",
+        "focus": [
+          "restic_backup",
+          "root_services",
+          "sudo_permissions"
+        ],
+        "next_phase": "root_privilege_escalation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_docker_registry_on_certificate_indication",
+        "reasoning": "docker_registries_frequently_misconfigured_with_weak_auth",
+        "applicability": "docker_related_certificates_or_subdomains"
+      },
+      {
+        "rule": "analyze_compressed_install_files_immediately",
+        "reasoning": "often_contain_credentials_and_configuration_data",
+        "applicability": "install_or_backup_files_found"
+      },
+      {
+        "rule": "check_backup_services_for_privilege_escalation",
+        "reasoning": "backup_agents_often_run_as_root_with_exploitable_interfaces",
+        "applicability": "www_data_or_low_privilege_shell_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Docker Registry Enumeration",
+        "mitre_id": "T1613",
+        "required_services": [
+          "docker-registry",
+          "https"
+        ],
+        "required_ports": [
+          443,
+          5000
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "docker_registry_service_running",
+          "weak_or_no_authentication",
+          "registry_api_accessible"
+        ],
+        "success_indicators": [
+          "registry_v2_api_responds",
+          "catalog_endpoint_accessible",
+          "manifest_retrieval_possible"
+        ],
+        "incompatible_with": [
+          "strong_authentication_required",
+          "network_isolation",
+          "registry_api_disabled"
+        ],
+        "confidence_boosters": [
+          "docker_registry_subdomain",
+          "ssl_cert_mentions_docker",
+          "default_registry_configuration"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "CMS Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "cms_installation_detected",
+          "known_vulnerable_version",
+          "admin_panel_accessible"
+        ],
+        "success_indicators": [
+          "cms_version_identified",
+          "exploit_payload_executes",
+          "file_upload_successful"
+        ],
+        "incompatible_with": [
+          "cms_fully_patched",
+          "file_upload_restrictions",
+          "waf_protection_active"
+        ],
+        "confidence_boosters": [
+          "default_cms_paths_exist",
+          "outdated_cms_version",
+          "weak_admin_credentials"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "SSH Key Extraction",
+        "mitre_id": "T1552.004",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "file_system_access_obtained",
+          "ssh_keys_present",
+          "readable_private_keys"
+        ],
+        "success_indicators": [
+          "private_key_files_found",
+          "key_permissions_allow_read",
+          "ssh_authentication_successful"
+        ],
+        "incompatible_with": [
+          "encrypted_private_keys",
+          "restrictive_file_permissions",
+          "ssh_service_disabled"
+        ],
+        "confidence_boosters": [
+          "default_ssh_key_locations",
+          "weak_file_permissions",
+          "service_account_keys"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "docker_registry": {
+        "port_indicators": [
+          443,
+          5000,
+          5001
+        ],
+        "service_indicators": [
+          "docker-registry",
+          "https"
+        ],
+        "banner_indicators": [
+          "docker.registry",
+          "Docker Registry"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "cms_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "bolt",
+          "wordpress",
+          "drupal"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_server": {
+        "port_indicators": [
+          22,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ssh",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "docker_registry_enumeration",
+          "when": "docker_registry_detected",
+          "reason": "often_contains_sensitive_data_and_credentials"
+        },
+        {
+          "attack": "web_directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_endpoints_and_applications"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "cms_exploitation",
+          "when": "cms_detected",
+          "reason": "common_vulnerabilities_but_version_dependent"
+        },
+        {
+          "attack": "ssh_key_extraction",
+          "when": "file_system_access_obtained",
+          "reason": "reliable_privilege_escalation_method"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Docker Registry Enumeration",
+        "mitre_id": "T1087.001",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s -k --user \"{username}:{password}\" https://{registry_host}/v2/_catalog",
+            "actual_command": "curl -s -k --user \"admin:admin\" https://docker.registry.htb/v2/_catalog",
+            "output_pattern": "{\"repositories\":[\"repository_name\"]}",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -s -k --user \"{username}:{password}\" https://{registry_host}/v2/{repo}/tags/list",
+            "actual_command": "curl -s -k --user \"admin:admin\" https://docker.registry.htb/v2/bolt-image/tags/list",
+            "output_pattern": "{\"name\":\"repo_name\",\"tags\":[\"tag_list\"]}",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "docker_registry_accessible",
+          "weak_credentials_or_no_auth",
+          "api_v2_enabled"
+        ],
+        "success_indicators": [
+          "repository_list_retrieved",
+          "tag_information_accessible",
+          "manifest_data_available"
+        ],
+        "common_failures": [
+          "strong_authentication_required",
+          "api_disabled_or_restricted",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "docker_image_extraction",
+          "filesystem_analysis",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "HTTP Basic Authentication Brute Force",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "manual_testing",
+            "command_template": "curl -s -k --user \"{username}:{password}\" {target_url}",
+            "actual_command": "curl -s -k --user \"admin:admin\" https://docker.registry.htb/v2/",
+            "output_pattern": "HTTP 200 response with valid content",
+            "effectiveness_rating": 3,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "http_basic_auth_enabled",
+          "weak_default_credentials",
+          "no_account_lockout"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "access_to_protected_resources",
+          "api_endpoints_accessible"
+        ],
+        "common_failures": [
+          "strong_password_policy",
+          "account_lockout_mechanisms",
+          "non_default_credentials"
+        ],
+        "follow_up_techniques": [
+          "api_enumeration",
+          "data_extraction",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster -u {target_url} -w {wordlist} -x {extensions} -o {output_file} -t {threads}",
+            "actual_command": "gobuster -k -u https://10.10.10.159 -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -x php -o scans/gobuster-80-root-small-php -t 40",
+            "output_pattern": "/{path} (Status: {code})",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -w {wordlist} -u {target_url} -H \"Host: FUZZ.{domain}\" --hh {hide_chars}",
+            "actual_command": "wfuzz -w /usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt -u http://10.10.10.159/ -H \"Host: FUZZ.registry.htb\" --hh 612",
+            "output_pattern": "ID Response Lines Word Chars Payload",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "directory_listing_disabled",
+          "hidden_paths_exist"
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "interesting_files_discovered",
+          "admin_panels_located"
+        ],
+        "common_failures": [
+          "aggressive_rate_limiting",
+          "waf_blocking_requests",
+          "no_hidden_content"
+        ],
+        "follow_up_techniques": [
+          "file_analysis",
+          "credential_extraction",
+          "vulnerability_assessment"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Docker Image Manifest Analysis",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "collection",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s -k --user \"{username}:{password}\" https://{registry_host}/v2/{repo}/manifests/{tag}",
+            "actual_command": "curl -s -k --user \"admin:admin\" https://docker.registry.htb/v2/bolt-image/manifests/latest",
+            "output_pattern": "schemaVersion, fsLayers with blobSum hashes",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "docker_registry_access",
+          "valid_repository_name",
+          "manifest_api_enabled"
+        ],
+        "success_indicators": [
+          "manifest_data_retrieved",
+          "layer_hashes_obtained",
+          "filesystem_structure_visible"
+        ],
+        "common_failures": [
+          "manifest_not_found",
+          "api_access_restricted",
+          "malformed_requests"
+        ],
+        "follow_up_techniques": [
+          "layer_blob_extraction",
+          "filesystem_reconstruction",
+          "secret_discovery"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirb",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_multiple_wordlists",
+          "adjust_thread_count_for_target",
+          "include_common_extensions"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "api_interaction_and_authentication",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "api_testing",
+          "http_authentication"
+        ],
+        "alternatives": [
+          "wget",
+          "httpie",
+          "burp_suite"
+        ],
+        "best_practices": [
+          "use_silent_flag_for_clean_output",
+          "handle_ssl_certificates_appropriately",
+          "save_responses_for_analysis"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "subdomain_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "subdomain_discovery"
+        ],
+        "alternatives": [
+          "gobuster_dns",
+          "sublist3r",
+          "amass"
+        ],
+        "best_practices": [
+          "filter_responses_by_size_or_words",
+          "use_comprehensive_wordlists",
+          "validate_discovered_subdomains"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "docker_registry_enumeration_to_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -s -k --user \"admin:admin\" https://docker.registry.htb/v2/",
+            "purpose": "Test basic authentication",
+            "expected_output": "HTTP 200 with Docker-Distribution-Api-Version header"
+          },
+          {
+            "step": 2,
+            "command": "curl -s -k --user \"admin:admin\" https://docker.registry.htb/v2/_catalog",
+            "purpose": "List available repositories",
+            "expected_output": "{\"repositories\":[\"bolt-image\"]}"
+          },
+          {
+            "step": 3,
+            "command": "curl -s -k --user \"admin:admin\" https://docker.registry.htb/v2/bolt-image/tags/list",
+            "purpose": "List repository tags",
+            "expected_output": "{\"name\":\"bolt-image\",\"tags\":[\"latest\"]}"
+          },
+          {
+            "step": 4,
+            "command": "curl -s -k --user \"admin:admin\" https://docker.registry.htb/v2/bolt-image/manifests/latest",
+            "purpose": "Get image manifest with layer information",
+            "expected_output": "JSON manifest with fsLayers and blobSum hashes"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-15 minutes"
+      },
+      {
+        "sequence_name": "web_reconnaissance_comprehensive",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp 10.10.10.159",
+            "purpose": "Discover open ports",
+            "expected_output": "SSH (22), HTTP (80), HTTPS (443)"
+          },
+          {
+            "step": 2,
+            "command": "nmap -p 22,80,443 -sC -sV -oA scans/nmap-tcpscripts 10.10.10.159",
+            "purpose": "Service enumeration and certificate analysis",
+            "expected_output": "SSL certificate reveals docker.registry.htb"
+          },
+          {
+            "step": 3,
+            "command": "wfuzz -w /usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt -u http://10.10.10.159/ -H \"Host: FUZZ.registry.htb\" --hh 612",
+            "purpose": "Discover subdomains",
+            "expected_output": "docker subdomain discovered"
+          },
+          {
+            "step": 4,
+            "command": "gobuster -k -u https://10.10.10.159 -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -x php -o scans/gobuster-80-root-small-php -t 40",
+            "purpose": "Directory enumeration",
+            "expected_output": "/install, /backup.php, /bolt directories found"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Registry",
+      "difficulty": "Hard",
+      "os": "Linux Ubuntu 18.04",
+      "platform": "HackTheBox",
+      "release_date": "2019-10-19",
+      "author": "thek",
+      "estimated_time": "3-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "docker_registry",
+        "cms_exploitation",
+        "backup_service"
+      ],
+      "key_vulnerabilities": [
+        "weak_credentials",
+        "cms_rce",
+        "restic_privilege_escalation"
+      ],
+      "environment_type": "containerized_web_services",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "docker_security",
+        "cms_exploitation",
+        "backup_service_abuse"
+      ],
+      "prerequisite_knowledge": [
+        "docker_concepts",
+        "web_exploitation",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "docker_security",
+        "cms_exploitation",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "initial_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_docker_registries",
+        "cms_hardening",
+        "backup_service_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Craft",
+        "Delivery",
+        "Bucket"
+      ],
+      "similarity_reasons": [
+        "docker_components",
+        "multi_stage_exploitation",
+        "service_chaining"
+      ],
+      "unique_aspects": [
+        "private_docker_registry",
+        "bolt_cms",
+        "restic_backup_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_pivot_points",
+        "container_analysis",
+        "backup_service_abuse"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T02:34:55.801591",
+    "original_file": "0xdf_writeups/Htb Registry.md",
+    "content_length": 65103,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

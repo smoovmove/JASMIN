@@ -1,0 +1,912 @@
+{
+  "writeup_id": "Htb_Oouch",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_oauth_csrf_container_escape",
+    "primary_services": [
+      "http",
+      "ftp",
+      "ssh"
+    ],
+    "port_signature": "21+22+5000+8000",
+    "service_combination": "ftp+ssh+http_multi_port",
+    "os_family": "linux",
+    "environment_type": "containerized_web_application",
+    "entry_vector": "oauth_csrf_exploitation",
+    "privilege_path": "oauth_to_container_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "oauth_implementation_flaws",
+      "csrf_chaining_attacks",
+      "container_breakout_required",
+      "dbus_command_injection"
+    ],
+    "environmental_clues": [
+      "dual_http_ports_5000_8000",
+      "oauth_authorization_flow",
+      "uwsgi_application_server",
+      "iptables_dbus_integration"
+    ],
+    "similar_scenarios": [
+      "node_htb_medium",
+      "json_htb_medium"
+    ],
+    "unique_aspects": [
+      "oauth_consumer_and_provider_separation",
+      "csrf_double_exploitation",
+      "dbus_messaging_system",
+      "container_pivot_required"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "OAuth CSRF Attack",
+        "success_reason": "Insecure OAuth implementation allowed CSRF to hijack authorization flow",
+        "prerequisite_indicators": [
+          "oauth_flow_present",
+          "missing_state_parameter",
+          "predictable_redirect_uris",
+          "csrf_protection_absent"
+        ],
+        "recognition_patterns": [
+          "authorization_code_in_url_parameters",
+          "missing_state_validation",
+          "oauth_endpoints_accessible",
+          "redirect_uri_manipulation_possible"
+        ],
+        "failure_modes": [
+          "state_parameter_properly_implemented",
+          "csrf_tokens_validated",
+          "redirect_uri_whitelist_enforced",
+          "oauth_flow_properly_secured"
+        ],
+        "environmental_factors": [
+          "custom_oauth_implementation",
+          "developer_unfamiliarity_with_oauth_security",
+          "insufficient_security_testing",
+          "legacy_oauth_patterns"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Container Escape via uWSGI",
+        "success_reason": "uWSGI service running with elevated privileges and exploitable configuration",
+        "prerequisite_indicators": [
+          "uwsgi_service_accessible",
+          "container_environment_detected",
+          "privilege_escalation_vectors_present",
+          "inter_container_communication_possible"
+        ],
+        "recognition_patterns": [
+          "uwsgi_processes_in_ps_output",
+          "docker_container_indicators",
+          "shared_volumes_or_sockets",
+          "privilege_boundaries_unclear"
+        ],
+        "failure_modes": [
+          "uwsgi_properly_sandboxed",
+          "container_security_hardened",
+          "privilege_separation_enforced",
+          "no_shared_resources"
+        ],
+        "environmental_factors": [
+          "docker_container_deployment",
+          "shared_service_architecture",
+          "insufficient_container_isolation",
+          "development_environment_practices"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "45-90 minutes"
+      },
+      {
+        "technique": "DBus Command Injection",
+        "success_reason": "DBus service accepting unsanitized input leading to command execution",
+        "prerequisite_indicators": [
+          "dbus_services_enumerable",
+          "inter_process_communication_present",
+          "input_validation_missing",
+          "elevated_service_privileges"
+        ],
+        "recognition_patterns": [
+          "dbus_processes_running",
+          "custom_dbus_services",
+          "iptables_integration_present",
+          "command_injection_vectors"
+        ],
+        "failure_modes": [
+          "input_properly_sanitized",
+          "dbus_services_sandboxed",
+          "privilege_separation_implemented",
+          "command_execution_restricted"
+        ],
+        "environmental_factors": [
+          "custom_security_implementations",
+          "complex_inter_service_communication",
+          "insufficient_input_validation",
+          "elevated_service_privileges"
+        ],
+        "success_probability": 0.55,
+        "typical_timeframe": "60-120 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "OAuth authorization flow vulnerability",
+        "discovery_method": "Manual OAuth flow analysis and CSRF testing",
+        "why_critical": "Enabled account takeover and access to SSH private keys",
+        "how_to_recognize": [
+          "oauth_endpoints_in_application",
+          "missing_state_parameter_validation",
+          "authorization_code_exposure",
+          "csrf_attack_vectors_present"
+        ],
+        "follow_up_actions": [
+          "craft_csrf_payload",
+          "hijack_authorization_flow",
+          "extract_sensitive_data",
+          "escalate_to_ssh_access"
+        ]
+      },
+      {
+        "discovery": "Container architecture with shared services",
+        "discovery_method": "Process enumeration and container fingerprinting",
+        "why_critical": "Provided pivot points between isolated environments",
+        "how_to_recognize": [
+          "docker_container_indicators",
+          "shared_uwsgi_processes",
+          "inter_container_communication",
+          "privilege_boundary_confusion"
+        ],
+        "follow_up_actions": [
+          "enumerate_container_environment",
+          "identify_shared_services",
+          "exploit_uwsgi_vulnerabilities",
+          "pivot_between_containers"
+        ]
+      },
+      {
+        "discovery": "DBus service with command injection",
+        "discovery_method": "DBus enumeration and input validation testing",
+        "why_critical": "Direct path to root privilege escalation",
+        "how_to_recognize": [
+          "custom_dbus_services_running",
+          "iptables_integration_patterns",
+          "unsanitized_input_handling",
+          "elevated_service_execution"
+        ],
+        "follow_up_actions": [
+          "test_command_injection_vectors",
+          "craft_malicious_dbus_calls",
+          "execute_privilege_escalation",
+          "achieve_root_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web_user",
+        "escalation_method": "OAuth_CSRF_to_SSH_access",
+        "why_possible": "OAuth implementation lacked proper CSRF protection and exposed sensitive data",
+        "recognition_signs": [
+          "oauth_flow_without_state_validation",
+          "authorization_server_data_exposure",
+          "ssh_keys_in_user_profiles",
+          "csrf_attack_vectors_available"
+        ],
+        "exploitation_path": "CSRF OAuth Flow → Account Takeover → SSH Key Extraction → Shell Access"
+      },
+      {
+        "privilege_level": "container_user",
+        "escalation_method": "uWSGI_container_escape",
+        "why_possible": "Shared uWSGI service between containers with privilege escalation vectors",
+        "recognition_signs": [
+          "uwsgi_processes_accessible",
+          "container_isolation_weaknesses",
+          "shared_service_architecture",
+          "privilege_boundary_bypass"
+        ],
+        "exploitation_path": "Container Analysis → uWSGI Exploitation → Inter-Container Pivot → Privilege Escalation"
+      },
+      {
+        "privilege_level": "www_data",
+        "escalation_method": "DBus_command_injection_to_root",
+        "why_possible": "Custom DBus service running with root privileges accepted unsanitized input",
+        "recognition_signs": [
+          "custom_dbus_services_enumerable",
+          "command_injection_in_dbus_handlers",
+          "root_privileged_service_execution",
+          "iptables_integration_exploitable"
+        ],
+        "exploitation_path": "DBus Enumeration → Command Injection Testing → Root Command Execution → Full System Compromise"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,5000,8000 open on Linux host with FTP anonymous access",
+        "decision": "Enumerate FTP first for quick wins, then focus on HTTP services",
+        "reasoning": "Anonymous FTP often contains configuration files or hints about the application",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_web_enumeration",
+            "when": "if ftp yields no useful information"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "configuration_files_found",
+          "application_hints_discovered",
+          "credentials_exposed"
+        ],
+        "next_decision": "analyze_web_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Found Flask Consumer and Django Authorization Server architecture",
+        "decision": "Identify OAuth implementation and look for CSRF vulnerabilities",
+        "reasoning": "OAuth implementations often have CSRF vulnerabilities in redirect_uri handling",
+        "confidence": 0.85,
+        "prerequisites": [
+          "web_applications_identified",
+          "oauth_flow_confirmed"
+        ],
+        "success_indicators": [
+          "oauth_endpoints_found",
+          "redirect_uri_manipulation_possible"
+        ],
+        "failure_fallbacks": [
+          "directory_enumeration",
+          "parameter_fuzzing",
+          "xss_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "OAuth CSRF vulnerability confirmed",
+        "decision": "Chain CSRF attacks to access privileged accounts",
+        "reasoning": "OAuth CSRF can lead to account takeover and credential exposure",
+        "confidence": 0.8,
+        "prerequisites": [
+          "csrf_vulnerability_confirmed",
+          "target_accounts_identified"
+        ],
+        "success_indicators": [
+          "account_access_gained",
+          "ssh_keys_exposed"
+        ],
+        "failure_fallbacks": [
+          "direct_application_attacks",
+          "container_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_ftp_reveals_architecture": {
+        "action": "focus_on_oauth_vulnerabilities",
+        "tools": [
+          "burp_suite",
+          "custom_csrf_payloads"
+        ],
+        "next_phase": "oauth_exploitation"
+      },
+      "if_oauth_csrf_succeeds": {
+        "action": "extract_credentials_and_keys",
+        "purpose": "gain_initial_access",
+        "tools": [
+          "ssh",
+          "credential_extraction"
+        ]
+      },
+      "if_initial_access_gained": {
+        "action": "container_enumeration_and_privilege_escalation",
+        "alternatives": [
+          "uwsgi_exploitation",
+          "dbus_command_injection"
+        ],
+        "decision_criteria": "based_on_container_environment"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_ftp_anonymous_access_first",
+        "reasoning": "quick_enumeration_often_reveals_application_architecture",
+        "applicability": "ftp_service_detected"
+      },
+      {
+        "rule": "focus_on_oauth_csrf_when_multiple_web_services_present",
+        "reasoning": "oauth_implementations_commonly_vulnerable_to_csrf",
+        "applicability": "oauth_architecture_identified"
+      },
+      {
+        "rule": "enumerate_container_environment_after_initial_access",
+        "reasoning": "containers_often_have_unique_privilege_escalation_paths",
+        "applicability": "containerized_application_access_gained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "OAuth_CSRF_Attack",
+        "mitre_id": "T1566.002",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8000
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "oauth_implementation_present",
+          "insecure_redirect_uri_validation",
+          "csrf_protection_missing",
+          "authorization_code_flow_enabled"
+        ],
+        "success_indicators": [
+          "oauth_authorization_endpoint_accessible",
+          "client_id_discoverable",
+          "redirect_uri_parameter_modifiable",
+          "state_parameter_missing_or_weak"
+        ],
+        "incompatible_with": [
+          "strict_redirect_uri_validation",
+          "proper_csrf_tokens",
+          "pkce_implementation",
+          "state_parameter_properly_validated"
+        ],
+        "confidence_boosters": [
+          "login_with_third_party_buttons",
+          "authorization_server_separate_from_consumer",
+          "default_oauth_library_configuration",
+          "missing_security_headers"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Anonymous_FTP_Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_running",
+          "anonymous_login_enabled"
+        ],
+        "success_indicators": [
+          "ftp_banner_allows_anonymous",
+          "230_login_successful_response",
+          "readable_files_present"
+        ],
+        "incompatible_with": [
+          "anonymous_login_disabled",
+          "firewall_blocking_ftp",
+          "empty_ftp_directory"
+        ],
+        "confidence_boosters": [
+          "vsftpd_service_detected",
+          "default_ftp_configuration",
+          "project_files_present"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "uWSGI_Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          5000,
+          8000,
+          8080
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "uwsgi_server_running",
+          "python_web_application",
+          "uwsgi_protocol_accessible"
+        ],
+        "success_indicators": [
+          "uwsgi_server_headers_present",
+          "python_application_detected",
+          "internal_uwsgi_port_accessible"
+        ],
+        "incompatible_with": [
+          "uwsgi_properly_configured",
+          "network_segmentation",
+          "updated_uwsgi_version"
+        ],
+        "confidence_boosters": [
+          "flask_application_detected",
+          "container_environment",
+          "development_configuration"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "DBus_Command_Injection",
+        "mitre_id": "T1059.004",
+        "required_services": [
+          "dbus"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "dbus_service_running",
+          "custom_dbus_interfaces",
+          "insufficient_input_validation",
+          "elevated_service_privileges"
+        ],
+        "success_indicators": [
+          "dbus_enumerate_services_successful",
+          "custom_interfaces_discovered",
+          "command_parameters_accepted",
+          "root_service_detected"
+        ],
+        "incompatible_with": [
+          "proper_input_sanitization",
+          "dbus_access_controls",
+          "sandboxed_services"
+        ],
+        "confidence_boosters": [
+          "iptables_management_service",
+          "custom_security_implementation",
+          "development_environment"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "45-90 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "oauth_environment": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8000
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "OAuth",
+          "authorization",
+          "login with"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8000,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "flask",
+          "uwsgi",
+          "python"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_container": {
+        "port_indicators": [
+          22,
+          5000,
+          8000
+        ],
+        "service_indicators": [
+          "ssh",
+          "http"
+        ],
+        "banner_indicators": [
+          "Linux",
+          "Docker",
+          "container"
+        ],
+        "confidence_threshold": 0.75
+      },
+      "ftp_anonymous": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp",
+          "vsftpd"
+        ],
+        "banner_indicators": [
+          "Anonymous FTP login allowed"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "anonymous_ftp_enumeration",
+          "when": "ftp_anonymous_detected",
+          "reason": "immediate_information_disclosure_no_creds_needed"
+        },
+        {
+          "attack": "oauth_csrf_attack",
+          "when": "oauth_implementation_detected",
+          "reason": "common_misconfiguration_high_impact"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "uwsgi_exploitation",
+          "when": "python_web_app_detected",
+          "reason": "container_escape_potential"
+        },
+        {
+          "attack": "web_application_enumeration",
+          "when": "multiple_http_ports_detected",
+          "reason": "multiple_attack_surfaces_available"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "dbus_command_injection",
+          "when": "linux_system_access_obtained",
+          "reason": "requires_initial_access_complex_exploitation"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "OAuth CSRF Attack",
+        "mitre_id": "T1539",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "burp_suite",
+            "command_template": "Intercept OAuth flow and modify redirect_uri parameter",
+            "actual_command": "Modify redirect_uri in authorization request to attacker-controlled endpoint",
+            "output_pattern": "authorization_code parameter in callback",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "python_http_server",
+            "command_template": "python3 -m http.server {port}",
+            "actual_command": "python3 -m http.server 80",
+            "success_factors": [
+              "victim_clicks_malicious_link",
+              "oauth_misconfiguration"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "oauth_implementation_present",
+          "insecure_redirect_uri_validation",
+          "victim_interaction_possible",
+          "csrf_protection_absent"
+        ],
+        "success_indicators": [
+          "authorization_code_captured",
+          "victim_account_access_gained",
+          "sensitive_data_accessible"
+        ],
+        "common_failures": [
+          "proper_redirect_uri_validation",
+          "csrf_tokens_implemented",
+          "victim_doesnt_interact"
+        ],
+        "follow_up_techniques": [
+          "session_hijacking",
+          "data_exfiltration",
+          "privilege_escalation"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Contact Form XSS/SSRF",
+        "mitre_id": "T1566.002",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "contact_form",
+            "command_template": "<a href=\"http://{attacker_ip}/{path}\">click me</a>",
+            "actual_command": "<a href=\"http://10.10.14.6/0xdf\">click me</a>",
+            "output_pattern": "HTTP request from python-requests/2.21.0",
+            "effectiveness_rating": 3,
+            "reliability": 0.85
+          },
+          {
+            "name": "netcat",
+            "command_template": "nc -lnvp {port}",
+            "actual_command": "nc -lnvp 80",
+            "success_factors": [
+              "admin_clicks_links",
+              "no_xss_filtering"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "contact_form_accessible",
+          "admin_processes_submissions",
+          "html_content_allowed"
+        ],
+        "success_indicators": [
+          "http_requests_received",
+          "user_agent_python_requests",
+          "connection_from_target"
+        ],
+        "common_failures": [
+          "xss_filtering_active",
+          "admin_doesnt_click_links",
+          "network_restrictions"
+        ],
+        "follow_up_techniques": [
+          "oauth_csrf_exploitation",
+          "credential_harvesting",
+          "further_enumeration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "OAuth Authorization Server Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "browser",
+            "command_template": "Navigate to http://{target}:{port}/oauth/applications/",
+            "actual_command": "Navigate to http://10.10.10.177:8000/oauth/applications/",
+            "output_pattern": "OAuth application registration interface",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -H 'Authorization: Bearer {token}' http://{target}:{port}/api/",
+            "actual_command": "curl -H 'Authorization: Bearer [token]' http://10.10.10.177:8000/api/",
+            "success_factors": [
+              "valid_access_token",
+              "api_endpoints_exposed"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "oauth_server_accessible",
+          "django_framework_identified",
+          "authentication_bypassed"
+        ],
+        "success_indicators": [
+          "oauth_endpoints_discovered",
+          "api_access_gained",
+          "sensitive_data_exposed"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "endpoints_not_exposed",
+          "proper_access_controls"
+        ],
+        "follow_up_techniques": [
+          "api_data_extraction",
+          "credential_harvesting",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "oauth_flow_manipulation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "oauth_security_testing"
+        ],
+        "alternatives": [
+          "owasp_zap",
+          "manual_curl_requests"
+        ],
+        "best_practices": [
+          "intercept_all_oauth_requests",
+          "modify_redirect_uri_parameters",
+          "capture_authorization_codes"
+        ]
+      },
+      {
+        "tool": "Python HTTP Server",
+        "use_case": "callback_url_hosting",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "oauth_csrf_attacks"
+        ],
+        "alternatives": [
+          "ngrok",
+          "custom_web_server"
+        ],
+        "best_practices": [
+          "use_accessible_port",
+          "log_all_requests",
+          "parse_authorization_codes"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "oauth_csrf_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "python3 -m http.server 80",
+            "purpose": "Start callback server to capture OAuth codes",
+            "expected_output": "HTTP server listening on port 80"
+          },
+          {
+            "step": 2,
+            "command": "Submit malicious OAuth link via contact form",
+            "purpose": "Trick admin into authorizing OAuth access",
+            "expected_output": "Authorization code in HTTP request"
+          },
+          {
+            "step": 3,
+            "command": "Exchange authorization code for access token",
+            "purpose": "Convert code to usable access token",
+            "expected_output": "Valid OAuth access token"
+          },
+          {
+            "step": 4,
+            "command": "curl -H 'Authorization: Bearer [token]' http://target:8000/api/",
+            "purpose": "Access protected resources with token",
+            "expected_output": "Sensitive user data or credentials"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Oouch",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2020-02-29",
+      "author": "qtc",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "oauth_exploitation",
+        "csrf",
+        "container_escape"
+      ],
+      "key_vulnerabilities": [
+        "insecure_oauth_implementation",
+        "csrf_attacks",
+        "uwsgi_exploit",
+        "command_injection"
+      ],
+      "environment_type": "containerized_web_application",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "oauth_security",
+        "csrf_exploitation",
+        "container_security",
+        "dbus_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "oauth_fundamentals",
+        "web_application_security",
+        "container_concepts",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application_security",
+      "subcategories": [
+        "oauth_exploitation",
+        "container_security",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "csrf",
+        "container_escape",
+        "command_injection",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "secure_oauth_implementation",
+        "csrf_protection",
+        "container_hardening",
+        "input_validation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Arkham",
+        "Craft",
+        "Player"
+      ],
+      "similarity_reasons": [
+        "complex_web_exploitation",
+        "multi_stage_attacks",
+        "container_environments"
+      ],
+      "unique_aspects": [
+        "oauth_focus",
+        "dbus_exploitation",
+        "uwsgi_attacks"
+      ],
+      "difficulty_factors": [
+        "oauth_complexity",
+        "multi_container_environment",
+        "advanced_web_concepts"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:02:52.414189",
+    "original_file": "0xdf_writeups/Htb Oouch.md",
+    "content_length": 66361,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

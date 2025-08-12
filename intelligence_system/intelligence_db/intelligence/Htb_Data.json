@@ -1,0 +1,947 @@
+{
+  "writeup_id": "Htb_Data",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_grafana_directory_traversal_to_container_escape",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+3000",
+    "service_combination": "ssh+grafana_http",
+    "os_family": "linux",
+    "environment_type": "containerized_application",
+    "entry_vector": "directory_traversal_file_read",
+    "privilege_path": "grafana_db_leak_to_sudo_docker_escape",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "grafana_v8_0_0_vulnerable",
+      "sqlite_database_exposure",
+      "sudo_docker_exec_permissions",
+      "container_host_filesystem_mount"
+    ],
+    "environmental_clues": [
+      "http_port_3000_grafana",
+      "additional_network_hop_to_webserver",
+      "ubuntu_18_04_host_system",
+      "containerized_web_application"
+    ],
+    "similar_scenarios": [
+      "grafana_lfi_boxes",
+      "docker_escape_scenarios"
+    ],
+    "unique_aspects": [
+      "unauthenticated_directory_traversal",
+      "grafana_sqlite_credential_extraction",
+      "shared_password_reuse",
+      "docker_exec_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "CVE-2021-43798_Directory_Traversal",
+        "success_reason": "Grafana v8.0.0 vulnerable to unauthenticated directory traversal via plugins path",
+        "prerequisite_indicators": [
+          "grafana_version_8.0.0_to_8.3.0",
+          "plugins_directory_accessible",
+          "no_authentication_required"
+        ],
+        "recognition_patterns": [
+          "grafana login page shows version",
+          "/public/plugins/ path exists",
+          "path traversal sequences work",
+          "file contents returned in response"
+        ],
+        "failure_modes": [
+          "grafana_version_patched",
+          "plugins_path_blocked",
+          "file_permissions_deny_read"
+        ],
+        "environmental_factors": [
+          "default_grafana_installation",
+          "containerized_deployment",
+          "no_additional_security_controls"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "SQLite_Database_Extraction",
+        "success_reason": "Grafana database file accessible via directory traversal",
+        "prerequisite_indicators": [
+          "directory_traversal_working",
+          "grafana_using_sqlite",
+          "database_file_readable"
+        ],
+        "recognition_patterns": [
+          "grafana.db file exists",
+          "sqlite database format",
+          "user table contains hashes"
+        ],
+        "failure_modes": [
+          "external_database_used",
+          "database_file_permissions_restricted",
+          "database_encrypted"
+        ],
+        "environmental_factors": [
+          "default_grafana_sqlite_config",
+          "container_file_permissions",
+          "no_database_hardening"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Password_Reuse_Attack",
+        "success_reason": "Cracked Grafana password reused for system account",
+        "prerequisite_indicators": [
+          "hash_crackable",
+          "matching_username_on_system",
+          "password_reuse_practices"
+        ],
+        "recognition_patterns": [
+          "weak password in hash",
+          "same username in /etc/passwd",
+          "successful authentication"
+        ],
+        "failure_modes": [
+          "strong_password_policy",
+          "unique_passwords_per_service",
+          "account_lockout_mechanisms"
+        ],
+        "environmental_factors": [
+          "poor_password_hygiene",
+          "shared_credentials",
+          "no_password_complexity_requirements"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Docker_Sudo_Privilege_Escalation",
+        "success_reason": "Sudo rule allows docker exec without password",
+        "prerequisite_indicators": [
+          "user_in_sudoers",
+          "docker_exec_allowed",
+          "no_password_required"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows docker permissions",
+          "running containers available",
+          "container filesystem mountable"
+        ],
+        "failure_modes": [
+          "no_sudo_permissions",
+          "docker_not_available",
+          "restricted_docker_commands"
+        ],
+        "environmental_factors": [
+          "development_environment",
+          "loose_sudo_configuration",
+          "docker_administrative_access"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Grafana v8.0.0 vulnerable version",
+        "discovery_method": "Version enumeration from login page",
+        "why_critical": "Enables unauthenticated file read via CVE-2021-43798",
+        "how_to_recognize": [
+          "version displayed on login page",
+          "version in 8.0.0-8.3.0 range",
+          "plugins path accessible"
+        ],
+        "follow_up_actions": [
+          "test_directory_traversal",
+          "enumerate_sensitive_files",
+          "extract_grafana_database"
+        ]
+      },
+      {
+        "discovery": "Grafana SQLite database with user hashes",
+        "discovery_method": "Directory traversal to /var/lib/grafana/grafana.db",
+        "why_critical": "Contains user credentials for privilege escalation",
+        "how_to_recognize": [
+          "sqlite database format",
+          "user table with password hashes",
+          "bcrypt hash format"
+        ],
+        "follow_up_actions": [
+          "extract_user_hashes",
+          "crack_with_hashcat",
+          "test_credential_reuse"
+        ]
+      },
+      {
+        "discovery": "Docker exec sudo permissions",
+        "discovery_method": "sudo -l enumeration",
+        "why_critical": "Allows container escape to root access",
+        "how_to_recognize": [
+          "NOPASSWD docker exec rule",
+          "running containers present",
+          "filesystem mount capabilities"
+        ],
+        "follow_up_actions": [
+          "list_running_containers",
+          "mount_host_filesystem",
+          "escape_to_host_root"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "CVE-2021-43798_to_user_access",
+        "why_possible": "Directory traversal leads to credential extraction and reuse",
+        "recognition_signs": [
+          "vulnerable_grafana_version",
+          "sqlite_database_accessible",
+          "weak_password_practices"
+        ],
+        "exploitation_path": "Directory Traversal → Database Extraction → Hash Cracking → SSH Access"
+      },
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "Docker_sudo_to_root",
+        "why_possible": "Sudo rule allows unrestricted docker exec access",
+        "recognition_signs": [
+          "docker_exec_sudo_rule",
+          "running_containers",
+          "filesystem_mount_capability"
+        ],
+        "exploitation_path": "Sudo Docker Exec → Container Access → Host Filesystem Mount → Root Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22 (SSH) and 3000 (HTTP) open on Linux host",
+        "decision": "Investigate HTTP service on port 3000 first",
+        "reasoning": "Port 3000 commonly hosts web applications with potential vulnerabilities, SSH requires credentials",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web service fails"
+          },
+          {
+            "option": "service_fingerprinting",
+            "when": "if service unclear"
+          }
+        ],
+        "success_indicators": [
+          "web_service_responds",
+          "application_identified",
+          "version_information_found"
+        ],
+        "next_decision": "identify_web_application"
+      },
+      {
+        "step": 2,
+        "situation": "Identified Grafana v8.0.0 web application",
+        "decision": "Search for known CVEs affecting this specific version",
+        "reasoning": "Specific version information allows targeted vulnerability research",
+        "confidence": 0.95,
+        "prerequisites": [
+          "application_identified",
+          "version_confirmed"
+        ],
+        "success_indicators": [
+          "cve_found",
+          "exploit_available"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "default_credentials",
+          "configuration_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found CVE-2021-43798 directory traversal vulnerability",
+        "decision": "Exploit directory traversal to read sensitive files",
+        "reasoning": "Directory traversal allows file system access without authentication",
+        "confidence": 0.9,
+        "prerequisites": [
+          "vulnerable_version_confirmed"
+        ],
+        "success_indicators": [
+          "etc_passwd_readable",
+          "configuration_files_accessible"
+        ],
+        "next_decision": "target_application_specific_files"
+      },
+      {
+        "step": 4,
+        "situation": "Directory traversal confirmed working",
+        "decision": "Target Grafana SQLite database file",
+        "reasoning": "Grafana stores user credentials and configuration in SQLite database",
+        "confidence": 0.85,
+        "prerequisites": [
+          "directory_traversal_working",
+          "grafana_config_readable"
+        ],
+        "success_indicators": [
+          "database_file_found",
+          "user_hashes_extracted"
+        ],
+        "alternatives": [
+          {
+            "option": "target_config_files",
+            "when": "if database not accessible"
+          },
+          {
+            "option": "target_log_files",
+            "when": "if credentials in logs"
+          }
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_grafana_identified": {
+        "action": "version_specific_cve_research",
+        "tools": [
+          "searchsploit",
+          "cve_databases",
+          "exploit-db"
+        ],
+        "next_phase": "vulnerability_exploitation"
+      },
+      "if_directory_traversal_works": {
+        "action": "enumerate_sensitive_files",
+        "targets": [
+          "grafana.ini",
+          "grafana.db",
+          "/etc/passwd",
+          "application_configs"
+        ],
+        "tools": [
+          "curl",
+          "wget"
+        ]
+      },
+      "if_database_extracted": {
+        "action": "extract_and_crack_hashes",
+        "tools": [
+          "sqlite3",
+          "hashcat",
+          "john"
+        ],
+        "next_phase": "credential_reuse_testing"
+      },
+      "if_credentials_obtained": {
+        "action": "test_ssh_access",
+        "purpose": "gain_initial_foothold",
+        "tools": [
+          "ssh",
+          "hydra"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_version_specific_cves_for_identified_applications",
+        "reasoning": "version_specific_vulnerabilities_often_have_reliable_exploits",
+        "applicability": "any_versioned_web_application"
+      },
+      {
+        "rule": "prioritize_unauthenticated_file_read_vulnerabilities",
+        "reasoning": "high_impact_with_low_complexity_and_no_credentials_needed",
+        "applicability": "web_applications_with_file_access"
+      },
+      {
+        "rule": "target_application_specific_data_stores_first",
+        "reasoning": "application_databases_contain_user_credentials_and_sensitive_data",
+        "applicability": "applications_with_local_databases"
+      },
+      {
+        "rule": "test_credential_reuse_across_services_immediately",
+        "reasoning": "users_often_reuse_passwords_across_multiple_services",
+        "applicability": "when_any_credentials_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Grafana Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          3000,
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "grafana_service_detected",
+          "vulnerable_grafana_version",
+          "unauthenticated_access_available"
+        ],
+        "success_indicators": [
+          "grafana_login_page_accessible",
+          "version_8.0.0_or_vulnerable",
+          "file_read_response_received"
+        ],
+        "incompatible_with": [
+          "authentication_required",
+          "patched_grafana_version",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "grafana_footer_version_visible",
+          "default_port_3000",
+          "sqlite_database_accessible"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Docker Container Escape",
+        "mitre_id": "T1611",
+        "required_services": [
+          "docker"
+        ],
+        "required_ports": [
+          2375,
+          2376
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "docker_service_running",
+          "sudo_docker_exec_permissions",
+          "container_environment_detected"
+        ],
+        "success_indicators": [
+          "sudo_docker_exec_allowed",
+          "host_filesystem_mountable",
+          "container_shell_accessible"
+        ],
+        "incompatible_with": [
+          "no_docker_permissions",
+          "restricted_container_runtime",
+          "no_host_filesystem_access"
+        ],
+        "confidence_boosters": [
+          "ttl_hop_difference_detected",
+          "docker_socket_accessible",
+          "privileged_container_context"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "SQLite Database Extraction",
+        "mitre_id": "T1005",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          3000,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_read_vulnerability_exists",
+          "sqlite_database_present",
+          "known_database_path"
+        ],
+        "success_indicators": [
+          "sqlite_file_downloaded",
+          "database_structure_readable",
+          "user_hashes_extracted"
+        ],
+        "incompatible_with": [
+          "encrypted_database",
+          "no_file_read_access",
+          "database_not_present"
+        ],
+        "confidence_boosters": [
+          "grafana_default_paths",
+          "application_uses_sqlite",
+          "directory_traversal_working"
+        ],
+        "typical_success_rate": 0.88,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Password Reuse Attack",
+        "mitre_id": "T1110.004",
+        "required_services": [
+          "ssh",
+          "rdp",
+          "smb"
+        ],
+        "required_ports": [
+          22,
+          3389,
+          445
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "cracked_password_available",
+          "username_enumerated",
+          "authentication_service_accessible"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "shell_access_gained",
+          "credential_validation_success"
+        ],
+        "incompatible_with": [
+          "unique_passwords_enforced",
+          "mfa_required",
+          "account_lockout_active"
+        ],
+        "confidence_boosters": [
+          "weak_password_policies",
+          "shared_service_accounts",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "grafana_service": {
+        "port_indicators": [
+          3000,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Grafana",
+          "grafana"
+        ],
+        "response_indicators": [
+          "Location: /login",
+          "X-Frame-Options: deny"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "docker_container": {
+        "port_indicators": [
+          2375,
+          2376
+        ],
+        "service_indicators": [
+          "docker"
+        ],
+        "network_indicators": [
+          "ttl_hop_difference",
+          "container_networking"
+        ],
+        "confidence_threshold": 0.75
+      },
+      "ssh_service": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "ubuntu_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "ubuntu"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "grafana_directory_traversal",
+          "when": "grafana_service_detected",
+          "reason": "unauthenticated_file_read_high_impact"
+        },
+        {
+          "attack": "sqlite_database_extraction",
+          "when": "file_read_vulnerability_confirmed",
+          "reason": "direct_path_to_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "password_reuse_testing",
+          "when": "credentials_extracted",
+          "reason": "common_in_ctf_environments"
+        },
+        {
+          "attack": "docker_container_escape",
+          "when": "container_environment_detected",
+          "reason": "privilege_escalation_opportunity"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "time_intensive_low_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Directory Traversal via Grafana Plugin Path",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl --path-as-is http://{target}:3000/public/plugins/{plugin}/../../../../../../../../{file_path}",
+            "actual_command": "curl --path-as-is http://10.129.234.47:3000/public/plugins/alertlist/../../../../../../../../etc/passwd",
+            "output_pattern": "File contents returned in HTTP response",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "grafana_version_8.0.0_to_8.3.0",
+          "network_access_to_grafana",
+          "valid_plugin_name"
+        ],
+        "success_indicators": [
+          "file_contents_returned",
+          "no_error_in_response",
+          "sensitive_files_accessible"
+        ],
+        "common_failures": [
+          "patched_grafana_version",
+          "invalid_plugin_name",
+          "file_permissions_deny_access"
+        ],
+        "follow_up_techniques": [
+          "configuration_file_enumeration",
+          "database_file_extraction",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SQLite Database Extraction and Analysis",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl --path-as-is http://{target}:3000/public/plugins/{plugin}/../../../../../../../../var/lib/grafana/grafana.db -o grafana.db",
+            "actual_command": "curl --path-as-is http://10.129.234.47:3000/public/plugins/alertlist/../../../../../../../../var/lib/grafana/grafana.db -o grafana.db",
+            "output_pattern": "Binary SQLite database file",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "sqlite3",
+            "command_template": "sqlite3 {db_file} \".tables\"",
+            "actual_command": "sqlite3 grafana.db \".tables\"",
+            "success_factors": [
+              "valid_sqlite_database",
+              "readable_file_permissions"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "directory_traversal_vulnerability",
+          "sqlite_database_in_use",
+          "read_access_to_database_file"
+        ],
+        "success_indicators": [
+          "database_file_downloaded",
+          "tables_enumerated_successfully",
+          "user_credentials_found"
+        ],
+        "common_failures": [
+          "database_file_locked",
+          "corrupted_download",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_reuse_testing",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Container Escape via Docker Exec Sudo",
+        "mitre_id": "T1611",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "sudo",
+            "command_template": "sudo docker exec -it {container_name} /bin/bash",
+            "actual_command": "sudo docker exec -it grafana /bin/bash",
+            "output_pattern": "Root shell in container",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "mount",
+            "command_template": "mount /dev/{host_device} /mnt",
+            "actual_command": "mount /dev/sda1 /mnt",
+            "success_factors": [
+              "host_filesystem_accessible",
+              "mount_permissions"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "sudo_access_to_docker_exec",
+          "running_docker_container",
+          "host_filesystem_mountable"
+        ],
+        "success_indicators": [
+          "root_access_in_container",
+          "host_filesystem_mounted",
+          "host_system_compromise"
+        ],
+        "common_failures": [
+          "restricted_sudo_rules",
+          "container_security_policies",
+          "filesystem_mount_restrictions"
+        ],
+        "follow_up_techniques": [
+          "host_filesystem_manipulation",
+          "ssh_key_injection",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "directory_traversal_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "wget",
+          "burp_suite",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_path_as_is_flag",
+          "test_multiple_traversal_depths",
+          "enumerate_common_system_files"
+        ]
+      },
+      {
+        "tool": "sqlite3",
+        "use_case": "database_analysis_and_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "database_enumeration"
+        ],
+        "alternatives": [
+          "sqlitebrowser",
+          "db_browser_for_sqlite"
+        ],
+        "best_practices": [
+          "enumerate_all_tables_first",
+          "focus_on_user_credential_tables",
+          "extract_configuration_data"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "grafana_cve_to_root_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl --path-as-is http://10.129.234.47:3000/public/plugins/alertlist/../../../../../../../../etc/passwd",
+            "purpose": "Verify directory traversal vulnerability",
+            "expected_output": "System passwd file contents"
+          },
+          {
+            "step": 2,
+            "command": "curl --path-as-is http://10.129.234.47:3000/public/plugins/alertlist/../../../../../../../../var/lib/grafana/grafana.db -o grafana.db",
+            "purpose": "Extract Grafana SQLite database",
+            "expected_output": "Binary database file downloaded"
+          },
+          {
+            "step": 3,
+            "command": "sqlite3 grafana.db \"SELECT * FROM user;\"",
+            "purpose": "Extract user credentials from database",
+            "expected_output": "User records with password hashes"
+          },
+          {
+            "step": 4,
+            "command": "hashcat -m 1400 -a 0 hash.txt /usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack extracted password hash",
+            "expected_output": "Plaintext password recovered"
+          },
+          {
+            "step": 5,
+            "command": "ssh boris@10.129.234.47",
+            "purpose": "Authenticate with cracked credentials",
+            "expected_output": "SSH shell as boris user"
+          },
+          {
+            "step": 6,
+            "command": "sudo docker exec -it grafana /bin/bash",
+            "purpose": "Execute commands in container as root",
+            "expected_output": "Root shell in Docker container"
+          },
+          {
+            "step": 7,
+            "command": "mount /dev/sda1 /mnt && chroot /mnt",
+            "purpose": "Mount host filesystem and escape container",
+            "expected_output": "Root access on host system"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Data",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2025-07-01",
+      "author": "xct",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "directory_traversal",
+        "file_read",
+        "docker_escape"
+      ],
+      "key_vulnerabilities": [
+        "grafana_lfi",
+        "password_reuse",
+        "sudo_docker_exec"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "grafana_exploitation",
+        "sqlite_analysis",
+        "container_escape"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_exploitation",
+        "linux_fundamentals",
+        "docker_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "directory_traversal",
+        "container_escape",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "patch_grafana",
+        "secure_sudo_rules",
+        "container_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shocker",
+        "Cronos",
+        "Beep"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "file_read_vulnerabilities",
+        "straightforward_attack_path"
+      ],
+      "unique_aspects": [
+        "grafana_exploitation",
+        "sqlite_database_analysis",
+        "docker_exec_abuse"
+      ],
+      "difficulty_factors": [
+        "well_known_vulnerability",
+        "clear_attack_path",
+        "documented_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T23:35:59.371804",
+    "original_file": "0xdf_writeups/Htb Data.md",
+    "content_length": 64340,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

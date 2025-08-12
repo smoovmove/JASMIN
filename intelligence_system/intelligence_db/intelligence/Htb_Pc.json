@@ -1,0 +1,830 @@
+{
+  "writeup_id": "Htb_Pc",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_grpc_sql_injection_to_pyload_cve",
+    "primary_services": [
+      "ssh",
+      "grpc"
+    ],
+    "port_signature": "22+50051",
+    "service_combination": "ssh+grpc",
+    "os_family": "linux",
+    "environment_type": "standalone_server",
+    "entry_vector": "grpc_sql_injection",
+    "privilege_path": "user_to_root_via_cve",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "grpc_on_port_50051",
+      "sqlite_injection_vulnerability",
+      "pyload_root_service",
+      "minimal_attack_surface"
+    ],
+    "environmental_clues": [
+      "ubuntu_20.04_focal",
+      "grpc_plaintext_communication",
+      "custom_simpleapp_service",
+      "reflection_enabled"
+    ],
+    "similar_scenarios": [
+      "custom_api_injection",
+      "minimal_service_boxes"
+    ],
+    "unique_aspects": [
+      "grpc_enumeration_required",
+      "sqlite_backend_database",
+      "pyload_cve_2023_escalation",
+      "two_port_attack_surface"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "gRPC Service Discovery",
+        "success_reason": "gRPC reflection service enabled on non-standard port 50051",
+        "prerequisite_indicators": [
+          "port_50051_open",
+          "grpc_reflection_enabled",
+          "plaintext_grpc_communication"
+        ],
+        "recognition_patterns": [
+          "port 50051 commonly used for gRPC",
+          "TLS handshake error indicates plaintext gRPC",
+          "grpcurl -plaintext flag resolves connection",
+          "ServerReflection service available"
+        ],
+        "failure_modes": [
+          "grpc_reflection_disabled",
+          "tls_required_without_certs",
+          "port_filtered_or_closed"
+        ],
+        "environmental_factors": [
+          "development_environment_settings",
+          "insecure_grpc_configuration",
+          "reflection_enabled_for_debugging"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "SQL Injection via gRPC",
+        "success_reason": "getInfo endpoint vulnerable to SQLite injection through id parameter",
+        "prerequisite_indicators": [
+          "grpc_endpoints_enumerated",
+          "authentication_bypassed_or_obtained",
+          "database_backend_suspected"
+        ],
+        "recognition_patterns": [
+          "TypeError exceptions in responses",
+          "NoneType object not subscriptable errors",
+          "different responses for valid/invalid IDs",
+          "database-like error messages"
+        ],
+        "failure_modes": [
+          "parameterized_queries_used",
+          "input_validation_implemented",
+          "no_database_backend"
+        ],
+        "environmental_factors": [
+          "sqlite_database_backend",
+          "insufficient_input_sanitization",
+          "development_grade_security"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "pyLoad CVE-2023 Exploitation",
+        "success_reason": "pyLoad service running as root with known vulnerability",
+        "prerequisite_indicators": [
+          "pyload_service_identified",
+          "service_running_as_root",
+          "vulnerable_version_detected"
+        ],
+        "recognition_patterns": [
+          "pyLoad web interface accessible",
+          "version disclosure in responses",
+          "2023 CVE applicable to version",
+          "root process ownership"
+        ],
+        "failure_modes": [
+          "pyload_patched_version",
+          "service_not_running_as_root",
+          "network_restrictions_applied"
+        ],
+        "environmental_factors": [
+          "unpatched_third_party_software",
+          "root_service_execution",
+          "recent_cve_not_addressed"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "gRPC reflection service enabled",
+        "discovery_method": "grpcurl enumeration on port 50051",
+        "why_critical": "Allowed complete service enumeration and attack surface mapping",
+        "how_to_recognize": [
+          "grpc.reflection.v1alpha.ServerReflection service present",
+          "successful grpcurl list command",
+          "service methods enumerable"
+        ],
+        "follow_up_actions": [
+          "enumerate_all_grpc_methods",
+          "test_authentication_mechanisms",
+          "probe_for_injection_vulnerabilities"
+        ]
+      },
+      {
+        "discovery": "JWT token in response trailers",
+        "discovery_method": "grpcurl verbose login request",
+        "why_critical": "Enabled access to protected getInfo endpoint for SQL injection",
+        "how_to_recognize": [
+          "response trailers contain token field",
+          "JWT format in base64 encoding",
+          "authentication required error messages"
+        ],
+        "follow_up_actions": [
+          "decode_jwt_payload",
+          "test_token_in_protected_endpoints",
+          "attempt_token_manipulation"
+        ]
+      },
+      {
+        "discovery": "SQLite database credentials",
+        "discovery_method": "SQL injection in getInfo endpoint",
+        "why_critical": "Provided SSH access credentials for initial foothold",
+        "how_to_recognize": [
+          "database error messages in responses",
+          "successful UNION injection payloads",
+          "credential tables accessible"
+        ],
+        "follow_up_actions": [
+          "extract_all_database_contents",
+          "test_credentials_on_ssh",
+          "enumerate_user_privileges"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_ssh_access",
+        "escalation_method": "pyLoad_CVE_exploitation",
+        "why_possible": "pyLoad service running as root with unpatched vulnerability",
+        "recognition_signs": [
+          "pyload_process_running_as_root",
+          "web_interface_accessible_locally",
+          "vulnerable_version_identified",
+          "recent_cve_available"
+        ],
+        "exploitation_path": "SSH Access → Local Service Discovery → CVE Exploitation → Root Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only SSH (22) and unknown service (50051) open",
+        "decision": "Investigate unknown high port service before attempting SSH brute force",
+        "reasoning": "High port services often have more attack surface than hardened SSH",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if port 50051 investigation fails"
+          },
+          {
+            "option": "directory_bruteforce",
+            "when": "if web service detected"
+          }
+        ],
+        "success_indicators": [
+          "service_identified",
+          "protocol_determined",
+          "enumeration_possible"
+        ],
+        "next_decision": "identify_service_protocol"
+      },
+      {
+        "step": 2,
+        "situation": "Port 50051 identified as gRPC service",
+        "decision": "Use grpcurl with -plaintext flag to enumerate endpoints",
+        "reasoning": "gRPC commonly runs on port 50051, TLS handshake error indicates plaintext needed",
+        "confidence": 0.95,
+        "prerequisites": [
+          "grpcurl_installed",
+          "tls_handshake_failed"
+        ],
+        "success_indicators": [
+          "service_methods_listed",
+          "reflection_api_available"
+        ],
+        "failure_fallbacks": [
+          "grpc_ui_tool",
+          "custom_grpc_client",
+          "protocol_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found RegisterUser, LoginUser, and getInfo methods in gRPC",
+        "decision": "Register new user first, then login to obtain authentication token",
+        "reasoning": "Registration typically doesn't require existing credentials",
+        "confidence": 0.85,
+        "prerequisites": [
+          "grpc_methods_enumerated"
+        ],
+        "success_indicators": [
+          "user_registered_successfully",
+          "login_returns_token"
+        ],
+        "failure_fallbacks": [
+          "parameter_fuzzing",
+          "authentication_bypass",
+          "jwt_manipulation"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Obtained JWT token from login response trailers",
+        "decision": "Test getInfo method with different ID parameters for SQL injection",
+        "reasoning": "Database lookups by ID are common SQL injection vectors",
+        "confidence": 0.75,
+        "prerequisites": [
+          "valid_jwt_token",
+          "getinfo_method_accessible"
+        ],
+        "success_indicators": [
+          "error_messages_reveal_backend",
+          "sql_injection_confirmed"
+        ],
+        "failure_fallbacks": [
+          "jwt_token_manipulation",
+          "parameter_enumeration",
+          "timing_attacks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_grpc_enumeration_succeeds": {
+        "action": "focus_on_authentication_and_data_access",
+        "tools": [
+          "grpcurl",
+          "grpcui"
+        ],
+        "next_phase": "test_business_logic_vulnerabilities"
+      },
+      "if_registration_succeeds": {
+        "action": "capture_jwt_token_from_login",
+        "tools": [
+          "grpcurl_verbose_mode"
+        ],
+        "next_phase": "test_authenticated_endpoints"
+      },
+      "if_sql_injection_found": {
+        "action": "extract_credentials_from_database",
+        "tools": [
+          "sqlmap_equivalent",
+          "manual_injection"
+        ],
+        "next_phase": "test_extracted_credentials_on_ssh"
+      },
+      "if_credentials_obtained": {
+        "action": "attempt_ssh_login",
+        "purpose": "establish_initial_foothold",
+        "tools": [
+          "ssh",
+          "credential_validation"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_plaintext_grpc_first",
+        "reasoning": "many_grpc_services_run_without_tls_in_internal_environments",
+        "applicability": "port_50051_or_grpc_detected"
+      },
+      {
+        "rule": "capture_jwt_tokens_from_response_trailers",
+        "reasoning": "grpc_often_returns_auth_tokens_in_metadata_not_body",
+        "applicability": "grpc_authentication_endpoints"
+      },
+      {
+        "rule": "test_database_id_parameters_for_injection",
+        "reasoning": "getinfo_style_endpoints_commonly_vulnerable_to_sqli",
+        "applicability": "authenticated_data_retrieval_methods"
+      },
+      {
+        "rule": "account_resets_indicate_active_defense_prepare_automation",
+        "reasoning": "frequent_resets_require_scripted_re-authentication",
+        "applicability": "ctf_or_lab_environments_with_cleanup"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "GRPC_Service_Enumeration",
+        "mitre_id": "T1046",
+        "required_services": [
+          "grpc"
+        ],
+        "required_ports": [
+          50051
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "grpc_reflection_enabled",
+          "plaintext_grpc_connection",
+          "service_running_on_default_port"
+        ],
+        "success_indicators": [
+          "grpcurl_list_returns_services",
+          "service_methods_enumerable",
+          "reflection_api_accessible"
+        ],
+        "incompatible_with": [
+          "tls_required_without_cert",
+          "reflection_disabled",
+          "port_filtered"
+        ],
+        "confidence_boosters": [
+          "port_50051_open",
+          "binary_response_to_nc",
+          "grpc_reflection_service_present"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "GRPC_SQL_Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "grpc"
+        ],
+        "required_ports": [
+          50051
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "grpc_service_accessible",
+          "database_backend_present",
+          "user_input_parameters_exist"
+        ],
+        "success_indicators": [
+          "sql_error_messages_returned",
+          "data_extraction_successful",
+          "authentication_bypass_possible"
+        ],
+        "incompatible_with": [
+          "parameterized_queries_only",
+          "input_sanitization_present",
+          "no_database_backend"
+        ],
+        "confidence_boosters": [
+          "sqlite_backend_detected",
+          "user_registration_available",
+          "id_parameter_injectable"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "SSH_Credential_Reuse",
+        "mitre_id": "T1078",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_accessible",
+          "credentials_obtained_elsewhere",
+          "password_authentication_enabled"
+        ],
+        "success_indicators": [
+          "successful_ssh_authentication",
+          "shell_access_obtained",
+          "user_account_accessible"
+        ],
+        "incompatible_with": [
+          "key_only_authentication",
+          "account_locked",
+          "ssh_service_disabled"
+        ],
+        "confidence_boosters": [
+          "openssh_service_detected",
+          "ubuntu_target_identified",
+          "standard_ssh_port_open"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "grpc_service": {
+        "port_indicators": [
+          50051,
+          9090,
+          8080
+        ],
+        "service_indicators": [
+          "grpc",
+          "http2"
+        ],
+        "banner_indicators": [
+          "grpc",
+          "reflection"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_ssh": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "sqlite_backend": {
+        "port_indicators": [],
+        "service_indicators": [
+          "sqlite"
+        ],
+        "error_indicators": [
+          "sqlite",
+          "database",
+          "sql"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "grpc_enumeration",
+          "when": "port_50051_open",
+          "reason": "uncommon_service_often_misconfigured"
+        },
+        {
+          "attack": "grpc_sql_injection",
+          "when": "grpc_service_with_database",
+          "reason": "direct_path_to_credential_extraction"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_credential_reuse",
+          "when": "ssh_open_and_creds_found",
+          "reason": "reliable_access_method_if_creds_valid"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "gRPC Service Enumeration",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "grpcurl",
+            "command_template": "grpcurl -plaintext {target}:{port} list",
+            "actual_command": "grpcurl -plaintext 10.10.11.214:50051 list",
+            "output_pattern": "SimpleApp\ngrpc.reflection.v1alpha.ServerReflection",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "grpcui",
+            "command_template": "grpcui -plaintext {target}:{port}",
+            "actual_command": "grpcui -plaintext 10.10.11.214:50051",
+            "success_factors": [
+              "web_gui_interface",
+              "easier_interaction"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "grpc_service_running",
+          "port_50051_accessible",
+          "reflection_enabled"
+        ],
+        "success_indicators": [
+          "service_methods_enumerated",
+          "message_types_discovered",
+          "authentication_requirements_identified"
+        ],
+        "common_failures": [
+          "tls_handshake_errors",
+          "reflection_disabled",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "grpc_method_testing",
+          "authentication_bypass",
+          "sql_injection_testing"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "gRPC SQL Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "grpcurl",
+            "command_template": "grpcurl -d 'id: \"{payload}\"' -H \"token: {token}\" -plaintext -format text {target}:{port} {service}.{method}",
+            "actual_command": "grpcurl -d 'id: \"320 union select sqlite_version()\"' -H \"token: $TOKEN\" -plaintext -format text 10.10.11.214:50051 SimpleApp.getInfo",
+            "output_pattern": "message: \"{result}\"",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "grpc_service_access",
+          "valid_authentication_token",
+          "vulnerable_parameter_identified",
+          "sqlite_database_backend"
+        ],
+        "success_indicators": [
+          "sql_functions_execute_successfully",
+          "union_select_returns_data",
+          "database_version_retrieved"
+        ],
+        "common_failures": [
+          "input_validation_blocks_injection",
+          "authentication_token_expired",
+          "wrong_database_type_assumed"
+        ],
+        "follow_up_techniques": [
+          "database_schema_enumeration",
+          "credential_extraction",
+          "file_system_access"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "gRPC Authentication Token Extraction",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "grpcurl",
+            "command_template": "grpcurl -v -d 'username: \"{user}\", password: \"{pass}\"' -plaintext -format text {target}:{port} {service}.LoginUser",
+            "actual_command": "grpcurl -v -d 'username: \"0xdf\", password: \"0xdf0xdf\"' -plaintext -format text 10.10.11.214:50051 SimpleApp.LoginUser",
+            "output_pattern": "token: b'{jwt_token}'",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "user_registration_successful",
+          "valid_credentials_available",
+          "login_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "jwt_token_received_in_trailers",
+          "token_validates_for_protected_endpoints",
+          "user_id_returned_in_response"
+        ],
+        "common_failures": [
+          "account_resets_every_10_minutes",
+          "invalid_credentials",
+          "service_unavailable"
+        ],
+        "follow_up_techniques": [
+          "jwt_token_analysis",
+          "protected_endpoint_access",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "grpcurl",
+        "use_case": "grpc_service_interaction",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "grpc_penetration_testing"
+        ],
+        "alternatives": [
+          "grpcui",
+          "custom_grpc_clients"
+        ],
+        "best_practices": [
+          "use_plaintext_flag_for_non_tls",
+          "enable_verbose_mode_for_headers",
+          "save_tokens_as_environment_variables"
+        ]
+      },
+      {
+        "tool": "grpcui",
+        "use_case": "grpc_gui_interaction",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "visual_grpc_testing"
+        ],
+        "alternatives": [
+          "grpcurl",
+          "postman"
+        ],
+        "best_practices": [
+          "use_for_complex_message_structures",
+          "good_for_response_trailer_analysis",
+          "helpful_for_beginners"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "grpc_enumeration_to_sqli",
+        "steps": [
+          {
+            "step": 1,
+            "command": "grpcurl -plaintext 10.10.11.214:50051 list",
+            "purpose": "Enumerate gRPC services",
+            "expected_output": "SimpleApp service discovered"
+          },
+          {
+            "step": 2,
+            "command": "grpcurl -plaintext 10.10.11.214:50051 describe SimpleApp",
+            "purpose": "Get service method details",
+            "expected_output": "LoginUser, RegisterUser, getInfo methods"
+          },
+          {
+            "step": 3,
+            "command": "grpcurl -d 'username: \"0xdf\", password: \"0xdf0xdf\"' -plaintext -format text 10.10.11.214:50051 SimpleApp.RegisterUser",
+            "purpose": "Register new user account",
+            "expected_output": "Account created confirmation"
+          },
+          {
+            "step": 4,
+            "command": "grpcurl -v -d 'username: \"0xdf\", password: \"0xdf0xdf\"' -plaintext -format text 10.10.11.214:50051 SimpleApp.LoginUser",
+            "purpose": "Login and extract JWT token",
+            "expected_output": "JWT token in response trailers"
+          },
+          {
+            "step": 5,
+            "command": "grpcurl -d 'id: \"320 union select sqlite_version()\"' -H \"token: $TOKEN\" -plaintext -format text 10.10.11.214:50051 SimpleApp.getInfo",
+            "purpose": "Test SQL injection vulnerability",
+            "expected_output": "SQLite version number returned"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      },
+      {
+        "sequence_name": "automated_grpc_auth_setup",
+        "steps": [
+          {
+            "step": 1,
+            "command": "grpcurl -d 'username: \"0xdf\", password: \"0xdf0xdf\"' -plaintext -format text 10.10.11.214:50051 SimpleApp.RegisterUser",
+            "purpose": "Register user",
+            "expected_output": "Account created"
+          },
+          {
+            "step": 2,
+            "command": "export TOKEN=$(grpcurl -v -plaintext -format text -d 'username: \"0xdf\", password: \"0xdf0xdf\"' 10.10.11.214:50051 SimpleApp.LoginUser | grep token | cut -d\"'\" -f2)",
+            "purpose": "Extract and store JWT token",
+            "expected_output": "Token stored in environment variable"
+          },
+          {
+            "step": 3,
+            "command": "grpcurl -d 'id: \"1\"' -H \"token: $TOKEN\" -plaintext -format text 10.10.11.214:50051 SimpleApp.getInfo",
+            "purpose": "Test authenticated access",
+            "expected_output": "Successful API response"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "PC",
+      "difficulty": "Easy",
+      "os": "Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2023-05-20",
+      "author": "sau123",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "grpc_enumeration",
+        "sql_injection",
+        "cve_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "sqlite_injection",
+        "pyload_cve_2023",
+        "service_misconfiguration"
+      ],
+      "environment_type": "linux_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "grpc_protocol",
+        "sql_injection",
+        "recent_cve_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_networking",
+        "sql_injection_basics",
+        "linux_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "grpc_services",
+        "database_attacks",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "injection",
+        "privilege_escalation",
+        "remote_code_execution"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "service_hardening",
+        "patch_management",
+        "least_privilege"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shoppy",
+        "Validation",
+        "Previse"
+      ],
+      "similarity_reasons": [
+        "sql_injection",
+        "service_enumeration",
+        "cve_exploitation"
+      ],
+      "unique_aspects": [
+        "grpc_protocol",
+        "pyload_service",
+        "sqlite_backend"
+      ],
+      "difficulty_factors": [
+        "uncommon_protocol",
+        "straightforward_exploitation",
+        "recent_cve"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:38:05.384980",
+    "original_file": "0xdf_writeups/Htb Pc.md",
+    "content_length": 24651,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

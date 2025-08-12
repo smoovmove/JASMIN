@@ -1,0 +1,929 @@
+{
+  "writeup_id": "Htb_Bolt",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_multi_service_ssti",
+    "primary_services": [
+      "http",
+      "https",
+      "ssh"
+    ],
+    "port_signature": "22+80+443",
+    "service_combination": "ssh+http+https",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "ssti",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "docker_image_analysis",
+      "sqlite_database_extraction",
+      "server_side_template_injection",
+      "chrome_profile_exploitation",
+      "pgp_key_extraction",
+      "passbolt_password_manager"
+    ],
+    "environmental_clues": [
+      "multiple_vhosts",
+      "nginx_web_server",
+      "docker_containers",
+      "password_manager_integration",
+      "ssl_certificates"
+    ],
+    "similar_scenarios": [
+      "forge_htb_medium",
+      "writer_htb_medium"
+    ],
+    "unique_aspects": [
+      "docker_layer_secrets",
+      "passbolt_exploitation",
+      "chrome_profile_pgp_keys",
+      "multi_stage_web_exploitation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Docker_Image_Analysis",
+        "success_reason": "Docker image contained secrets in older layers including SQLite database and source code",
+        "prerequisite_indicators": [
+          "docker_image_available_for_download",
+          "multi_layer_docker_image",
+          "development_artifacts_in_image"
+        ],
+        "recognition_patterns": [
+          "downloadable .tar docker images",
+          "layered filesystem with history",
+          "database files in image layers",
+          "source code exposure"
+        ],
+        "failure_modes": [
+          "single_layer_images",
+          "properly_cleaned_build_process",
+          "no_sensitive_data_in_layers"
+        ],
+        "environmental_factors": [
+          "development_docker_images",
+          "improper_build_hygiene",
+          "secrets_baked_into_layers"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Server_Side_Template_Injection",
+        "success_reason": "Demo website vulnerable to SSTI through user input fields",
+        "prerequisite_indicators": [
+          "template_engine_in_use",
+          "user_input_reflected",
+          "insufficient_input_sanitization"
+        ],
+        "recognition_patterns": [
+          "template syntax in responses",
+          "expression evaluation in output",
+          "framework-specific error messages",
+          "mathematical expressions executed"
+        ],
+        "failure_modes": [
+          "proper_input_sanitization",
+          "template_sandboxing",
+          "no_user_input_reflection"
+        ],
+        "environmental_factors": [
+          "development_demo_sites",
+          "insufficient_security_controls",
+          "direct_template_rendering"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Chrome_Profile_Exploitation",
+        "success_reason": "User's Chrome profile contained PGP keys for Passbolt password manager",
+        "prerequisite_indicators": [
+          "chrome_profile_accessible",
+          "passbolt_extension_installed",
+          "pgp_keys_stored_locally"
+        ],
+        "recognition_patterns": [
+          "chrome profile directories",
+          "passbolt browser extension",
+          "local storage databases",
+          "pgp key files"
+        ],
+        "failure_modes": [
+          "encrypted_chrome_profiles",
+          "no_password_manager_usage",
+          "remote_key_storage"
+        ],
+        "environmental_factors": [
+          "desktop_user_environment",
+          "password_manager_integration",
+          "local_key_storage"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "20-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SQLite database in Docker image layers",
+        "discovery_method": "Docker image layer analysis",
+        "why_critical": "Contained user credentials and application secrets",
+        "how_to_recognize": [
+          "database files in tar layers",
+          "sqlite file extensions",
+          "structured data in image"
+        ],
+        "follow_up_actions": [
+          "extract_database_file",
+          "analyze_table_structure",
+          "extract_credentials"
+        ]
+      },
+      {
+        "discovery": "Demo website source code exposure",
+        "discovery_method": "Docker image filesystem analysis",
+        "why_critical": "Revealed application logic and potential vulnerabilities",
+        "how_to_recognize": [
+          "source code files in image",
+          "application directory structure",
+          "configuration files"
+        ],
+        "follow_up_actions": [
+          "code_review_for_vulnerabilities",
+          "identify_template_engines",
+          "find_injection_points"
+        ]
+      },
+      {
+        "discovery": "Passbolt PGP keys in Chrome profile",
+        "discovery_method": "Chrome profile directory enumeration",
+        "why_critical": "Enabled password manager database decryption",
+        "how_to_recognize": [
+          "chrome extension directories",
+          "pgp key file patterns",
+          "passbolt-specific storage"
+        ],
+        "follow_up_actions": [
+          "extract_pgp_keys",
+          "access_passbolt_database",
+          "decrypt_stored_passwords"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "SSTI_to_RCE",
+        "why_possible": "Template injection allowed code execution on server",
+        "recognition_signs": [
+          "template_engine_responses",
+          "user_input_in_templates",
+          "expression_evaluation"
+        ],
+        "exploitation_path": "SSTI payload → Code execution → Shell access"
+      },
+      {
+        "privilege_level": "local_user",
+        "escalation_method": "Password_Manager_Compromise",
+        "why_possible": "Access to PGP keys allowed password manager decryption",
+        "recognition_signs": [
+          "passbolt_installation",
+          "chrome_profile_access",
+          "local_pgp_keys"
+        ],
+        "exploitation_path": "Chrome profile → PGP keys → Passbolt access → Root password"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,443 open on Linux host with multiple vhosts",
+        "decision": "Enumerate all virtual hosts and download available artifacts first",
+        "reasoning": "Multiple vhosts indicate complex web application setup, downloadable Docker image provides potential source code access",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_web_exploitation",
+            "when": "if no artifacts available"
+          },
+          {
+            "option": "credential_bruteforce",
+            "when": "if login forms found"
+          }
+        ],
+        "success_indicators": [
+          "docker_image_downloaded",
+          "multiple_vhosts_discovered",
+          "different_applications_identified"
+        ],
+        "next_decision": "analyze_docker_image_layers"
+      },
+      {
+        "step": 2,
+        "situation": "Docker image contains layered filesystem with potential secrets",
+        "decision": "Extract and analyze all Docker layers for credentials and source code",
+        "reasoning": "Docker layers often contain build artifacts, databases, and configuration files with secrets",
+        "confidence": 0.95,
+        "prerequisites": [
+          "docker_image_obtained"
+        ],
+        "success_indicators": [
+          "sqlite_database_found",
+          "source_code_extracted",
+          "credentials_discovered"
+        ],
+        "failure_fallbacks": [
+          "web_directory_bruteforce",
+          "login_form_attacks"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found SQLite database and source code in Docker layers",
+        "decision": "Analyze database for user credentials and source code for vulnerabilities",
+        "reasoning": "Database likely contains user accounts, source code reveals application logic and potential injection points",
+        "confidence": 0.85,
+        "prerequisites": [
+          "docker_layers_extracted"
+        ],
+        "success_indicators": [
+          "user_credentials_found",
+          "ssti_vulnerability_identified"
+        ],
+        "failure_fallbacks": [
+          "password_spraying",
+          "default_credentials"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Identified SSTI vulnerability in demo application",
+        "decision": "Exploit server-side template injection for code execution",
+        "reasoning": "SSTI provides direct path to RCE without needing additional privilege escalation",
+        "confidence": 0.9,
+        "prerequisites": [
+          "valid_credentials",
+          "ssti_endpoint_identified"
+        ],
+        "success_indicators": [
+          "command_execution_achieved",
+          "reverse_shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "file_upload_attacks",
+          "other_injection_vectors"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_docker_analysis_succeeds": {
+        "action": "use_extracted_credentials_and_exploit_ssti",
+        "tools": [
+          "sqlite3",
+          "burp_suite",
+          "ssti_payloads"
+        ],
+        "next_phase": "lateral_movement_enumeration"
+      },
+      "if_docker_analysis_fails": {
+        "action": "enumerate_web_applications_manually",
+        "alternatives": [
+          "directory_bruteforce",
+          "login_bruteforce",
+          "default_credentials"
+        ],
+        "decision_criteria": "based_on_application_types_found"
+      },
+      "if_initial_access_obtained": {
+        "action": "enumerate_for_password_reuse_and_browser_data",
+        "purpose": "find_additional_credentials_and_pgp_keys",
+        "tools": [
+          "chrome_profile_analysis",
+          "passbolt_exploitation"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_analyze_downloadable_artifacts_first",
+        "reasoning": "artifacts_often_contain_more_information_than_web_enumeration",
+        "applicability": "when_docker_images_or_source_available"
+      },
+      {
+        "rule": "check_all_docker_layers_not_just_latest",
+        "reasoning": "older_layers_may_contain_secrets_removed_in_newer_versions",
+        "applicability": "docker_image_analysis"
+      },
+      {
+        "rule": "prioritize_ssti_over_other_injection_types",
+        "reasoning": "ssti_provides_direct_rce_without_additional_steps",
+        "applicability": "template_engines_detected"
+      },
+      {
+        "rule": "examine_browser_profiles_for_pgp_keys_and_passwords",
+        "reasoning": "modern_password_managers_store_keys_in_browser_data",
+        "applicability": "user_access_obtained_with_gui_environment"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Docker Image Layer Analysis",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "docker_image_available_for_download",
+          "web_application_present",
+          "file_download_functionality"
+        ],
+        "success_indicators": [
+          "tar_file_downloadable",
+          "multiple_image_layers_present",
+          "secrets_in_older_layers"
+        ],
+        "incompatible_with": [
+          "no_downloadable_artifacts",
+          "single_layer_images",
+          "properly_cleaned_images"
+        ],
+        "confidence_boosters": [
+          "development_environment_indicators",
+          "demo_applications_present",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Server-Side Template Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_templating",
+          "user_input_reflected",
+          "template_engine_present"
+        ],
+        "success_indicators": [
+          "template_syntax_executed",
+          "server_response_contains_evaluation",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "input_sanitization_present",
+          "template_sandboxing_enabled",
+          "static_content_only"
+        ],
+        "confidence_boosters": [
+          "flask_jinja2_indicators",
+          "django_template_patterns",
+          "error_messages_revealing_engine"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Browser Profile Credential Extraction",
+        "mitre_id": "T1555.003",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "user_shell_access",
+          "browser_profiles_present",
+          "stored_credentials_exist"
+        ],
+        "success_indicators": [
+          "chrome_profile_accessible",
+          "pgp_keys_extracted",
+          "password_manager_data_found"
+        ],
+        "incompatible_with": [
+          "encrypted_profiles",
+          "no_browser_usage",
+          "cleared_browser_data"
+        ],
+        "confidence_boosters": [
+          "chrome_directory_present",
+          "passbolt_usage_indicators",
+          "unencrypted_profile_data"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Password Manager Database Exploitation",
+        "mitre_id": "T1555.005",
+        "required_services": [
+          "mysql",
+          "postgresql"
+        ],
+        "required_ports": [
+          3306,
+          5432
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "password_manager_application",
+          "database_access_available",
+          "pgp_key_obtained"
+        ],
+        "success_indicators": [
+          "passbolt_database_accessible",
+          "user_password_reset_possible",
+          "encrypted_passwords_decryptable"
+        ],
+        "incompatible_with": [
+          "database_access_restricted",
+          "missing_encryption_keys",
+          "hardened_password_manager"
+        ],
+        "confidence_boosters": [
+          "passbolt_application_detected",
+          "database_credentials_found",
+          "admin_database_access"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "Apache",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "docker_environment": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "docker",
+          "container",
+          "image download"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "password_manager": {
+        "port_indicators": [
+          443,
+          80
+        ],
+        "service_indicators": [
+          "https",
+          "http"
+        ],
+        "banner_indicators": [
+          "passbolt",
+          "password manager"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "docker_image_analysis",
+          "when": "docker_image_download_available",
+          "reason": "often_contains_secrets_and_source_code"
+        },
+        {
+          "attack": "ssti_exploitation",
+          "when": "web_application_with_user_input",
+          "reason": "direct_code_execution_potential"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "browser_credential_extraction",
+          "when": "user_shell_access_obtained",
+          "reason": "reliable_credential_source"
+        },
+        {
+          "attack": "password_manager_exploitation",
+          "when": "passbolt_detected_and_database_access",
+          "reason": "high_value_credential_repository"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Docker Image Layer Analysis",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "dive",
+            "command_template": "dive docker-archive://{image_file}",
+            "actual_command": "dive docker-archive://image.tar",
+            "output_pattern": "Interactive layer analysis interface",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "tar",
+            "command_template": "tar tf {image_file} | grep -E '(layer\\.tar|json|VERSION)'",
+            "actual_command": "tar tf image.tar",
+            "success_factors": [
+              "docker_image_format",
+              "layered_filesystem"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "docker_image_available",
+          "tar_archive_accessible"
+        ],
+        "success_indicators": [
+          "layer_structure_visible",
+          "deleted_files_recovered",
+          "sensitive_data_extracted"
+        ],
+        "common_failures": [
+          "corrupted_image_format",
+          "no_sensitive_data_in_layers",
+          "encrypted_layer_contents"
+        ],
+        "follow_up_techniques": [
+          "sqlite_database_analysis",
+          "source_code_review",
+          "credential_extraction"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u http://{target_ip} -H \"Host: FUZZ.{domain}\" -w {wordlist} --hh {filter_size}",
+            "actual_command": "wfuzz -u http://10.10.11.114 -H \"Host: FUZZ.bolt.htb\" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt --hh 30341",
+            "output_pattern": "ID Response Lines Word Chars Payload",
+            "effectiveness_rating": 4,
+            "reliability": 0.92
+          },
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u https://{target_ip} -H \"Host: FUZZ.{domain}\" -w {wordlist} -fr {filter_regex}",
+            "actual_command": "ffuf -u https://10.10.11.114 -H \"Host: FUZZ.bolt.htb\" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt -fr passbolt",
+            "success_factors": [
+              "proper_filtering",
+              "comprehensive_wordlist"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "target_uses_virtual_hosts",
+          "base_domain_identified"
+        ],
+        "success_indicators": [
+          "additional_subdomains_discovered",
+          "different_response_codes_found",
+          "new_applications_identified"
+        ],
+        "common_failures": [
+          "incorrect_filtering_parameters",
+          "rate_limiting_blocks_requests",
+          "no_virtual_hosts_configured"
+        ],
+        "follow_up_techniques": [
+          "web_application_enumeration",
+          "technology_stack_identification",
+          "directory_brute_forcing"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SQLite Database Extraction",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "tar",
+            "command_template": "tar xvf {image_file} {layer_id}/layer.tar && tar tf {layer_id}/layer.tar",
+            "actual_command": "tar xvf image.tar a4ea7da8de7bfbf327b56b0cb794aed9a8487d31e588b75029f6b527af2976f2/layer.tar",
+            "output_pattern": "db.sqlite3 extracted successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "docker_layer_identified",
+          "sqlite_database_present"
+        ],
+        "success_indicators": [
+          "database_file_extracted",
+          "readable_database_format",
+          "contains_application_data"
+        ],
+        "common_failures": [
+          "corrupted_database_file",
+          "encrypted_database",
+          "empty_or_test_data_only"
+        ],
+        "follow_up_techniques": [
+          "sqlite_query_execution",
+          "credential_analysis",
+          "user_enumeration"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "dive",
+        "use_case": "docker_image_forensics",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "docker_image_analysis",
+          "container_security_assessment"
+        ],
+        "alternatives": [
+          "manual_tar_extraction",
+          "docker_history_command"
+        ],
+        "best_practices": [
+          "use_ctrl_f_to_filter_files",
+          "focus_on_deleted_files_in_red",
+          "examine_each_layer_chronologically",
+          "look_for_configuration_files_and_databases"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "virtual_host_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.92,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_enumeration"
+        ],
+        "alternatives": [
+          "ffuf",
+          "gobuster_vhost",
+          "manual_host_header_testing"
+        ],
+        "best_practices": [
+          "run_initial_scan_without_filters_to_identify_baseline",
+          "use_hh_parameter_to_hide_common_response_sizes",
+          "test_both_http_and_https_protocols",
+          "validate_discovered_hosts_manually"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.94,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_reconnaissance"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_recursive_scanning_for_comprehensive_coverage",
+          "adjust_thread_count_based_on_target_stability",
+          "include_common_file_extensions_for_target_technology"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "docker_image_secret_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "tar tf image.tar",
+            "purpose": "List Docker image layer structure",
+            "expected_output": "Layer directories with hash names"
+          },
+          {
+            "step": 2,
+            "command": "dive docker-archive://image.tar",
+            "purpose": "Interactive analysis of Docker layers",
+            "expected_output": "GUI showing layer changes and file modifications"
+          },
+          {
+            "step": 3,
+            "command": "tar xvf image.tar a4ea7da8de7bfbf327b56b0cb794aed9a8487d31e588b75029f6b527af2976f2/layer.tar",
+            "purpose": "Extract specific layer containing sensitive data",
+            "expected_output": "Layer tar file extracted successfully"
+          },
+          {
+            "step": 4,
+            "command": "tar tf a4ea7da8de7bfbf327b56b0cb794aed9a8487d31e588b75029f6b527af2976f2/layer.tar",
+            "purpose": "List contents of extracted layer",
+            "expected_output": "db.sqlite3 and other sensitive files"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "comprehensive_vhost_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wfuzz -u http://10.10.11.114 -H \"Host: FUZZ.bolt.htb\" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt",
+            "purpose": "Initial scan to identify baseline response",
+            "expected_output": "Multiple responses with common size pattern"
+          },
+          {
+            "step": 2,
+            "command": "wfuzz -u http://10.10.11.114 -H \"Host: FUZZ.bolt.htb\" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt --hh 30341",
+            "purpose": "Filtered scan hiding common responses",
+            "expected_output": "demo and mail subdomains discovered"
+          },
+          {
+            "step": 3,
+            "command": "ffuf -u https://10.10.11.114 -H \"Host: FUZZ.bolt.htb\" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt -fr passbolt",
+            "purpose": "HTTPS vhost discovery with regex filtering",
+            "expected_output": "Additional HTTPS-only subdomains if present"
+          }
+        ],
+        "success_rate": 0.87,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Bolt",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2021-09-25",
+      "author": "d4rkpayl0ad & TheCyberGeek",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "docker_analysis",
+        "template_injection"
+      ],
+      "key_vulnerabilities": [
+        "ssti",
+        "password_reuse",
+        "exposed_secrets_in_docker"
+      ],
+      "environment_type": "web_application_multi_service",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "docker_forensics",
+        "ssti_exploitation",
+        "browser_credential_extraction",
+        "passbolt_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "docker_basics",
+        "template_engines",
+        "password_managers"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "template_injection",
+        "docker_analysis",
+        "credential_harvesting"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_docker_images",
+        "input_validation",
+        "credential_management",
+        "browser_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Tenet",
+        "Pit",
+        "Writer"
+      ],
+      "similarity_reasons": [
+        "ssti_vulnerabilities",
+        "multi_stage_web_exploitation",
+        "credential_reuse_chains"
+      ],
+      "unique_aspects": [
+        "docker_layer_analysis",
+        "passbolt_integration",
+        "chrome_profile_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "complex_credential_chain",
+        "docker_forensics_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T00:16:45.795478",
+    "original_file": "0xdf_writeups/Htb Bolt.md",
+    "content_length": 49687,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

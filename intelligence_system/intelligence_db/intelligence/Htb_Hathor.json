@@ -1,0 +1,976 @@
+{
+  "writeup_id": "Htb_Hathor",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_mojoportal_firewall_bypass",
+    "primary_services": [
+      "http",
+      "kerberos",
+      "ldap",
+      "smb",
+      "dns"
+    ],
+    "port_signature": "53+80+88+389+445+5985",
+    "service_combination": "dns+http+kerberos+ldap+smb+winrm",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "default_credentials_web_portal",
+    "privilege_path": "web_shell_to_dll_overwrite_to_dcsync",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "mojoportal_cms",
+      "strict_firewall_rules",
+      "applocker_restrictions",
+      "dll_overwrite_technique",
+      "code_signing_certificate_abuse"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "iis_10_webserver",
+      "windcorp_htb_domain",
+      "certificate_based_authentication",
+      "ntlm_disabled_environment"
+    ],
+    "similar_scenarios": [
+      "forest_htb_insane",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "mojoportal_webshell_upload",
+      "firewall_outbound_blocking",
+      "dll_hijacking_via_smb",
+      "recycle_bin_certificate_recovery",
+      "get_badpasswords_script_modification"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Default_Credentials_Web_Login",
+        "success_reason": "mojoPortal had default admin credentials enabled",
+        "prerequisite_indicators": [
+          "web_application_accessible",
+          "login_form_present",
+          "default_installation_detected"
+        ],
+        "recognition_patterns": [
+          "mojoPortal CMS identified",
+          "standard login form at /Secure/Login.aspx",
+          "default admin/admin or admin/password credentials"
+        ],
+        "failure_modes": [
+          "default_credentials_changed",
+          "account_lockout_enabled",
+          "multi_factor_authentication"
+        ],
+        "environmental_factors": [
+          "fresh_installation",
+          "insufficient_hardening",
+          "development_environment"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "File_Upload_Webshell",
+        "success_reason": "mojoPortal file manager allowed ASP.NET file uploads with extension manipulation",
+        "prerequisite_indicators": [
+          "authenticated_web_access",
+          "file_upload_functionality",
+          "asp_net_application"
+        ],
+        "recognition_patterns": [
+          "file manager in admin panel",
+          "upload restrictions bypassable",
+          "web root access available"
+        ],
+        "failure_modes": [
+          "file_type_restrictions",
+          "upload_directory_not_executable",
+          "antivirus_detection"
+        ],
+        "environmental_factors": [
+          "iis_web_server",
+          "permissive_upload_filters",
+          "web_root_write_access"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "DLL_Hijacking_SMB_Overwrite",
+        "success_reason": "Service DLL writable over SMB and loaded by scheduled process",
+        "prerequisite_indicators": [
+          "smb_write_access",
+          "service_dll_identified",
+          "scheduled_task_or_service_loading_dll"
+        ],
+        "recognition_patterns": [
+          "writable DLL in system path",
+          "service restarts or scheduled execution",
+          "SMB write permissions to system directories"
+        ],
+        "failure_modes": [
+          "dll_file_locked",
+          "insufficient_smb_permissions",
+          "service_not_restarting"
+        ],
+        "environmental_factors": [
+          "permissive_smb_shares",
+          "service_account_context",
+          "scheduled_task_execution"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Code_Signing_Certificate_Abuse",
+        "success_reason": "Valid code signing certificate found in recycle bin for script modification",
+        "prerequisite_indicators": [
+          "file_system_access",
+          "recycle_bin_accessible",
+          "powershell_scripts_with_scheduled_execution"
+        ],
+        "recognition_patterns": [
+          "pfx files in unusual locations",
+          "code signing certificates in recycle bin",
+          "scheduled powershell scripts"
+        ],
+        "failure_modes": [
+          "certificate_password_protected",
+          "certificate_expired",
+          "script_integrity_checking"
+        ],
+        "environmental_factors": [
+          "certificate_management_issues",
+          "scheduled_script_execution",
+          "insufficient_cleanup_procedures"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "45-90 minutes"
+      },
+      {
+        "technique": "DCSync_Attack",
+        "success_reason": "Compromised account had DCSync permissions in Active Directory",
+        "prerequisite_indicators": [
+          "domain_user_access",
+          "replication_permissions",
+          "domain_controller_accessible"
+        ],
+        "recognition_patterns": [
+          "DS-Replication-Get-Changes permissions",
+          "service account with elevated privileges",
+          "domain admin equivalent access"
+        ],
+        "failure_modes": [
+          "insufficient_replication_rights",
+          "dcsync_detection_enabled",
+          "network_segmentation"
+        ],
+        "environmental_factors": [
+          "active_directory_environment",
+          "service_account_over_privileged",
+          "insufficient_privilege_separation"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "mojoPortal default credentials",
+        "discovery_method": "Manual credential testing on login form",
+        "why_critical": "Provided initial web application access for file upload",
+        "how_to_recognize": [
+          "mojoPortal CMS identification",
+          "default installation indicators",
+          "standard admin login forms"
+        ],
+        "follow_up_actions": [
+          "explore_admin_functionality",
+          "test_file_upload_capabilities",
+          "enumerate_user_accounts"
+        ]
+      },
+      {
+        "discovery": "Code signing certificate in recycle bin",
+        "discovery_method": "File system enumeration of recycle bin",
+        "why_critical": "Enabled signing malicious PowerShell scripts for privilege escalation",
+        "how_to_recognize": [
+          "pfx files in recycle bin",
+          "certificate files in unusual locations",
+          "code signing certificate properties"
+        ],
+        "follow_up_actions": [
+          "extract_certificate",
+          "identify_scheduled_scripts",
+          "modify_and_sign_scripts"
+        ]
+      },
+      {
+        "discovery": "Writable service DLL over SMB",
+        "discovery_method": "SMB share enumeration and permission testing",
+        "why_critical": "Allowed DLL hijacking for code execution bypass",
+        "how_to_recognize": [
+          "SMB shares with write access",
+          "DLL files in service paths",
+          "scheduled service execution"
+        ],
+        "follow_up_actions": [
+          "create_malicious_dll",
+          "overwrite_target_dll",
+          "wait_for_service_execution"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "File_Upload_to_System_Access",
+        "why_possible": "mojoPortal allowed webshell upload with extension manipulation",
+        "recognition_signs": [
+          "file_manager_access",
+          "upload_filter_bypass",
+          "web_root_execution"
+        ],
+        "exploitation_path": "Default Creds → File Upload → Webshell → System Access"
+      },
+      {
+        "privilege_level": "system_user",
+        "escalation_method": "Certificate_Abuse_to_Service_Account",
+        "why_possible": "Code signing certificate enabled script modification for scheduled tasks",
+        "recognition_signs": [
+          "certificate_in_recycle_bin",
+          "scheduled_powershell_scripts",
+          "script_signing_requirements"
+        ],
+        "exploitation_path": "System Access → Certificate Discovery → Script Modification → Service Account"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "DCSync_to_Domain_Admin",
+        "why_possible": "Service account had replication permissions for DCSync attack",
+        "recognition_signs": [
+          "replication_permissions_present",
+          "domain_controller_accessible",
+          "ntlm_disabled_kerberos_required"
+        ],
+        "exploitation_path": "Service Account → DCSync → Domain Admin Hash → Kerberos Ticket"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445,5985 open on Windows host",
+        "decision": "Identify as Domain Controller and prioritize web enumeration first",
+        "reasoning": "Port combination indicates AD DC, but HTTP on port 80 provides immediate attack surface",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if web fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous access available"
+          },
+          {
+            "option": "kerberos_attacks",
+            "when": "if credentials obtained"
+          }
+        ],
+        "success_indicators": [
+          "web_application_identified",
+          "cms_version_discovered",
+          "login_page_found"
+        ],
+        "next_decision": "enumerate_web_application"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered mojoPortal CMS with login functionality",
+        "decision": "Try default credentials before vulnerability research",
+        "reasoning": "Default creds are faster to test and commonly left unchanged",
+        "confidence": 0.8,
+        "prerequisites": [
+          "cms_identified",
+          "login_form_accessible"
+        ],
+        "success_indicators": [
+          "admin_panel_access",
+          "elevated_cms_privileges"
+        ],
+        "failure_fallbacks": [
+          "vulnerability_research",
+          "user_enumeration",
+          "password_spraying"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Gained admin access to mojoPortal with default creds",
+        "decision": "Look for file upload functionality to achieve code execution",
+        "reasoning": "CMS admin panels typically allow file uploads which can lead to webshells",
+        "confidence": 0.9,
+        "prerequisites": [
+          "admin_access_confirmed",
+          "file_management_available"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "webshell_accessible"
+        ],
+        "failure_fallbacks": [
+          "exploit_known_vulnerabilities",
+          "configuration_modification"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_default_creds_succeed": {
+        "action": "enumerate_admin_functionality",
+        "tools": [
+          "browser",
+          "burp_suite"
+        ],
+        "next_phase": "file_upload_exploitation"
+      },
+      "if_default_creds_fail": {
+        "action": "research_cms_vulnerabilities",
+        "alternatives": [
+          "searchsploit",
+          "cve_databases",
+          "user_enumeration"
+        ],
+        "decision_criteria": "based_on_cms_version_and_available_exploits"
+      },
+      "if_webshell_upload_succeeds": {
+        "action": "establish_reverse_shell",
+        "purpose": "gain_system_access",
+        "tools": [
+          "nc",
+          "powershell",
+          "msfvenom"
+        ]
+      },
+      "if_ntlm_disabled_detected": {
+        "action": "focus_on_kerberos_authentication",
+        "reasoning": "ntlm_not_supported_indicates_kerberos_only_environment",
+        "next_steps": [
+          "obtain_domain_credentials",
+          "kerberos_ticket_attacks"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_default_credentials_on_cms",
+        "reasoning": "high_success_rate_and_immediate_admin_access",
+        "applicability": "content_management_systems"
+      },
+      {
+        "rule": "prioritize_web_over_smb_when_ntlm_disabled",
+        "reasoning": "smb_enumeration_limited_without_ntlm_support",
+        "applicability": "environments_with_ntlm_disabled"
+      },
+      {
+        "rule": "check_for_file_upload_after_cms_admin_access",
+        "reasoning": "most_direct_path_to_code_execution",
+        "applicability": "cms_administrative_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "DCSync",
+        "mitre_id": "T1003.006",
+        "required_services": [
+          "ldap"
+        ],
+        "required_ports": [
+          389,
+          636
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "domain_controller_accessible",
+          "privileged_user_credentials"
+        ],
+        "success_indicators": [
+          "replication_permissions_granted",
+          "domain_admin_or_equivalent_access",
+          "ldap_connection_successful"
+        ],
+        "incompatible_with": [
+          "replication_permissions_denied",
+          "network_isolation",
+          "insufficient_privileges"
+        ],
+        "confidence_boosters": [
+          "domain_admin_group_membership",
+          "enterprise_admin_privileges",
+          "backup_operators_group"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Web_Shell_Upload",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "file_upload_functionality",
+          "write_permissions_to_webroot"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "webshell_accessible_via_http",
+          "command_execution_confirmed"
+        ],
+        "incompatible_with": [
+          "strict_file_type_validation",
+          "application_firewall_blocking",
+          "no_upload_functionality"
+        ],
+        "confidence_boosters": [
+          "cms_with_known_upload_bypass",
+          "default_configurations",
+          "legacy_web_applications"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SMB_Anonymous_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "anonymous_access_allowed",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "usernames_discovered",
+          "sensitive_files_accessible"
+        ],
+        "incompatible_with": [
+          "anonymous_access_disabled",
+          "smb_signing_required",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "legacy_windows_versions",
+          "default_configurations",
+          "domain_controller_present"
+        ],
+        "typical_success_rate": 0.4,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "DLL_Hijacking",
+        "mitre_id": "T1574.001",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "writable_dll_path",
+          "application_loading_dlls",
+          "smb_write_access"
+        ],
+        "success_indicators": [
+          "dll_overwrite_successful",
+          "application_restart_triggers_load",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "dll_signing_required",
+          "application_isolation",
+          "no_write_permissions"
+        ],
+        "confidence_boosters": [
+          "known_vulnerable_applications",
+          "service_restart_capability",
+          "weak_file_permissions"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          636,
+          464,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "adws"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "domain controller"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "iis"
+        ],
+        "technology_indicators": [
+          "mojoPortal",
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          5985,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "ldap",
+          "microsoft-ds",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Microsoft Windows",
+          "domain controller",
+          "Active Directory"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "web_shell_upload",
+          "when": "web_application_detected",
+          "reason": "direct_code_execution_potential"
+        },
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_usernames_and_shares"
+        },
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected",
+          "reason": "high_success_rate_no_creds_needed"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "dll_hijacking",
+          "when": "smb_write_access_available",
+          "reason": "effective_but_requires_specific_conditions"
+        },
+        {
+          "attack": "dcsync",
+          "when": "privileged_ad_credentials_obtained",
+          "reason": "requires_prior_privilege_escalation"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Default Credential Access",
+        "mitre_id": "T1078.001",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "web_browser",
+            "command_template": "Navigate to login page and enter default credentials",
+            "actual_command": "Login: admin@admin.com / Password: admin",
+            "output_pattern": "Administrative dashboard access",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "mojoportal_cms_identified",
+          "default_credentials_unchanged",
+          "web_interface_accessible"
+        ],
+        "success_indicators": [
+          "administrative_panel_access",
+          "file_upload_capabilities",
+          "system_information_visible"
+        ],
+        "common_failures": [
+          "credentials_changed_from_default",
+          "account_lockout_policies",
+          "multi_factor_authentication_enabled"
+        ],
+        "follow_up_techniques": [
+          "file_upload_webshell",
+          "system_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Web Shell Upload via File Manager",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "mojoportal_file_manager",
+            "command_template": "Upload file with safe extension, then copy/rename to executable extension",
+            "actual_command": "Upload cmd.txt -> Copy to cmd.aspx",
+            "output_pattern": "File uploaded successfully",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "administrative_access_to_cms",
+          "file_upload_functionality_available",
+          "web_server_executes_aspx_files"
+        ],
+        "success_indicators": [
+          "webshell_accessible_via_http",
+          "command_execution_possible",
+          "server_response_to_commands"
+        ],
+        "common_failures": [
+          "file_extension_restrictions",
+          "antivirus_detection",
+          "application_whitelisting"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "system_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SMB Authentication Bypass Detection",
+        "mitre_id": "T1021.002",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec smb {target} --shares -u {username} -p '{password}'",
+            "actual_command": "crackmapexec smb 10.10.11.147 --shares -u guest -p ''",
+            "output_pattern": "STATUS_NOT_SUPPORTED",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -N -L //{target}",
+            "actual_command": "smbclient -N -L //10.10.11.147",
+            "output_pattern": "NT_STATUS_NOT_SUPPORTED",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "smb_service_accessible",
+          "target_system_responsive"
+        ],
+        "success_indicators": [
+          "ntlm_disabled_detected",
+          "kerberos_only_authentication_required"
+        ],
+        "common_failures": [
+          "network_connectivity_issues",
+          "firewall_blocking_smb"
+        ],
+        "follow_up_techniques": [
+          "kerberos_authentication_attempts",
+          "alternative_service_enumeration"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "nmap",
+        "use_case": "windows_domain_controller_identification",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "use_service_detection_scripts",
+          "check_ssl_certificates_for_hostnames",
+          "note_clock_skew_for_kerberos_attacks"
+        ]
+      },
+      {
+        "tool": "mojoportal_file_manager",
+        "use_case": "webshell_deployment",
+        "effectiveness_rating": 4,
+        "reliability": 0.8,
+        "learning_curve": "low",
+        "essential_for": [
+          "cms_exploitation"
+        ],
+        "alternatives": [
+          "direct_file_upload",
+          "ftp_upload"
+        ],
+        "best_practices": [
+          "upload_with_safe_extension_first",
+          "use_copy_function_to_change_extension",
+          "verify_file_location_before_execution"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "mojoportal_default_creds_to_webshell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Navigate to /Secure/Login.aspx",
+            "purpose": "Access login interface",
+            "expected_output": "Login form displayed"
+          },
+          {
+            "step": 2,
+            "command": "Login with admin@admin.com / admin",
+            "purpose": "Authenticate with default credentials",
+            "expected_output": "Administrative dashboard access"
+          },
+          {
+            "step": 3,
+            "command": "Navigate to File Manager in admin panel",
+            "purpose": "Access file upload functionality",
+            "expected_output": "File management interface"
+          },
+          {
+            "step": 4,
+            "command": "Upload webshell as .txt file",
+            "purpose": "Bypass extension restrictions",
+            "expected_output": "File uploaded successfully"
+          },
+          {
+            "step": 5,
+            "command": "Copy uploaded file to .aspx extension",
+            "purpose": "Enable server-side execution",
+            "expected_output": "Executable webshell deployed"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Hathor",
+      "difficulty": "Insane",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2022-04-16",
+      "author": "4ndr34z",
+      "estimated_time": "4-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "dll_hijacking",
+        "code_signing",
+        "dcsync"
+      ],
+      "key_vulnerabilities": [
+        "default_credentials",
+        "file_upload",
+        "dll_overwrite",
+        "certificate_abuse"
+      ],
+      "environment_type": "hardened_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_evasion",
+        "applocker_bypass",
+        "firewall_analysis",
+        "certificate_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_windows_internals",
+        "code_signing",
+        "dll_mechanics",
+        "kerberos_advanced"
+      ]
+    },
+    "categorization": {
+      "primary_category": "advanced_windows_exploitation",
+      "subcategories": [
+        "evasion_techniques",
+        "certificate_abuse",
+        "active_directory"
+      ],
+      "attack_types": [
+        "initial_access",
+        "defense_evasion",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "applocker_configuration",
+        "firewall_hardening",
+        "certificate_management",
+        "code_signing_policies"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blackfield",
+        "APT",
+        "Reel2"
+      ],
+      "similarity_reasons": [
+        "advanced_ad_attacks",
+        "certificate_abuse",
+        "evasion_techniques"
+      ],
+      "unique_aspects": [
+        "dll_overwrite_execution",
+        "applocker_deep_analysis",
+        "firewall_evasion"
+      ],
+      "difficulty_factors": [
+        "multiple_security_layers",
+        "advanced_evasion_required",
+        "complex_attack_chain"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:07:09.132552",
+    "original_file": "0xdf_writeups/Htb Hathor.md",
+    "content_length": 68740,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

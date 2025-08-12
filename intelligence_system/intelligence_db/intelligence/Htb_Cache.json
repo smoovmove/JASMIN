@@ -1,0 +1,1017 @@
+{
+  "writeup_id": "Htb_Cache",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_openemr_docker_escalation",
+    "primary_services": [
+      "http",
+      "ssh",
+      "memcached"
+    ],
+    "port_signature": "22+80+2201",
+    "service_combination": "ssh+http+ssh_alt_port",
+    "os_family": "linux",
+    "environment_type": "containerized_web_application",
+    "entry_vector": "openemr_vulnerability_chain",
+    "privilege_path": "web_to_user_to_docker_root",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "dual_ssh_ports",
+      "hardcoded_credentials_in_javascript",
+      "openemr_medical_software",
+      "docker_group_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "ssh_on_port_2201",
+      "ubuntu_18.04_fingerprint",
+      "apache_web_server",
+      "memcached_credential_storage"
+    ],
+    "similar_scenarios": [
+      "openemr_boxes",
+      "docker_escape_scenarios"
+    ],
+    "unique_aspects": [
+      "javascript_credential_disclosure",
+      "vhost_enumeration_required",
+      "memcached_lateral_movement",
+      "triple_vulnerability_chain"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "hardcoded_credentials_discovery",
+        "success_reason": "JavaScript contained plaintext credentials ash/H@v3_fun in functionality.js",
+        "prerequisite_indicators": [
+          "client_side_authentication",
+          "javascript_form_validation",
+          "no_server_side_requests"
+        ],
+        "recognition_patterns": [
+          "login form with no POST request in proxy",
+          "javascript includes in HTML source",
+          "alert boxes for authentication errors"
+        ],
+        "failure_modes": [
+          "server_side_authentication",
+          "obfuscated_javascript",
+          "encrypted_credentials"
+        ],
+        "environmental_factors": [
+          "poor_development_practices",
+          "client_side_security_reliance",
+          "legacy_web_application"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "virtual_host_enumeration",
+        "success_reason": "HMS subdomain discovered through contextual clues and manual testing",
+        "prerequisite_indicators": [
+          "references_to_other_projects",
+          "author_mentions_similar_systems",
+          "multiple_services_on_host"
+        ],
+        "recognition_patterns": [
+          "author page mentions HMS project",
+          "references to 'project like Cache'",
+          "different response when testing subdomains"
+        ],
+        "failure_modes": [
+          "no_additional_vhosts_configured",
+          "strict_host_header_validation",
+          "services_on_different_ports"
+        ],
+        "environmental_factors": [
+          "shared_hosting_environment",
+          "multiple_applications_per_server",
+          "development_environment_exposure"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "openemr_vulnerability_chain",
+        "success_reason": "Vulnerable OpenEMR version with authentication bypass, SQLi, and RCE",
+        "prerequisite_indicators": [
+          "openemr_installation_detected",
+          "version_disclosure_available",
+          "public_exploits_exist"
+        ],
+        "recognition_patterns": [
+          "OpenEMR login page",
+          "version information in source/headers",
+          "known vulnerable version ranges"
+        ],
+        "failure_modes": [
+          "patched_openemr_version",
+          "custom_authentication_modifications",
+          "web_application_firewall"
+        ],
+        "environmental_factors": [
+          "healthcare_application_deployment",
+          "legacy_system_maintenance",
+          "insufficient_patch_management"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "hardcoded credentials ash/H@v3_fun",
+        "discovery_method": "JavaScript source code analysis",
+        "why_critical": "Credentials reused across multiple systems for privilege escalation",
+        "how_to_recognize": [
+          "client-side authentication logic",
+          "no network requests during login",
+          "JavaScript form validation"
+        ],
+        "follow_up_actions": [
+          "test_credentials_on_ssh",
+          "test_on_discovered_services",
+          "check_for_credential_reuse"
+        ]
+      },
+      {
+        "discovery": "HMS virtual host",
+        "discovery_method": "Manual enumeration based on contextual clues",
+        "why_critical": "Exposed vulnerable OpenEMR installation",
+        "how_to_recognize": [
+          "author mentions HMS project",
+          "references to similar systems",
+          "different HTTP responses"
+        ],
+        "follow_up_actions": [
+          "enumerate_openemr_version",
+          "search_for_known_vulnerabilities",
+          "test_default_credentials"
+        ]
+      },
+      {
+        "discovery": "memcached service access",
+        "discovery_method": "Service enumeration after initial compromise",
+        "why_critical": "Contains credentials for lateral movement",
+        "how_to_recognize": [
+          "memcached running on standard port",
+          "no authentication required",
+          "cached user credentials"
+        ],
+        "follow_up_actions": [
+          "dump_all_cached_data",
+          "extract_credentials",
+          "test_discovered_accounts"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "credential_reuse_to_user",
+        "why_possible": "Hardcoded credentials from website reused for system account",
+        "recognition_signs": [
+          "same_username_across_systems",
+          "password_reuse_patterns",
+          "developer_account_overlap"
+        ],
+        "exploitation_path": "JavaScript creds → SSH access → user shell"
+      },
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "memcached_credential_extraction",
+        "why_possible": "Memcached contains plaintext credentials for other users",
+        "recognition_signs": [
+          "memcached_service_running",
+          "no_authentication_required",
+          "cached_user_sessions"
+        ],
+        "exploitation_path": "memcached dump → extract creds → su to luffy"
+      },
+      {
+        "privilege_level": "docker_group_member",
+        "escalation_method": "docker_container_breakout",
+        "why_possible": "User in docker group can mount host filesystem",
+        "recognition_signs": [
+          "user_in_docker_group",
+          "docker_socket_accessible",
+          "container_runtime_available"
+        ],
+        "exploitation_path": "docker run → mount host root → chroot escape"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,2201 open on Linux host with Apache",
+        "decision": "Enumerate web application and look for additional vhosts",
+        "reasoning": "Multiple SSH ports suggest containers, web app needs enumeration",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_ssh_bruteforce",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "service_specific_exploits",
+            "when": "if known vulnerable services found"
+          }
+        ],
+        "success_indicators": [
+          "additional_vhosts_discovered",
+          "hardcoded_credentials_found",
+          "vulnerable_applications_identified"
+        ],
+        "next_decision": "analyze_discovered_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Found hardcoded credentials in JavaScript and OpenEMR application on vhost",
+        "decision": "Prioritize OpenEMR exploitation over hardcoded creds",
+        "reasoning": "OpenEMR has known vulnerabilities and likely provides direct system access",
+        "confidence": 0.85,
+        "prerequisites": [
+          "openemr_version_identified",
+          "searchsploit_results_reviewed"
+        ],
+        "success_indicators": [
+          "authentication_bypass_successful",
+          "sql_injection_confirmed"
+        ],
+        "failure_fallbacks": [
+          "try_hardcoded_creds_on_ssh",
+          "directory_bruteforce",
+          "other_service_enum"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "OpenEMR vulnerabilities confirmed",
+        "decision": "Chain authentication bypass -> SQL injection -> RCE",
+        "reasoning": "Multiple vulnerabilities can be chained for maximum impact",
+        "confidence": 0.95,
+        "prerequisites": [
+          "openemr_accessible",
+          "exploit_scripts_available"
+        ],
+        "success_indicators": [
+          "database_access_gained",
+          "password_hashes_dumped",
+          "shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "single_exploit_approach",
+          "manual_exploitation"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_vhost_enumeration_succeeds": {
+        "action": "analyze_each_discovered_application",
+        "tools": [
+          "gobuster",
+          "wfuzz",
+          "searchsploit"
+        ],
+        "next_phase": "vulnerability_assessment"
+      },
+      "if_openemr_found": {
+        "action": "exploit_known_vulnerabilities",
+        "alternatives": [
+          "auth_bypass",
+          "sql_injection",
+          "rce_exploits"
+        ],
+        "decision_criteria": "chain_multiple_exploits_for_maximum_impact"
+      },
+      "if_shell_obtained": {
+        "action": "credential_reuse_and_enumeration",
+        "purpose": "lateral_movement_and_privilege_escalation",
+        "tools": [
+          "hardcoded_creds",
+          "memcached_enum",
+          "docker_group_check"
+        ]
+      },
+      "if_docker_group_membership": {
+        "action": "container_escape_to_root",
+        "method": "docker_socket_exploitation",
+        "tools": [
+          "docker_commands",
+          "container_mounting"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_for_vhosts_when_domain_references_found",
+        "reasoning": "high_success_rate_for_finding_additional_attack_surface",
+        "applicability": "web_applications_with_domain_references"
+      },
+      {
+        "rule": "prioritize_known_vulnerable_applications_over_custom_code",
+        "reasoning": "reliable_exploits_available_and_faster_compromise",
+        "applicability": "when_multiple_applications_discovered"
+      },
+      {
+        "rule": "chain_multiple_vulnerabilities_in_same_application",
+        "reasoning": "maximizes_impact_and_provides_multiple_attack_vectors",
+        "applicability": "applications_with_multiple_known_vulnerabilities"
+      },
+      {
+        "rule": "reuse_discovered_credentials_across_all_services",
+        "reasoning": "common_password_reuse_leads_to_lateral_movement",
+        "applicability": "after_any_credential_discovery"
+      },
+      {
+        "rule": "check_docker_group_membership_for_privilege_escalation",
+        "reasoning": "docker_group_provides_direct_root_access_path",
+        "applicability": "linux_systems_with_docker_installed"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "directory_listing_disabled",
+          "common_web_technologies"
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "admin_panels_discovered",
+          "backup_files_located"
+        ],
+        "incompatible_with": [
+          "aggressive_waf_protection",
+          "rate_limiting_strict",
+          "custom_404_handling"
+        ],
+        "confidence_boosters": [
+          "apache_server_detected",
+          "default_web_structure",
+          "html_file_extensions"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Client-Side Source Code Analysis",
+        "mitre_id": "T1213",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "javascript_enabled_application",
+          "client_side_validation",
+          "embedded_credentials_possible"
+        ],
+        "success_indicators": [
+          "hardcoded_credentials_found",
+          "api_endpoints_discovered",
+          "validation_logic_exposed"
+        ],
+        "incompatible_with": [
+          "code_obfuscation",
+          "server_side_only_validation",
+          "minified_javascript"
+        ],
+        "confidence_boosters": [
+          "login_forms_present",
+          "custom_javascript_files",
+          "client_side_error_messages"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "multiple_applications_hosted",
+          "domain_name_available"
+        ],
+        "success_indicators": [
+          "additional_vhosts_found",
+          "different_applications_discovered",
+          "expanded_attack_surface"
+        ],
+        "incompatible_with": [
+          "single_application_server",
+          "strict_host_header_validation",
+          "cdn_protection"
+        ],
+        "confidence_boosters": [
+          "apache_virtual_hosts",
+          "subdomain_references_found",
+          "multiple_ssl_certificates"
+        ],
+        "typical_success_rate": 0.55,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "OpenEMR Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "openemr_application_detected",
+          "vulnerable_version_present",
+          "web_application_accessible"
+        ],
+        "success_indicators": [
+          "authentication_bypass_successful",
+          "sql_injection_confirmed",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "updated_openemr_version",
+          "custom_security_patches",
+          "application_firewall_protection"
+        ],
+        "confidence_boosters": [
+          "default_openemr_paths",
+          "version_disclosure",
+          "medical_application_context"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Docker Group Privilege Escalation",
+        "mitre_id": "T1068",
+        "required_services": [
+          "docker"
+        ],
+        "required_ports": [
+          2376,
+          2377
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "docker_service_running",
+          "user_in_docker_group",
+          "docker_socket_accessible"
+        ],
+        "success_indicators": [
+          "container_creation_successful",
+          "host_filesystem_mounted",
+          "root_access_achieved"
+        ],
+        "incompatible_with": [
+          "docker_rootless_mode",
+          "strict_apparmor_policies",
+          "user_namespace_isolation"
+        ],
+        "confidence_boosters": [
+          "docker_group_membership",
+          "container_evidence_present",
+          "multiple_ssh_ports"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "docker_environment": {
+        "port_indicators": [
+          22,
+          2201,
+          2376,
+          2377
+        ],
+        "service_indicators": [
+          "ssh",
+          "docker"
+        ],
+        "banner_indicators": [
+          "multiple_ssh_ports",
+          "container_evidence"
+        ],
+        "confidence_threshold": 0.75
+      },
+      "openemr_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "openemr",
+          "medical",
+          "emr"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "memcached_service": {
+        "port_indicators": [
+          11211
+        ],
+        "service_indicators": [
+          "memcached"
+        ],
+        "banner_indicators": [
+          "memcached"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "client_side_source_analysis",
+          "when": "login_forms_detected",
+          "reason": "often_reveals_hardcoded_credentials"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_discovery_method"
+        },
+        {
+          "attack": "docker_privilege_escalation",
+          "when": "docker_group_membership_confirmed",
+          "reason": "guaranteed_root_access"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "vhost_discovery",
+          "when": "web_server_detected",
+          "reason": "may_reveal_additional_applications"
+        },
+        {
+          "attack": "openemr_exploitation",
+          "when": "openemr_application_found",
+          "reason": "multiple_vulnerability_chain_available"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Virtual Host Discovery",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -u http://{target_ip} -w {wordlist} -H \"Host: FUZZ.{domain}\" --hh {hide_chars} --hc {hide_codes}",
+            "actual_command": "wfuzz -c -u http://10.10.10.188 -w /usr/share/seclists/Discovery/DNS/dns-Jhaddix.txt -H \"Host: FUZZ.cache.htb\" --hh 8193 --hc 400",
+            "output_pattern": "Response codes and character counts for valid vhosts",
+            "effectiveness_rating": 3,
+            "reliability": 0.75
+          },
+          {
+            "name": "manual_host_header_manipulation",
+            "command_template": "curl -H \"Host: {guessed_vhost}\" http://{target_ip}",
+            "actual_command": "Host: hms.htb in HTTP request",
+            "success_factors": [
+              "contextual_clues_from_enumeration",
+              "logical_naming_patterns"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "domain_name_identified",
+          "contextual_clues_available"
+        ],
+        "success_indicators": [
+          "different_response_size",
+          "different_content_returned",
+          "new_application_discovered"
+        ],
+        "common_failures": [
+          "no_virtual_hosts_configured",
+          "insufficient_wordlist_coverage",
+          "missing_contextual_clues"
+        ],
+        "follow_up_techniques": [
+          "application_vulnerability_assessment",
+          "credential_testing",
+          "directory_enumeration"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Client-Side Credential Extraction",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "browser_dev_tools",
+            "command_template": "View source or inspect JavaScript files",
+            "actual_command": "Analysis of jquery/functionality.js",
+            "output_pattern": "Hardcoded credentials in JavaScript variables",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "javascript_files_readable",
+          "poor_security_practices"
+        ],
+        "success_indicators": [
+          "credentials_found_in_source",
+          "authentication_bypass_possible",
+          "credentials_reused_elsewhere"
+        ],
+        "common_failures": [
+          "obfuscated_javascript",
+          "server_side_validation_only",
+          "credentials_not_reused"
+        ],
+        "follow_up_techniques": [
+          "credential_spraying",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "OpenEMR Information Disclosure",
+        "mitre_id": "T1590.002",
+        "category": "reconnaissance",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/admin.php",
+            "actual_command": "curl http://hms.htb/admin.php",
+            "output_pattern": "Site ID, database name, version information",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/sql_patch.php",
+            "actual_command": "curl http://hms.htb/sql_patch.php",
+            "output_pattern": "Version information and patch level",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "openemr_application_accessible",
+          "unauthenticated_access_allowed",
+          "vulnerable_version_deployed"
+        ],
+        "success_indicators": [
+          "version_information_disclosed",
+          "database_details_revealed",
+          "site_configuration_exposed"
+        ],
+        "common_failures": [
+          "patched_version_deployed",
+          "access_controls_implemented",
+          "custom_configuration_blocking_access"
+        ],
+        "follow_up_techniques": [
+          "vulnerability_research",
+          "exploit_selection",
+          "sql_injection_testing"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u http://{target} -w {wordlist} -x {extensions} -t {threads} -o {output_file}",
+            "actual_command": "gobuster dir -u http://10.10.10.188 -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -x html -t 40 -o scans/gobuster-root-small-html",
+            "output_pattern": "HTTP status codes and discovered paths",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "appropriate_wordlist_selected",
+          "correct_file_extensions_specified"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "sensitive_files_found",
+          "admin_interfaces_located"
+        ],
+        "common_failures": [
+          "insufficient_wordlist",
+          "rate_limiting_blocking_requests",
+          "wrong_file_extensions"
+        ],
+        "follow_up_techniques": [
+          "manual_content_analysis",
+          "vulnerability_testing",
+          "credential_extraction"
+        ],
+        "time_investment": "5-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_appropriate_file_extensions",
+          "adjust_thread_count_for_target",
+          "filter_common_response_codes"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "virtual_host_discovery",
+        "effectiveness_rating": 3,
+        "reliability": 0.75,
+        "learning_curve": "medium",
+        "essential_for": [
+          "vhost_enumeration",
+          "parameter_fuzzing"
+        ],
+        "alternatives": [
+          "ffuf",
+          "gobuster_vhost_mode"
+        ],
+        "best_practices": [
+          "filter_by_response_size_and_codes",
+          "use_comprehensive_wordlists",
+          "validate_discovered_vhosts_manually"
+        ]
+      },
+      {
+        "tool": "searchsploit",
+        "use_case": "vulnerability_research",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "exploit_identification"
+        ],
+        "alternatives": [
+          "manual_cve_research",
+          "metasploit_search"
+        ],
+        "best_practices": [
+          "verify_version_compatibility",
+          "read_exploit_code_before_use",
+          "cross_reference_with_cve_databases"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_application_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp 10.10.10.188",
+            "purpose": "Discover open ports",
+            "expected_output": "Ports 22, 80, 2201 open"
+          },
+          {
+            "step": 2,
+            "command": "gobuster dir -u http://10.10.10.188 -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -x html -t 40",
+            "purpose": "Enumerate web directories",
+            "expected_output": "Discovery of login.html and other pages"
+          },
+          {
+            "step": 3,
+            "command": "curl -s http://10.10.10.188/jquery/functionality.js",
+            "purpose": "Extract hardcoded credentials",
+            "expected_output": "Username: ash, Password: H@v3_fun"
+          },
+          {
+            "step": 4,
+            "command": "curl -H \"Host: hms.htb\" http://10.10.10.188",
+            "purpose": "Discover virtual host",
+            "expected_output": "OpenEMR application interface"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-45 minutes"
+      },
+      {
+        "sequence_name": "openemr_information_gathering",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://hms.htb/admin.php",
+            "purpose": "Extract site configuration",
+            "expected_output": "Site ID, database name, version"
+          },
+          {
+            "step": 2,
+            "command": "curl http://hms.htb/sql_patch.php",
+            "purpose": "Confirm version information",
+            "expected_output": "OpenEMR version details"
+          },
+          {
+            "step": 3,
+            "command": "searchsploit openemr",
+            "purpose": "Identify available exploits",
+            "expected_output": "List of version-specific vulnerabilities"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Cache",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2020-05-09",
+      "author": "ASHacker",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "sql_injection",
+        "docker_escape"
+      ],
+      "key_vulnerabilities": [
+        "hardcoded_credentials",
+        "openemr_rce",
+        "docker_group_privilege"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "web_enumeration",
+        "medical_software_exploitation",
+        "container_escape"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "sql_injection",
+        "docker_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "medical_software",
+        "container_security",
+        "credential_reuse"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_credential_storage",
+        "input_validation",
+        "container_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "OpenAdmin",
+        "Doctor",
+        "Passage"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "multi_stage_enumeration",
+        "credential_reuse"
+      ],
+      "unique_aspects": [
+        "openemr_exploitation",
+        "memcached_credential_storage",
+        "docker_group_escalation"
+      ],
+      "difficulty_factors": [
+        "multiple_enumeration_phases",
+        "chained_vulnerabilities",
+        "container_knowledge_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T01:19:30.884630",
+    "original_file": "0xdf_writeups/Htb Cache.md",
+    "content_length": 32590,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,770 @@
+{
+  "writeup_id": "Htb_Valentine",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_heartbleed_ssh_privesc",
+    "primary_services": [
+      "ssh",
+      "http",
+      "https"
+    ],
+    "port_signature": "22+80+443",
+    "service_combination": "ssh+apache_http+apache_https",
+    "os_family": "linux_ubuntu",
+    "environment_type": "standalone_server",
+    "entry_vector": "heartbleed_memory_disclosure",
+    "privilege_path": "ssh_key_extraction_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "heartbleed_vulnerable_openssl",
+      "ssh_private_key_in_memory",
+      "old_ubuntu_12.04_system",
+      "heartbleed_logo_hint"
+    ],
+    "environmental_clues": [
+      "apache_2.2.22_ubuntu",
+      "openssh_5.9p1_debian",
+      "ssl_certificate_present",
+      "mdns_service_discovery"
+    ],
+    "similar_scenarios": [
+      "beep_htb_easy",
+      "legacy_htb_easy"
+    ],
+    "unique_aspects": [
+      "memory_disclosure_for_credentials",
+      "tmux_root_session_privesc",
+      "visual_heartbleed_hint"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Heartbleed_Exploitation",
+        "success_reason": "Server running vulnerable OpenSSL version with heartbeat extension enabled",
+        "prerequisite_indicators": [
+          "ssl_service_available",
+          "openssl_version_1.0.1_to_1.0.1f",
+          "heartbeat_extension_enabled"
+        ],
+        "recognition_patterns": [
+          "heartbleed logo on website",
+          "SSL/TLS service on port 443",
+          "old Ubuntu version (12.04)",
+          "Apache 2.2.22 version indicates old system"
+        ],
+        "failure_modes": [
+          "openssl_patched_version",
+          "heartbeat_extension_disabled",
+          "ssl_service_unavailable"
+        ],
+        "environmental_factors": [
+          "legacy_ubuntu_12.04_system",
+          "unpatched_openssl_installation",
+          "default_ssl_configuration"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Memory_Disclosure_Analysis",
+        "success_reason": "Heartbleed leaked sensitive data from server memory",
+        "prerequisite_indicators": [
+          "heartbleed_vulnerability_confirmed",
+          "server_processing_sensitive_data",
+          "memory_contains_credentials"
+        ],
+        "recognition_patterns": [
+          "base64 encoded strings in memory dump",
+          "password patterns in leaked memory",
+          "SSH key material in memory"
+        ],
+        "failure_modes": [
+          "memory_contains_no_secrets",
+          "leaked_data_encrypted",
+          "insufficient_memory_disclosure"
+        ],
+        "environmental_factors": [
+          "active_ssl_connections",
+          "recent_authentication_activity",
+          "server_handling_credentials"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Heartbleed vulnerability indication",
+        "discovery_method": "Website reconnaissance showing heartbleed logo",
+        "why_critical": "Immediate indication of specific vulnerability to exploit",
+        "how_to_recognize": [
+          "heartbleed logo on homepage",
+          "old OpenSSL version in service detection",
+          "SSL service available on standard ports"
+        ],
+        "follow_up_actions": [
+          "run_heartbleed_exploit",
+          "analyze_memory_dumps",
+          "search_for_credentials_in_output"
+        ]
+      },
+      {
+        "discovery": "Legacy Ubuntu 12.04 system",
+        "discovery_method": "OpenSSH version fingerprinting and service detection",
+        "why_critical": "End-of-life system likely has multiple unpatched vulnerabilities",
+        "how_to_recognize": [
+          "OpenSSH 5.9p1 version",
+          "Apache 2.2.22 version",
+          "service version correlation to Ubuntu 12.04"
+        ],
+        "follow_up_actions": [
+          "enumerate_additional_vulnerabilities",
+          "check_kernel_version",
+          "test_privilege_escalation_exploits"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "Heartbleed_to_Credentials",
+        "why_possible": "Memory disclosure vulnerability exposes sensitive data",
+        "recognition_signs": [
+          "heartbleed_logo_on_website",
+          "vulnerable_openssl_version",
+          "ssl_service_active"
+        ],
+        "exploitation_path": "Heartbleed → Memory Dump → Credential Extraction → SSH Access"
+      },
+      {
+        "privilege_level": "user_access",
+        "escalation_method": "Root_Tmux_Session",
+        "why_possible": "Shared tmux session running as root user",
+        "recognition_signs": [
+          "tmux_processes_running",
+          "shared_session_accessible",
+          "root_owned_tmux_socket"
+        ],
+        "exploitation_path": "SSH Access → Tmux Session Discovery → Root Shell Attachment"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,443 open on Linux host with heartbleed logo on website",
+        "decision": "Test for Heartbleed vulnerability immediately",
+        "reasoning": "Visual indicator (heartbleed logo) strongly suggests vulnerability presence",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "directory_enumeration",
+            "when": "if heartbleed fails"
+          },
+          {
+            "option": "ssl_certificate_analysis",
+            "when": "for additional reconnaissance"
+          }
+        ],
+        "success_indicators": [
+          "server_returns_excess_data",
+          "memory_disclosure_confirmed",
+          "sensitive_data_in_memory_dump"
+        ],
+        "next_decision": "analyze_heartbleed_output"
+      },
+      {
+        "step": 2,
+        "situation": "Heartbleed successful but no immediate credentials found",
+        "decision": "Run multiple heartbleed attempts and analyze all memory dumps",
+        "reasoning": "Memory contents change over time, multiple attempts increase data collection",
+        "confidence": 0.85,
+        "prerequisites": [
+          "heartbleed_vulnerability_confirmed"
+        ],
+        "success_indicators": [
+          "base64_encoded_strings",
+          "file_paths_discovered",
+          "credential_fragments"
+        ],
+        "failure_fallbacks": [
+          "directory_enumeration",
+          "service_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found encode/decode functionality and base64 string in memory",
+        "decision": "Decode base64 strings and test as potential credentials",
+        "reasoning": "Base64 in memory dumps often contains sensitive data like passwords",
+        "confidence": 0.8,
+        "prerequisites": [
+          "base64_strings_found"
+        ],
+        "success_indicators": [
+          "readable_credentials_obtained"
+        ],
+        "next_decision": "test_credentials_on_services"
+      },
+      {
+        "step": 4,
+        "situation": "Found /dev directory with hype_key file during enumeration",
+        "decision": "Download SSH key and attempt to use decoded password as passphrase",
+        "reasoning": "SSH keys often protected with passphrases, heartbleed may have leaked it",
+        "confidence": 0.9,
+        "prerequisites": [
+          "ssh_key_found",
+          "potential_passphrase_from_heartbleed"
+        ],
+        "success_indicators": [
+          "ssh_key_decryption_successful",
+          "ssh_authentication_works"
+        ],
+        "next_decision": "privilege_escalation_enumeration"
+      }
+    ],
+    "branching_logic": {
+      "if_heartbleed_succeeds": {
+        "action": "collect_multiple_memory_dumps",
+        "tools": [
+          "heartbleed_exploit",
+          "grep",
+          "base64"
+        ],
+        "next_phase": "analyze_memory_contents"
+      },
+      "if_base64_found": {
+        "action": "decode_and_test_credentials",
+        "alternatives": [
+          "ssh_key_passphrase",
+          "web_authentication",
+          "service_passwords"
+        ],
+        "decision_criteria": "based_on_available_services"
+      },
+      "if_ssh_access_obtained": {
+        "action": "privilege_escalation_enumeration",
+        "purpose": "find_root_access_methods",
+        "tools": [
+          "linpeas",
+          "tmux_session_check",
+          "sudo_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_run_multiple_heartbleed_attempts",
+        "reasoning": "memory_contents_vary_over_time_increasing_data_collection",
+        "applicability": "heartbleed_vulnerable_targets"
+      },
+      {
+        "rule": "check_for_tmux_sessions_on_linux_privesc",
+        "reasoning": "shared_tmux_sessions_common_privilege_escalation_vector",
+        "applicability": "linux_systems_with_user_access"
+      },
+      {
+        "rule": "decode_all_base64_strings_from_memory_dumps",
+        "reasoning": "base64_commonly_used_for_credential_storage",
+        "applicability": "heartbleed_memory_disclosure"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Heartbleed",
+        "mitre_id": "T1190",
+        "required_services": [
+          "https",
+          "ssl",
+          "tls"
+        ],
+        "required_ports": [
+          443,
+          993,
+          995,
+          465
+        ],
+        "os_requirements": [
+          "linux",
+          "windows",
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "openssl_1.0.1_through_1.0.1f",
+          "heartbeat_extension_enabled",
+          "ssl_tls_service_running"
+        ],
+        "success_indicators": [
+          "memory_disclosure_response",
+          "server_responds_to_heartbeat",
+          "sensitive_data_in_memory_dump"
+        ],
+        "incompatible_with": [
+          "openssl_patched_version",
+          "heartbeat_extension_disabled",
+          "ssl_service_unavailable"
+        ],
+        "confidence_boosters": [
+          "ubuntu_12.04_detected",
+          "apache_2.2.22_detected",
+          "heartbleed_logo_present",
+          "old_openssl_version_banner"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "SSH_Key_Extraction",
+        "mitre_id": "T1552.004",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_running",
+          "private_keys_accessible",
+          "memory_disclosure_vulnerability"
+        ],
+        "success_indicators": [
+          "private_key_found_in_memory",
+          "ssh_connection_successful",
+          "encrypted_key_crackable"
+        ],
+        "incompatible_with": [
+          "keys_not_in_memory",
+          "strong_key_encryption",
+          "ssh_service_disabled"
+        ],
+        "confidence_boosters": [
+          "heartbleed_successful",
+          "base64_encoded_keys_visible",
+          "openssh_old_version"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "vulnerable_ssl": {
+        "port_indicators": [
+          443,
+          993,
+          995,
+          465,
+          8443
+        ],
+        "service_indicators": [
+          "https",
+          "ssl",
+          "tls",
+          "imaps",
+          "pop3s",
+          "smtps"
+        ],
+        "banner_indicators": [
+          "OpenSSL 1.0.1",
+          "Apache/2.2",
+          "heartbeat"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_web_server": {
+        "port_indicators": [
+          22,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ssh",
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "ubuntu",
+          "debian"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "legacy_system": {
+        "port_indicators": [
+          22,
+          80,
+          443,
+          5353
+        ],
+        "service_indicators": [
+          "openssh_5.9",
+          "apache_2.2",
+          "mdns"
+        ],
+        "banner_indicators": [
+          "Ubuntu 12.04",
+          "Debian",
+          "old"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "heartbleed",
+          "when": "ssl_service_detected_old_openssl",
+          "reason": "critical_vulnerability_high_success_rate"
+        },
+        {
+          "attack": "ssl_certificate_enumeration",
+          "when": "https_service_detected",
+          "reason": "reveals_hostnames_and_domains"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_key_extraction",
+          "when": "heartbleed_successful_and_ssh_present",
+          "reason": "common_follow_up_attack"
+        },
+        {
+          "attack": "web_directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "may_reveal_additional_attack_surface"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "mdns_enumeration",
+          "when": "port_5353_detected",
+          "reason": "information_gathering_only"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Heartbleed Memory Disclosure",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "heartbleed_exploit_script",
+            "command_template": "python {exploit_script} {target_ip}",
+            "actual_command": "python 32764.py 10.10.10.79",
+            "output_pattern": "WARNING: server returned more data than it should - server is vulnerable!",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "searchsploit",
+            "command_template": "searchsploit heartbleed",
+            "actual_command": "searchsploit -m exploits/multiple/remote/32745.py",
+            "success_factors": [
+              "openssl_1.0.1f_vulnerable",
+              "ssl_service_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_openssl_version",
+          "ssl_service_running",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "memory_dump_retrieved",
+          "sensitive_data_in_memory",
+          "base64_encoded_strings_found"
+        ],
+        "common_failures": [
+          "patched_openssl_version",
+          "ssl_service_not_vulnerable",
+          "memory_contains_no_useful_data"
+        ],
+        "follow_up_techniques": [
+          "base64_decoding",
+          "credential_extraction",
+          "ssh_key_recovery"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster -u {target_url} -w {wordlist} -x {extensions}",
+            "actual_command": "gobuster -u http://10.10.10.79/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x txt,php,html",
+            "output_pattern": "/{directory} (Status: {code})",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "appropriate_wordlist_available"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "sensitive_files_found",
+          "dev_directories_accessible"
+        ],
+        "common_failures": [
+          "directories_protected_by_auth",
+          "wordlist_insufficient",
+          "rate_limiting_blocks_requests"
+        ],
+        "follow_up_techniques": [
+          "file_content_analysis",
+          "hex_decoding",
+          "ssh_key_extraction"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSH Key Recovery and Decryption",
+        "mitre_id": "T1552.004",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "hex_decoder",
+            "command_template": "xxd -r -p {hex_file} > {output_file}",
+            "actual_command": "xxd -r -p hype_key > private_key.pem",
+            "output_pattern": "-----BEGIN RSA PRIVATE KEY-----",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "base64_decoder",
+            "command_template": "echo '{base64_string}' | base64 -d",
+            "actual_command": "echo 'aGVhcnRibGVlZGJlbGlldmV0aGVoeXBlCg==' | base64 -d",
+            "success_factors": [
+              "valid_base64_encoding",
+              "meaningful_decoded_content"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "hex_encoded_ssh_key_found",
+          "potential_passphrase_discovered",
+          "heartbleed_memory_dump_analyzed"
+        ],
+        "success_indicators": [
+          "ssh_key_successfully_decoded",
+          "passphrase_matches_key_encryption",
+          "key_provides_system_access"
+        ],
+        "common_failures": [
+          "incorrect_passphrase",
+          "corrupted_hex_encoding",
+          "key_not_authorized_on_target"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "privilege_escalation",
+          "tmux_session_hijacking"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Heartbleed Exploit Scripts",
+        "use_case": "memory_disclosure_attack",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "openssl_vulnerability_exploitation"
+        ],
+        "alternatives": [
+          "manual_ssl_testing",
+          "nmap_ssl_scripts"
+        ],
+        "best_practices": [
+          "run_multiple_times_for_more_memory_dumps",
+          "filter_out_null_bytes_for_readability",
+          "look_for_base64_encoded_strings",
+          "search_for_common_patterns_like_passwords"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_reconnaissance"
+        ],
+        "alternatives": [
+          "dirb",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_multiple_file_extensions",
+          "try_different_wordlists",
+          "check_for_directory_listings",
+          "analyze_response_codes_carefully"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "heartbleed_to_ssh_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "searchsploit -m exploits/multiple/remote/32745.py",
+            "purpose": "Download heartbleed exploit script",
+            "expected_output": "Exploit copied to current directory"
+          },
+          {
+            "step": 2,
+            "command": "python 32745.py 10.10.10.79 | grep -v \"00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\"",
+            "purpose": "Extract memory contents via heartbleed",
+            "expected_output": "Memory dump with base64 encoded strings"
+          },
+          {
+            "step": 3,
+            "command": "gobuster -u http://10.10.10.79/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x txt,php,html",
+            "purpose": "Enumerate web directories",
+            "expected_output": "Discovery of /dev directory with files"
+          },
+          {
+            "step": 4,
+            "command": "wget http://10.10.10.79/dev/hype_key",
+            "purpose": "Download hex-encoded SSH key",
+            "expected_output": "Hex-encoded private key file"
+          },
+          {
+            "step": 5,
+            "command": "echo 'aGVhcnRibGVlZGJlbGlldmV0aGVoeXBlCg==' | base64 -d",
+            "purpose": "Decode base64 string from memory dump",
+            "expected_output": "heartbleedbelievethehype"
+          },
+          {
+            "step": 6,
+            "command": "xxd -r -p hype_key > private_key.pem",
+            "purpose": "Convert hex to SSH private key",
+            "expected_output": "Encrypted RSA private key"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "20-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Valentine",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2018-02-17",
+      "author": "mrb3n",
+      "estimated_time": "45-60 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "heartbleed",
+        "ssh_key_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "cve_2014_0160",
+        "exposed_ssh_keys",
+        "tmux_session_hijacking"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "heartbleed_exploitation",
+        "ssh_key_attacks",
+        "session_hijacking"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "ssl_tls_fundamentals",
+        "ssh_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "ssl_vulnerabilities",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "patch_openssl",
+        "secure_key_storage",
+        "session_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Beep",
+        "Lame",
+        "Legacy"
+      ],
+      "similarity_reasons": [
+        "classic_cve_exploitation",
+        "straightforward_attack_path",
+        "beginner_friendly"
+      ],
+      "unique_aspects": [
+        "heartbleed_vulnerability",
+        "tmux_privilege_escalation",
+        "ssh_key_recovery"
+      ],
+      "difficulty_factors": [
+        "well_known_vulnerability",
+        "clear_attack_path",
+        "minimal_enumeration"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:00:41.954410",
+    "original_file": "0xdf_writeups/Htb Valentine.md",
+    "content_length": 28219,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

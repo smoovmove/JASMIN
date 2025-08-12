@@ -1,0 +1,1131 @@
+{
+  "writeup_id": "Htb_Perspective",
+  "scenario_fingerprint": {
+    "scenario_name": "aspnet_file_upload_ssrf_deserialization",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+iis",
+    "os_family": "windows_server",
+    "environment_type": "web_application",
+    "entry_vector": "file_upload_bypass",
+    "privilege_path": "web_user_to_administrator",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "aspnet_application",
+      "shtml_file_upload",
+      "ssrf_to_localhost_crypto_service",
+      "cookie_forgery_via_leaked_keys",
+      "padding_oracle_attack",
+      "serialized_object_signing"
+    ],
+    "environmental_clues": [
+      "aspxauth_cookie_present",
+      "iis_10_server",
+      "file_upload_functionality",
+      "admin_panel_redirect",
+      "registration_system"
+    ],
+    "similar_scenarios": [
+      "json_htb_insane",
+      "worker_htb_medium"
+    ],
+    "unique_aspects": [
+      "multiple_attack_vectors_chained",
+      "crypto_service_on_localhost",
+      "staging_environment_discovery",
+      "command_injection_via_cookie"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SHTML_File_Upload",
+        "success_reason": "Application allowed SHTML file upload bypassing JPEG filter",
+        "prerequisite_indicators": [
+          "file_upload_functionality",
+          "weak_file_type_validation",
+          "server_side_includes_enabled"
+        ],
+        "recognition_patterns": [
+          "file upload forms present",
+          "JPEG-only validation message",
+          "ASP.NET application stack",
+          "IIS web server"
+        ],
+        "failure_modes": [
+          "strict_file_type_validation",
+          "server_side_includes_disabled",
+          "upload_directory_not_executable",
+          "proper_mime_type_checking"
+        ],
+        "environmental_factors": [
+          "default_iis_configuration",
+          "asp_net_application",
+          "insufficient_upload_restrictions"
+        ],
+        "success_probability": 0.73,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Configuration_File_Disclosure",
+        "success_reason": "SHTML server-side includes allowed reading web.config",
+        "prerequisite_indicators": [
+          "shtml_execution_successful",
+          "web_config_in_default_location",
+          "read_permissions_on_config"
+        ],
+        "recognition_patterns": [
+          "ASP.NET application indicators",
+          "standard web.config location",
+          "server-side includes working"
+        ],
+        "failure_modes": [
+          "config_file_moved",
+          "read_permissions_denied",
+          "ssi_disabled_for_config_access"
+        ],
+        "environmental_factors": [
+          "default_asp_net_structure",
+          "standard_iis_permissions",
+          "configuration_not_hardened"
+        ],
+        "success_probability": 0.89,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Cookie_Forgery_via_Leaked_Keys",
+        "success_reason": "Application keys leaked from web.config enabled admin cookie creation",
+        "prerequisite_indicators": [
+          "web_config_access_obtained",
+          "machinekey_or_validationkey_present",
+          "cookie_based_authentication"
+        ],
+        "recognition_patterns": [
+          "ASPXAUTH cookie present",
+          "machineKey section in config",
+          "validationKey and decryptionKey values"
+        ],
+        "failure_modes": [
+          "keys_not_in_config",
+          "additional_cookie_validation",
+          "key_rotation_implemented"
+        ],
+        "environmental_factors": [
+          "static_machine_keys",
+          "default_asp_net_auth",
+          "insufficient_cookie_protection"
+        ],
+        "success_probability": 0.91,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "SSRF_to_Internal_Services",
+        "success_reason": "Admin panel contained SSRF vulnerability accessing localhost crypto service",
+        "prerequisite_indicators": [
+          "admin_access_obtained",
+          "url_parameter_functionality",
+          "internal_services_running"
+        ],
+        "recognition_patterns": [
+          "URL parameters in admin functions",
+          "localhost services enumerable",
+          "crypto or API services on high ports"
+        ],
+        "failure_modes": [
+          "ssrf_filters_implemented",
+          "internal_services_protected",
+          "network_segmentation_present"
+        ],
+        "environmental_factors": [
+          "internal_services_exposed",
+          "insufficient_ssrf_protection",
+          "localhost_trust_assumptions"
+        ],
+        "success_probability": 0.67,
+        "typical_timeframe": "20-60 minutes"
+      },
+      {
+        "technique": "Deserialization_Attack",
+        "success_reason": "Leaked crypto keys enabled signing malicious serialized objects",
+        "prerequisite_indicators": [
+          "serialization_keys_obtained",
+          "deserialization_endpoints_present",
+          "object_signing_mechanism_known"
+        ],
+        "recognition_patterns": [
+          "ViewState or similar parameters",
+          "serialized object structures",
+          "crypto service responses"
+        ],
+        "failure_modes": [
+          "deserialization_disabled",
+          "signature_validation_enhanced",
+          "object_type_restrictions"
+        ],
+        "environmental_factors": [
+          "asp_net_viewstate_enabled",
+          "weak_deserialization_controls",
+          "predictable_crypto_implementation"
+        ],
+        "success_probability": 0.84,
+        "typical_timeframe": "30-90 minutes"
+      },
+      {
+        "technique": "Padding_Oracle_Attack",
+        "success_reason": "Staging application vulnerable to padding oracle for cookie encryption",
+        "prerequisite_indicators": [
+          "cbc_mode_encryption",
+          "error_message_differences",
+          "cookie_based_authentication"
+        ],
+        "recognition_patterns": [
+          "different error responses",
+          "CBC padding exceptions",
+          "encrypted cookie values"
+        ],
+        "failure_modes": [
+          "uniform_error_responses",
+          "gcm_or_other_modes_used",
+          "padding_oracle_mitigations"
+        ],
+        "environmental_factors": [
+          "verbose_error_messages",
+          "cbc_mode_implementation",
+          "insufficient_crypto_hardening"
+        ],
+        "success_probability": 0.76,
+        "typical_timeframe": "45-120 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "web.config with machine keys",
+        "discovery_method": "SHTML server-side include file read",
+        "why_critical": "Enabled cookie forgery and crypto key extraction",
+        "how_to_recognize": [
+          "ASP.NET application stack",
+          "successful SHTML upload",
+          "standard config file locations"
+        ],
+        "follow_up_actions": [
+          "extract_machine_keys",
+          "forge_admin_cookies",
+          "enumerate_crypto_services"
+        ]
+      },
+      {
+        "discovery": "localhost crypto service",
+        "discovery_method": "SSRF enumeration from admin panel",
+        "why_critical": "Provided decryption capabilities for additional keys",
+        "how_to_recognize": [
+          "SSRF vulnerability present",
+          "high port services running",
+          "crypto-related endpoints"
+        ],
+        "follow_up_actions": [
+          "decrypt_additional_keys",
+          "craft_serialized_payloads",
+          "exploit_deserialization"
+        ]
+      },
+      {
+        "discovery": "staging application with different protections",
+        "discovery_method": "file system enumeration after initial shell",
+        "why_critical": "Required different attack vector for privilege escalation",
+        "how_to_recognize": [
+          "multiple application versions",
+          "different error handling",
+          "enhanced logging present"
+        ],
+        "follow_up_actions": [
+          "analyze_padding_oracle_potential",
+          "craft_malicious_cookies",
+          "exploit_command_injection"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_user",
+        "escalation_method": "file_upload_to_config_disclosure",
+        "why_possible": "Weak file upload validation allowed SHTML execution",
+        "recognition_signs": [
+          "file_upload_functionality",
+          "jpeg_only_validation_message",
+          "asp_net_application_stack"
+        ],
+        "exploitation_path": "SHTML Upload → Config Read → Key Extraction"
+      },
+      {
+        "privilege_level": "regular_user",
+        "escalation_method": "cookie_forgery_to_admin",
+        "why_possible": "Machine keys leaked from configuration file",
+        "recognition_signs": [
+          "aspxauth_cookie_present",
+          "machine_keys_in_config",
+          "predictable_cookie_structure"
+        ],
+        "exploitation_path": "Leaked Keys → Forged Cookie → Admin Access"
+      },
+      {
+        "privilege_level": "admin_user",
+        "escalation_method": "ssrf_to_code_execution",
+        "why_possible": "SSRF access to internal crypto service enabled payload signing",
+        "recognition_signs": [
+          "admin_panel_url_parameters",
+          "internal_services_accessible",
+          "deserialization_endpoints_present"
+        ],
+        "exploitation_path": "SSRF → Crypto Service → Signed Payload → RCE"
+      },
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "padding_oracle_to_admin_shell",
+        "why_possible": "Staging application had padding oracle vulnerability",
+        "recognition_signs": [
+          "different_error_responses",
+          "cbc_encrypted_cookies",
+          "command_injection_in_reset_process"
+        ],
+        "exploitation_path": "Padding Oracle → Cookie Encryption → Command Injection → Admin Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Windows host with IIS 10.0",
+        "decision": "Enumerate web application for ASP.NET vulnerabilities",
+        "reasoning": "X-AspNet-Version header indicates ASP.NET application with potential for file upload and deserialization attacks",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web attacks fail"
+          },
+          {
+            "option": "directory_bruteforce",
+            "when": "to find hidden endpoints"
+          }
+        ],
+        "success_indicators": [
+          "aspx_pages_found",
+          "file_upload_functionality",
+          "authentication_cookies_present"
+        ],
+        "next_decision": "identify_file_upload_bypass"
+      },
+      {
+        "step": 2,
+        "situation": "Found file upload with JPEG filtering and ASP.NET application",
+        "decision": "Attempt SHTML file upload to read configuration files",
+        "reasoning": "IIS processes SHTML files and can bypass image filters while allowing server-side includes",
+        "confidence": 0.75,
+        "prerequisites": [
+          "file_upload_endpoint",
+          "image_filter_identified"
+        ],
+        "success_indicators": [
+          "shtml_file_uploaded",
+          "server_side_includes_executed"
+        ],
+        "failure_fallbacks": [
+          "aspx_upload",
+          "web_shell_upload",
+          "config_file_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Successfully uploaded SHTML file and can read server files",
+        "decision": "Read web.config to extract application keys and secrets",
+        "reasoning": "ASP.NET web.config contains encryption keys, connection strings, and security settings",
+        "confidence": 0.95,
+        "prerequisites": [
+          "shtml_execution_confirmed"
+        ],
+        "success_indicators": [
+          "encryption_keys_found",
+          "machine_keys_extracted",
+          "connection_strings_discovered"
+        ],
+        "failure_fallbacks": [
+          "other_config_files",
+          "source_code_disclosure"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Obtained application keys from web.config",
+        "decision": "Forge admin authentication cookie using extracted keys",
+        "reasoning": "ASP.NET authentication cookies can be forged with machine keys",
+        "confidence": 0.85,
+        "prerequisites": [
+          "machine_key_obtained",
+          "validation_key_found"
+        ],
+        "success_indicators": [
+          "admin_cookie_accepted",
+          "elevated_access_granted"
+        ],
+        "failure_fallbacks": [
+          "viewstate_exploitation",
+          "deserialization_attacks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_shtml_upload_succeeds": {
+        "action": "read_sensitive_configuration_files",
+        "tools": [
+          "server_side_includes",
+          "file_system_access"
+        ],
+        "next_phase": "extract_application_secrets"
+      },
+      "if_config_keys_obtained": {
+        "action": "forge_authentication_tokens",
+        "alternatives": [
+          "cookie_forgery",
+          "viewstate_manipulation",
+          "deserialization"
+        ],
+        "decision_criteria": "based_on_available_keys_and_protection_mechanisms"
+      },
+      "if_admin_access_gained": {
+        "action": "exploit_ssrf_for_internal_services",
+        "purpose": "access_localhost_crypto_services",
+        "tools": [
+          "burp_collaborator",
+          "internal_port_scanning"
+        ]
+      },
+      "if_additional_keys_found": {
+        "action": "deserialization_attack",
+        "purpose": "achieve_code_execution",
+        "tools": [
+          "ysoserial.net",
+          "custom_serialized_payloads"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "try_shtml_upload_on_iis_with_image_filters",
+        "reasoning": "shtml_bypasses_image_restrictions_and_enables_server_side_includes",
+        "applicability": "iis_servers_with_file_upload"
+      },
+      {
+        "rule": "always_read_web_config_after_file_disclosure",
+        "reasoning": "contains_critical_application_secrets_and_keys",
+        "applicability": "aspnet_applications"
+      },
+      {
+        "rule": "forge_cookies_before_attempting_deserialization",
+        "reasoning": "cookie_forgery_often_easier_and_provides_admin_access",
+        "applicability": "when_machine_keys_available"
+      },
+      {
+        "rule": "check_for_ssrf_in_admin_panels",
+        "reasoning": "admin_functionality_often_has_server_side_request_features",
+        "applicability": "after_gaining_admin_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SHTML File Upload",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "shtml_processing_enabled",
+          "insufficient_file_type_validation"
+        ],
+        "success_indicators": [
+          "shtml_file_accepted",
+          "server_side_includes_executed",
+          "configuration_files_readable"
+        ],
+        "incompatible_with": [
+          "strict_file_type_validation",
+          "ssi_disabled",
+          "upload_sandboxing"
+        ],
+        "confidence_boosters": [
+          "jpeg_only_validation_bypass",
+          "iis_server_detected",
+          "aspnet_application"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "ASP.NET Cookie Forgery",
+        "mitre_id": "T1550.004",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "aspnet_application",
+          "machine_key_leaked",
+          "cookie_based_authentication"
+        ],
+        "success_indicators": [
+          "aspxauth_cookie_present",
+          "machine_key_obtained",
+          "admin_access_gained"
+        ],
+        "incompatible_with": [
+          "custom_authentication",
+          "machine_key_protected",
+          "additional_validation_layers"
+        ],
+        "confidence_boosters": [
+          "configuration_file_access",
+          "default_aspnet_setup",
+          "iis_server"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Server-Side Request Forgery",
+        "mitre_id": "T1090.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_application",
+          "url_parameter_processing",
+          "internal_service_access"
+        ],
+        "success_indicators": [
+          "localhost_services_accessible",
+          "internal_network_reachable",
+          "response_data_leaked"
+        ],
+        "incompatible_with": [
+          "url_validation",
+          "network_segmentation",
+          "request_filtering"
+        ],
+        "confidence_boosters": [
+          "admin_panel_access",
+          "crypto_service_running",
+          "localhost_services_detected"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "Padding Oracle Attack",
+        "mitre_id": "T1600.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "cbc_mode_encryption",
+          "padding_error_disclosure",
+          "encrypted_cookie_system"
+        ],
+        "success_indicators": [
+          "padding_errors_detected",
+          "cookie_encryption_bypassed",
+          "arbitrary_data_encrypted"
+        ],
+        "incompatible_with": [
+          "authenticated_encryption",
+          "error_message_suppression",
+          "rate_limiting"
+        ],
+        "confidence_boosters": [
+          "aspnet_application",
+          "detailed_error_messages",
+          "staging_environment"
+        ],
+        "typical_success_rate": 0.83,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "ASP.NET Deserialization",
+        "mitre_id": "T1055.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "aspnet_application",
+          "serialized_object_processing",
+          "machine_key_known"
+        ],
+        "success_indicators": [
+          "serialized_payload_accepted",
+          "code_execution_achieved",
+          "system_shell_obtained"
+        ],
+        "incompatible_with": [
+          "deserialization_filtering",
+          "machine_key_protection",
+          "sandboxed_execution"
+        ],
+        "confidence_boosters": [
+          "viewstate_processing",
+          "known_machine_key",
+          "iis_server"
+        ],
+        "typical_success_rate": 0.89,
+        "estimated_time": "15-25 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "aspnet_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "ASP.NET",
+          "X-AspNet-Version"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "file_upload_functionality": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "multipart/form-data",
+          "file input fields"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_iis": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "Windows"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "shtml_file_upload",
+          "when": "file_upload_detected_and_iis_server",
+          "reason": "often_bypasses_basic_validation_reveals_config"
+        },
+        {
+          "attack": "aspnet_cookie_forgery",
+          "when": "aspxauth_cookie_present_and_config_leaked",
+          "reason": "direct_admin_access_high_success_rate"
+        },
+        {
+          "attack": "aspnet_deserialization",
+          "when": "machine_key_known_and_aspnet_detected",
+          "reason": "reliable_code_execution_method"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssrf_exploitation",
+          "when": "admin_access_gained_and_url_parameters",
+          "reason": "access_to_internal_services_and_data"
+        },
+        {
+          "attack": "padding_oracle",
+          "when": "encrypted_cookies_and_error_messages",
+          "reason": "time_intensive_but_reliable_encryption_bypass"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SHTML File Upload for Configuration Disclosure",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "burp_suite",
+            "command_template": "Upload SHTML file via web form with SSI directives",
+            "actual_command": "<!--#include file=\"../web.config\"-->",
+            "output_pattern": "Configuration file contents exposed",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality",
+          "shtml_extension_allowed",
+          "ssi_enabled_on_server"
+        ],
+        "success_indicators": [
+          "shtml_file_uploads_successfully",
+          "ssi_directives_execute",
+          "configuration_data_exposed"
+        ],
+        "common_failures": [
+          "ssi_disabled",
+          "extension_blocked",
+          "path_traversal_blocked"
+        ],
+        "follow_up_techniques": [
+          "asp_net_cookie_forgery",
+          "machine_key_exploitation",
+          "viewstate_manipulation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "ASP.NET Cookie Forgery via Machine Key",
+        "mitre_id": "T1550.004",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "custom_script",
+            "command_template": "Generate forged ASP.NET authentication cookie using leaked machine key",
+            "actual_command": "Use machine key from web.config to forge admin cookie",
+            "output_pattern": "Valid authentication cookie for admin user",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "machine_key_disclosed",
+          "asp_net_authentication_in_use",
+          "target_username_known"
+        ],
+        "success_indicators": [
+          "cookie_validates_successfully",
+          "admin_access_granted",
+          "additional_functionality_unlocked"
+        ],
+        "common_failures": [
+          "incorrect_machine_key",
+          "wrong_cookie_format",
+          "additional_validation_checks"
+        ],
+        "follow_up_techniques": [
+          "server_side_request_forgery",
+          "viewstate_deserialization",
+          "administrative_function_abuse"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Server-Side Request Forgery (SSRF)",
+        "mitre_id": "T1090.001",
+        "category": "lateral_movement",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "web_application",
+            "command_template": "Use SSRF functionality to access internal services",
+            "actual_command": "POST request to internal crypto service via SSRF",
+            "output_pattern": "Internal service responses",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "admin_access_to_application",
+          "ssrf_vulnerable_functionality",
+          "internal_services_accessible"
+        ],
+        "success_indicators": [
+          "internal_service_responses",
+          "additional_keys_extracted",
+          "localhost_services_enumerated"
+        ],
+        "common_failures": [
+          "network_restrictions",
+          "service_authentication_required",
+          "payload_filtering"
+        ],
+        "follow_up_techniques": [
+          "crypto_service_exploitation",
+          "key_decryption",
+          "deserialization_attacks"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "ASP.NET ViewState Deserialization",
+        "mitre_id": "T1055.001",
+        "category": "execution",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "ysoserial_net",
+            "command_template": "ysoserial.exe -p ViewState -g {gadget} -c \"{command}\" --validationalg=\"{alg}\" --validationkey=\"{key}\"",
+            "actual_command": "Generate malicious viewstate with decrypted validation key",
+            "output_pattern": "Serialized payload for code execution",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "validation_key_obtained",
+          "viewstate_processing_vulnerable",
+          "deserialization_gadgets_available"
+        ],
+        "success_indicators": [
+          "code_execution_achieved",
+          "reverse_shell_established",
+          "system_access_gained"
+        ],
+        "common_failures": [
+          "incorrect_validation_key",
+          "viewstate_validation_enhanced",
+          "gadget_chain_blocked"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "persistence_establishment",
+          "lateral_movement"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Padding Oracle Attack",
+        "mitre_id": "T1600.001",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "padbuster",
+            "command_template": "padbuster.pl {url} {encrypted_sample} {block_size} -cookies {cookie_name}={encrypted_value}",
+            "actual_command": "Exploit CBC padding oracle to encrypt arbitrary data",
+            "output_pattern": "Successfully encrypted payload",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "cbc_mode_encryption",
+          "padding_oracle_vulnerability",
+          "encrypted_cookie_manipulation"
+        ],
+        "success_indicators": [
+          "arbitrary_data_encrypted",
+          "cookie_manipulation_successful",
+          "authentication_bypassed"
+        ],
+        "common_failures": [
+          "no_padding_oracle",
+          "encryption_mode_different",
+          "additional_integrity_checks"
+        ],
+        "follow_up_techniques": [
+          "command_injection_via_cookie",
+          "password_reset_abuse",
+          "administrative_access"
+        ],
+        "time_investment": "45-90 minutes",
+        "skill_level": "expert"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite Intruder",
+        "use_case": "extension_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "file_upload_testing"
+        ],
+        "alternatives": [
+          "wfuzz",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_common_extension_wordlists",
+          "sort_results_by_response_length",
+          "test_both_allow_and_block_lists"
+        ]
+      },
+      {
+        "tool": "Server-Side Includes (SSI)",
+        "use_case": "file_disclosure_via_upload",
+        "effectiveness_rating": 5,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "iis_configuration_disclosure"
+        ],
+        "alternatives": [
+          "lfi_via_other_methods"
+        ],
+        "best_practices": [
+          "test_shtml_extension_first",
+          "use_include_file_directive",
+          "target_configuration_files"
+        ]
+      },
+      {
+        "tool": "ysoserial.NET",
+        "use_case": "asp_net_deserialization",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "high",
+        "essential_for": [
+          "asp_net_exploitation"
+        ],
+        "alternatives": [
+          "custom_serialization_payloads"
+        ],
+        "best_practices": [
+          "obtain_machine_keys_first",
+          "test_multiple_gadget_chains",
+          "validate_payload_format"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "shtml_to_config_disclosure",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Create SHTML file with: <!--#include file=\"../web.config\"-->",
+            "purpose": "Prepare SSI payload for file disclosure",
+            "expected_output": "SHTML file with include directive"
+          },
+          {
+            "step": 2,
+            "command": "Upload via web form with Content-Type: image/jpeg",
+            "purpose": "Bypass upload restrictions",
+            "expected_output": "File uploaded successfully"
+          },
+          {
+            "step": 3,
+            "command": "Access uploaded SHTML file via direct URL",
+            "purpose": "Trigger SSI execution",
+            "expected_output": "web.config contents displayed"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-15 minutes"
+      },
+      {
+        "sequence_name": "machine_key_to_admin_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Extract machine key from disclosed web.config",
+            "purpose": "Obtain cryptographic material",
+            "expected_output": "Validation and decryption keys"
+          },
+          {
+            "step": 2,
+            "command": "Forge ASP.NET authentication cookie for admin user",
+            "purpose": "Escalate privileges",
+            "expected_output": "Valid admin authentication cookie"
+          },
+          {
+            "step": 3,
+            "command": "Access admin functionality with forged cookie",
+            "purpose": "Gain administrative access",
+            "expected_output": "Admin panel access"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Perspective",
+      "difficulty": "Insane",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2022-03-19",
+      "author": "w1nd3x",
+      "estimated_time": "6-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "web_application",
+        "deserialization",
+        "ssrf",
+        "cryptographic_attacks"
+      ],
+      "key_vulnerabilities": [
+        "shtml_upload",
+        "cookie_forgery",
+        "ssrf",
+        "deserialization",
+        "padding_oracle",
+        "command_injection"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "aspnet_exploitation",
+        "cryptographic_attacks",
+        "ssrf_chaining",
+        "deserialization_attacks",
+        "padding_oracle"
+      ],
+      "prerequisite_knowledge": [
+        "aspnet_internals",
+        "cryptography",
+        "deserialization",
+        "ssrf_techniques",
+        "padding_oracle_theory"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "cryptographic_attacks",
+        "deserialization",
+        "ssrf",
+        "command_injection"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "execution"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "secure_deserialization",
+        "proper_crypto_implementation",
+        "network_segmentation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Json",
+        "Arkham",
+        "Cereal"
+      ],
+      "similarity_reasons": [
+        "deserialization_attacks",
+        "complex_web_exploitation",
+        "cryptographic_vulnerabilities"
+      ],
+      "unique_aspects": [
+        "padding_oracle_attack",
+        "multi_stage_crypto_exploitation",
+        "shtml_file_upload"
+      ],
+      "difficulty_factors": [
+        "multiple_complex_attack_chains",
+        "advanced_cryptographic_knowledge",
+        "multi_layered_exploitation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T20:40:15.769272",
+    "original_file": "0xdf_writeups/Htb Perspective.md",
+    "content_length": 88592,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

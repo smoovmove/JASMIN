@@ -1,0 +1,1018 @@
+{
+  "writeup_id": "Htb_Servmon",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_multi_service_directory_traversal",
+    "primary_services": [
+      "ftp",
+      "ssh",
+      "http",
+      "smb",
+      "https"
+    ],
+    "port_signature": "21+22+80+445+8443",
+    "service_combination": "ftp+ssh+http+smb+https",
+    "os_family": "windows_server",
+    "environment_type": "standalone_windows",
+    "entry_vector": "directory_traversal",
+    "privilege_path": "user_to_system",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "anonymous_ftp_access",
+      "nvms_1000_directory_traversal",
+      "nsclient_privilege_escalation",
+      "password_file_disclosure"
+    ],
+    "environmental_clues": [
+      "openssh_on_windows",
+      "nvms_surveillance_software",
+      "nsclient_monitoring_service",
+      "multiple_high_ports_open"
+    ],
+    "similar_scenarios": [
+      "optimum_htb_easy",
+      "devel_htb_easy"
+    ],
+    "unique_aspects": [
+      "nvms_1000_vulnerability",
+      "nsclient_config_exposure",
+      "ftp_password_hints"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Anonymous FTP Enumeration",
+        "success_reason": "FTP server allowed anonymous access with sensitive information",
+        "prerequisite_indicators": [
+          "ftp_service_running",
+          "anonymous_login_enabled",
+          "readable_directories_present"
+        ],
+        "recognition_patterns": [
+          "nmap shows 'Anonymous FTP login allowed'",
+          "FTP code 230 on anonymous login",
+          "directory structure reveals user folders"
+        ],
+        "failure_modes": [
+          "anonymous_access_disabled",
+          "empty_ftp_directories",
+          "access_restricted_by_firewall"
+        ],
+        "environmental_factors": [
+          "default_ftp_configuration",
+          "poor_access_controls",
+          "information_disclosure_via_filenames"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Directory Traversal (NVMS-1000)",
+        "success_reason": "NVMS-1000 web application vulnerable to path traversal",
+        "prerequisite_indicators": [
+          "nvms_1000_service_identified",
+          "web_service_accessible",
+          "file_system_access_possible"
+        ],
+        "recognition_patterns": [
+          "NVMS-1000 login page present",
+          "path traversal payloads succeed",
+          "file contents returned in response"
+        ],
+        "failure_modes": [
+          "path_traversal_filtered",
+          "web_service_hardened",
+          "file_permissions_restrictive"
+        ],
+        "environmental_factors": [
+          "unpatched_nvms_installation",
+          "default_web_configuration",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Password Reuse Attack",
+        "success_reason": "Leaked passwords from traversal worked for SSH authentication",
+        "prerequisite_indicators": [
+          "password_list_obtained",
+          "ssh_service_available",
+          "user_accounts_identified"
+        ],
+        "recognition_patterns": [
+          "password files accessible via traversal",
+          "SSH service on Windows (unusual)",
+          "successful authentication with leaked creds"
+        ],
+        "failure_modes": [
+          "passwords_changed_since_leak",
+          "account_lockout_policies",
+          "ssh_access_restricted"
+        ],
+        "environmental_factors": [
+          "poor_password_management",
+          "credential_reuse_across_services",
+          "weak_access_controls"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "NSClient++ Exploitation",
+        "success_reason": "NSClient++ service had accessible config with admin password",
+        "prerequisite_indicators": [
+          "nsclient_service_running",
+          "config_file_readable",
+          "web_interface_accessible"
+        ],
+        "recognition_patterns": [
+          "NSClient++ web interface on port 8443",
+          "config file contains plaintext password",
+          "API endpoints available for exploitation"
+        ],
+        "failure_modes": [
+          "config_file_protected",
+          "password_encrypted_in_config",
+          "web_interface_disabled"
+        ],
+        "environmental_factors": [
+          "default_nsclient_installation",
+          "insecure_configuration_storage",
+          "elevated_service_privileges"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-25 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Passwords.txt file location hint",
+        "discovery_method": "Anonymous FTP file enumeration",
+        "why_critical": "Provided target path for directory traversal attack",
+        "how_to_recognize": [
+          "confidential.txt mentions password file",
+          "specific desktop location referenced",
+          "user context provided (Nathan)"
+        ],
+        "follow_up_actions": [
+          "test_directory_traversal_on_web_apps",
+          "target_nathan_desktop_folder",
+          "enumerate_other_user_directories"
+        ]
+      },
+      {
+        "discovery": "NVMS-1000 directory traversal vulnerability",
+        "discovery_method": "Web application vulnerability testing",
+        "why_critical": "Enabled access to Windows file system and password files",
+        "how_to_recognize": [
+          "NVMS-1000 application identified",
+          "path traversal payloads return file contents",
+          "Windows file paths accessible"
+        ],
+        "follow_up_actions": [
+          "extract_passwords_txt_file",
+          "enumerate_other_sensitive_files",
+          "test_ssh_with_discovered_credentials"
+        ]
+      },
+      {
+        "discovery": "NSClient++ configuration file",
+        "discovery_method": "Local file system enumeration after SSH access",
+        "why_critical": "Contained admin password for privilege escalation",
+        "how_to_recognize": [
+          "NSClient++ service running on port 8443",
+          "config file in program files directory",
+          "plaintext password in configuration"
+        ],
+        "follow_up_actions": [
+          "access_nsclient_web_interface",
+          "exploit_nsclient_api_endpoints",
+          "achieve_system_level_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_ftp",
+        "escalation_method": "Information_Disclosure_to_Directory_Traversal",
+        "why_possible": "FTP files revealed password file locations for traversal attack",
+        "recognition_signs": [
+          "anonymous_ftp_access_available",
+          "user_directories_accessible",
+          "sensitive_file_references_found"
+        ],
+        "exploitation_path": "Anonymous FTP → File hints → Directory traversal → Password extraction"
+      },
+      {
+        "privilege_level": "user_ssh_access",
+        "escalation_method": "NSClient++_Config_to_SYSTEM",
+        "why_possible": "NSClient++ ran as SYSTEM with accessible configuration containing admin password",
+        "recognition_signs": [
+          "nsclient_service_identified",
+          "config_file_readable_by_user",
+          "web_interface_exploitation_possible"
+        ],
+        "exploitation_path": "SSH access → NSClient++ config → Admin creds → SYSTEM shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,80,135,139,445,5666,8443 open on Windows host",
+        "decision": "Check anonymous FTP first, then web services for vulnerabilities",
+        "reasoning": "Anonymous FTP often contains sensitive information or hints, web services may have exploitable vulnerabilities",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if ftp yields no results"
+          },
+          {
+            "option": "web_vulnerability_scan",
+            "when": "if ftp provides context"
+          }
+        ],
+        "success_indicators": [
+          "ftp_anonymous_access_works",
+          "sensitive_files_found",
+          "password_hints_discovered"
+        ],
+        "next_decision": "analyze_ftp_contents_for_attack_vectors"
+      },
+      {
+        "step": 2,
+        "situation": "Found password hint in FTP pointing to Desktop location",
+        "decision": "Look for directory traversal in web applications to access file system",
+        "reasoning": "FTP revealed password file location, need file system access to retrieve it",
+        "confidence": 0.85,
+        "prerequisites": [
+          "ftp_enumeration_complete",
+          "password_location_known"
+        ],
+        "success_indicators": [
+          "directory_traversal_works",
+          "can_read_arbitrary_files"
+        ],
+        "failure_fallbacks": [
+          "web_application_exploitation",
+          "service_specific_attacks"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "NVMS-1000 web application identified",
+        "decision": "Research and test known NVMS-1000 vulnerabilities",
+        "reasoning": "Specific application versions often have documented exploits",
+        "confidence": 0.8,
+        "prerequisites": [
+          "web_application_identified"
+        ],
+        "success_indicators": [
+          "directory_traversal_confirmed",
+          "file_read_successful"
+        ],
+        "next_decision": "extract_credentials_and_authenticate"
+      },
+      {
+        "step": 4,
+        "situation": "Obtained credentials via directory traversal",
+        "decision": "Try credentials on SSH before other services",
+        "reasoning": "SSH provides direct shell access and is commonly enabled on Windows",
+        "confidence": 0.75,
+        "prerequisites": [
+          "credentials_obtained"
+        ],
+        "success_indicators": [
+          "ssh_authentication_successful",
+          "shell_access_gained"
+        ],
+        "failure_fallbacks": [
+          "try_other_services",
+          "password_spraying"
+        ]
+      },
+      {
+        "step": 5,
+        "situation": "Have user shell access on Windows system",
+        "decision": "Enumerate running services and their configurations",
+        "reasoning": "Windows services often run with elevated privileges and may have misconfigurations",
+        "confidence": 0.9,
+        "prerequisites": [
+          "user_shell_access"
+        ],
+        "success_indicators": [
+          "service_configurations_found",
+          "elevated_service_identified"
+        ],
+        "next_decision": "exploit_service_for_privilege_escalation"
+      }
+    ],
+    "branching_logic": {
+      "if_ftp_anonymous_succeeds": {
+        "action": "download_all_files_and_analyze",
+        "tools": [
+          "wget",
+          "ftp_client"
+        ],
+        "next_phase": "look_for_password_hints_and_system_info"
+      },
+      "if_directory_traversal_found": {
+        "action": "read_sensitive_files",
+        "targets": [
+          "passwords.txt",
+          "config_files",
+          "user_directories"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_credentials_obtained": {
+        "action": "test_authentication_on_all_services",
+        "priority_order": [
+          "ssh",
+          "smb",
+          "web_applications"
+        ],
+        "next_phase": "establish_foothold"
+      },
+      "if_user_access_gained": {
+        "action": "privilege_escalation_enumeration",
+        "focus": [
+          "running_services",
+          "service_configurations",
+          "scheduled_tasks"
+        ],
+        "tools": [
+          "netstat",
+          "sc_query",
+          "config_file_analysis"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_anonymous_ftp_first",
+        "reasoning": "high_information_value_with_minimal_effort",
+        "applicability": "when_ftp_service_detected"
+      },
+      {
+        "rule": "research_specific_application_vulnerabilities",
+        "reasoning": "known_exploits_more_reliable_than_generic_attacks",
+        "applicability": "when_specific_software_identified"
+      },
+      {
+        "rule": "prioritize_ssh_for_credential_testing_on_windows",
+        "reasoning": "direct_shell_access_and_increasingly_common",
+        "applicability": "when_ssh_available_on_windows_target"
+      },
+      {
+        "rule": "enumerate_service_configurations_for_privilege_escalation",
+        "reasoning": "windows_services_common_privilege_escalation_vector",
+        "applicability": "after_initial_user_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Anonymous FTP Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_running",
+          "anonymous_login_enabled"
+        ],
+        "success_indicators": [
+          "ftp_anon_login_allowed",
+          "directory_listing_accessible",
+          "readable_files_present"
+        ],
+        "incompatible_with": [
+          "ftp_authentication_required",
+          "service_disabled",
+          "firewall_blocking_ftp"
+        ],
+        "confidence_boosters": [
+          "default_ftp_configuration",
+          "legacy_systems",
+          "misconfigured_permissions"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_application_running",
+          "vulnerable_file_handling",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "path_traversal_sequences_accepted",
+          "system_files_accessible",
+          "error_messages_revealing_paths"
+        ],
+        "incompatible_with": [
+          "proper_input_sanitization",
+          "chroot_jail_enabled",
+          "web_application_firewall"
+        ],
+        "confidence_boosters": [
+          "nvms_1000_detected",
+          "legacy_web_applications",
+          "custom_file_handlers"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SSH Password Authentication",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_running",
+          "password_authentication_enabled",
+          "valid_credentials_available"
+        ],
+        "success_indicators": [
+          "ssh_connection_established",
+          "shell_access_granted",
+          "user_privileges_obtained"
+        ],
+        "incompatible_with": [
+          "key_only_authentication",
+          "account_lockout_policies",
+          "multi_factor_authentication"
+        ],
+        "confidence_boosters": [
+          "openssh_for_windows",
+          "weak_password_policies",
+          "leaked_credentials"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "1-5 minutes"
+      },
+      {
+        "technique": "NSClient++ Exploitation",
+        "mitre_id": "T1068",
+        "required_services": [
+          "https"
+        ],
+        "required_ports": [
+          8443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "nsclient_service_running",
+          "web_interface_accessible",
+          "configuration_file_readable"
+        ],
+        "success_indicators": [
+          "nsclient_web_interface_detected",
+          "authentication_credentials_found",
+          "system_level_access_achieved"
+        ],
+        "incompatible_with": [
+          "service_disabled",
+          "proper_file_permissions",
+          "updated_nsclient_version"
+        ],
+        "confidence_boosters": [
+          "default_nsclient_configuration",
+          "local_file_access",
+          "windows_monitoring_setup"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_server": {
+        "port_indicators": [
+          135,
+          139,
+          445,
+          3389
+        ],
+        "service_indicators": [
+          "msrpc",
+          "netbios-ssn",
+          "microsoft-ds",
+          "rdp"
+        ],
+        "banner_indicators": [
+          "Microsoft Windows",
+          "Windows Server"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ftp_anonymous": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp"
+        ],
+        "banner_indicators": [
+          "Anonymous FTP login allowed",
+          "FTP code 230"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "https-alt"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis",
+          "nvms"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "nsclient_plus": {
+        "port_indicators": [
+          8443,
+          5666
+        ],
+        "service_indicators": [
+          "https-alt",
+          "nrpe"
+        ],
+        "banner_indicators": [
+          "NSClient++",
+          "nsclient"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "anonymous_ftp_enumeration",
+          "when": "ftp_anonymous_detected",
+          "reason": "immediate_access_no_credentials_needed"
+        },
+        {
+          "attack": "directory_traversal",
+          "when": "nvms_1000_detected",
+          "reason": "known_vulnerability_high_success_rate"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_password_authentication",
+          "when": "ssh_service_detected_and_credentials_available",
+          "reason": "reliable_shell_access_with_valid_creds"
+        },
+        {
+          "attack": "nsclient_exploitation",
+          "when": "nsclient_service_detected",
+          "reason": "privilege_escalation_potential"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "smb_enumeration",
+          "when": "smb_service_detected",
+          "reason": "may_require_authentication"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Directory Traversal",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "GET /../../../../../../../../../../../../{target_file} HTTP/1.1",
+            "actual_command": "GET /../../../../../../../../../../../../windows/win.ini HTTP/1.1",
+            "output_pattern": "File contents returned in HTTP response",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl",
+            "command_template": "curl http://{target_ip}/../../../../../../../../../../../../{target_file}",
+            "actual_command": "curl http://10.10.10.184/../../../../../../../../../../../../Users/Nathan/Desktop/Passwords.txt",
+            "success_factors": [
+              "vulnerable_nvms_1000",
+              "target_file_exists"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "nvms_1000_web_service_accessible",
+          "directory_traversal_vulnerability_present",
+          "target_files_known_location"
+        ],
+        "success_indicators": [
+          "file_contents_retrieved",
+          "sensitive_information_disclosed",
+          "credentials_or_config_files_accessed"
+        ],
+        "common_failures": [
+          "file_path_incorrect",
+          "insufficient_traversal_depth",
+          "file_permissions_deny_access"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "ssh_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Anonymous FTP Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wget",
+            "command_template": "wget -r ftp://anonymous:@{target_ip}",
+            "actual_command": "wget -r ftp://anonymous:@10.10.10.184",
+            "output_pattern": "Files downloaded recursively",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "ftp",
+            "command_template": "ftp {target_ip}",
+            "actual_command": "ftp 10.10.10.184",
+            "success_factors": [
+              "anonymous_login_enabled",
+              "readable_files_present"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "ftp_service_accessible",
+          "anonymous_login_permitted",
+          "files_present_in_ftp_root"
+        ],
+        "success_indicators": [
+          "successful_anonymous_login",
+          "files_enumerated_and_downloaded",
+          "sensitive_information_discovered"
+        ],
+        "common_failures": [
+          "anonymous_access_disabled",
+          "empty_ftp_directories",
+          "permission_denied_on_files"
+        ],
+        "follow_up_techniques": [
+          "information_analysis",
+          "credential_discovery",
+          "attack_path_planning"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSH Authentication with Discovered Credentials",
+        "mitre_id": "T1078.003",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "ssh",
+            "command_template": "ssh {username}@{target_ip}",
+            "actual_command": "ssh nadine@10.10.10.184",
+            "output_pattern": "Shell access granted",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "valid_credentials_obtained",
+          "ssh_service_accessible",
+          "user_account_has_ssh_access"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "shell_access_obtained",
+          "user_privileges_confirmed"
+        ],
+        "common_failures": [
+          "invalid_credentials",
+          "ssh_access_restricted",
+          "account_locked_or_disabled"
+        ],
+        "follow_up_techniques": [
+          "local_enumeration",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "NSClient++ Configuration File Access",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "type",
+            "command_template": "type \"{config_path}\"",
+            "actual_command": "type \"C:\\Program Files\\NSClient++\\nsclient.ini\"",
+            "output_pattern": "Configuration file contents with credentials",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "local_file_system_access",
+          "nsclient_installed",
+          "config_file_readable"
+        ],
+        "success_indicators": [
+          "config_file_accessed",
+          "admin_credentials_extracted",
+          "service_configuration_understood"
+        ],
+        "common_failures": [
+          "config_file_not_found",
+          "insufficient_permissions",
+          "credentials_not_in_config"
+        ],
+        "follow_up_techniques": [
+          "nsclient_exploitation",
+          "privilege_escalation",
+          "system_shell_acquisition"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "directory_traversal_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "curl",
+          "wget",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_repeater_for_manual_testing",
+          "try_multiple_traversal_depths",
+          "test_both_forward_and_back_slashes"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "service_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "start_with_fast_port_scan",
+          "follow_up_with_service_detection",
+          "save_all_output_formats"
+        ]
+      },
+      {
+        "tool": "searchsploit",
+        "use_case": "vulnerability_research",
+        "effectiveness_rating": 4,
+        "reliability": 0.8,
+        "learning_curve": "low",
+        "essential_for": [
+          "exploit_development"
+        ],
+        "alternatives": [
+          "google_search",
+          "cve_databases"
+        ],
+        "best_practices": [
+          "search_by_service_name_and_version",
+          "verify_exploits_before_use",
+          "understand_exploit_requirements"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ftp_to_directory_traversal_to_ssh",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wget -r ftp://anonymous:@10.10.10.184",
+            "purpose": "Download all FTP files anonymously",
+            "expected_output": "Files containing password location hints"
+          },
+          {
+            "step": 2,
+            "command": "searchsploit \"nvms 1000\"",
+            "purpose": "Find known vulnerabilities",
+            "expected_output": "Directory traversal vulnerability identified"
+          },
+          {
+            "step": 3,
+            "command": "curl http://10.10.10.184/../../../../../../../../../../../../Users/Nathan/Desktop/Passwords.txt",
+            "purpose": "Exploit directory traversal to get passwords",
+            "expected_output": "Password list retrieved"
+          },
+          {
+            "step": 4,
+            "command": "ssh nadine@10.10.10.184",
+            "purpose": "Authenticate with discovered credentials",
+            "expected_output": "Shell access as nadine user"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-30 minutes"
+      },
+      {
+        "sequence_name": "nsclient_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "type \"C:\\Program Files\\NSClient++\\nsclient.ini\"",
+            "purpose": "Extract NSClient++ configuration",
+            "expected_output": "Admin password and configuration details"
+          },
+          {
+            "step": 2,
+            "command": "netstat -ano | findstr 8443",
+            "purpose": "Verify NSClient++ service binding",
+            "expected_output": "Service running on localhost:8443"
+          },
+          {
+            "step": 3,
+            "command": "curl -k -u admin:password https://127.0.0.1:8443/",
+            "purpose": "Authenticate to NSClient++ web interface",
+            "expected_output": "Successful authentication to admin panel"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "ServMon",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2020-04-11",
+      "author": "dmw0ng",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "directory_traversal",
+        "credential_reuse",
+        "service_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "nvms_directory_traversal",
+        "nsclient_privilege_escalation",
+        "anonymous_ftp"
+      ],
+      "environment_type": "windows_workstation",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "directory_traversal_exploitation",
+        "credential_harvesting",
+        "service_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_exploitation",
+        "windows_fundamentals",
+        "ssh_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "directory_traversal",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "disable_anonymous_ftp",
+        "patch_management",
+        "service_hardening",
+        "credential_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Optimum",
+        "Devel",
+        "Grandpa"
+      ],
+      "similarity_reasons": [
+        "windows_exploitation",
+        "service_vulnerabilities",
+        "multi_stage_exploitation"
+      ],
+      "unique_aspects": [
+        "nvms_1000_exploitation",
+        "nsclient_escalation",
+        "ssh_on_windows"
+      ],
+      "difficulty_factors": [
+        "straightforward_exploit_chain",
+        "well_known_vulnerabilities",
+        "clear_attack_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T11:42:09.209417",
+    "original_file": "0xdf_writeups/Htb Servmon.md",
+    "content_length": 24744,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

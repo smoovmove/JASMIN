@@ -1,0 +1,868 @@
+{
+  "writeup_id": "Htb_Obscurity",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_custom_python_webserver_exploitation",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+8080",
+    "service_combination": "ssh+custom_http",
+    "os_family": "linux",
+    "environment_type": "standalone_server",
+    "entry_vector": "custom_webserver_code_injection",
+    "privilege_path": "webserver_to_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "custom_python_webserver",
+      "source_code_disclosure_hints",
+      "badhttpserver_header",
+      "custom_encryption_implementation"
+    ],
+    "environmental_clues": [
+      "non_standard_http_port_8080",
+      "custom_server_implementation",
+      "development_directory_references",
+      "python_based_services"
+    ],
+    "similar_scenarios": [
+      "custom_application_boxes",
+      "python_exploitation_challenges"
+    ],
+    "unique_aspects": [
+      "multiple_custom_python_vulnerabilities",
+      "custom_cipher_breaking",
+      "race_condition_exploitation",
+      "python_path_manipulation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Custom_Python_Webserver_Source_Discovery",
+        "success_reason": "Developer hint revealed source code location in secret directory",
+        "prerequisite_indicators": [
+          "custom_http_server_detected",
+          "non_standard_server_header",
+          "developer_comments_in_html"
+        ],
+        "recognition_patterns": [
+          "BadHTTPServer header",
+          "custom server implementation hints",
+          "source code location hints in content",
+          "gobuster failures indicating custom implementation"
+        ],
+        "failure_modes": [
+          "no_source_code_hints",
+          "standard_webserver_implementation",
+          "proper_security_headers"
+        ],
+        "environmental_factors": [
+          "development_environment_exposed",
+          "insufficient_information_disclosure_controls",
+          "custom_implementations_without_security_review"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Python_Code_Injection",
+        "success_reason": "Custom Python webserver vulnerable to code injection through URL parameters",
+        "prerequisite_indicators": [
+          "python_webserver_identified",
+          "custom_implementation_detected",
+          "source_code_available_for_analysis"
+        ],
+        "recognition_patterns": [
+          "exec() or eval() functions in source",
+          "unsanitized user input processing",
+          "custom URL parsing logic",
+          "python error messages in responses"
+        ],
+        "failure_modes": [
+          "input_sanitization_implemented",
+          "no_dangerous_functions_used",
+          "proper_exception_handling"
+        ],
+        "environmental_factors": [
+          "development_code_in_production",
+          "lack_of_secure_coding_practices",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Custom_Cipher_Cryptanalysis",
+        "success_reason": "Poor custom encryption implementation with weak key derivation",
+        "prerequisite_indicators": [
+          "custom_encryption_scripts_found",
+          "encrypted_files_discovered",
+          "weak_cipher_implementation_patterns"
+        ],
+        "recognition_patterns": [
+          "simple XOR or substitution ciphers",
+          "predictable key generation",
+          "reused encryption keys",
+          "small keyspace for brute force"
+        ],
+        "failure_modes": [
+          "strong_encryption_algorithms_used",
+          "proper_key_management",
+          "sufficient_key_length"
+        ],
+        "environmental_factors": [
+          "custom_crypto_implementations",
+          "lack_of_cryptographic_expertise",
+          "development_shortcuts_in_security"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "20-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SuperSecureServer.py source code hint",
+        "discovery_method": "HTML content analysis",
+        "why_critical": "Revealed location of vulnerable custom webserver source",
+        "how_to_recognize": [
+          "developer comments in HTML",
+          "file path hints in content",
+          "custom server implementation clues"
+        ],
+        "follow_up_actions": [
+          "enumerate_secret_directories",
+          "download_source_code",
+          "analyze_for_vulnerabilities"
+        ]
+      },
+      {
+        "discovery": "Custom HTTP server implementation",
+        "discovery_method": "Server header analysis and gobuster behavior",
+        "why_critical": "Custom implementations often contain security flaws",
+        "how_to_recognize": [
+          "non-standard server headers",
+          "unusual HTTP responses",
+          "tool failures indicating custom logic"
+        ],
+        "follow_up_actions": [
+          "manual_testing_of_edge_cases",
+          "source_code_analysis",
+          "injection_testing"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_shell",
+        "escalation_method": "lateral_movement_via_custom_crypto",
+        "why_possible": "Custom cipher allowed password recovery for privilege escalation",
+        "recognition_signs": [
+          "encrypted_password_files",
+          "custom_encryption_scripts",
+          "weak_cipher_implementations"
+        ],
+        "exploitation_path": "Code Injection → Shell → Crypto Analysis → User Pivot"
+      },
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "multiple_root_vectors",
+        "why_possible": "SSH script vulnerabilities and system misconfigurations",
+        "recognition_signs": [
+          "custom_ssh_implementations",
+          "race_condition_opportunities",
+          "lxd_group_membership",
+          "python_path_manipulation"
+        ],
+        "exploitation_path": "User Access → SSH Script Abuse → Root Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found custom HTTP server on non-standard port with unusual behavior",
+        "decision": "Investigate custom server implementation and look for source code",
+        "reasoning": "Custom implementations often have vulnerabilities, server name 'BadHTTPServer' suggests intentional weakness",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "standard_web_enumeration",
+            "when": "if source code not found"
+          },
+          {
+            "option": "port_fuzzing",
+            "when": "if other services detected"
+          }
+        ],
+        "success_indicators": [
+          "source_code_location_hint_found",
+          "unusual_server_responses",
+          "directory_enumeration_tools_failing"
+        ],
+        "next_decision": "locate_source_code_file"
+      },
+      {
+        "step": 2,
+        "situation": "Found hint about source code location in development directory",
+        "decision": "Use targeted fuzzing for specific filename rather than directory enumeration",
+        "reasoning": "Standard tools failing due to custom server behavior, need specific approach",
+        "confidence": 0.85,
+        "prerequisites": [
+          "filename_known",
+          "hint_about_secret_directory"
+        ],
+        "success_indicators": [
+          "source_code_file_accessible"
+        ],
+        "failure_fallbacks": [
+          "manual_path_guessing",
+          "alternative_fuzzing_tools",
+          "parameter_injection"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Custom Python server source code obtained",
+        "decision": "Analyze code for injection vulnerabilities in HTTP handling",
+        "reasoning": "Python web servers often vulnerable to code injection through poor input validation",
+        "confidence": 0.95,
+        "prerequisites": [
+          "python_source_code_available"
+        ],
+        "success_indicators": [
+          "exec_or_eval_functions_found",
+          "unsanitized_input_processing"
+        ],
+        "failure_fallbacks": [
+          "logic_flaws",
+          "path_traversal",
+          "authentication_bypass"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_custom_server_detected": {
+        "action": "prioritize_source_code_discovery",
+        "tools": [
+          "wfuzz",
+          "manual_testing",
+          "curl"
+        ],
+        "next_phase": "code_analysis_for_vulnerabilities"
+      },
+      "if_source_code_found": {
+        "action": "static_code_analysis",
+        "focus": [
+          "input_validation",
+          "exec_functions",
+          "path_handling"
+        ],
+        "tools": [
+          "manual_review",
+          "grep_patterns"
+        ]
+      },
+      "if_injection_found": {
+        "action": "craft_payload_for_code_execution",
+        "purpose": "achieve_initial_foothold",
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_standard_tools_fail": {
+        "action": "adapt_methodology_to_custom_implementation",
+        "alternatives": [
+          "manual_testing",
+          "custom_scripts",
+          "targeted_fuzzing"
+        ],
+        "decision_criteria": "based_on_server_behavior_analysis"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_investigate_custom_implementations_first",
+        "reasoning": "higher_vulnerability_probability_than_standard_software",
+        "applicability": "custom_server_headers_or_unusual_behavior"
+      },
+      {
+        "rule": "adapt_enumeration_when_standard_tools_fail",
+        "reasoning": "custom_implementations_may_break_tool_assumptions",
+        "applicability": "gobuster_dirsearch_failures_or_errors"
+      },
+      {
+        "rule": "prioritize_source_code_hints_in_application_content",
+        "reasoning": "developers_often_leave_breadcrumbs_in_production",
+        "applicability": "any_mention_of_source_files_or_development"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Custom Python Server Code Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "custom_python_server"
+        ],
+        "required_ports": [
+          8080,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "custom_python_webserver_detected",
+          "source_code_accessible",
+          "input_validation_missing"
+        ],
+        "success_indicators": [
+          "BadHTTPServer_header_present",
+          "python_error_messages",
+          "source_code_found"
+        ],
+        "incompatible_with": [
+          "standard_webserver_only",
+          "input_sanitization_present",
+          "source_code_unavailable"
+        ],
+        "confidence_boosters": [
+          "development_directory_hints",
+          "custom_server_naming",
+          "python_stack_traces"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Custom Cipher Cryptanalysis",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "custom_encryption"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "custom_cipher_implementation",
+          "encrypted_files_accessible",
+          "cipher_source_available"
+        ],
+        "success_indicators": [
+          "python_crypto_files",
+          "encrypted_password_files",
+          "weak_cipher_patterns"
+        ],
+        "incompatible_with": [
+          "standard_encryption_only",
+          "strong_cipher_implementation",
+          "no_encrypted_files"
+        ],
+        "confidence_boosters": [
+          "home_grown_crypto",
+          "simple_xor_patterns",
+          "key_reuse_indicators"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "SSH Client Race Condition",
+        "mitre_id": "T1068",
+        "required_services": [
+          "ssh",
+          "custom_ssh_client"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "custom_ssh_implementation",
+          "temporary_file_creation",
+          "race_condition_window"
+        ],
+        "success_indicators": [
+          "custom_ssh_script_found",
+          "temporary_file_patterns",
+          "timing_sensitive_operations"
+        ],
+        "incompatible_with": [
+          "standard_ssh_only",
+          "atomic_operations",
+          "proper_file_locking"
+        ],
+        "confidence_boosters": [
+          "python_ssh_client",
+          "file_system_operations",
+          "privilege_escalation_context"
+        ],
+        "typical_success_rate": 0.55,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_service_detected",
+          "directory_structure_present",
+          "no_rate_limiting"
+        ],
+        "success_indicators": [
+          "200_status_responses",
+          "directory_listings",
+          "source_files_found"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "waf_protection",
+          "no_hidden_directories"
+        ],
+        "confidence_boosters": [
+          "development_hints_in_content",
+          "custom_server_implementation",
+          "error_message_disclosure"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "custom_python_server": {
+        "port_indicators": [
+          8080,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "BadHTTPServer",
+          "Python",
+          "Custom"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "development_environment": {
+        "port_indicators": [
+          8080,
+          9000
+        ],
+        "service_indicators": [
+          "http-proxy",
+          "development"
+        ],
+        "banner_indicators": [
+          "dev",
+          "development",
+          "test"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "custom_server_detected",
+          "reason": "often_reveals_source_code_and_development_files"
+        },
+        {
+          "attack": "custom_server_code_injection",
+          "when": "python_server_and_source_found",
+          "reason": "direct_code_execution_possible"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "custom_cipher_analysis",
+          "when": "encrypted_files_found",
+          "reason": "credential_recovery_possible"
+        },
+        {
+          "attack": "race_condition_exploitation",
+          "when": "custom_ssh_client_found",
+          "reason": "privilege_escalation_opportunity"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Custom Web Server Code Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -w {wordlist} -u http://{target}:{port}/FUZZ/{filename} --hl {lines} --hw {words}",
+            "actual_command": "wfuzz -c -w dev_dirs -u http://10.10.10.168:8080/FUZZ/SuperSecureServer.py --hl 6 --hw 367",
+            "output_pattern": "200 response with source code",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "curl",
+            "command_template": "curl --path-as-is http://{target}:{port}/../{filename}",
+            "actual_command": "curl --path-as-is http://10.10.10.168:8080/../SuperSecureServer.py",
+            "success_factors": [
+              "directory_traversal_vulnerability",
+              "source_code_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "custom_web_server_running",
+          "source_code_accessible",
+          "python_server_with_injection_points"
+        ],
+        "success_indicators": [
+          "source_code_retrieved",
+          "injection_points_identified",
+          "code_execution_achieved"
+        ],
+        "common_failures": [
+          "server_crashes_during_enumeration",
+          "standard_tools_break_on_custom_server",
+          "directory_traversal_blocked"
+        ],
+        "follow_up_techniques": [
+          "python_code_injection",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Directory Traversal",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl --path-as-is http://{target}:{port}/../{target_file}",
+            "actual_command": "curl --path-as-is http://10.10.10.168:8080/../SuperSecureServer.py",
+            "output_pattern": "Source code or sensitive files",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "improper_path_validation"
+        ],
+        "success_indicators": [
+          "access_to_files_outside_webroot",
+          "source_code_disclosure",
+          "sensitive_information_leaked"
+        ],
+        "common_failures": [
+          "path_traversal_filtered",
+          "insufficient_permissions",
+          "files_not_readable"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "vulnerability_identification"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Custom Cipher Cryptanalysis",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "python_script",
+            "command_template": "python3 decrypt.py {encrypted_file} {key}",
+            "actual_command": "python3 decrypt.py out.txt alexandrovich",
+            "output_pattern": "Decrypted credentials",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "custom_cipher_implementation_available",
+          "encrypted_credentials_accessible",
+          "cipher_key_discoverable"
+        ],
+        "success_indicators": [
+          "cipher_algorithm_understood",
+          "key_identified_or_bruteforced",
+          "credentials_successfully_decrypted"
+        ],
+        "common_failures": [
+          "strong_encryption_implementation",
+          "key_not_discoverable",
+          "cipher_algorithm_unknown"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Race Condition Exploitation",
+        "mitre_id": "T1068",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "bash_script",
+            "command_template": "while true; do {command1} & {command2}; done",
+            "actual_command": "while true; do sudo /usr/bin/python3 /opt/BetterSSH/BetterSSH.py -i /tmp/ssh -k /tmp/key & cat /etc/shadow; done",
+            "output_pattern": "System hashes leaked",
+            "effectiveness_rating": 3,
+            "reliability": 0.6
+          }
+        ],
+        "prerequisites": [
+          "race_condition_vulnerable_script",
+          "sudo_access_to_script",
+          "timing_window_exploitable"
+        ],
+        "success_indicators": [
+          "sensitive_files_accessed_during_race",
+          "privilege_escalation_achieved",
+          "system_hashes_obtained"
+        ],
+        "common_failures": [
+          "timing_window_too_small",
+          "race_condition_patched",
+          "insufficient_system_load"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_reuse",
+          "system_compromise"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wfuzz",
+        "use_case": "custom_server_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "medium",
+        "essential_for": [
+          "custom_web_applications"
+        ],
+        "alternatives": [
+          "ffuf",
+          "gobuster",
+          "dirsearch"
+        ],
+        "best_practices": [
+          "use_smaller_wordlists_for_unstable_servers",
+          "filter_responses_by_lines_and_words",
+          "handle_server_crashes_gracefully"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "directory_traversal_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "wget",
+          "burp_suite",
+          "browser"
+        ],
+        "best_practices": [
+          "use_path_as_is_flag_for_traversal",
+          "test_multiple_traversal_patterns",
+          "verify_response_content_not_just_status"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "custom_server_source_disclosure",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.168",
+            "purpose": "Identify open ports and services",
+            "expected_output": "Custom HTTP server on port 8080"
+          },
+          {
+            "step": 2,
+            "command": "grep dev /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt > dev_dirs",
+            "purpose": "Create targeted wordlist",
+            "expected_output": "Filtered wordlist with dev-related terms"
+          },
+          {
+            "step": 3,
+            "command": "wfuzz -c -w dev_dirs -u http://10.10.10.168:8080/FUZZ/SuperSecureServer.py --hl 6 --hw 367",
+            "purpose": "Find development directory containing source",
+            "expected_output": "200 response from /develop/ directory"
+          },
+          {
+            "step": 4,
+            "command": "curl http://10.10.10.168:8080/develop/SuperSecureServer.py",
+            "purpose": "Retrieve server source code",
+            "expected_output": "Python web server source code"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-40 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Obscurity",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2019-11-30",
+      "author": "clubby789",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "code_injection",
+        "custom_application_exploitation",
+        "cryptographic_weakness"
+      ],
+      "key_vulnerabilities": [
+        "python_code_injection",
+        "weak_custom_cipher",
+        "race_condition",
+        "path_manipulation"
+      ],
+      "environment_type": "custom_python_applications",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "python_exploitation",
+        "custom_crypto_analysis",
+        "race_conditions",
+        "privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "python_programming",
+        "web_exploitation",
+        "basic_cryptography",
+        "linux_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "code_injection",
+        "cryptographic_attacks",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "remote_code_execution",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_coding_practices",
+        "input_validation",
+        "proper_cryptographic_implementation",
+        "file_permissions"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Craft",
+        "Player",
+        "Chainsaw"
+      ],
+      "similarity_reasons": [
+        "custom_application_exploitation",
+        "python_vulnerabilities",
+        "multi_stage_exploitation"
+      ],
+      "unique_aspects": [
+        "custom_python_webserver",
+        "homemade_encryption",
+        "multiple_root_paths",
+        "ssh_client_exploitation"
+      ],
+      "difficulty_factors": [
+        "source_code_analysis",
+        "custom_crypto_breaking",
+        "race_condition_timing",
+        "multiple_exploitation_vectors"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T00:37:54.864678",
+    "original_file": "0xdf_writeups/Htb Obscurity.md",
+    "content_length": 56635,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

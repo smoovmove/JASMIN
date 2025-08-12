@@ -1,0 +1,923 @@
+{
+  "writeup_id": "Htb_Craft",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_container_api_exploitation",
+    "primary_services": [
+      "https",
+      "ssh",
+      "api",
+      "git"
+    ],
+    "port_signature": "22+443+6022",
+    "service_combination": "nginx+ssh+go_ssh+api",
+    "os_family": "linux",
+    "environment_type": "containerized_web_application",
+    "entry_vector": "api_code_injection",
+    "privilege_path": "api_container_to_host_root",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "multiple_ssh_ports",
+      "go_ssh_service_port_6022",
+      "gogs_git_service",
+      "flask_api_with_source_code",
+      "jwt_authentication"
+    ],
+    "environmental_clues": [
+      "nginx_reverse_proxy",
+      "multiple_subdomains",
+      "api_documentation_interface",
+      "source_code_repository_access",
+      "container_architecture"
+    ],
+    "similar_scenarios": [
+      "registry_htb_hard",
+      "node_htb_medium"
+    ],
+    "unique_aspects": [
+      "craft_brewery_theme",
+      "vault_subdomain",
+      "api_gui_interface",
+      "settings_file_credential_exposure"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "credential_discovery_in_git",
+        "success_reason": "API credentials exposed in Gogs repository issues and commit history",
+        "prerequisite_indicators": [
+          "git_service_accessible",
+          "public_repositories_available",
+          "development_workflow_exposed"
+        ],
+        "recognition_patterns": [
+          "gogs/gitlab/github instances on non-standard ports",
+          "API tokens in issue discussions",
+          "curl examples with authentication headers",
+          "commit history with sensitive data"
+        ],
+        "failure_modes": [
+          "private_repositories_only",
+          "sanitized_commit_history",
+          "no_sensitive_data_in_issues"
+        ],
+        "environmental_factors": [
+          "developer_convenience_over_security",
+          "inadequate_secrets_management",
+          "public_development_repositories"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "api_code_injection",
+        "success_reason": "Unsafe eval() usage in API endpoint without proper input validation",
+        "prerequisite_indicators": [
+          "api_source_code_available",
+          "dynamic_code_execution_patterns",
+          "python_flask_application"
+        ],
+        "recognition_patterns": [
+          "eval() or exec() in source code",
+          "user input passed to dangerous functions",
+          "missing input sanitization",
+          "abv calculation endpoints"
+        ],
+        "failure_modes": [
+          "proper_input_validation",
+          "sandboxed_execution",
+          "whitelist_filtering"
+        ],
+        "environmental_factors": [
+          "containerized_application",
+          "developer_shortcuts_in_code",
+          "insufficient_code_review"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "container_credential_harvesting",
+        "success_reason": "Database credentials and SSH keys stored in container filesystem",
+        "prerequisite_indicators": [
+          "container_shell_access",
+          "application_configuration_files",
+          "database_connectivity_required"
+        ],
+        "recognition_patterns": [
+          "settings.py or config files in containers",
+          "ssh keys in user directories",
+          "database connection strings",
+          "environment variables with credentials"
+        ],
+        "failure_modes": [
+          "secrets_in_external_vault",
+          "encrypted_configuration",
+          "minimal_container_images"
+        ],
+        "environmental_factors": [
+          "development_containers_in_production",
+          "shared_credentials_across_services",
+          "inadequate_container_security"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-20 minutes"
+      },
+      {
+        "technique": "vault_token_privilege_escalation",
+        "success_reason": "Vault service configured with overprivileged tokens allowing SSH key generation",
+        "prerequisite_indicators": [
+          "vault_service_running",
+          "vault_tokens_available",
+          "ssh_secret_engine_enabled"
+        ],
+        "recognition_patterns": [
+          "vault service on non-standard ports",
+          "vault tokens in application configs",
+          "ssh secret backend configured",
+          "otp or dynamic ssh keys enabled"
+        ],
+        "failure_modes": [
+          "restricted_vault_policies",
+          "token_expiration",
+          "ssh_backend_disabled"
+        ],
+        "environmental_factors": [
+          "hashicorp_vault_deployment",
+          "dynamic_ssh_key_management",
+          "overprivileged_service_tokens"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "20-40 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "API authentication token in Gogs issues",
+        "discovery_method": "Manual review of repository issues and discussions",
+        "why_critical": "Enabled authenticated API access leading to code injection",
+        "how_to_recognize": [
+          "curl examples in issue discussions",
+          "JWT tokens in plaintext",
+          "API documentation with live examples",
+          "developer troubleshooting conversations"
+        ],
+        "follow_up_actions": [
+          "test_api_endpoints_with_token",
+          "analyze_api_source_code",
+          "identify_injection_points",
+          "craft_payload_for_code_execution"
+        ]
+      },
+      {
+        "discovery": "eval() vulnerability in ABV calculation",
+        "discovery_method": "Source code analysis of API endpoints",
+        "why_critical": "Direct code execution in container environment",
+        "how_to_recognize": [
+          "eval() or exec() functions in code",
+          "user input concatenated into expressions",
+          "mathematical calculation endpoints",
+          "missing input validation"
+        ],
+        "follow_up_actions": [
+          "craft_python_injection_payload",
+          "establish_reverse_shell",
+          "enumerate_container_environment",
+          "search_for_credentials_and_keys"
+        ]
+      },
+      {
+        "discovery": "SSH private key in container",
+        "discovery_method": "Container filesystem enumeration after code execution",
+        "why_critical": "Provided SSH access to host system",
+        "how_to_recognize": [
+          "ssh keys in home directories",
+          "id_rsa files in containers",
+          "git configuration with ssh keys",
+          "developer ssh keys in application containers"
+        ],
+        "follow_up_actions": [
+          "extract_ssh_private_key",
+          "identify_target_ssh_service",
+          "test_key_authentication",
+          "establish_persistent_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "container_user",
+        "escalation_method": "ssh_key_to_host_access",
+        "why_possible": "SSH private key found in container provided host system access",
+        "recognition_signs": [
+          "ssh_keys_in_container_filesystem",
+          "multiple_ssh_ports_on_target",
+          "developer_keys_with_host_access",
+          "shared_keys_across_environments"
+        ],
+        "exploitation_path": "Container RCE → SSH Key Discovery → Host SSH Access"
+      },
+      {
+        "privilege_level": "host_user",
+        "escalation_method": "vault_ssh_otp_to_root",
+        "why_possible": "Vault service configured to generate SSH OTP for root access",
+        "recognition_signs": [
+          "vault_service_accessible",
+          "vault_tokens_in_configs",
+          "ssh_secret_engine_enabled",
+          "root_ssh_role_configured"
+        ],
+        "exploitation_path": "Host Access → Vault Token → SSH OTP Generation → Root SSH"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,443,6022 open on Linux host with TLS cert showing craft.htb",
+        "decision": "Enumerate web services and discover subdomains from certificate and links",
+        "reasoning": "Multiple services suggest web application focus, certificate reveals domain structure",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "subdomain_bruteforce",
+            "when": "after initial discovery"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "web_applications_identified",
+          "technology_stack_identified"
+        ],
+        "next_decision": "analyze_web_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered api.craft.htb, gogs.craft.htb, vault.craft.htb subdomains",
+        "decision": "Prioritize Gogs repository analysis for source code and credentials",
+        "reasoning": "Source code repositories often contain credentials, API documentation, and vulnerabilities",
+        "confidence": 0.95,
+        "prerequisites": [
+          "subdomains_enumerated",
+          "web_services_accessible"
+        ],
+        "success_indicators": [
+          "source_code_accessed",
+          "credentials_found",
+          "api_documentation_found"
+        ],
+        "failure_fallbacks": [
+          "api_endpoint_fuzzing",
+          "vault_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found API source code in Gogs with eval() vulnerability and test credentials",
+        "decision": "Extract credentials from test files and exploit eval() in API",
+        "reasoning": "Test files often contain valid credentials, eval() provides direct code execution",
+        "confidence": 0.9,
+        "prerequisites": [
+          "source_code_analyzed",
+          "vulnerability_identified"
+        ],
+        "success_indicators": [
+          "api_authentication_successful",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "other_api_vulnerabilities"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_gogs_accessible": {
+        "action": "analyze_repositories_and_issues",
+        "tools": [
+          "browser",
+          "git_clone"
+        ],
+        "next_phase": "source_code_analysis"
+      },
+      "if_source_code_found": {
+        "action": "search_for_credentials_and_vulnerabilities",
+        "focus_areas": [
+          "test_files",
+          "config_files",
+          "commit_history",
+          "issues"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_credentials_obtained": {
+        "action": "authenticate_to_api_and_exploit_vulnerability",
+        "tools": [
+          "curl",
+          "python_requests"
+        ],
+        "next_phase": "code_execution"
+      },
+      "if_code_execution_achieved": {
+        "action": "enumerate_container_and_find_privilege_escalation",
+        "tools": [
+          "reverse_shell",
+          "container_enumeration"
+        ],
+        "next_phase": "lateral_movement"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_gogs_repositories_for_credentials",
+        "reasoning": "developers_frequently_commit_sensitive_information",
+        "applicability": "gogs_or_git_services_discovered"
+      },
+      {
+        "rule": "analyze_test_files_before_production_code",
+        "reasoning": "test_files_often_contain_hardcoded_credentials",
+        "applicability": "source_code_repositories_accessible"
+      },
+      {
+        "rule": "look_for_eval_exec_functions_in_web_apis",
+        "reasoning": "common_vulnerability_pattern_for_code_execution",
+        "applicability": "api_source_code_available"
+      },
+      {
+        "rule": "enumerate_containers_after_initial_compromise",
+        "reasoning": "containerized_environments_often_have_lateral_movement_opportunities",
+        "applicability": "container_environment_detected"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Git Repository Analysis",
+        "mitre_id": "T1213.003",
+        "required_services": [
+          "http",
+          "https",
+          "git"
+        ],
+        "required_ports": [
+          80,
+          443,
+          9418
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "git_service_accessible",
+          "public_repositories_exist",
+          "source_code_exposed"
+        ],
+        "success_indicators": [
+          "configuration_files_present",
+          "credentials_in_commits",
+          "api_keys_exposed",
+          "database_connection_strings"
+        ],
+        "incompatible_with": [
+          "private_repositories_only",
+          "authentication_required",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "settings_py_files",
+          "config_directories",
+          "commit_history_accessible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "API Endpoint Enumeration",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_api_exposed",
+          "swagger_ui_accessible",
+          "api_documentation_available"
+        ],
+        "success_indicators": [
+          "unauthenticated_endpoints_found",
+          "parameter_injection_possible",
+          "authentication_bypass_available"
+        ],
+        "incompatible_with": [
+          "api_completely_authenticated",
+          "rate_limiting_strict",
+          "waf_protection_active"
+        ],
+        "confidence_boosters": [
+          "flask_restplus_framework",
+          "swagger_documentation",
+          "debug_mode_enabled"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Container Escape via SSH",
+        "mitre_id": "T1611",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22,
+          2222,
+          6022
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "multiple_ssh_ports_open",
+          "container_environment_detected",
+          "ssh_keys_accessible"
+        ],
+        "success_indicators": [
+          "different_ssh_versions_detected",
+          "go_ssh_server_identified",
+          "container_to_host_access"
+        ],
+        "incompatible_with": [
+          "single_ssh_service",
+          "strict_container_isolation",
+          "key_based_auth_only"
+        ],
+        "confidence_boosters": [
+          "unusual_ssh_ports",
+          "go_ssh_implementation",
+          "docker_environment_variables"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "git_service": {
+        "port_indicators": [
+          80,
+          443,
+          9418,
+          3000
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "git"
+        ],
+        "banner_indicators": [
+          "gogs",
+          "gitlab",
+          "gitea",
+          "github"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "flask_api": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "flask",
+          "swagger",
+          "restplus"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "container_environment": {
+        "port_indicators": [
+          22,
+          2222,
+          6022
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "Go",
+          "Docker",
+          "multiple_ssh"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "git_repository_analysis",
+          "when": "git_service_detected",
+          "reason": "often_contains_credentials_and_source_code"
+        },
+        {
+          "attack": "api_endpoint_testing",
+          "when": "swagger_ui_detected",
+          "reason": "documented_endpoints_easy_to_test"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_key_enumeration",
+          "when": "multiple_ssh_ports_detected",
+          "reason": "indicates_container_environment_potential_escape"
+        },
+        {
+          "attack": "subdomain_enumeration",
+          "when": "multiple_subdomains_found",
+          "reason": "additional_attack_surface_discovery"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Source Code Analysis",
+        "mitre_id": "T1213.001",
+        "category": "collection",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gogs_repository_browser",
+            "command_template": "Browse to https://{subdomain}.{domain}/",
+            "actual_command": "Browse to https://gogs.craft.htb/",
+            "output_pattern": "Git repository with source code",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "git_repository_publicly_accessible"
+        ],
+        "success_indicators": [
+          "source_code_retrieved",
+          "configuration_files_found",
+          "credentials_discovered_in_commits"
+        ],
+        "common_failures": [
+          "repository_access_restricted",
+          "sensitive_files_properly_gitignored"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "api_exploitation",
+          "commit_history_analysis"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Git Commit History Analysis",
+        "mitre_id": "T1213.001",
+        "category": "collection",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "git_web_interface",
+            "command_template": "Navigate to commit history and diff views",
+            "actual_command": "Click History -> View commit diffs",
+            "output_pattern": "Credential changes in commit diffs",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "git_repository_access",
+          "commit_history_available"
+        ],
+        "success_indicators": [
+          "credentials_found_in_commit_diffs",
+          "removed_credentials_still_visible",
+          "configuration_changes_revealed"
+        ],
+        "common_failures": [
+          "history_rewritten_or_squashed",
+          "sensitive_data_never_committed"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "api_authentication"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Code Injection via eval()",
+        "mitre_id": "T1059.006",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -H 'X-Craft-API-Token: {token}' -H 'Content-Type: application/json' -k -X POST https://api.{domain}/api/brew/ --data '{\"abv\": \"{payload}\"}'",
+            "actual_command": "curl -H 'X-Craft-API-Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoidXNlciIsImV4cCI6MTU0OTM4NTI0Mn0.-wW1aJkLQDOE-GP5pQd3z_BJTe2Uo0jJ_mQ238P5Dqw' -H 'Content-Type: application/json' -k -X POST https://api.craft.htb/api/brew/ --data '{\"abv\": \"__import__(\\\"os\\\").system(\\\"id\\\")\"}'",
+            "output_pattern": "Command execution output in API response",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "valid_api_token",
+          "vulnerable_eval_function",
+          "api_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "system_information_retrieved",
+          "reverse_shell_established"
+        ],
+        "common_failures": [
+          "input_validation_blocks_payload",
+          "eval_function_sandboxed",
+          "network_restrictions_prevent_callbacks"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "container_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Subdomain Enumeration",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u 'https://{ip}' -w {wordlist} -H 'Host: FUZZ.{domain}' --hh {hide_chars}",
+            "actual_command": "wfuzz -u 'https://10.10.10.110' -w /usr/share/seclists/Discovery/DNS/subdomains-top1mil-20000.txt -H 'Host: FUZZ.craft.htb' --hh 3779",
+            "output_pattern": "HTTP response codes indicating valid subdomains",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "target_domain_identified",
+          "web_server_accessible",
+          "virtual_host_routing_enabled"
+        ],
+        "success_indicators": [
+          "additional_subdomains_discovered",
+          "expanded_attack_surface",
+          "new_applications_found"
+        ],
+        "common_failures": [
+          "no_virtual_host_routing",
+          "rate_limiting_blocks_requests",
+          "wordlist_insufficient"
+        ],
+        "follow_up_techniques": [
+          "subdomain_application_enumeration",
+          "certificate_analysis"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wfuzz",
+        "use_case": "subdomain_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "virtual_host_discovery"
+        ],
+        "alternatives": [
+          "gobuster",
+          "ffuf",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "filter_by_response_size_or_code",
+          "respect_rate_limits"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "port_discovery_and_service_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "initial_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "start_with_fast_port_scan",
+          "follow_up_with_service_detection",
+          "analyze_ssl_certificates_for_domains"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "api_exploitation_and_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "api_testing",
+          "payload_delivery"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "postman",
+          "python_requests"
+        ],
+        "best_practices": [
+          "include_proper_headers",
+          "handle_ssl_verification_appropriately",
+          "format_json_payloads_correctly"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "craft_initial_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 -oA scans/alltcp 10.10.10.110",
+            "purpose": "Discover all open ports",
+            "expected_output": "Ports 22, 443, 6022 open"
+          },
+          {
+            "step": 2,
+            "command": "nmap -sC -sV -p 22,443,6022 -oA scans/tcp-scripts 10.10.10.110",
+            "purpose": "Service enumeration and script scanning",
+            "expected_output": "SSL certificate reveals craft.htb domain"
+          },
+          {
+            "step": 3,
+            "command": "echo '10.10.10.110 craft.htb' >> /etc/hosts",
+            "purpose": "Add domain to hosts file",
+            "expected_output": "Domain resolution configured"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "subdomain_discovery_to_code_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wfuzz -u 'https://10.10.10.110' -w /usr/share/seclists/Discovery/DNS/subdomains-top1mil-20000.txt -H 'Host: FUZZ.craft.htb' --hh 3779",
+            "purpose": "Discover additional subdomains",
+            "expected_output": "api, vault subdomains found"
+          },
+          {
+            "step": 2,
+            "command": "Browse to https://gogs.craft.htb/",
+            "purpose": "Access git repository",
+            "expected_output": "Source code repository accessible"
+          },
+          {
+            "step": 3,
+            "command": "Navigate to commit history and analyze diffs",
+            "purpose": "Find credentials in commit history",
+            "expected_output": "API credentials discovered in removed code"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Craft",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2019-07-13",
+      "author": "rotarydrone",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "api_exploitation",
+        "code_injection",
+        "credential_harvesting"
+      ],
+      "key_vulnerabilities": [
+        "api_code_execution",
+        "exposed_credentials",
+        "container_escape"
+      ],
+      "environment_type": "containerized_web_application",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "api_security",
+        "container_security",
+        "source_code_analysis",
+        "vault_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "api_testing",
+        "python",
+        "jwt_tokens"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "api_security",
+        "container_exploitation",
+        "source_code_review"
+      ],
+      "attack_types": [
+        "code_injection",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_api_design",
+        "input_validation",
+        "credential_management",
+        "container_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Postman",
+        "JSON",
+        "Node"
+      ],
+      "similarity_reasons": [
+        "api_exploitation",
+        "web_application_focus",
+        "multi_stage_attack"
+      ],
+      "unique_aspects": [
+        "gogs_integration",
+        "vault_software",
+        "container_to_host_escalation"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_stages",
+        "source_code_analysis_required",
+        "jwt_manipulation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T00:51:38.972450",
+    "original_file": "0xdf_writeups/Htb Craft.md",
+    "content_length": 43801,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

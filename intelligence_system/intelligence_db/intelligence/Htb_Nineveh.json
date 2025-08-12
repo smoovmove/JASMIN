@@ -1,0 +1,858 @@
+{
+  "writeup_id": "Htb_Nineveh",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_phpliteadmin_portknock",
+    "primary_services": [
+      "http",
+      "https",
+      "ssh"
+    ],
+    "port_signature": "80+443+22",
+    "service_combination": "apache+phpliteadmin+ssh",
+    "os_family": "linux",
+    "environment_type": "web_server",
+    "entry_vector": "phpliteadmin_webshell",
+    "privilege_path": "webshell_to_root_via_cron",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "phpliteadmin_v1.9_vulnerable",
+      "port_knocking_required",
+      "steganography_elements",
+      "chkrootkit_cron_exploit"
+    ],
+    "environmental_clues": [
+      "apache_2.4.18_ubuntu",
+      "phpinfo_disclosure",
+      "ssl_certificate_hostname",
+      "knockd_service_running"
+    ],
+    "similar_scenarios": [
+      "valentine_htb_easy",
+      "shocker_htb_easy"
+    ],
+    "unique_aspects": [
+      "port_knocking_mechanism",
+      "steganography_key_extraction",
+      "phpliteadmin_database_webshell",
+      "chkrootkit_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Directory_Brute_Force",
+        "success_reason": "Default Apache configuration exposed sensitive paths",
+        "prerequisite_indicators": [
+          "web_server_accessible",
+          "default_directory_structure",
+          "no_directory_listing_restrictions"
+        ],
+        "recognition_patterns": [
+          "Apache default responses",
+          "Standard directory names (/db, /department)",
+          "Common file extensions (.php)"
+        ],
+        "failure_modes": [
+          "custom_error_pages",
+          "directory_access_restrictions",
+          "non_standard_naming"
+        ],
+        "environmental_factors": [
+          "default_apache_config",
+          "insufficient_access_controls",
+          "legacy_web_application"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Password_Brute_Force",
+        "success_reason": "Weak default passwords on phpLiteAdmin interface",
+        "prerequisite_indicators": [
+          "login_form_accessible",
+          "no_rate_limiting",
+          "default_credentials_likely"
+        ],
+        "recognition_patterns": [
+          "Simple login forms",
+          "No CAPTCHA protection",
+          "Legacy application versions"
+        ],
+        "failure_modes": [
+          "account_lockout_enabled",
+          "strong_password_policy",
+          "rate_limiting_active"
+        ],
+        "environmental_factors": [
+          "legacy_application_defaults",
+          "insufficient_hardening",
+          "no_security_controls"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "phpLiteAdmin_RCE",
+        "success_reason": "Version 1.9 vulnerable to PHP code injection via database creation",
+        "prerequisite_indicators": [
+          "phpliteadmin_accessible",
+          "vulnerable_version_identified",
+          "write_permissions_available"
+        ],
+        "recognition_patterns": [
+          "phpLiteAdmin version disclosure",
+          "Database creation functionality",
+          "File upload/creation capabilities"
+        ],
+        "failure_modes": [
+          "patched_version",
+          "restricted_file_permissions",
+          "input_validation_enabled"
+        ],
+        "environmental_factors": [
+          "outdated_software_versions",
+          "default_configurations",
+          "web_root_write_access"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "10-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "phpLiteAdmin v1.9 interface",
+        "discovery_method": "Directory enumeration via gobuster",
+        "why_critical": "Known vulnerable version with RCE exploit available",
+        "how_to_recognize": [
+          "Version banner in login page",
+          "Searchsploit results for version",
+          "Database management interface"
+        ],
+        "follow_up_actions": [
+          "brute_force_authentication",
+          "identify_exploit_requirements",
+          "test_file_creation_capabilities"
+        ]
+      },
+      {
+        "discovery": "PHPinfo page exposure",
+        "discovery_method": "Directory brute force",
+        "why_critical": "Information disclosure and potential LFI/RFI vector",
+        "how_to_recognize": [
+          "Standard /info.php path",
+          "PHP configuration details",
+          "Server environment information"
+        ],
+        "follow_up_actions": [
+          "analyze_php_configuration",
+          "check_for_file_inclusion_vulns",
+          "gather_system_information"
+        ]
+      },
+      {
+        "discovery": "User enumeration via error messages",
+        "discovery_method": "Login form testing",
+        "why_critical": "Different error messages reveal valid usernames",
+        "how_to_recognize": [
+          "Distinct error messages for users",
+          "Information leakage patterns",
+          "Verbose authentication responses"
+        ],
+        "follow_up_actions": [
+          "enumerate_valid_usernames",
+          "targeted_password_attacks",
+          "credential_stuffing"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "Web_Application_Exploitation",
+        "why_possible": "Multiple vulnerable web applications with default configurations",
+        "recognition_signs": [
+          "legacy_software_versions",
+          "default_credentials",
+          "insufficient_access_controls"
+        ],
+        "exploitation_path": "Directory Enum → Auth Bypass → RCE → Shell"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "Configuration_File_Access",
+        "why_possible": "Web shell provides access to system configuration files",
+        "recognition_signs": [
+          "readable_config_files",
+          "service_configurations_exposed",
+          "credential_files_accessible"
+        ],
+        "exploitation_path": "Web Shell → Config Files → Service Access → Privilege Escalation"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Only ports 80 and 443 open on Linux host",
+        "decision": "Focus on web application enumeration and directory brute forcing",
+        "reasoning": "Limited attack surface requires thorough web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "udp_scan",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "vhost_enumeration",
+            "when": "if hostname discovered"
+          }
+        ],
+        "success_indicators": [
+          "admin_panels_found",
+          "login_forms_discovered",
+          "directory_structure_mapped"
+        ],
+        "next_decision": "analyze_discovered_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Found phpLiteAdmin login and department login forms",
+        "decision": "Prioritize phpLiteAdmin due to known RCE exploits",
+        "reasoning": "phpLiteAdmin 1.9 has documented code injection vulnerabilities",
+        "confidence": 0.85,
+        "prerequisites": [
+          "admin_panels_identified",
+          "versions_fingerprinted"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "database_access_gained"
+        ],
+        "failure_fallbacks": [
+          "department_login_bruteforce",
+          "alternative_web_paths"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Need credentials for phpLiteAdmin access",
+        "decision": "Attempt password brute force with common passwords",
+        "reasoning": "Single password field with no account lockout observed",
+        "confidence": 0.7,
+        "prerequisites": [
+          "login_form_analyzed",
+          "no_lockout_detected"
+        ],
+        "success_indicators": [
+          "successful_authentication"
+        ],
+        "failure_fallbacks": [
+          "credential_discovery_elsewhere",
+          "exploit_without_auth"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_phpliteadmin_access_gained": {
+        "action": "exploit_rce_vulnerability",
+        "tools": [
+          "create_php_database",
+          "inject_webshell"
+        ],
+        "next_phase": "establish_shell_access"
+      },
+      "if_brute_force_succeeds": {
+        "action": "enumerate_database_structure",
+        "purpose": "identify_injection_points_and_rce_paths",
+        "tools": [
+          "phpliteadmin_interface"
+        ]
+      },
+      "if_web_enumeration_reveals_multiple_apps": {
+        "action": "prioritize_by_exploit_availability",
+        "decision_criteria": "known_vulnerabilities_and_versions",
+        "alternatives": [
+          "parallel_exploitation",
+          "sequential_testing"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_admin_interfaces_with_known_exploits",
+        "reasoning": "higher_success_probability_than_custom_applications",
+        "applicability": "web_application_environments"
+      },
+      {
+        "rule": "attempt_brute_force_on_single_password_fields",
+        "reasoning": "often_weaker_passwords_and_no_account_lockout",
+        "applicability": "admin_panels_without_username_requirements"
+      },
+      {
+        "rule": "check_for_file_upload_after_admin_access",
+        "reasoning": "common_path_to_code_execution",
+        "applicability": "authenticated_admin_interfaces"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Brute Force",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_disabled",
+          "hidden_paths_exist"
+        ],
+        "success_indicators": [
+          "status_200_responses",
+          "status_301_redirects",
+          "admin_panels_found",
+          "config_files_discovered"
+        ],
+        "incompatible_with": [
+          "rate_limiting_strict",
+          "waf_blocking_requests",
+          "service_unavailable"
+        ],
+        "confidence_boosters": [
+          "apache_server_header",
+          "default_installations",
+          "common_cms_patterns"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-30 minutes"
+      },
+      {
+        "technique": "PHPInfo Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_enabled",
+          "phpinfo_accessible",
+          "file_upload_possible"
+        ],
+        "success_indicators": [
+          "phpinfo_page_loads",
+          "temp_file_paths_revealed",
+          "upload_functionality_exists"
+        ],
+        "incompatible_with": [
+          "php_disabled",
+          "phpinfo_blocked",
+          "strict_file_permissions"
+        ],
+        "confidence_boosters": [
+          "apache_php_combination",
+          "default_php_config",
+          "temp_directory_writable"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "phpLiteAdmin Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "phpliteadmin_installed",
+          "version_1.9_detected",
+          "authentication_bypassable"
+        ],
+        "success_indicators": [
+          "login_page_accessible",
+          "version_banner_visible",
+          "database_creation_allowed"
+        ],
+        "incompatible_with": [
+          "patched_version",
+          "access_restricted",
+          "php_execution_disabled"
+        ],
+        "confidence_boosters": [
+          "default_password_used",
+          "sqlite_database_writable",
+          "web_root_accessible"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "15-25 minutes"
+      },
+      {
+        "technique": "Port Knocking",
+        "mitre_id": "T1205",
+        "required_services": [
+          "knockd"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "knockd_service_running",
+          "config_file_readable",
+          "target_service_hidden"
+        ],
+        "success_indicators": [
+          "knockd_config_found",
+          "sequence_identified",
+          "hidden_port_opens"
+        ],
+        "incompatible_with": [
+          "knockd_disabled",
+          "firewall_blocking",
+          "sequence_unknown"
+        ],
+        "confidence_boosters": [
+          "ssh_service_expected",
+          "config_in_standard_location",
+          "simple_knock_sequence"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          "apache",
+          "phpinfo"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ssh",
+          "http",
+          "apache"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_admin_panels_and_files"
+        },
+        {
+          "attack": "phpliteadmin_exploit",
+          "when": "phpliteadmin_login_found",
+          "reason": "known_vulnerability_high_success_rate"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "phpinfo_exploitation",
+          "when": "phpinfo_page_accessible",
+          "reason": "reliable_but_requires_file_upload"
+        },
+        {
+          "attack": "port_knocking",
+          "when": "knockd_config_readable",
+          "reason": "opens_additional_services"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Password Brute Force",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "hydra",
+            "command_template": "hydra {target} -l {username} -P {wordlist} https-post-form \"{path}:{post_data}:{failure_string}\"",
+            "actual_command": "hydra 10.10.10.43 -l 0xdf -P /usr/share/seclists/Passwords/twitter-banned.txt https-post-form \"/db/index.php:password=^PASS^&remember=yes&login=Log+In&proc_login=true:Incorrect password\"",
+            "output_pattern": "[443][http-post-form] host: {ip}   login: {user}   password: {password}",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "web_login_form_identified",
+          "no_account_lockout",
+          "weak_password_policy"
+        ],
+        "success_indicators": [
+          "valid_credentials_found",
+          "successful_authentication",
+          "access_to_protected_resources"
+        ],
+        "common_failures": [
+          "account_lockout_triggered",
+          "strong_passwords",
+          "rate_limiting_enabled"
+        ],
+        "follow_up_techniques": [
+          "web_application_exploitation",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "PHP Type Juggling Authentication Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "burp_suite",
+            "command_template": "Intercept POST request and modify password parameter",
+            "actual_command": "Change 'password=admin' to 'password[]='",
+            "output_pattern": "Successful authentication bypass",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "php_application",
+          "strcmp_or_similar_comparison",
+          "loose_type_comparison"
+        ],
+        "success_indicators": [
+          "authentication_bypassed",
+          "access_granted_without_valid_password",
+          "php_warning_in_response"
+        ],
+        "common_failures": [
+          "strict_type_comparison_used",
+          "input_validation_prevents_arrays",
+          "different_comparison_function"
+        ],
+        "follow_up_techniques": [
+          "application_enumeration",
+          "file_upload_exploitation",
+          "local_file_inclusion"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "phpLiteAdmin RCE via Database Creation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "phpliteadmin_interface",
+            "command_template": "Create database with .php extension and inject PHP code",
+            "actual_command": "Create database 'shell.php', create table with default value '<?php system($_GET[\"cmd\"]); ?>'",
+            "output_pattern": "Database created at /var/tmp/shell.php",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "phpliteadmin_access",
+          "database_creation_permissions",
+          "lfi_or_direct_file_access"
+        ],
+        "success_indicators": [
+          "php_file_created_successfully",
+          "webshell_accessible_via_http",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "no_lfi_to_access_created_file",
+          "file_permissions_prevent_execution",
+          "web_server_config_blocks_execution"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "system_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {url} -w {wordlist} -x {extensions} -o {output}",
+            "actual_command": "gobuster dir -u http://10.10.10.43 -w /usr/share/wordlists/dirbuster/directory-list-lowercase-2.3-medium.txt -x php -o scans/gobuster-http-root-medium -t 20",
+            "output_pattern": "/{path} (Status: {code})",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "appropriate_wordlist_selected"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "interesting_files_found",
+          "admin_interfaces_located"
+        ],
+        "common_failures": [
+          "rate_limiting_blocks_requests",
+          "wordlist_doesnt_contain_paths",
+          "custom_error_pages_hide_results"
+        ],
+        "follow_up_techniques": [
+          "manual_directory_exploration",
+          "vulnerability_assessment",
+          "credential_attacks"
+        ],
+        "time_investment": "5-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "hydra",
+        "use_case": "web_form_password_brute_force",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "credential_attacks"
+        ],
+        "alternatives": [
+          "burp_intruder",
+          "wfuzz",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "start_with_small_wordlists",
+          "monitor_for_account_lockouts",
+          "use_appropriate_delay_between_attempts"
+        ]
+      },
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_reconnaissance"
+        ],
+        "alternatives": [
+          "dirb",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_multiple_wordlists",
+          "include_common_extensions",
+          "adjust_thread_count_for_target"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_app_enumeration_to_rce",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.43",
+            "purpose": "Identify open ports",
+            "expected_output": "80/tcp and 443/tcp open"
+          },
+          {
+            "step": 2,
+            "command": "gobuster dir -u http://10.10.10.43 -w /usr/share/wordlists/dirbuster/directory-list-lowercase-2.3-medium.txt -x php",
+            "purpose": "Enumerate web directories",
+            "expected_output": "/info.php, /department paths found"
+          },
+          {
+            "step": 3,
+            "command": "hydra 10.10.10.43 -l admin -P /usr/share/seclists/Passwords/twitter-banned.txt https-post-form \"/db/index.php:password=^PASS^&remember=yes&login=Log+In&proc_login=true:Incorrect password\"",
+            "purpose": "Brute force phpLiteAdmin password",
+            "expected_output": "Password: password123"
+          },
+          {
+            "step": 4,
+            "command": "Create database 'shell.php' with PHP webshell in table default value",
+            "purpose": "Inject PHP code via database creation",
+            "expected_output": "Webshell created at /var/tmp/shell.php"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Nineveh",
+      "difficulty": "Medium",
+      "os": "Linux (Ubuntu)",
+      "platform": "HackTheBox",
+      "release_date": "2017-08-04",
+      "author": "Yas3r",
+      "estimated_time": "2-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "steganography",
+        "port_knocking"
+      ],
+      "key_vulnerabilities": [
+        "phpliteadmin_rce",
+        "phpinfo_lfi",
+        "chkrootkit_privilege_escalation"
+      ],
+      "environment_type": "web_server_linux",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "web_shell_creation",
+        "steganography_analysis",
+        "cron_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "linux_fundamentals",
+        "basic_cryptography"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "database_exploitation",
+        "steganography",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_database_configs",
+        "input_validation",
+        "cron_job_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Poison",
+        "Blocky",
+        "Bashed"
+      ],
+      "similarity_reasons": [
+        "web_based_initial_access",
+        "linux_privilege_escalation",
+        "multi_stage_exploitation"
+      ],
+      "unique_aspects": [
+        "steganography_component",
+        "port_knocking_mechanism",
+        "chkrootkit_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "steganography_skills",
+        "enumeration_intensive"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T13:51:59.935500",
+    "original_file": "0xdf_writeups/Htb Nineveh.md",
+    "content_length": 37551,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

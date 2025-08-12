@@ -1,0 +1,960 @@
+{
+  "writeup_id": "Htb_Jail",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_buffer_overflow_nfs_privilege_escalation",
+    "primary_services": [
+      "ssh",
+      "http",
+      "nfs",
+      "rpc",
+      "custom_service"
+    ],
+    "port_signature": "22+80+111+2049+7411+20048",
+    "service_combination": "ssh+http+nfs+rpc+custom_binary",
+    "os_family": "linux_centos",
+    "environment_type": "standalone_server",
+    "entry_vector": "buffer_overflow",
+    "privilege_path": "bof_to_nfs_abuse_to_root",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "custom_service_on_7411",
+      "nfs_without_root_squashing",
+      "buffer_overflow_with_source_access",
+      "stack_execution_enabled"
+    ],
+    "environmental_clues": [
+      "centos_7_4_apache",
+      "nfs_mountd_services",
+      "custom_jail_application",
+      "rpc_services_exposed"
+    ],
+    "similar_scenarios": [
+      "bof_ctf_challenges",
+      "nfs_privilege_escalation"
+    ],
+    "unique_aspects": [
+      "jail_themed_custom_service",
+      "beginner_friendly_bof",
+      "rvim_escape_technique",
+      "crypto_challenge_final_step"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Buffer Overflow (Stack-based)",
+        "success_reason": "Stack execution enabled with source code access and buffer address leak",
+        "prerequisite_indicators": [
+          "custom_service_on_unusual_port",
+          "stack_execution_enabled",
+          "source_code_available",
+          "buffer_address_disclosure"
+        ],
+        "recognition_patterns": [
+          "service responds with 'OK Ready. Send USER command'",
+          "source code in web directory",
+          "beginner-friendly BOF conditions",
+          "address leak functionality present"
+        ],
+        "failure_modes": [
+          "stack_execution_disabled",
+          "no_source_code_access",
+          "aslr_enabled_without_leak",
+          "input_validation_present"
+        ],
+        "environmental_factors": [
+          "legacy_system_protections",
+          "development_files_exposed",
+          "insecure_compilation_flags"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "NFS Share Exploitation",
+        "success_reason": "NFS shares mounted without user squashing allowing privilege escalation",
+        "prerequisite_indicators": [
+          "nfs_service_accessible",
+          "shares_exported_globally",
+          "no_root_squashing_configured",
+          "writable_shares_present"
+        ],
+        "recognition_patterns": [
+          "showmount -e shows * permissions",
+          "writable directories with different uid/gid",
+          "ability to create files as different users",
+          "mount succeeds without authentication"
+        ],
+        "failure_modes": [
+          "root_squashing_enabled",
+          "restrictive_export_acls",
+          "readonly_mounts_only",
+          "proper_user_mapping"
+        ],
+        "environmental_factors": [
+          "default_nfs_configuration",
+          "development_environment_settings",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Directory Traversal via Web",
+        "success_reason": "Development files exposed in web directory with directory listing enabled",
+        "prerequisite_indicators": [
+          "directory_listing_enabled",
+          "development_files_in_webroot",
+          "source_code_exposure",
+          "backup_files_present"
+        ],
+        "recognition_patterns": [
+          "feroxbuster finds /jailuser directory",
+          "directory listing shows dev folder",
+          "source code files (.c) accessible",
+          "development artifacts exposed"
+        ],
+        "failure_modes": [
+          "directory_listing_disabled",
+          "proper_file_permissions",
+          "development_files_removed",
+          "access_controls_implemented"
+        ],
+        "environmental_factors": [
+          "development_server_configuration",
+          "improper_deployment_practices",
+          "legacy_apache_settings"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "jail.c source code",
+        "discovery_method": "Web directory enumeration and listing",
+        "why_critical": "Revealed buffer overflow vulnerability and exploitation method",
+        "how_to_recognize": [
+          "source code files in web directories",
+          "development artifacts exposed",
+          "insecure coding practices visible"
+        ],
+        "follow_up_actions": [
+          "analyze_source_for_vulnerabilities",
+          "identify_buffer_overflow_conditions",
+          "develop_exploit_payload"
+        ]
+      },
+      {
+        "discovery": "NFS shares without root squashing",
+        "discovery_method": "showmount enumeration and mount testing",
+        "why_critical": "Allowed privilege escalation through file system manipulation",
+        "how_to_recognize": [
+          "global export permissions (*)",
+          "writable shares accessible",
+          "uid/gid manipulation possible"
+        ],
+        "follow_up_actions": [
+          "mount_all_available_shares",
+          "test_file_creation_permissions",
+          "identify_privilege_escalation_paths"
+        ]
+      },
+      {
+        "discovery": "Custom service on port 7411",
+        "discovery_method": "nmap service detection",
+        "why_critical": "Entry point for buffer overflow exploitation",
+        "how_to_recognize": [
+          "unusual port with custom service",
+          "service banner indicates custom protocol",
+          "responds to USER command"
+        ],
+        "follow_up_actions": [
+          "interact_with_service_manually",
+          "analyze_protocol_behavior",
+          "test_for_input_validation_flaws"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "initial_access",
+        "escalation_method": "buffer_overflow_to_shell",
+        "why_possible": "Stack execution enabled with predictable buffer address",
+        "recognition_signs": [
+          "source_code_shows_vulnerable_functions",
+          "no_modern_exploit_mitigations",
+          "address_leak_functionality"
+        ],
+        "exploitation_path": "BOF → shellcode execution → user shell"
+      },
+      {
+        "privilege_level": "user_to_user",
+        "escalation_method": "nfs_uid_manipulation",
+        "why_possible": "NFS shares allow file creation with arbitrary ownership",
+        "recognition_signs": [
+          "writable_nfs_shares",
+          "no_root_squashing",
+          "different_user_contexts_available"
+        ],
+        "exploitation_path": "NFS mount → UID manipulation → lateral movement"
+      },
+      {
+        "privilege_level": "restricted_shell",
+        "escalation_method": "rvim_escape",
+        "why_possible": "Restricted vim allows command execution through various escape techniques",
+        "recognition_signs": [
+          "rvim_binary_present",
+          "restricted_shell_environment",
+          "vim_escape_vectors_available"
+        ],
+        "exploitation_path": "rvim access → escape techniques → full shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,111,2049,7411,20048 open on Linux host",
+        "decision": "Identify NFS shares and custom service on 7411 as primary attack vectors",
+        "reasoning": "NFS often has misconfigurations, custom service likely vulnerable",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if NFS and custom service fail"
+          },
+          {
+            "option": "ssh_bruteforce",
+            "when": "if credentials found elsewhere"
+          }
+        ],
+        "success_indicators": [
+          "nfs_shares_mountable",
+          "custom_service_responds",
+          "source_code_available"
+        ],
+        "next_decision": "analyze_custom_service_and_nfs"
+      },
+      {
+        "step": 2,
+        "situation": "NFS shares accessible and custom service source code found",
+        "decision": "Analyze buffer overflow in custom service first",
+        "reasoning": "Source code available, execstack enabled, likely easy BOF",
+        "confidence": 0.95,
+        "prerequisites": [
+          "source_code_downloaded",
+          "binary_analyzed"
+        ],
+        "success_indicators": [
+          "buffer_overflow_confirmed",
+          "shellcode_execution_possible"
+        ],
+        "failure_fallbacks": [
+          "nfs_privilege_escalation",
+          "web_directory_bruteforce"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Buffer overflow confirmed in custom service",
+        "decision": "Develop shellcode exploit for initial access",
+        "reasoning": "Stack execution enabled, buffer address leaked, beginner-friendly BOF",
+        "confidence": 0.9,
+        "prerequisites": [
+          "buffer_size_determined",
+          "return_address_controlled"
+        ],
+        "success_indicators": [
+          "shellcode_executes",
+          "reverse_shell_obtained"
+        ],
+        "next_phase": "privilege_escalation_via_nfs"
+      },
+      {
+        "step": 4,
+        "situation": "Initial shell obtained as nobody user",
+        "decision": "Exploit NFS share without user squashing for privilege escalation",
+        "reasoning": "NFS shares writable, can abuse UID mapping for escalation",
+        "confidence": 0.8,
+        "prerequisites": [
+          "nfs_shares_mounted",
+          "write_access_confirmed"
+        ],
+        "success_indicators": [
+          "file_created_with_different_uid",
+          "privilege_escalation_achieved"
+        ],
+        "failure_fallbacks": [
+          "local_enumeration",
+          "kernel_exploits"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_buffer_overflow_succeeds": {
+        "action": "establish_persistent_shell",
+        "tools": [
+          "nc",
+          "python",
+          "custom_shellcode"
+        ],
+        "next_phase": "nfs_privilege_escalation"
+      },
+      "if_buffer_overflow_fails": {
+        "action": "try_nfs_attacks",
+        "alternatives": [
+          "nfs_file_upload",
+          "web_enumeration",
+          "service_enumeration"
+        ],
+        "decision_criteria": "based_on_nfs_write_permissions"
+      },
+      "if_nfs_escalation_succeeds": {
+        "action": "enumerate_next_user_privileges",
+        "purpose": "find_additional_escalation_paths",
+        "tools": [
+          "find",
+          "sudo",
+          "crontab"
+        ]
+      },
+      "if_custom_service_unavailable": {
+        "action": "focus_on_nfs_and_web",
+        "alternatives": [
+          "nfs_enumeration",
+          "web_directory_bruteforce"
+        ],
+        "decision_criteria": "based_on_service_availability"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_nfs_user_squashing",
+        "reasoning": "common_misconfiguration_leading_to_privilege_escalation",
+        "applicability": "nfs_shares_present"
+      },
+      {
+        "rule": "analyze_custom_services_with_source_code_first",
+        "reasoning": "high_probability_of_vulnerabilities_in_custom_code",
+        "applicability": "source_code_available"
+      },
+      {
+        "rule": "check_execstack_compilation_flags",
+        "reasoning": "indicates_easy_buffer_overflow_exploitation",
+        "applicability": "binary_analysis_possible"
+      },
+      {
+        "rule": "mount_nfs_shares_early_in_enumeration",
+        "reasoning": "often_contains_sensitive_files_or_escalation_paths",
+        "applicability": "nfs_service_detected"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Buffer Overflow Exploitation",
+        "mitre_id": "T1055.012",
+        "required_services": [
+          "custom_application"
+        ],
+        "required_ports": [
+          7411
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "stack_execution_enabled",
+          "source_code_available",
+          "buffer_address_leak_possible",
+          "beginner_bof_protections_disabled"
+        ],
+        "success_indicators": [
+          "application_responds_to_user_command",
+          "buffer_overflow_vulnerability_confirmed",
+          "shellcode_execution_successful"
+        ],
+        "incompatible_with": [
+          "stack_canaries_enabled",
+          "aslr_enabled",
+          "nx_bit_enabled",
+          "modern_exploit_mitigations"
+        ],
+        "confidence_boosters": [
+          "custom_jail_application",
+          "old_system_centos_7_4",
+          "development_environment_indicators"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "NFS Share Exploitation",
+        "mitre_id": "T1021.002",
+        "required_services": [
+          "nfs",
+          "rpcbind",
+          "mountd"
+        ],
+        "required_ports": [
+          111,
+          2049,
+          20048
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "nfs_shares_exported",
+          "no_root_squashing_configured",
+          "world_readable_writable_shares",
+          "rpc_services_accessible"
+        ],
+        "success_indicators": [
+          "showmount_reveals_exports",
+          "mount_successful",
+          "file_system_access_gained"
+        ],
+        "incompatible_with": [
+          "root_squashing_enabled",
+          "restrictive_export_permissions",
+          "network_access_controls"
+        ],
+        "confidence_boosters": [
+          "multiple_rpc_services_running",
+          "nfs_acl_service_detected",
+          "legacy_nfs_configuration"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Directory Brute Force",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_disabled",
+          "hidden_directories_present"
+        ],
+        "success_indicators": [
+          "http_200_responses_found",
+          "directory_redirects_discovered",
+          "hidden_content_revealed"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "web_application_firewall",
+          "ip_blocking_enabled"
+        ],
+        "confidence_boosters": [
+          "apache_server_detected",
+          "legacy_wordlist_success",
+          "static_content_indicators"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "nfs_environment": {
+        "port_indicators": [
+          111,
+          2049,
+          20048
+        ],
+        "service_indicators": [
+          "rpcbind",
+          "nfs",
+          "mountd",
+          "nfs_acl"
+        ],
+        "banner_indicators": [
+          "RPC",
+          "NFS",
+          "mountd"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "custom_application": {
+        "port_indicators": [
+          7411
+        ],
+        "service_indicators": [
+          "daqstream",
+          "unknown"
+        ],
+        "banner_indicators": [
+          "OK Ready. Send USER command"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "legacy_linux": {
+        "port_indicators": [
+          22,
+          80
+        ],
+        "service_indicators": [
+          "ssh",
+          "http"
+        ],
+        "banner_indicators": [
+          "OpenSSH 6.6.1",
+          "Apache/2.4.6",
+          "CentOS"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "nfs_enumeration",
+          "when": "nfs_services_detected",
+          "reason": "often_misconfigured_easy_privilege_escalation"
+        },
+        {
+          "attack": "custom_service_analysis",
+          "when": "unknown_service_on_7411",
+          "reason": "custom_applications_often_vulnerable"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce_legacy_wordlists",
+          "when": "apache_server_detected",
+          "reason": "older_systems_may_need_legacy_wordlists"
+        },
+        {
+          "attack": "ssh_enumeration",
+          "when": "ssh_service_detected",
+          "reason": "credential_reuse_opportunities"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Buffer Overflow Exploitation",
+        "mitre_id": "T1055.012",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "gcc",
+            "command_template": "gcc -o {binary} {source} -m32 -z execstack",
+            "actual_command": "gcc -o jail jail.c -m32 -z execstack",
+            "output_pattern": "32-bit ELF executable with stack execution enabled",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "nc",
+            "command_template": "nc {target_ip} {port}",
+            "actual_command": "nc 10.10.10.34 7411",
+            "success_factors": [
+              "service_accessible",
+              "buffer_overflow_present"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "stack_execution_enabled",
+          "buffer_overflow_vulnerability",
+          "network_access_to_service"
+        ],
+        "success_indicators": [
+          "service_responds_with_user_command_prompt",
+          "buffer_overflow_triggers_code_execution",
+          "shellcode_executes_successfully"
+        ],
+        "common_failures": [
+          "dep_protection_enabled",
+          "aslr_randomization",
+          "input_validation_present"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "persistence_establishment"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "NFS Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "showmount",
+            "command_template": "showmount -e {target_ip}",
+            "actual_command": "showmount -e 10.10.10.34",
+            "output_pattern": "Export list for {ip}:",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "mount",
+            "command_template": "sudo mount -t nfs {target_ip}:{share} {local_mount}",
+            "actual_command": "sudo mount -t nfs 10.10.10.34:/opt /mnt/opt/",
+            "success_factors": [
+              "nfs_service_accessible",
+              "share_permissions_allow_mount"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "nfs_service_running",
+          "network_connectivity",
+          "mount_privileges"
+        ],
+        "success_indicators": [
+          "shares_enumerated_successfully",
+          "mount_operations_complete",
+          "file_access_achieved"
+        ],
+        "common_failures": [
+          "access_restrictions",
+          "authentication_required",
+          "network_filtering"
+        ],
+        "follow_up_techniques": [
+          "file_system_enumeration",
+          "privilege_escalation_via_nfs",
+          "data_exfiltration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {target_url} -w {wordlist}",
+            "actual_command": "feroxbuster -u http://10.10.10.34 -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt",
+            "output_pattern": "301      GET        7l       20w      236c",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "web_service_accessible",
+          "appropriate_wordlist_selection"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "sensitive_files_found",
+          "application_structure_mapped"
+        ],
+        "common_failures": [
+          "inadequate_wordlist",
+          "rate_limiting",
+          "waf_blocking"
+        ],
+        "follow_up_techniques": [
+          "file_download_and_analysis",
+          "source_code_review",
+          "vulnerability_identification"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Source Code Analysis",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "vulnerability_research",
+        "tools_used": [
+          {
+            "name": "file",
+            "command_template": "file {filename}",
+            "actual_command": "file jail",
+            "output_pattern": "ELF 32-bit LSB executable",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "source_code_access",
+          "binary_analysis_skills"
+        ],
+        "success_indicators": [
+          "vulnerability_patterns_identified",
+          "compilation_flags_analyzed",
+          "attack_vectors_discovered"
+        ],
+        "common_failures": [
+          "obfuscated_code",
+          "incomplete_source_access",
+          "complex_vulnerability_chains"
+        ],
+        "follow_up_techniques": [
+          "exploit_development",
+          "buffer_overflow_exploitation",
+          "reverse_engineering"
+        ],
+        "time_investment": "45-90 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirb",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "use_multiple_wordlists_for_comprehensive_coverage",
+          "adjust_thread_count_based_on_target_response",
+          "include_legacy_wordlists_for_older_systems"
+        ]
+      },
+      {
+        "tool": "showmount",
+        "use_case": "nfs_share_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "nfs_enumeration"
+        ],
+        "alternatives": [
+          "rpcinfo",
+          "nmap_nfs_scripts"
+        ],
+        "best_practices": [
+          "always_check_export_permissions",
+          "test_mount_capabilities_before_exploitation",
+          "verify_uid_gid_mappings_for_privilege_escalation"
+        ]
+      },
+      {
+        "tool": "gcc",
+        "use_case": "binary_compilation_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "exploit_development",
+          "binary_analysis"
+        ],
+        "alternatives": [
+          "clang",
+          "static_analysis_tools"
+        ],
+        "best_practices": [
+          "analyze_compilation_flags_for_security_features",
+          "identify_stack_protection_mechanisms",
+          "understand_architecture_specific_implications"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nfs_enumeration_and_mounting",
+        "steps": [
+          {
+            "step": 1,
+            "command": "showmount -e 10.10.10.34",
+            "purpose": "Enumerate available NFS shares",
+            "expected_output": "Export list showing /opt and /var/nfsshare"
+          },
+          {
+            "step": 2,
+            "command": "sudo mount -t nfs 10.10.10.34:/opt /mnt/opt/",
+            "purpose": "Mount the /opt share for analysis",
+            "expected_output": "Successful mount with accessible files"
+          },
+          {
+            "step": 3,
+            "command": "sudo mount -t nfs 10.10.10.34:/var/nfsshare /mnt/nfsshare",
+            "purpose": "Mount the nfsshare for potential write access",
+            "expected_output": "Mount with write permissions for privilege escalation"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "web_enumeration_to_source_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "feroxbuster -u http://10.10.10.34 -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt",
+            "purpose": "Discover hidden web directories",
+            "expected_output": "Discovery of /jailuser directory"
+          },
+          {
+            "step": 2,
+            "command": "wget http://10.10.10.34/jailuser/dev/jail.c",
+            "purpose": "Download source code for analysis",
+            "expected_output": "C source code with buffer overflow vulnerability"
+          },
+          {
+            "step": 3,
+            "command": "file jail",
+            "purpose": "Analyze binary characteristics",
+            "expected_output": "32-bit ELF with stack execution enabled"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "20-30 minutes"
+      },
+      {
+        "sequence_name": "service_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.34",
+            "purpose": "Discover all open ports",
+            "expected_output": "Ports 22,80,111,2049,7411,20048 open"
+          },
+          {
+            "step": 2,
+            "command": "nc 10.10.10.34 7411",
+            "purpose": "Interact with custom service",
+            "expected_output": "OK Ready. Send USER command."
+          },
+          {
+            "step": 3,
+            "command": "USER testuser",
+            "purpose": "Test service authentication flow",
+            "expected_output": "OK Send PASS command."
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Jail",
+      "difficulty": "Insane",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2017-07-14",
+      "author": "n0decaf",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "buffer_overflow",
+        "nfs_misconfiguration",
+        "application_escape",
+        "cryptography"
+      ],
+      "key_vulnerabilities": [
+        "stack_buffer_overflow",
+        "nfs_no_root_squash",
+        "rvim_escape",
+        "weak_crypto"
+      ],
+      "environment_type": "linux_multi_service",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "binary_exploitation",
+        "nfs_security",
+        "restricted_shell_escape",
+        "cryptanalysis"
+      ],
+      "prerequisite_knowledge": [
+        "assembly_basics",
+        "buffer_overflow_fundamentals",
+        "linux_file_systems",
+        "cryptography_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "binary_exploitation",
+      "subcategories": [
+        "buffer_overflow",
+        "privilege_escalation",
+        "cryptography"
+      ],
+      "attack_types": [
+        "code_execution",
+        "privilege_escalation",
+        "configuration_exploitation"
+      ],
+      "defensive_lessons": [
+        "enable_stack_protection",
+        "configure_nfs_properly",
+        "restrict_editor_capabilities",
+        "use_strong_crypto"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Brainpan",
+        "October",
+        "Brainfuck"
+      ],
+      "similarity_reasons": [
+        "buffer_overflow_exploitation",
+        "multi_stage_privilege_escalation",
+        "mixed_attack_vectors"
+      ],
+      "unique_aspects": [
+        "nfs_privilege_escalation",
+        "rvim_escape",
+        "crypto_challenge_finale"
+      ],
+      "difficulty_factors": [
+        "requires_binary_exploitation",
+        "multiple_complex_techniques",
+        "cryptography_knowledge"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:17:24.822079",
+    "original_file": "0xdf_writeups/Htb Jail.md",
+    "content_length": 54044,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

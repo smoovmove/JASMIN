@@ -1,0 +1,907 @@
+{
+  "writeup_id": "Htb_Dab",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_memcached_exploitation",
+    "primary_services": [
+      "http",
+      "ftp",
+      "ssh",
+      "memcached"
+    ],
+    "port_signature": "21+22+80+8080",
+    "service_combination": "ftp+ssh+http+http_proxy",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "web_brute_force_to_memcached",
+    "privilege_path": "ssh_user_to_root_ldconfig",
+    "attack_complexity": "hard",
+    "estimated_time": "2-4 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "memcached_backend_exposure",
+      "web_app_populates_cache",
+      "ldconfig_privilege_escalation",
+      "md5_hash_cracking_required"
+    ],
+    "environmental_clues": [
+      "nginx_dual_port_setup",
+      "anonymous_ftp_with_steganography_troll",
+      "username_enumeration_via_error_messages",
+      "internal_dev_proxy_service"
+    ],
+    "similar_scenarios": [
+      "cache_exploitation_boxes",
+      "web_to_memcached_pivots"
+    ],
+    "unique_aspects": [
+      "web_proxy_memcached_access",
+      "ldconfig_root_escalation",
+      "dual_web_app_architecture",
+      "cache_user_credential_dump"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Username Enumeration via Response Differences",
+        "success_reason": "Application returned different error messages for valid vs invalid usernames",
+        "prerequisite_indicators": [
+          "login_form_available",
+          "different_response_patterns",
+          "verbose_error_messages"
+        ],
+        "recognition_patterns": [
+          "subtle message differences ('Login failed' vs 'Login failed.')",
+          "response length variations",
+          "timing differences in responses"
+        ],
+        "failure_modes": [
+          "consistent_error_messages",
+          "rate_limiting_implemented",
+          "account_lockout_mechanisms"
+        ],
+        "environmental_factors": [
+          "poor_input_validation",
+          "verbose_error_handling",
+          "lack_of_security_awareness"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Password Brute Force",
+        "success_reason": "Weak password 'Password1' used for admin account",
+        "prerequisite_indicators": [
+          "no_rate_limiting",
+          "no_account_lockout",
+          "common_password_patterns"
+        ],
+        "recognition_patterns": [
+          "admin account with weak credentials",
+          "password follows common patterns",
+          "quick success with rockyou wordlist"
+        ],
+        "failure_modes": [
+          "strong_password_policy",
+          "rate_limiting_active",
+          "account_lockout_enabled"
+        ],
+        "environmental_factors": [
+          "default_credentials_unchanged",
+          "poor_password_policy",
+          "lack_of_brute_force_protection"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-60 minutes"
+      },
+      {
+        "technique": "Cookie Parameter Fuzzing",
+        "success_reason": "Application relied on predictable cookie names for authentication",
+        "prerequisite_indicators": [
+          "cookie_based_authentication",
+          "predictable_parameter_names",
+          "client_side_access_control"
+        ],
+        "recognition_patterns": [
+          "access denied messages mentioning cookies",
+          "consistent response lengths for invalid cookies",
+          "parameter name in common wordlists"
+        ],
+        "failure_modes": [
+          "unpredictable_cookie_names",
+          "server_side_validation",
+          "encrypted_cookie_values"
+        ],
+        "environmental_factors": [
+          "weak_authentication_design",
+          "client_side_security_controls",
+          "predictable_naming_conventions"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "15-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "admin:Password1 credentials",
+        "discovery_method": "Hydra brute force after username enumeration",
+        "why_critical": "Provided access to application that populated memcached",
+        "how_to_recognize": [
+          "quick success with common passwords",
+          "admin account with weak credentials",
+          "application accepts common password patterns"
+        ],
+        "follow_up_actions": [
+          "explore_authenticated_functionality",
+          "check_for_backend_services",
+          "monitor_network_traffic"
+        ]
+      },
+      {
+        "discovery": "Memcached population via web app",
+        "discovery_method": "Backend service interaction after login",
+        "why_critical": "Created data accessible via second web application",
+        "how_to_recognize": [
+          "application behavior changes after login",
+          "backend service interactions",
+          "data persistence between applications"
+        ],
+        "follow_up_actions": [
+          "identify_memcached_access_methods",
+          "enumerate_cached_data",
+          "look_for_sensitive_information"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web",
+        "escalation_method": "username_enum_to_brute_force",
+        "why_possible": "Application leaked username validity through error messages",
+        "recognition_signs": [
+          "different_error_messages",
+          "response_pattern_variations",
+          "verbose_application_responses"
+        ],
+        "exploitation_path": "Username Enum → Password Brute Force → Authenticated Access"
+      },
+      {
+        "privilege_level": "authenticated_web",
+        "escalation_method": "backend_service_interaction",
+        "why_possible": "Web application populated shared backend services",
+        "recognition_signs": [
+          "application_behavior_changes",
+          "backend_service_indicators",
+          "cross_application_data_sharing"
+        ],
+        "exploitation_path": "Web Login → Memcached Population → Secondary App Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,80,8080 open on Linux host",
+        "decision": "Prioritize web applications over FTP due to higher privilege escalation potential",
+        "reasoning": "Multiple web services suggest complex application stack with more attack surface",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "ftp_enumeration",
+            "when": "if web apps fail"
+          },
+          {
+            "option": "ssh_bruteforce",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "login_pages_found",
+          "different_error_messages",
+          "cookie_authentication_detected"
+        ],
+        "next_decision": "identify_authentication_bypass"
+      },
+      {
+        "step": 2,
+        "situation": "Login page shows different error messages for valid/invalid users",
+        "decision": "Enumerate valid usernames first, then brute force passwords",
+        "reasoning": "Error message differences indicate username enumeration vulnerability",
+        "confidence": 0.9,
+        "prerequisites": [
+          "login_form_identified",
+          "error_message_variance_confirmed"
+        ],
+        "success_indicators": [
+          "valid_usernames_discovered"
+        ],
+        "failure_fallbacks": [
+          "cookie_authentication_bypass",
+          "directory_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Second web app requires cookie authentication",
+        "decision": "Fuzz cookie names and values systematically",
+        "reasoning": "Cookie-based auth often uses predictable names and weak values",
+        "confidence": 0.75,
+        "prerequisites": [
+          "access_denied_cookie_message"
+        ],
+        "success_indicators": [
+          "cookie_name_identified",
+          "valid_cookie_value_found"
+        ],
+        "failure_fallbacks": [
+          "credential_reuse_from_other_app"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Successfully authenticated to both web applications",
+        "decision": "Look for backend service interactions and data leakage",
+        "reasoning": "Multiple apps often share backend services like databases or caches",
+        "confidence": 0.8,
+        "prerequisites": [
+          "authenticated_access_to_multiple_apps"
+        ],
+        "success_indicators": [
+          "backend_service_discovered",
+          "data_enumeration_possible"
+        ],
+        "failure_fallbacks": [
+          "file_upload_vulnerabilities",
+          "sql_injection_testing"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_username_enumeration_succeeds": {
+        "action": "brute_force_passwords_for_valid_users",
+        "tools": [
+          "hydra",
+          "burp_intruder"
+        ],
+        "next_phase": "authenticated_application_testing"
+      },
+      "if_cookie_bypass_succeeds": {
+        "action": "enumerate_application_functionality",
+        "purpose": "find_backend_service_interactions",
+        "tools": [
+          "burp_suite",
+          "custom_scripts"
+        ]
+      },
+      "if_multiple_apps_compromised": {
+        "action": "look_for_shared_backend_services",
+        "purpose": "find_data_leakage_between_applications",
+        "tools": [
+          "memcached_enumeration",
+          "database_queries"
+        ]
+      },
+      "if_backend_access_obtained": {
+        "action": "dump_sensitive_data",
+        "purpose": "find_system_credentials",
+        "tools": [
+          "memcached_dump",
+          "database_extraction"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_error_message_differences_for_username_enum",
+        "reasoning": "common_vulnerability_with_high_success_rate",
+        "applicability": "any_login_form"
+      },
+      {
+        "rule": "fuzz_cookie_names_when_cookie_auth_detected",
+        "reasoning": "cookie_auth_often_uses_predictable_patterns",
+        "applicability": "cookie_based_authentication_systems"
+      },
+      {
+        "rule": "look_for_backend_service_interactions_with_multiple_apps",
+        "reasoning": "shared_services_often_leak_data_between_applications",
+        "applicability": "multiple_web_applications_on_same_host"
+      },
+      {
+        "rule": "try_credential_reuse_across_all_discovered_services",
+        "reasoning": "users_often_reuse_passwords_across_services",
+        "applicability": "any_credentials_discovered"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "FTP Anonymous Access",
+        "mitre_id": "T1021.003",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_running",
+          "anonymous_login_enabled"
+        ],
+        "success_indicators": [
+          "ftp_anon_login_allowed_banner",
+          "230_login_successful_response",
+          "directory_listing_accessible"
+        ],
+        "incompatible_with": [
+          "ftp_service_disabled",
+          "anonymous_access_blocked",
+          "firewall_blocking_ftp"
+        ],
+        "confidence_boosters": [
+          "vsftpd_default_config",
+          "development_environment",
+          "legacy_ftp_setup"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "1-3 minutes"
+      },
+      {
+        "technique": "HTTP Login Brute Force",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_login_form_present",
+          "no_account_lockout_policy",
+          "weak_password_policy"
+        ],
+        "success_indicators": [
+          "login_form_accessible",
+          "different_error_messages_for_valid_invalid_users",
+          "no_captcha_protection"
+        ],
+        "incompatible_with": [
+          "account_lockout_enabled",
+          "captcha_protection",
+          "rate_limiting_strict"
+        ],
+        "confidence_boosters": [
+          "error_message_enumeration_possible",
+          "common_default_credentials",
+          "development_environment_indicators"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Username Enumeration via Error Messages",
+        "mitre_id": "T1087.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_login_form_present",
+          "different_error_messages_for_users"
+        ],
+        "success_indicators": [
+          "distinct_error_messages_observed",
+          "response_time_differences",
+          "http_status_code_variations"
+        ],
+        "incompatible_with": [
+          "generic_error_messages_only",
+          "consistent_response_timing",
+          "proper_error_handling"
+        ],
+        "confidence_boosters": [
+          "subtle_message_differences",
+          "punctuation_variations_in_errors",
+          "custom_web_application"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Directory Brute Force",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_indexing_possible"
+        ],
+        "success_indicators": [
+          "web_server_responds_to_requests",
+          "200_status_codes_for_valid_paths",
+          "403_forbidden_indicates_existing_directories"
+        ],
+        "incompatible_with": [
+          "web_server_down",
+          "aggressive_rate_limiting",
+          "waf_blocking_requests"
+        ],
+        "confidence_boosters": [
+          "nginx_or_apache_detected",
+          "standard_web_application_structure",
+          "development_environment"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "ftp_service": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp",
+          "vsftpd"
+        ],
+        "banner_indicators": [
+          "220",
+          "FTP",
+          "vsftpd"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "apache",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ftp_anonymous_access",
+          "when": "ftp_service_detected_with_anonymous_banner",
+          "reason": "immediate_access_no_credentials_needed"
+        },
+        {
+          "attack": "username_enumeration",
+          "when": "login_form_with_different_error_messages",
+          "reason": "enables_targeted_brute_force_attacks"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_information_gathering_technique"
+        },
+        {
+          "attack": "login_brute_force",
+          "when": "valid_usernames_identified",
+          "reason": "higher_success_rate_with_known_usernames"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Username Enumeration via Response Differential",
+        "mitre_id": "T1589.002",
+        "category": "reconnaissance",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "hydra",
+            "command_template": "hydra -L {userlist} -p {dummy_pass} {target} http-post-form \"{path}:username=^USER^&password=^PASS^&submit=Login:{failure_string}\"",
+            "actual_command": "hydra -L /opt/SecLists/Usernames/cirt-default-usernames.txt -p sadfasdfasdf 10.10.10.86 http-post-form \"/login:username=^USER^&password=^PASS^&submit=Login:Login failed.<\"",
+            "output_pattern": "[80][http-post-form] host: {ip}   login: {username}   password: {password}",
+            "effectiveness_rating": 5,
+            "reliability": 0.92
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "differential_response_patterns",
+          "login_form_identified"
+        ],
+        "success_indicators": [
+          "different_error_messages_for_valid_invalid_users",
+          "valid_usernames_extracted",
+          "response_timing_differences"
+        ],
+        "common_failures": [
+          "uniform_error_messages",
+          "rate_limiting_implemented",
+          "account_lockout_mechanisms"
+        ],
+        "follow_up_techniques": [
+          "password_brute_force",
+          "credential_stuffing",
+          "password_spraying"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "HTTP Authentication Brute Force",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "hydra",
+            "command_template": "hydra -L {userlist} -P {passlist} {target} http-post-form \"{path}:username=^USER^&password=^PASS^&submit=Login:{failure_string}\"",
+            "actual_command": "hydra -L usernames -P /usr/share/wordlists/rockyou.txt 10.10.10.86 http-post-form \"/login:username=^USER^&password=^PASS^&submit=Login:failed\"",
+            "output_pattern": "[80][http-post-form] host: {ip}   login: {username}   password: {password}",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "valid_usernames_identified",
+          "no_account_lockout",
+          "weak_password_policy"
+        ],
+        "success_indicators": [
+          "valid_credentials_found",
+          "successful_authentication",
+          "access_to_protected_resources"
+        ],
+        "common_failures": [
+          "strong_passwords",
+          "rate_limiting",
+          "account_lockout_after_attempts"
+        ],
+        "follow_up_techniques": [
+          "session_hijacking",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Cookie Parameter Fuzzing",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -w {wordlist} -H \"Cookie: FUZZ\" --hh {hide_chars} {target}",
+            "actual_command": "wfuzz -c -w /usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt -H \"Cookie: FUZZ\" --hh 322 http://10.10.10.86:8080",
+            "output_pattern": "ID   Response   Lines      Word         Chars          Payload",
+            "effectiveness_rating": 4,
+            "reliability": 0.88
+          }
+        ],
+        "prerequisites": [
+          "web_application_uses_cookies",
+          "cookie_based_authentication",
+          "predictable_cookie_names"
+        ],
+        "success_indicators": [
+          "different_response_lengths",
+          "cookie_parameter_identified",
+          "authentication_bypass_possible"
+        ],
+        "common_failures": [
+          "uniform_responses",
+          "complex_cookie_structure",
+          "encrypted_cookie_values"
+        ],
+        "follow_up_techniques": [
+          "cookie_value_brute_force",
+          "session_manipulation",
+          "authentication_bypass"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "TCP Proxy Service Discovery",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -H \"Cookie: {cookie}\" '{target}/socket?port={port}&cmd={command}'",
+            "actual_command": "curl -H \"Cookie: password=secret\" 'http://10.10.10.86:8080/socket?port=21&cmd=0xdf'",
+            "output_pattern": "Service banners and error messages",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -z range,1-65535 -u '{target}/socket?port=FUZZ&cmd={test_cmd}' -H \"Cookie: {cookie}\" --hc {hide_codes}",
+            "actual_command": "wfuzz -c -z range,1-65535 -u 'http://10.10.10.86:8080/socket?port=FUZZ&cmd=abc' -H \"Cookie: password=secret\" --hc 500",
+            "output_pattern": "Different response codes for open ports",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "tcp_proxy_service_accessible",
+          "valid_authentication_cookie",
+          "port_parameter_identified"
+        ],
+        "success_indicators": [
+          "service_banners_retrieved",
+          "open_ports_identified",
+          "internal_services_discovered"
+        ],
+        "common_failures": [
+          "proxy_restrictions",
+          "timeout_issues",
+          "filtered_responses"
+        ],
+        "follow_up_techniques": [
+          "service_enumeration",
+          "protocol_specific_attacks",
+          "internal_network_mapping"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "hydra",
+        "use_case": "web_form_brute_force",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "credential_access",
+          "authentication_bypass"
+        ],
+        "alternatives": [
+          "burp_intruder",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "identify_failure_strings_accurately",
+          "use_targeted_wordlists",
+          "monitor_for_rate_limiting"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "parameter_discovery_and_fuzzing",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing",
+          "parameter_discovery"
+        ],
+        "alternatives": [
+          "ffuf",
+          "gobuster",
+          "burp_intruder"
+        ],
+        "best_practices": [
+          "use_appropriate_filters",
+          "analyze_response_patterns",
+          "combine_with_manual_testing"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_authentication_bypass_chain",
+        "steps": [
+          {
+            "step": 1,
+            "command": "hydra -L /opt/SecLists/Usernames/cirt-default-usernames.txt -p dummy_pass 10.10.10.86 http-post-form \"/login:username=^USER^&password=^PASS^&submit=Login:Login failed.<\"",
+            "purpose": "Enumerate valid usernames via response differential",
+            "expected_output": "List of valid usernames with different error responses"
+          },
+          {
+            "step": 2,
+            "command": "hydra -L usernames -P /usr/share/wordlists/rockyou.txt 10.10.10.86 http-post-form \"/login:username=^USER^&password=^PASS^&submit=Login:failed\"",
+            "purpose": "Brute force passwords for identified users",
+            "expected_output": "Valid credentials: admin:Password1"
+          },
+          {
+            "step": 3,
+            "command": "wfuzz -c -w /usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt -H \"Cookie: FUZZ\" --hh 322 http://10.10.10.86:8080",
+            "purpose": "Discover authentication cookie parameter",
+            "expected_output": "Cookie parameter: password"
+          },
+          {
+            "step": 4,
+            "command": "wfuzz -c -w /usr/share/seclists/Passwords/Common-Credentials/10k-most-common.txt -H \"Cookie: password=FUZZ\" --hh 324 http://10.10.10.86:8080",
+            "purpose": "Brute force cookie value",
+            "expected_output": "Valid cookie value: secret"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "20-60 minutes"
+      },
+      {
+        "sequence_name": "tcp_proxy_service_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -H \"Cookie: password=secret\" 'http://10.10.10.86:8080/socket?port=21&cmd=test'",
+            "purpose": "Test TCP proxy functionality",
+            "expected_output": "FTP service banner: 220 (vsFTPd 3.0.3)"
+          },
+          {
+            "step": 2,
+            "command": "curl -H \"Cookie: password=secret\" 'http://10.10.10.86:8080/socket?port=22&cmd=test'",
+            "purpose": "Enumerate SSH service",
+            "expected_output": "SSH banner: SSH-2.0-OpenSSH_7.2p2"
+          },
+          {
+            "step": 3,
+            "command": "wfuzz -c -z range,1-65535 -u 'http://10.10.10.86:8080/socket?port=FUZZ&cmd=abc' -H \"Cookie: password=secret\" --hc 500",
+            "purpose": "Discover additional open ports",
+            "expected_output": "List of responsive ports and services"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Dab",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2018-07-14",
+      "author": "snowscan",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_application",
+        "memcached",
+        "dynamic_linking"
+      ],
+      "key_vulnerabilities": [
+        "brute_force",
+        "memcached_exposure",
+        "ldconfig_privilege_escalation"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "memcached_exploitation",
+        "dynamic_linking_attacks",
+        "hash_cracking",
+        "web_proxy_techniques"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "linux_internals",
+        "hash_cracking",
+        "memcached_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "privilege_escalation",
+        "hash_cracking",
+        "memcached_exploitation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "secure_memcached_config",
+        "proper_file_permissions",
+        "input_validation",
+        "rate_limiting"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Cache",
+        "Postman",
+        "Craft"
+      ],
+      "similarity_reasons": [
+        "memcached_exploitation",
+        "web_proxy_techniques",
+        "hash_cracking_required"
+      ],
+      "unique_aspects": [
+        "ldconfig_privilege_escalation",
+        "dual_web_app_interaction",
+        "dynamic_linking_exploitation"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "multiple_technologies",
+        "advanced_privilege_escalation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T02:08:29.620003",
+    "original_file": "0xdf_writeups/Htb Dab.md",
+    "content_length": 50467,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,940 @@
+{
+  "writeup_id": "Htb_Nest",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_smb_enumeration_custom_service",
+    "primary_services": [
+      "smb",
+      "custom_tcp_service"
+    ],
+    "port_signature": "445+4386",
+    "service_combination": "smb+custom_reporting_service",
+    "os_family": "windows",
+    "environment_type": "standalone_workstation",
+    "entry_vector": "unauthenticated_smb_access",
+    "privilege_path": "file_disclosure_to_system",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "custom_hqk_reporting_service",
+      "encrypted_passwords_in_files",
+      "dotnet_reverse_engineering_required",
+      "progressive_smb_access_escalation"
+    ],
+    "environmental_clues": [
+      "port_4386_custom_service",
+      "hqk_reporting_service_banner",
+      "smb_shares_with_nested_access",
+      "visual_basic_project_files"
+    ],
+    "similar_scenarios": [
+      "access_htb_easy",
+      "bounty_htb_easy"
+    ],
+    "unique_aspects": [
+      "telnet_vs_netcat_connectivity_issue",
+      "notepad_plus_plus_config_enumeration",
+      "debug_password_memory_extraction",
+      "visual_studio_project_source_code"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SMB_Anonymous_Access",
+        "success_reason": "Guest session allowed access to Data and Users shares without authentication",
+        "prerequisite_indicators": [
+          "smb_service_available",
+          "guest_access_enabled",
+          "shares_with_read_permissions"
+        ],
+        "recognition_patterns": [
+          "smbmap with null user succeeds",
+          "READ ONLY permissions on shares",
+          "no authentication required"
+        ],
+        "failure_modes": [
+          "guest_access_disabled",
+          "all_shares_require_authentication",
+          "network_access_blocked"
+        ],
+        "environmental_factors": [
+          "default_smb_configuration",
+          "legacy_file_sharing_setup",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Configuration_File_Analysis",
+        "success_reason": "Notepad++ config revealed hidden directory paths and stored credentials",
+        "prerequisite_indicators": [
+          "user_profile_access",
+          "application_config_files_readable",
+          "recent_file_history_available"
+        ],
+        "recognition_patterns": [
+          "config.xml in AppData",
+          "recent file paths in configs",
+          "encrypted password strings"
+        ],
+        "failure_modes": [
+          "config_files_not_accessible",
+          "no_recent_file_history",
+          "configs_properly_secured"
+        ],
+        "environmental_factors": [
+          "user_workstation_access",
+          "application_data_exposure",
+          "file_history_retention"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Reverse_Engineering_Decryption",
+        "success_reason": "Visual Basic project contained hardcoded decryption key and algorithm",
+        "prerequisite_indicators": [
+          "source_code_access",
+          "compiled_binaries_available",
+          "encryption_implementation_visible"
+        ],
+        "recognition_patterns": [
+          "VB.NET project files",
+          "hardcoded encryption keys",
+          "simple encryption algorithms"
+        ],
+        "failure_modes": [
+          "no_source_code_access",
+          "proper_key_management",
+          "strong_encryption_implementation"
+        ],
+        "environmental_factors": [
+          "development_files_in_production",
+          "weak_encryption_practices",
+          "source_code_exposure"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Custom_Service_Debug_Mode",
+        "success_reason": "HQK service had debug functionality with weak password protection",
+        "prerequisite_indicators": [
+          "custom_service_running",
+          "debug_mode_available",
+          "weak_debug_credentials"
+        ],
+        "recognition_patterns": [
+          "DEBUG command in help menu",
+          "custom application on unusual port",
+          "telnet connectivity required"
+        ],
+        "failure_modes": [
+          "strong_debug_password",
+          "debug_mode_disabled",
+          "service_not_accessible"
+        ],
+        "environmental_factors": [
+          "custom_application_deployment",
+          "debug_features_in_production",
+          "weak_administrative_controls"
+        ],
+        "success_probability": 0.71,
+        "typical_timeframe": "20-40 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "tempuser credentials in SMB share",
+        "discovery_method": "Anonymous SMB enumeration",
+        "why_critical": "Provided initial authenticated access to additional resources",
+        "how_to_recognize": [
+          "welcome email with credentials",
+          "temp account naming patterns",
+          "default password formats"
+        ],
+        "follow_up_actions": [
+          "test_smb_access_with_creds",
+          "enumerate_additional_shares",
+          "check_service_access"
+        ]
+      },
+      {
+        "discovery": "C.Smith encrypted password",
+        "discovery_method": "Registry.xml file analysis",
+        "why_critical": "Led to privileged user account after decryption",
+        "how_to_recognize": [
+          "encrypted password fields",
+          "user account references",
+          "configuration backup files"
+        ],
+        "follow_up_actions": [
+          "find_decryption_method",
+          "analyze_encryption_algorithm",
+          "test_decrypted_credentials"
+        ]
+      },
+      {
+        "discovery": "VB.NET decryption source code",
+        "discovery_method": "Notepad++ config file path analysis",
+        "why_critical": "Revealed decryption key and algorithm for encrypted passwords",
+        "how_to_recognize": [
+          "recent file paths in configs",
+          "development project directories",
+          "encryption-related source files"
+        ],
+        "follow_up_actions": [
+          "extract_decryption_key",
+          "implement_decryption_algorithm",
+          "decrypt_found_passwords"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "tempuser",
+        "escalation_method": "Configuration_File_Analysis",
+        "why_possible": "Access to user profiles revealed encrypted credentials and application configs",
+        "recognition_signs": [
+          "user_profile_directory_access",
+          "application_configuration_files",
+          "recent_file_history_available"
+        ],
+        "exploitation_path": "SMB Access → Config Files → Encrypted Passwords → Source Code → Decryption"
+      },
+      {
+        "privilege_level": "c.smith",
+        "escalation_method": "Debug_Service_Exploitation",
+        "why_possible": "Privileged user had access to debug functionality in custom service",
+        "recognition_signs": [
+          "custom_service_debug_mode",
+          "weak_debug_authentication",
+          "memory_dump_capabilities"
+        ],
+        "exploitation_path": "Debug Access → Memory Analysis → Administrator Password → PSExec"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 445 (SMB) and 4386 (unknown) open on Windows host",
+        "decision": "Start with SMB enumeration using null/guest sessions",
+        "reasoning": "Limited attack surface, SMB often allows anonymous access for initial foothold",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "investigate_custom_service",
+            "when": "if smb enumeration fails"
+          },
+          {
+            "option": "brute_force_smb",
+            "when": "if no anonymous access"
+          }
+        ],
+        "success_indicators": [
+          "readable_shares_found",
+          "files_accessible",
+          "credentials_discovered"
+        ],
+        "next_decision": "enumerate_accessible_shares"
+      },
+      {
+        "step": 2,
+        "situation": "Found readable SMB shares with anonymous access",
+        "decision": "Recursively download all accessible files from shares",
+        "reasoning": "Files often contain credentials, configuration data, or sensitive information",
+        "confidence": 0.95,
+        "prerequisites": [
+          "smb_anonymous_access_confirmed"
+        ],
+        "success_indicators": [
+          "files_downloaded",
+          "credentials_found_in_files"
+        ],
+        "failure_fallbacks": [
+          "enumerate_share_permissions",
+          "try_common_credentials"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found credentials in welcome email template",
+        "decision": "Use discovered credentials to re-enumerate SMB with authenticated access",
+        "reasoning": "Valid credentials typically unlock additional shares and directories",
+        "confidence": 0.98,
+        "prerequisites": [
+          "valid_credentials_obtained"
+        ],
+        "success_indicators": [
+          "new_shares_accessible",
+          "additional_files_found"
+        ],
+        "failure_fallbacks": [
+          "password_spraying",
+          "credential_stuffing"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Found encrypted password and configuration files with authenticated SMB",
+        "decision": "Look for decryption keys or source code in accessible directories",
+        "reasoning": "Custom applications often store decryption logic nearby encrypted data",
+        "confidence": 0.75,
+        "prerequisites": [
+          "encrypted_data_found",
+          "application_files_accessible"
+        ],
+        "success_indicators": [
+          "source_code_found",
+          "decryption_method_identified"
+        ],
+        "failure_fallbacks": [
+          "reverse_engineer_binaries",
+          "brute_force_encryption"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_smb_anonymous_succeeds": {
+        "action": "download_all_accessible_files",
+        "tools": [
+          "smbclient",
+          "smbmap"
+        ],
+        "next_phase": "credential_extraction_from_files"
+      },
+      "if_credentials_found_in_files": {
+        "action": "re_enumerate_smb_with_creds",
+        "purpose": "access_additional_shares_and_directories",
+        "tools": [
+          "smbmap",
+          "smbclient"
+        ]
+      },
+      "if_encrypted_data_found": {
+        "action": "search_for_decryption_methods",
+        "alternatives": [
+          "source_code_analysis",
+          "configuration_files",
+          "reverse_engineering"
+        ],
+        "decision_criteria": "based_on_file_types_available"
+      },
+      "if_custom_service_identified": {
+        "action": "investigate_service_functionality",
+        "tools": [
+          "telnet",
+          "nc"
+        ],
+        "purpose": "find_debug_passwords_or_vulnerabilities"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_anonymous_smb_first",
+        "reasoning": "high_success_rate_and_often_contains_initial_credentials",
+        "applicability": "windows_hosts_with_smb_exposed"
+      },
+      {
+        "rule": "recursively_download_all_accessible_smb_files",
+        "reasoning": "files_often_contain_credentials_or_configuration_data",
+        "applicability": "when_smb_read_access_obtained"
+      },
+      {
+        "rule": "re_enumerate_services_after_credential_discovery",
+        "reasoning": "credentials_unlock_additional_attack_vectors",
+        "applicability": "any_valid_credentials_obtained"
+      },
+      {
+        "rule": "look_for_source_code_when_encrypted_data_found",
+        "reasoning": "custom_applications_often_store_decryption_logic_nearby",
+        "applicability": "encrypted_passwords_or_custom_applications_identified"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_accessible",
+          "anonymous_access_enabled"
+        ],
+        "success_indicators": [
+          "shares_enumerable",
+          "null_session_allowed",
+          "guest_access_enabled"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "anonymous_access_blocked",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "legacy_windows_versions",
+          "default_configurations",
+          "development_environments"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Custom Service Exploitation",
+        "mitre_id": "T1203",
+        "required_services": [
+          "custom_application"
+        ],
+        "required_ports": [
+          "non_standard"
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "custom_service_running",
+          "service_accessible",
+          "weak_authentication"
+        ],
+        "success_indicators": [
+          "service_banner_revealed",
+          "command_interface_available",
+          "directory_traversal_possible"
+        ],
+        "incompatible_with": [
+          "service_hardened",
+          "strong_authentication",
+          "input_validation"
+        ],
+        "confidence_boosters": [
+          "development_service",
+          "legacy_application",
+          "debug_features_enabled"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Configuration File Analysis",
+        "mitre_id": "T1005",
+        "required_services": [
+          "file_access"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_system_access",
+          "readable_config_files",
+          "weak_file_permissions"
+        ],
+        "success_indicators": [
+          "config_files_accessible",
+          "credentials_in_plaintext",
+          "encrypted_passwords_found"
+        ],
+        "incompatible_with": [
+          "encrypted_file_system",
+          "proper_file_permissions",
+          "credential_vaults"
+        ],
+        "confidence_boosters": [
+          "application_config_directories",
+          "user_profile_access",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_smb": {
+        "port_indicators": [
+          445,
+          139
+        ],
+        "service_indicators": [
+          "microsoft-ds",
+          "netbios-ssn"
+        ],
+        "banner_indicators": [
+          "SMB",
+          "Windows"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "custom_service": {
+        "port_indicators": [
+          "non_standard_high_ports"
+        ],
+        "service_indicators": [
+          "unknown",
+          "custom"
+        ],
+        "banner_indicators": [
+          "custom_application_names"
+        ],
+        "confidence_threshold": 0.7
+      },
+      "windows_environment": {
+        "port_indicators": [
+          445,
+          135,
+          139
+        ],
+        "service_indicators": [
+          "smb",
+          "rpc",
+          "netbios"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Microsoft"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_shares_and_files_without_authentication"
+        },
+        {
+          "attack": "custom_service_exploration",
+          "when": "unknown_service_detected",
+          "reason": "custom_services_often_have_weak_security"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "configuration_file_hunting",
+          "when": "file_system_access_gained",
+          "reason": "config_files_frequently_contain_credentials"
+        },
+        {
+          "attack": "directory_traversal",
+          "when": "custom_service_allows_navigation",
+          "reason": "can_reveal_sensitive_system_files"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SMB Null Session Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "smbmap",
+            "command_template": "smbmap -H {target_ip} -u null",
+            "actual_command": "smbmap -H 10.10.10.178 -u null",
+            "output_pattern": "Disk.*Permissions.*Comment",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -N //{target_ip}/{share}",
+            "actual_command": "smbclient -N //10.10.10.178/data",
+            "success_factors": [
+              "guest_access_enabled",
+              "readable_shares_available"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "smb_service_accessible",
+          "guest_access_enabled",
+          "null_session_allowed"
+        ],
+        "success_indicators": [
+          "shares_enumerated_successfully",
+          "readable_files_discovered",
+          "credentials_found_in_files"
+        ],
+        "common_failures": [
+          "guest_access_disabled",
+          "all_shares_require_authentication",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting_from_files",
+          "authenticated_smb_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Credential Harvesting from SMB Files",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -N //{target_ip}/{share}; recurse on; prompt off; mget *",
+            "actual_command": "smbclient -N //10.10.10.178/data",
+            "output_pattern": "getting file.*Welcome Email.txt",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "readable_smb_shares",
+          "files_containing_credentials",
+          "weak_file_permissions"
+        ],
+        "success_indicators": [
+          "plaintext_credentials_discovered",
+          "credentials_provide_additional_access",
+          "files_downloaded_successfully"
+        ],
+        "common_failures": [
+          "no_credential_files_present",
+          "encrypted_credential_storage",
+          "access_denied_to_sensitive_files"
+        ],
+        "follow_up_techniques": [
+          "authenticated_smb_enumeration",
+          "credential_spraying",
+          "lateral_movement"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Custom Service Enumeration",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 {target_ip}",
+            "actual_command": "nmap -p- --min-rate 10000 10.10.10.178",
+            "output_pattern": "PORT.*STATE.*SERVICE",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "telnet",
+            "command_template": "telnet {target_ip} {port}",
+            "actual_command": "telnet 10.10.10.178 4386",
+            "success_factors": [
+              "service_accepts_telnet_connections",
+              "interactive_service"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "custom_service_running",
+          "port_accessible",
+          "service_provides_interactive_interface"
+        ],
+        "success_indicators": [
+          "service_banner_retrieved",
+          "command_interface_discovered",
+          "help_menu_accessible"
+        ],
+        "common_failures": [
+          "service_requires_authentication",
+          "connection_protocol_mismatch",
+          "service_not_interactive"
+        ],
+        "follow_up_techniques": [
+          "service_command_enumeration",
+          "debug_password_discovery",
+          "binary_analysis"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "HQK Service Directory Traversal",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "enumeration",
+        "tools_used": [
+          {
+            "name": "telnet",
+            "command_template": "telnet {target_ip} 4386",
+            "actual_command": "telnet 10.10.10.178 4386",
+            "output_pattern": "HQK Reporting Service V1.2",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "hqk_service_accessible",
+          "setdir_command_available",
+          "directory_traversal_not_restricted"
+        ],
+        "success_indicators": [
+          "filesystem_enumeration_successful",
+          "sensitive_directories_accessible",
+          "file_listing_obtained"
+        ],
+        "common_failures": [
+          "access_denied_to_directories",
+          "runquery_command_errors",
+          "debug_password_required"
+        ],
+        "follow_up_techniques": [
+          "debug_password_discovery",
+          "file_content_extraction",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-25 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "smbmap",
+        "use_case": "smb_share_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments",
+          "smb_enumeration"
+        ],
+        "alternatives": [
+          "smbclient",
+          "enum4linux",
+          "crackmapexec"
+        ],
+        "best_practices": [
+          "try_null_sessions_first",
+          "test_with_discovered_credentials",
+          "enumerate_all_accessible_shares"
+        ]
+      },
+      {
+        "tool": "smbclient",
+        "use_case": "smb_file_access_and_download",
+        "effectiveness_rating": 5,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "file_extraction",
+          "smb_interaction"
+        ],
+        "alternatives": [
+          "mount.cifs",
+          "crackmapexec"
+        ],
+        "best_practices": [
+          "use_recurse_on_and_prompt_off_for_bulk_downloads",
+          "check_both_authenticated_and_unauthenticated_access",
+          "examine_all_downloaded_files_for_credentials"
+        ]
+      },
+      {
+        "tool": "telnet",
+        "use_case": "custom_service_interaction",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "low",
+        "essential_for": [
+          "legacy_service_interaction",
+          "protocol_testing"
+        ],
+        "alternatives": [
+          "nc",
+          "socat",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "try_when_netcat_fails_on_custom_services",
+          "use_help_command_to_discover_functionality",
+          "test_all_available_commands"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "smb_null_to_credential_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbmap -H 10.10.10.178 -u null",
+            "purpose": "Enumerate SMB shares without authentication",
+            "expected_output": "Data and Users shares readable"
+          },
+          {
+            "step": 2,
+            "command": "smbclient -N //10.10.10.178/data",
+            "purpose": "Access data share anonymously",
+            "expected_output": "Connection established to data share"
+          },
+          {
+            "step": 3,
+            "command": "recurse on; prompt off; mget *",
+            "purpose": "Download all accessible files",
+            "expected_output": "Welcome Email.txt and Maintenance Alerts.txt downloaded"
+          },
+          {
+            "step": 4,
+            "command": "cat 'Welcome Email.txt'",
+            "purpose": "Extract credentials from downloaded file",
+            "expected_output": "TempUser:welcome2019 credentials discovered"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "hqk_service_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.178",
+            "purpose": "Discover all open ports",
+            "expected_output": "Ports 445 and 4386 discovered"
+          },
+          {
+            "step": 2,
+            "command": "telnet 10.10.10.178 4386",
+            "purpose": "Connect to custom HQK service",
+            "expected_output": "HQK Reporting Service V1.2 banner"
+          },
+          {
+            "step": 3,
+            "command": "help",
+            "purpose": "Discover available commands",
+            "expected_output": "LIST, SETDIR, RUNQUERY, DEBUG, HELP commands available"
+          },
+          {
+            "step": 4,
+            "command": "setdir ..; list",
+            "purpose": "Perform directory traversal and enumeration",
+            "expected_output": "Filesystem structure enumerated"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Nest",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2020-01-25",
+      "author": "VbScrub",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "smb_enumeration",
+        "reverse_engineering",
+        "credential_extraction"
+      ],
+      "key_vulnerabilities": [
+        "weak_file_permissions",
+        "hardcoded_credentials",
+        "insecure_password_storage"
+      ],
+      "environment_type": "windows_workstation",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "smb_enumeration",
+        "dotnet_reverse_engineering",
+        "password_decryption",
+        "custom_service_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "smb_basics",
+        "basic_reverse_engineering",
+        "windows_file_permissions"
+      ]
+    },
+    "categorization": {
+      "primary_category": "enumeration_and_re",
+      "subcategories": [
+        "smb_enumeration",
+        "reverse_engineering",
+        "credential_extraction"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_file_permissions",
+        "avoid_hardcoded_credentials",
+        "encrypt_sensitive_data",
+        "secure_custom_services"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Remote",
+        "Bastion",
+        "Heist"
+      ],
+      "similarity_reasons": [
+        "smb_enumeration",
+        "credential_extraction",
+        "windows_environment",
+        "file_system_exploration"
+      ],
+      "unique_aspects": [
+        "dotnet_reverse_engineering",
+        "custom_service_4386",
+        "notepad_config_exploitation",
+        "visual_basic_project"
+      ],
+      "difficulty_factors": [
+        "reverse_engineering_requirement",
+        "multi_stage_credential_extraction",
+        "custom_binary_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T21:54:07.564807",
+    "original_file": "0xdf_writeups/Htb Nest.md",
+    "content_length": 50710,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

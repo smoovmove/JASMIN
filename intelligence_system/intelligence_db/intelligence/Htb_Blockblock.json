@@ -1,0 +1,973 @@
+{
+  "writeup_id": "Htb_Blockblock",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_blockchain_web_app_xss_to_rpc",
+    "primary_services": [
+      "ssh",
+      "http",
+      "ethereum_rpc"
+    ],
+    "port_signature": "22+80+8545",
+    "service_combination": "ssh+werkzeug_http+ethereum_jsonrpc",
+    "os_family": "linux",
+    "environment_type": "blockchain_application",
+    "entry_vector": "cross_site_scripting",
+    "privilege_path": "xss_to_admin_to_blockchain_read_to_ssh",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "ethereum_rpc_port_8545",
+      "blockchain_database_backend",
+      "smart_contracts_data_storage",
+      "werkzeug_python_framework"
+    ],
+    "environmental_clues": [
+      "chat_application_frontend",
+      "json_rpc_ethereum_endpoint",
+      "cookie_reflection_api",
+      "forge_binary_sudo_access",
+      "pacman_package_manager"
+    ],
+    "similar_scenarios": [
+      "ethereum_based_ctf_challenges",
+      "blockchain_web_apps"
+    ],
+    "unique_aspects": [
+      "blockchain_password_storage",
+      "forge_privilege_escalation",
+      "pacman_root_exploitation",
+      "raw_blockchain_data_extraction"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Cross-Site Scripting (XSS)",
+        "success_reason": "Chat application vulnerable to XSS allowing cookie theft",
+        "prerequisite_indicators": [
+          "chat_application_present",
+          "user_input_reflected",
+          "insufficient_input_sanitization"
+        ],
+        "recognition_patterns": [
+          "chat or messaging functionality",
+          "user content displayed without encoding",
+          "javascript execution in user content"
+        ],
+        "failure_modes": [
+          "content_security_policy_enforced",
+          "input_properly_sanitized",
+          "httponly_cookies_set"
+        ],
+        "environmental_factors": [
+          "web_application_framework_defaults",
+          "developer_security_awareness_gaps",
+          "insufficient_output_encoding"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Cookie Reflection API Abuse",
+        "success_reason": "API endpoint reflects authentication cookies enabling session hijacking",
+        "prerequisite_indicators": [
+          "api_endpoints_available",
+          "cookie_reflection_functionality",
+          "admin_session_accessible"
+        ],
+        "recognition_patterns": [
+          "API endpoints that echo request data",
+          "authentication cookies in responses",
+          "debug or development endpoints"
+        ],
+        "failure_modes": [
+          "secure_cookie_handling",
+          "no_reflection_endpoints",
+          "proper_session_management"
+        ],
+        "environmental_factors": [
+          "development_features_in_production",
+          "insufficient_api_security_review",
+          "debug_endpoints_exposed"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Ethereum JSON-RPC Exploitation",
+        "success_reason": "Local Ethereum instance accessible via JSON-RPC with blockchain data containing credentials",
+        "prerequisite_indicators": [
+          "ethereum_port_8545_open",
+          "json_rpc_interface_available",
+          "blockchain_data_accessible"
+        ],
+        "recognition_patterns": [
+          "port 8545 open (standard Ethereum RPC)",
+          "Werkzeug server on blockchain port",
+          "JSON-RPC methods responding"
+        ],
+        "failure_modes": [
+          "rpc_interface_disabled",
+          "authentication_required",
+          "no_sensitive_data_in_blocks"
+        ],
+        "environmental_factors": [
+          "development_blockchain_setup",
+          "default_ethereum_configuration",
+          "sensitive_data_stored_on_chain"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "20-60 minutes"
+      },
+      {
+        "technique": "Forge Binary Abuse",
+        "success_reason": "User can run forge as another user, multiple exploitation vectors available",
+        "prerequisite_indicators": [
+          "sudo_permissions_for_forge",
+          "forge_binary_available",
+          "development_environment_present"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows forge permissions",
+          "Foundry/Forge development tools installed",
+          "smart contract development environment"
+        ],
+        "failure_modes": [
+          "restricted_forge_commands",
+          "no_sudo_permissions",
+          "forge_not_installed"
+        ],
+        "environmental_factors": [
+          "blockchain_development_environment",
+          "permissive_sudo_configuration",
+          "development_tools_with_execution_capabilities"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-25 minutes"
+      },
+      {
+        "technique": "Pacman Package Manager Abuse",
+        "success_reason": "User can run pacman as root, multiple privilege escalation vectors",
+        "prerequisite_indicators": [
+          "arch_linux_system",
+          "sudo_permissions_for_pacman",
+          "package_manager_accessible"
+        ],
+        "recognition_patterns": [
+          "Arch Linux distribution",
+          "sudo -l shows pacman permissions",
+          "package installation capabilities"
+        ],
+        "failure_modes": [
+          "restricted_pacman_commands",
+          "no_sudo_permissions",
+          "package_signing_enforced"
+        ],
+        "environmental_factors": [
+          "arch_linux_environment",
+          "permissive_sudo_configuration",
+          "package_manager_root_access"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "XSS in chat application",
+        "discovery_method": "Input validation testing in chat functionality",
+        "why_critical": "Enabled admin session hijacking via cookie theft",
+        "how_to_recognize": [
+          "chat or messaging features present",
+          "user input reflected without sanitization",
+          "javascript execution possible"
+        ],
+        "follow_up_actions": [
+          "craft_xss_payload",
+          "steal_admin_cookies",
+          "hijack_admin_session"
+        ]
+      },
+      {
+        "discovery": "Ethereum JSON-RPC on port 8545",
+        "discovery_method": "Port scanning and service enumeration",
+        "why_critical": "Provided access to blockchain data containing SSH credentials",
+        "how_to_recognize": [
+          "port 8545 open",
+          "Werkzeug server responding",
+          "JSON-RPC methods available"
+        ],
+        "follow_up_actions": [
+          "enumerate_rpc_methods",
+          "read_blockchain_blocks",
+          "extract_credential_data"
+        ]
+      },
+      {
+        "discovery": "Forge sudo permissions",
+        "discovery_method": "sudo -l enumeration",
+        "why_critical": "Multiple privilege escalation vectors through forge binary",
+        "how_to_recognize": [
+          "sudo -l shows forge permissions",
+          "blockchain development environment",
+          "Foundry tools installed"
+        ],
+        "follow_up_actions": [
+          "test_forge_script_execution",
+          "abuse_forge_create_command",
+          "exploit_forge_build_hooks"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_user",
+        "escalation_method": "XSS_to_admin_session",
+        "why_possible": "Chat application vulnerable to XSS with cookie reflection API",
+        "recognition_signs": [
+          "chat_functionality_present",
+          "xss_vulnerability_confirmed",
+          "cookie_reflection_endpoint_available"
+        ],
+        "exploitation_path": "XSS payload → Cookie theft → Admin session hijack"
+      },
+      {
+        "privilege_level": "admin_web",
+        "escalation_method": "blockchain_credential_extraction",
+        "why_possible": "Ethereum RPC access reveals credentials stored in blockchain",
+        "recognition_signs": [
+          "ethereum_rpc_accessible",
+          "blockchain_data_readable",
+          "credentials_stored_in_blocks"
+        ],
+        "exploitation_path": "JSON-RPC calls → Block data extraction → SSH credentials"
+      },
+      {
+        "privilege_level": "ssh_user",
+        "escalation_method": "forge_binary_abuse",
+        "why_possible": "Sudo permissions for forge with multiple exploitation vectors",
+        "recognition_signs": [
+          "sudo_permissions_for_forge",
+          "development_environment_present",
+          "forge_execution_capabilities"
+        ],
+        "exploitation_path": "Forge script execution → Command injection → User escalation"
+      },
+      {
+        "privilege_level": "intermediate_user",
+        "escalation_method": "pacman_privilege_escalation",
+        "why_possible": "Root sudo permissions for package manager on Arch Linux",
+        "recognition_signs": [
+          "arch_linux_system",
+          "sudo_pacman_permissions",
+          "package_installation_access"
+        ],
+        "exploitation_path": "Pacman hooks → Package installation → Root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,8545 open on Linux host with Python Flask servers",
+        "decision": "Enumerate web applications first, focusing on authentication bypass",
+        "reasoning": "Multiple web services suggest web-based attack vector, port 8545 indicates blockchain/Ethereum RPC",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web attacks fail"
+          },
+          {
+            "option": "blockchain_rpc_direct",
+            "when": "if 8545 accessible without auth"
+          }
+        ],
+        "success_indicators": [
+          "registration_available",
+          "chat_functionality_discovered",
+          "blockchain_integration_confirmed"
+        ],
+        "next_decision": "identify_web_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Chat application with blockchain backend discovered",
+        "decision": "Test for XSS vulnerabilities in chat functionality",
+        "reasoning": "Chat applications commonly vulnerable to XSS, blockchain context suggests admin monitoring",
+        "confidence": 0.85,
+        "prerequisites": [
+          "user_registration_completed",
+          "chat_access_obtained"
+        ],
+        "success_indicators": [
+          "xss_payload_executes",
+          "admin_session_captured"
+        ],
+        "failure_fallbacks": [
+          "api_enumeration",
+          "blockchain_rpc_testing",
+          "authentication_bypass"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "XSS vulnerability confirmed with admin session access",
+        "decision": "Exploit cookie reflection API endpoint to steal admin credentials",
+        "reasoning": "API endpoint reflecting auth cookies provides direct path to session hijacking",
+        "confidence": 0.95,
+        "prerequisites": [
+          "xss_working",
+          "api_endpoint_identified"
+        ],
+        "success_indicators": [
+          "admin_cookie_obtained",
+          "admin_panel_access"
+        ],
+        "next_decision": "escalate_to_blockchain_access"
+      },
+      {
+        "step": 4,
+        "situation": "Admin access obtained to web application",
+        "decision": "Leverage admin privileges to access blockchain RPC interface",
+        "reasoning": "Admin likely has access to blockchain backend for application management",
+        "confidence": 0.8,
+        "prerequisites": [
+          "admin_session_active"
+        ],
+        "success_indicators": [
+          "json_rpc_calls_successful",
+          "blockchain_data_accessible"
+        ],
+        "next_decision": "extract_credentials_from_blockchain"
+      },
+      {
+        "step": 5,
+        "situation": "Blockchain RPC access established",
+        "decision": "Read raw blockchain blocks to find embedded credentials",
+        "reasoning": "Blockchain immutable storage often contains sensitive data in early blocks",
+        "confidence": 0.75,
+        "prerequisites": [
+          "rpc_access_confirmed",
+          "block_reading_capability"
+        ],
+        "success_indicators": [
+          "ssh_credentials_found",
+          "password_extracted"
+        ],
+        "next_decision": "attempt_ssh_access"
+      }
+    ],
+    "branching_logic": {
+      "if_xss_succeeds": {
+        "action": "setup_payload_to_steal_admin_session",
+        "tools": [
+          "burp_collaborator",
+          "custom_javascript"
+        ],
+        "next_phase": "admin_session_hijacking"
+      },
+      "if_xss_fails": {
+        "action": "try_alternative_web_attacks",
+        "alternatives": [
+          "sql_injection",
+          "api_fuzzing",
+          "directory_traversal"
+        ],
+        "decision_criteria": "based_on_application_technology_stack"
+      },
+      "if_admin_access_obtained": {
+        "action": "enumerate_blockchain_integration_points",
+        "purpose": "find_path_to_rpc_interface",
+        "tools": [
+          "browser_dev_tools",
+          "api_testing"
+        ]
+      },
+      "if_blockchain_credentials_found": {
+        "action": "attempt_ssh_with_discovered_credentials",
+        "purpose": "establish_initial_foothold",
+        "tools": [
+          "ssh_client"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_xss_in_chat_applications",
+        "reasoning": "high_success_rate_and_often_monitored_by_admins",
+        "applicability": "web_applications_with_user_content"
+      },
+      {
+        "rule": "check_blockchain_rpc_ports_for_sensitive_data",
+        "reasoning": "blockchain_storage_often_contains_credentials_or_keys",
+        "applicability": "ethereum_or_blockchain_integrated_applications"
+      },
+      {
+        "rule": "exploit_api_endpoints_that_reflect_authentication_data",
+        "reasoning": "direct_path_to_session_hijacking_without_complex_payloads",
+        "applicability": "applications_with_cookie_reflection_endpoints"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Cross-Site Scripting (XSS)",
+        "mitre_id": "T1059.007",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_input_reflection",
+          "chat_or_messaging_functionality"
+        ],
+        "success_indicators": [
+          "javascript_execution_in_browser",
+          "cookie_theft_possible",
+          "admin_session_accessible"
+        ],
+        "incompatible_with": [
+          "strict_csp_headers",
+          "input_sanitization_enabled",
+          "httponly_cookies"
+        ],
+        "confidence_boosters": [
+          "chat_application_detected",
+          "user_generated_content",
+          "weak_input_validation"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "JSON RPC Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "rpc"
+        ],
+        "required_ports": [
+          8545,
+          8546
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ethereum_node_running",
+          "json_rpc_endpoint_exposed",
+          "blockchain_application_present"
+        ],
+        "success_indicators": [
+          "rpc_calls_successful",
+          "blockchain_data_readable",
+          "sensitive_data_in_blocks"
+        ],
+        "incompatible_with": [
+          "rpc_authentication_required",
+          "network_isolation",
+          "encrypted_blockchain_data"
+        ],
+        "confidence_boosters": [
+          "port_8545_open",
+          "werkzeug_server_detected",
+          "blockchain_references_in_app"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "Sudo Privilege Escalation",
+        "mitre_id": "T1548.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "sudo_access_available",
+          "specific_binary_allowed",
+          "package_manager_access"
+        ],
+        "success_indicators": [
+          "sudo_l_shows_permissions",
+          "pacman_or_forge_executable",
+          "root_shell_achievable"
+        ],
+        "incompatible_with": [
+          "restricted_sudo_environment",
+          "command_whitelisting",
+          "no_shell_escape_vectors"
+        ],
+        "confidence_boosters": [
+          "arch_linux_detected",
+          "development_tools_present",
+          "forge_binary_available"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "werkzeug"
+        ],
+        "banner_indicators": [
+          "Werkzeug",
+          "Python",
+          "Flask"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "blockchain_node": {
+        "port_indicators": [
+          8545,
+          8546
+        ],
+        "service_indicators": [
+          "json-rpc",
+          "ethereum"
+        ],
+        "banner_indicators": [
+          "ethereum",
+          "geth",
+          "blockchain"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Linux"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "xss_cookie_theft",
+          "when": "chat_application_detected",
+          "reason": "direct_path_to_admin_access"
+        },
+        {
+          "attack": "json_rpc_enumeration",
+          "when": "port_8545_open",
+          "reason": "often_exposes_sensitive_blockchain_data"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "sudo_privilege_escalation",
+          "when": "ssh_access_obtained",
+          "reason": "common_misconfiguration_in_development_environments"
+        },
+        {
+          "attack": "package_manager_abuse",
+          "when": "pacman_sudo_access_detected",
+          "reason": "reliable_root_escalation_vector"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Cross-Site Scripting (XSS)",
+        "mitre_id": "T1059.007",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "manual_payload_injection",
+            "command_template": "Inject XSS payload into report user functionality",
+            "actual_command": "Submit XSS payload through report user form",
+            "output_pattern": "JavaScript execution in admin context",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "user_input_reflection",
+          "admin_review_process",
+          "insufficient_input_sanitization"
+        ],
+        "success_indicators": [
+          "javascript_executes_in_admin_browser",
+          "admin_cookie_accessible",
+          "session_hijacking_successful"
+        ],
+        "common_failures": [
+          "input_sanitization_blocks_payload",
+          "csp_headers_prevent_execution",
+          "admin_not_reviewing_reports"
+        ],
+        "follow_up_techniques": [
+          "session_hijacking",
+          "admin_account_takeover",
+          "api_endpoint_abuse"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "JSON RPC Blockchain Interaction",
+        "mitre_id": "T1213.002",
+        "category": "collection",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"{method}\",\"params\":[],\"id\":1}' http://{target}:8545/",
+            "actual_command": "curl -X POST -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBlockByNumber\",\"params\":[\"0x1\",true],\"id\":1}' http://10.10.11.43:8545/",
+            "output_pattern": "Blockchain block data with transaction details",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "ethereum_rpc_endpoint_accessible",
+          "blockchain_contains_sensitive_data",
+          "rpc_methods_not_restricted"
+        ],
+        "success_indicators": [
+          "block_data_retrieved_successfully",
+          "transaction_data_contains_credentials",
+          "raw_blockchain_data_accessible"
+        ],
+        "common_failures": [
+          "rpc_endpoint_restricted",
+          "no_sensitive_data_in_blocks",
+          "authentication_required"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "ssh_authentication",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Forge Binary Abuse",
+        "mitre_id": "T1548.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "forge",
+            "command_template": "forge {subcommand} --allow-paths / --root /",
+            "actual_command": "forge script --allow-paths / --root / /path/to/malicious.sol",
+            "output_pattern": "Command execution as target user",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "sudo_access_to_forge_binary",
+          "forge_allows_arbitrary_paths",
+          "solidity_compilation_capabilities"
+        ],
+        "success_indicators": [
+          "command_execution_as_target_user",
+          "shell_access_obtained",
+          "privilege_escalation_successful"
+        ],
+        "common_failures": [
+          "path_restrictions_enforced",
+          "compilation_errors",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "shell_stabilization",
+          "further_privilege_escalation",
+          "persistence_establishment"
+        ],
+        "time_investment": "20-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Pacman Package Manager Abuse",
+        "mitre_id": "T1548.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "pacman",
+            "command_template": "sudo pacman {options} {package}",
+            "actual_command": "sudo pacman -S malicious_package --noconfirm",
+            "output_pattern": "Root command execution during package installation",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "sudo_access_to_pacman",
+          "arch_linux_environment",
+          "package_installation_hooks_available"
+        ],
+        "success_indicators": [
+          "root_command_execution",
+          "system_compromise_achieved",
+          "persistent_access_established"
+        ],
+        "common_failures": [
+          "package_verification_failures",
+          "network_connectivity_issues",
+          "insufficient_disk_space"
+        ],
+        "follow_up_techniques": [
+          "backdoor_installation",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "ethereum_rpc_interaction",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "blockchain_enumeration"
+        ],
+        "alternatives": [
+          "web3_libraries",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "enumerate_available_rpc_methods",
+          "extract_all_block_data_systematically",
+          "parse_transaction_data_for_credentials"
+        ]
+      },
+      {
+        "tool": "forge",
+        "use_case": "privilege_escalation_via_solidity_compilation",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "ethereum_development_environments"
+        ],
+        "alternatives": [
+          "direct_binary_exploitation",
+          "configuration_abuse"
+        ],
+        "best_practices": [
+          "test_path_traversal_capabilities",
+          "create_minimal_solidity_payloads",
+          "leverage_compilation_hooks_for_execution"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "xss_to_admin_takeover",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Submit XSS payload in report user form",
+            "purpose": "Execute JavaScript in admin context",
+            "expected_output": "Admin reviews report and executes payload"
+          },
+          {
+            "step": 2,
+            "command": "Leverage /api/info endpoint to reflect admin cookie",
+            "purpose": "Extract admin authentication token",
+            "expected_output": "Admin JWT token captured"
+          },
+          {
+            "step": 3,
+            "command": "Use admin token to access privileged functionality",
+            "purpose": "Gain administrative access to application",
+            "expected_output": "Full admin access to chat application"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "blockchain_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' http://10.10.11.43:8545/",
+            "purpose": "Determine latest block number",
+            "expected_output": "Current blockchain height"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBlockByNumber\",\"params\":[\"0x1\",true],\"id\":1}' http://10.10.11.43:8545/",
+            "purpose": "Extract block data with transactions",
+            "expected_output": "Raw blockchain data containing credentials"
+          },
+          {
+            "step": 3,
+            "command": "Parse transaction data for embedded passwords",
+            "purpose": "Extract SSH credentials from blockchain",
+            "expected_output": "SSH username and password"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "20-40 minutes"
+      },
+      {
+        "sequence_name": "forge_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "sudo -l",
+            "purpose": "Identify forge binary sudo permissions",
+            "expected_output": "User can run forge as another user"
+          },
+          {
+            "step": 2,
+            "command": "forge script --allow-paths / --root / malicious.sol",
+            "purpose": "Execute arbitrary commands via forge",
+            "expected_output": "Command execution as target user"
+          },
+          {
+            "step": 3,
+            "command": "Establish persistent shell access",
+            "purpose": "Maintain access as escalated user",
+            "expected_output": "Shell as target user account"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "25-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "BlockBlock",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2024-11-16",
+      "author": "0xOZ",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "xss",
+        "blockchain_exploitation",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "cross_site_scripting",
+        "json_rpc_exposure",
+        "sudo_misconfiguration"
+      ],
+      "environment_type": "blockchain_application",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "blockchain_security",
+        "ethereum_exploitation",
+        "package_manager_abuse"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "blockchain_concepts",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "blockchain_security",
+        "privilege_escalation",
+        "package_manager_abuse"
+      ],
+      "attack_types": [
+        "xss",
+        "api_abuse",
+        "sudo_exploitation"
+      ],
+      "defensive_lessons": [
+        "input_sanitization",
+        "api_security",
+        "sudo_hardening",
+        "package_manager_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forge",
+        "Ethereum",
+        "Crypto"
+      ],
+      "similarity_reasons": [
+        "blockchain_technology",
+        "multi_stage_privilege_escalation",
+        "package_manager_abuse"
+      ],
+      "unique_aspects": [
+        "ethereum_blockchain_exploitation",
+        "forge_tool_abuse",
+        "pacman_privilege_escalation"
+      ],
+      "difficulty_factors": [
+        "blockchain_knowledge_required",
+        "multiple_escalation_paths",
+        "complex_attack_chain"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T23:01:12.782676",
+    "original_file": "0xdf_writeups/Htb Blockblock.md",
+    "content_length": 48963,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

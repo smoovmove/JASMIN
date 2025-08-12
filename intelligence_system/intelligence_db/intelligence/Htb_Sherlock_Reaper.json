@@ -1,0 +1,762 @@
+{
+  "writeup_id": "Htb_Sherlock_Reaper",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_ntlm_relay_llmnr_poisoning",
+    "primary_services": [
+      "llmnr",
+      "smb",
+      "netbios",
+      "dns"
+    ],
+    "port_signature": "137+445+5355",
+    "service_combination": "llmnr+smb+netbios",
+    "os_family": "windows_workstation",
+    "environment_type": "active_directory_domain",
+    "entry_vector": "llmnr_poisoning",
+    "privilege_path": "credential_relay_lateral_movement",
+    "attack_complexity": "easy",
+    "estimated_time": "15-30 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "llmnr_multicast_responses",
+      "ntlm_challenge_response_relay",
+      "typo_in_share_path",
+      "hostname_ip_mismatch_detection"
+    ],
+    "environmental_clues": [
+      "netbios_name_refresh_packets",
+      "smb_share_access_attempts",
+      "windows_security_event_logs",
+      "network_pcap_evidence"
+    ],
+    "similar_scenarios": [
+      "responder_ntlm_relay",
+      "mitm6_dhcp_poisoning"
+    ],
+    "unique_aspects": [
+      "forensic_investigation_focus",
+      "siem_alert_triggered_investigation",
+      "pcap_and_eventlog_correlation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "LLMNR_Poisoning",
+        "success_reason": "Victim made DNS typo triggering LLMNR fallback which attacker poisoned",
+        "prerequisite_indicators": [
+          "llmnr_enabled_on_network",
+          "dns_resolution_failures",
+          "smb_traffic_present",
+          "attacker_on_same_subnet"
+        ],
+        "recognition_patterns": [
+          "DNS query failure followed by LLMNR multicast",
+          "unexpected host responding to LLMNR queries",
+          "single character hostnames (typos like 'D' instead of 'DC')",
+          "LLMNR response from non-authoritative source"
+        ],
+        "failure_modes": [
+          "llmnr_disabled_via_gpo",
+          "dns_resolution_succeeds",
+          "network_segmentation_prevents_poisoning",
+          "no_user_typos_in_unc_paths"
+        ],
+        "environmental_factors": [
+          "default_windows_llmnr_enabled",
+          "users_manually_typing_unc_paths",
+          "lack_of_network_monitoring",
+          "shared_broadcast_domain"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "immediate upon DNS failure"
+      },
+      {
+        "technique": "NTLM_Relay",
+        "success_reason": "SMB signing not enforced allowing authentication relay between hosts",
+        "prerequisite_indicators": [
+          "smb_signing_not_required",
+          "ntlm_authentication_enabled",
+          "multiple_smb_hosts_available",
+          "victim_attempts_smb_connection"
+        ],
+        "recognition_patterns": [
+          "simultaneous SMB connections from attacker to multiple hosts",
+          "authentication packets relayed between connections",
+          "session setup requests with identical challenge responses",
+          "attacker machine making outbound SMB connections during victim auth"
+        ],
+        "failure_modes": [
+          "smb_signing_required",
+          "ntlm_disabled_kerberos_only",
+          "network_access_control",
+          "no_suitable_relay_targets"
+        ],
+        "environmental_factors": [
+          "default_smb_signing_optional",
+          "mixed_windows_versions",
+          "workstation_to_workstation_smb_allowed",
+          "insufficient_network_segmentation"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "seconds after initial connection"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "arthur.kyle account compromise",
+        "discovery_method": "NTLM relay via LLMNR poisoning",
+        "why_critical": "Enabled lateral movement to Forela-Wkstn001 with user credentials",
+        "how_to_recognize": [
+          "logon event with IP/hostname mismatch",
+          "authentication from unexpected source IP",
+          "SMB share access from relayed session",
+          "NetBIOS name resolution anomalies"
+        ],
+        "follow_up_actions": [
+          "analyze_smb_traffic_patterns",
+          "check_for_additional_compromised_accounts",
+          "review_share_access_logs",
+          "identify_attacker_persistence_mechanisms"
+        ]
+      },
+      {
+        "discovery": "172.17.79.135 rogue device",
+        "discovery_method": "LLMNR response analysis and SMB connection patterns",
+        "why_critical": "Unauthorized device performing active network attacks",
+        "how_to_recognize": [
+          "device responding to LLMNR queries for non-existent hosts",
+          "simultaneous inbound and outbound SMB connections",
+          "IP address not in asset inventory",
+          "suspicious network behavior patterns"
+        ],
+        "follow_up_actions": [
+          "isolate_rogue_device",
+          "analyze_full_network_activity",
+          "check_dhcp_logs_for_device_identity",
+          "review_physical_network_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "lateral_movement_via_relay",
+        "why_possible": "Compromised user credentials allowed access to additional workstations",
+        "recognition_signs": [
+          "successful_logon_events_from_relayed_auth",
+          "share_access_with_compromised_credentials",
+          "network_logon_type_3_events",
+          "source_workstation_name_spoofing"
+        ],
+        "exploitation_path": "LLMNR Poison → NTLM Relay → Workstation Access → Potential Domain Enumeration"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Network traffic shows LLMNR queries followed by suspicious responses",
+        "decision": "Investigate LLMNR poisoning attack pattern",
+        "reasoning": "LLMNR poisoning is common attack vector for credential theft in Windows environments",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "dns_spoofing_analysis",
+            "when": "if DNS responses are suspicious"
+          },
+          {
+            "option": "arp_poisoning_check",
+            "when": "if layer 2 attacks suspected"
+          }
+        ],
+        "success_indicators": [
+          "llmnr_query_followed_by_response",
+          "response_from_unexpected_ip",
+          "subsequent_smb_connection_to_responder"
+        ],
+        "next_decision": "analyze_smb_authentication_flow"
+      },
+      {
+        "step": 2,
+        "situation": "SMB authentication initiated to suspicious host after LLMNR response",
+        "decision": "Check for NTLM relay attack pattern",
+        "reasoning": "LLMNR poisoning typically leads to NTLM relay for privilege escalation",
+        "confidence": 0.95,
+        "prerequisites": [
+          "smb_connection_established",
+          "ntlm_authentication_observed"
+        ],
+        "success_indicators": [
+          "simultaneous_smb_connections_from_attacker",
+          "ntlm_challenge_response_relayed",
+          "authentication_to_different_target"
+        ],
+        "failure_fallbacks": [
+          "credential_harvesting_analysis",
+          "man_in_middle_check"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "NTLM relay confirmed with successful authentication",
+        "decision": "Correlate network traffic with event logs for impact assessment",
+        "reasoning": "Event logs provide definitive proof of successful authentication and accessed resources",
+        "confidence": 0.98,
+        "prerequisites": [
+          "event_logs_available",
+          "timestamps_correlate"
+        ],
+        "success_indicators": [
+          "4624_logon_events_match_network_traffic",
+          "5140_share_access_events_present",
+          "source_ip_workstation_mismatch_detected"
+        ],
+        "next_decision": "determine_compromised_accounts_and_systems"
+      }
+    ],
+    "branching_logic": {
+      "if_llmnr_poisoning_detected": {
+        "action": "trace_subsequent_smb_connections",
+        "tools": [
+          "wireshark",
+          "tcpdump"
+        ],
+        "next_phase": "ntlm_relay_analysis"
+      },
+      "if_ntlm_relay_confirmed": {
+        "action": "identify_compromised_accounts_and_targets",
+        "tools": [
+          "event_log_analysis",
+          "network_flow_correlation"
+        ],
+        "next_phase": "impact_assessment"
+      },
+      "if_authentication_successful": {
+        "action": "enumerate_accessed_resources_and_privileges",
+        "purpose": "determine_scope_of_compromise",
+        "tools": [
+          "evtx_dump",
+          "log_correlation"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_correlate_llmnr_with_subsequent_smb_traffic",
+        "reasoning": "llmnr_poisoning_directly_leads_to_credential_theft_attempts",
+        "applicability": "windows_network_environments"
+      },
+      {
+        "rule": "check_event_logs_for_authentication_anomalies",
+        "reasoning": "source_ip_workstation_name_mismatches_indicate_relay_attacks",
+        "applicability": "when_event_logs_available"
+      },
+      {
+        "rule": "analyze_simultaneous_connections_from_suspected_attacker",
+        "reasoning": "relay_attacks_require_concurrent_connections_to_victim_and_target",
+        "applicability": "ntlm_relay_investigation"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "LLMNR_Poisoning",
+        "mitre_id": "T1557.001",
+        "required_services": [
+          "llmnr",
+          "smb"
+        ],
+        "required_ports": [
+          5355,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "windows_domain_environment",
+          "llmnr_enabled",
+          "smb_shares_accessible",
+          "same_network_segment"
+        ],
+        "success_indicators": [
+          "llmnr_queries_observed",
+          "netbios_name_resolution_traffic",
+          "smb_authentication_attempts",
+          "ntlm_challenge_response_captured"
+        ],
+        "incompatible_with": [
+          "llmnr_disabled",
+          "network_segmentation",
+          "smb_signing_required",
+          "kerberos_only_authentication"
+        ],
+        "confidence_boosters": [
+          "user_typos_in_share_paths",
+          "legacy_windows_versions",
+          "default_llmnr_configuration"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "NTLM_Relay",
+        "mitre_id": "T1557.001",
+        "required_services": [
+          "smb",
+          "http",
+          "ldap"
+        ],
+        "required_ports": [
+          445,
+          80,
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ntlm_authentication_enabled",
+          "smb_signing_disabled",
+          "multiple_accessible_hosts",
+          "network_access_to_targets"
+        ],
+        "success_indicators": [
+          "ntlm_type1_messages",
+          "ntlm_type2_challenges",
+          "ntlm_type3_responses",
+          "successful_authentication_events"
+        ],
+        "incompatible_with": [
+          "smb_signing_enforced",
+          "kerberos_only_domains",
+          "network_isolation",
+          "epa_enabled"
+        ],
+        "confidence_boosters": [
+          "mixed_authentication_protocols",
+          "legacy_applications",
+          "service_accounts_present"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "NetBIOS_Name_Service_Poisoning",
+        "mitre_id": "T1557.001",
+        "required_services": [
+          "netbios-ns",
+          "smb"
+        ],
+        "required_ports": [
+          137,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "netbios_enabled",
+          "broadcast_domain_access",
+          "windows_workgroup_or_domain",
+          "legacy_name_resolution"
+        ],
+        "success_indicators": [
+          "nbns_queries_observed",
+          "name_registration_conflicts",
+          "smb_connection_attempts",
+          "credential_capture_events"
+        ],
+        "incompatible_with": [
+          "netbios_disabled",
+          "dns_only_resolution",
+          "network_isolation",
+          "modern_windows_hardening"
+        ],
+        "confidence_boosters": [
+          "legacy_windows_versions",
+          "default_netbios_settings",
+          "mixed_os_environments"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_domain": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          5355
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "llmnr"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "NTLM"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "smb_environment": {
+        "port_indicators": [
+          445,
+          139,
+          137
+        ],
+        "service_indicators": [
+          "smb",
+          "netbios-ssn",
+          "netbios-ns"
+        ],
+        "technology_indicators": [
+          "samba",
+          "windows",
+          "cifs"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "legacy_windows": {
+        "port_indicators": [
+          137,
+          138,
+          139,
+          5355
+        ],
+        "service_indicators": [
+          "netbios-ns",
+          "netbios-dgm",
+          "netbios-ssn",
+          "llmnr"
+        ],
+        "banner_indicators": [
+          "Windows XP",
+          "Windows 7",
+          "Windows Server 2008"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "llmnr_poisoning",
+          "when": "llmnr_traffic_detected",
+          "reason": "high_success_rate_credential_capture"
+        },
+        {
+          "attack": "ntlm_relay",
+          "when": "ntlm_authentication_observed",
+          "reason": "direct_access_without_cracking"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "netbios_poisoning",
+          "when": "netbios_queries_detected",
+          "reason": "effective_on_legacy_systems"
+        },
+        {
+          "attack": "smb_enumeration",
+          "when": "smb_service_detected",
+          "reason": "reveals_shares_and_permissions"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "LLMNR Poisoning",
+        "mitre_id": "T1557.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "Responder",
+            "command_template": "responder -I {interface} -wrf",
+            "actual_command": "responder -I eth0 -wrf",
+            "output_pattern": "LLMNR poisoned answer sent to {victim_ip}",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "network_access_to_target_subnet",
+          "llmnr_enabled_on_targets",
+          "user_typos_in_unc_paths"
+        ],
+        "success_indicators": [
+          "llmnr_queries_received",
+          "poisoned_responses_sent",
+          "victim_connects_to_attacker_ip"
+        ],
+        "common_failures": [
+          "llmnr_disabled",
+          "no_user_typos",
+          "network_segmentation"
+        ],
+        "follow_up_techniques": [
+          "ntlm_relay",
+          "hash_cracking",
+          "lateral_movement"
+        ],
+        "time_investment": "passive - wait for typos",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "NTLM Relay Attack",
+        "mitre_id": "T1557.001",
+        "category": "credential_access",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "ntlmrelayx.py",
+            "command_template": "ntlmrelayx.py -tf {targets_file} -smb2support",
+            "actual_command": "ntlmrelayx.py -tf targets.txt -smb2support",
+            "output_pattern": "HTTPD: Received connection from {victim_ip}",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "smb_signing_disabled",
+          "victim_authentication_triggered",
+          "network_access_to_targets"
+        ],
+        "success_indicators": [
+          "authentication_relayed_successfully",
+          "target_system_access_gained",
+          "smb_session_established"
+        ],
+        "common_failures": [
+          "smb_signing_enabled",
+          "same_machine_relay_blocked",
+          "authentication_timeout"
+        ],
+        "follow_up_techniques": [
+          "file_system_access",
+          "credential_dumping",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "SMB Share Access",
+        "mitre_id": "T1021.002",
+        "category": "lateral_movement",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "smbclient",
+            "command_template": "smbclient //{target_ip}/IPC$ -U {username}",
+            "actual_command": "smbclient //172.17.79.129/IPC$ -U arthur.kyle",
+            "output_pattern": "Try \"help\" to get a list of possible commands",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "valid_credentials_obtained",
+          "smb_service_accessible",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "successful_smb_authentication",
+          "share_enumeration_possible",
+          "file_access_granted"
+        ],
+        "common_failures": [
+          "invalid_credentials",
+          "share_permissions_denied",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "file_enumeration",
+          "data_exfiltration",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Responder",
+        "use_case": "llmnr_nbns_poisoning",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "internal_network_attacks"
+        ],
+        "alternatives": [
+          "mitm6",
+          "custom_llmnr_poisoner"
+        ],
+        "best_practices": [
+          "run_on_same_network_segment",
+          "monitor_for_authentication_attempts",
+          "combine_with_ntlm_relay_tools"
+        ]
+      },
+      {
+        "tool": "ntlmrelayx.py",
+        "use_case": "ntlm_credential_relaying",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "windows_lateral_movement"
+        ],
+        "alternatives": [
+          "MultiRelay",
+          "smbrelayx"
+        ],
+        "best_practices": [
+          "disable_smb_and_http_on_attacking_machine",
+          "use_targets_file_for_multiple_hosts",
+          "enable_smb2_support_flag"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "llmnr_poisoning_to_ntlm_relay",
+        "steps": [
+          {
+            "step": 1,
+            "command": "responder -I eth0 -wrf",
+            "purpose": "Start LLMNR/NBNS poisoning",
+            "expected_output": "Listening for LLMNR requests"
+          },
+          {
+            "step": 2,
+            "command": "ntlmrelayx.py -tf targets.txt -smb2support",
+            "purpose": "Relay captured authentication to targets",
+            "expected_output": "Servers started, waiting for connections"
+          },
+          {
+            "step": 3,
+            "command": "# Wait for victim typo in UNC path",
+            "purpose": "Trigger LLMNR query from victim",
+            "expected_output": "LLMNR poisoned answer sent"
+          },
+          {
+            "step": 4,
+            "command": "# Automatic relay occurs",
+            "purpose": "Relay authentication to target system",
+            "expected_output": "Authentication successful on target"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "varies - depends on user behavior"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Reaper",
+      "difficulty": "Very Easy",
+      "os": "Windows",
+      "platform": "HackTheBox Sherlock",
+      "release_date": "2024-08-15",
+      "author": "CyberJunkie",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "ntlm_relay",
+        "llmnr_poisoning"
+      ],
+      "key_vulnerabilities": [
+        "llmnr_enabled",
+        "ntlm_authentication",
+        "network_misconfiguration"
+      ],
+      "environment_type": "corporate_network",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "ntlm_relay_attacks",
+        "llmnr_poisoning",
+        "network_forensics",
+        "windows_event_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "basic_networking",
+        "windows_authentication",
+        "pcap_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "digital_forensics",
+      "subcategories": [
+        "network_forensics",
+        "windows_event_analysis",
+        "credential_attacks"
+      ],
+      "attack_types": [
+        "credential_access",
+        "lateral_movement",
+        "man_in_the_middle"
+      ],
+      "defensive_lessons": [
+        "disable_llmnr",
+        "disable_ntlm",
+        "network_segmentation",
+        "siem_correlation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Responder",
+        "Nest",
+        "Blackfield"
+      ],
+      "similarity_reasons": [
+        "ntlm_attacks",
+        "network_poisoning",
+        "credential_relay"
+      ],
+      "unique_aspects": [
+        "forensic_investigation",
+        "siem_alert_correlation",
+        "pcap_event_correlation"
+      ],
+      "difficulty_factors": [
+        "guided_investigation",
+        "clear_attack_pattern",
+        "provided_artifacts"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T17:12:05.729386",
+    "original_file": "0xdf_writeups/Htb Sherlock Reaper.md",
+    "content_length": 13978,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

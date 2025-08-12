@@ -1,0 +1,865 @@
+{
+  "writeup_id": "Htb_Smasher",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_custom_webserver_buffer_overflow",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+1111",
+    "service_combination": "ssh+custom_http",
+    "os_family": "linux",
+    "environment_type": "standalone_server",
+    "entry_vector": "path_traversal_to_buffer_overflow",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "custom_webserver_on_nonstandard_port",
+      "source_code_accessible_via_path_traversal",
+      "multiple_binary_exploitation_stages",
+      "timing_attack_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "shenfeng_tiny_web_server",
+      "directory_listing_enabled",
+      "missing_server_header_on_some_responses",
+      "ubuntu_xenial_openssh_version"
+    ],
+    "similar_scenarios": [
+      "rope_htb_insane",
+      "ellingson_htb_hard"
+    ],
+    "unique_aspects": [
+      "padding_oracle_attack",
+      "setuid_timing_vulnerability",
+      "three_stage_exploitation_chain",
+      "binary_source_code_available"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Path Traversal",
+        "success_reason": "Shenfeng tiny-web-server has unpatched directory traversal vulnerability",
+        "prerequisite_indicators": [
+          "web_server_accessible",
+          "directory_listing_enabled",
+          "custom_web_server_software"
+        ],
+        "recognition_patterns": [
+          "Server header reveals 'shenfeng tiny-web-server'",
+          "Directory listing shows despite index.html presence",
+          "Open source software with known issues"
+        ],
+        "failure_modes": [
+          "path_sanitization_implemented",
+          "web_root_properly_chrooted",
+          "updated_server_version"
+        ],
+        "environmental_factors": [
+          "default_server_configuration",
+          "no_security_patches_applied",
+          "development_files_accessible"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Buffer Overflow",
+        "success_reason": "Tiny web server binary vulnerable to stack-based buffer overflow in request handling",
+        "prerequisite_indicators": [
+          "binary_accessible_via_path_traversal",
+          "source_code_available",
+          "no_modern_protections_enabled"
+        ],
+        "recognition_patterns": [
+          "Long request causes crash",
+          "Binary analysis shows vulnerable strcpy/strcat",
+          "Stack canaries disabled"
+        ],
+        "failure_modes": [
+          "aslr_enabled",
+          "stack_canaries_present",
+          "nx_bit_enabled"
+        ],
+        "environmental_factors": [
+          "older_compilation_without_hardening",
+          "custom_vulnerable_software",
+          "development_environment_settings"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-4 hours"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Shenfeng tiny-web-server identification",
+        "discovery_method": "HTTP header analysis",
+        "why_critical": "Led to known vulnerability research and source code access",
+        "how_to_recognize": [
+          "Server header in HTTP responses",
+          "Unusual port numbers for web services",
+          "Directory listing behavior patterns"
+        ],
+        "follow_up_actions": [
+          "research_known_vulnerabilities",
+          "test_path_traversal",
+          "download_source_and_binary"
+        ]
+      },
+      {
+        "discovery": "Binary and source code access",
+        "discovery_method": "Path traversal to parent directory",
+        "why_critical": "Enabled detailed buffer overflow exploit development",
+        "how_to_recognize": [
+          "Development files in web-accessible locations",
+          "Source code (.c files) present",
+          "Compiled binaries alongside source"
+        ],
+        "follow_up_actions": [
+          "download_for_local_analysis",
+          "reverse_engineer_binary",
+          "develop_custom_exploit"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "Path_Traversal_to_File_Access",
+        "why_possible": "Web server lacks proper path sanitization",
+        "recognition_signs": [
+          "directory_traversal_sequences_work",
+          "filesystem_access_beyond_webroot",
+          "sensitive_files_readable"
+        ],
+        "exploitation_path": "Path Traversal → Source Code Access → BOF Development → Shell"
+      },
+      {
+        "privilege_level": "file_read",
+        "escalation_method": "BOF_Exploit_Development",
+        "why_possible": "Access to vulnerable binary and source code enabled precise exploit",
+        "recognition_signs": [
+          "binary_analysis_shows_vulnerabilities",
+          "source_code_reveals_unsafe_functions",
+          "no_modern_exploit_mitigations"
+        ],
+        "exploitation_path": "Binary Analysis → ROP Chain → Shellcode Execution → www Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found unusual port 1111 open with tcpwrapped service",
+        "decision": "Manually investigate with HTTP requests to identify service",
+        "reasoning": "Non-standard port may host custom service with vulnerabilities",
+        "confidence": 0.8,
+        "alternatives": [
+          {
+            "option": "banner_grabbing",
+            "when": "if http fails"
+          },
+          {
+            "option": "service_fingerprinting",
+            "when": "if no clear protocol"
+          }
+        ],
+        "success_indicators": [
+          "http_response_received",
+          "server_header_identified",
+          "directory_listing_found"
+        ],
+        "next_decision": "identify_web_server_type"
+      },
+      {
+        "step": 2,
+        "situation": "Identified shenfeng tiny-web-server from HTTP headers",
+        "decision": "Research known vulnerabilities for this specific software",
+        "reasoning": "Open source software often has documented vulnerabilities",
+        "confidence": 0.9,
+        "prerequisites": [
+          "server_banner_identified"
+        ],
+        "success_indicators": [
+          "github_issues_found",
+          "cve_discovered"
+        ],
+        "failure_fallbacks": [
+          "manual_fuzzing",
+          "source_code_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found path traversal vulnerability in tiny-web-server",
+        "decision": "Use path traversal to access source code and binary",
+        "reasoning": "Source code access enables detailed vulnerability analysis",
+        "confidence": 0.95,
+        "prerequisites": [
+          "path_traversal_confirmed"
+        ],
+        "success_indicators": [
+          "source_code_downloaded",
+          "binary_downloaded"
+        ],
+        "next_decision": "analyze_for_buffer_overflow"
+      },
+      {
+        "step": 4,
+        "situation": "Have binary and source code access",
+        "decision": "Develop buffer overflow exploit using static analysis",
+        "reasoning": "Box name 'Smasher' suggests buffer overflow vulnerability",
+        "confidence": 0.85,
+        "prerequisites": [
+          "binary_access",
+          "source_code_access"
+        ],
+        "success_indicators": [
+          "overflow_point_identified",
+          "rop_chain_built"
+        ],
+        "next_decision": "execute_buffer_overflow"
+      },
+      {
+        "step": 5,
+        "situation": "Gained shell as www user, found AES service on localhost:1337",
+        "decision": "Investigate padding oracle vulnerability in AES service",
+        "reasoning": "Different error messages for padding vs generic errors indicate oracle",
+        "confidence": 0.9,
+        "prerequisites": [
+          "shell_access",
+          "local_service_identified"
+        ],
+        "success_indicators": [
+          "padding_error_confirmed",
+          "oracle_responses_different"
+        ],
+        "next_decision": "exploit_padding_oracle"
+      }
+    ],
+    "branching_logic": {
+      "if_path_traversal_succeeds": {
+        "action": "enumerate_filesystem_and_download_binaries",
+        "tools": [
+          "curl --path-as-is",
+          "nc"
+        ],
+        "next_phase": "static_analysis_for_vulnerabilities"
+      },
+      "if_buffer_overflow_confirmed": {
+        "action": "develop_rop_exploit",
+        "tools": [
+          "pwntools",
+          "gdb",
+          "objdump"
+        ],
+        "next_phase": "gain_initial_shell"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_local_services",
+        "purpose": "find_privilege_escalation_vectors",
+        "tools": [
+          "netstat",
+          "ps aux",
+          "nc"
+        ]
+      },
+      "if_padding_oracle_found": {
+        "action": "decrypt_ciphertext_for_credentials",
+        "tools": [
+          "custom_padding_oracle_script"
+        ],
+        "next_phase": "lateral_movement"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_github_for_open_source_software",
+        "reasoning": "open_source_projects_often_have_documented_vulnerabilities",
+        "applicability": "identified_open_source_services"
+      },
+      {
+        "rule": "use_path_as_is_flag_for_directory_traversal",
+        "reasoning": "curl_normalizes_paths_by_default",
+        "applicability": "path_traversal_attacks"
+      },
+      {
+        "rule": "investigate_different_error_messages_for_oracle_attacks",
+        "reasoning": "distinct_error_responses_indicate_information_leakage",
+        "applicability": "cryptographic_services"
+      },
+      {
+        "rule": "download_binaries_and_source_when_accessible",
+        "reasoning": "static_analysis_more_reliable_than_blind_fuzzing",
+        "applicability": "file_read_vulnerabilities"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Path Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443,
+          1111,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "insufficient_input_validation",
+          "file_system_access_enabled"
+        ],
+        "success_indicators": [
+          "directory_listing_enabled",
+          "file_contents_returned",
+          "etc_passwd_accessible",
+          "source_code_accessible"
+        ],
+        "incompatible_with": [
+          "path_sanitization_enabled",
+          "chroot_jail",
+          "strict_file_permissions"
+        ],
+        "confidence_boosters": [
+          "custom_web_server",
+          "open_source_software",
+          "known_vulnerable_versions"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Buffer Overflow",
+        "mitre_id": "T1055",
+        "required_services": [
+          "custom_binary"
+        ],
+        "required_ports": [
+          1111
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "vulnerable_binary_accessible",
+          "source_code_available",
+          "no_stack_protection",
+          "network_service_running"
+        ],
+        "success_indicators": [
+          "segmentation_fault_triggered",
+          "rip_control_achieved",
+          "reverse_shell_connection",
+          "binary_analysis_possible"
+        ],
+        "incompatible_with": [
+          "aslr_enabled",
+          "stack_canaries",
+          "dep_nx_bit",
+          "modern_compiler_protections"
+        ],
+        "confidence_boosters": [
+          "custom_c_application",
+          "legacy_compilation",
+          "box_name_hints_overflow"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Directory Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443,
+          1111,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_enabled",
+          "accessible_web_root"
+        ],
+        "success_indicators": [
+          "file_listing_returned",
+          "hidden_files_discovered",
+          "source_code_exposed",
+          "configuration_files_found"
+        ],
+        "incompatible_with": [
+          "directory_listing_disabled",
+          "access_controls_enforced",
+          "empty_directories"
+        ],
+        "confidence_boosters": [
+          "custom_web_server",
+          "minimal_configuration",
+          "development_environment"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "custom_web_server": {
+        "port_indicators": [
+          1111,
+          8080,
+          8443,
+          9000
+        ],
+        "service_indicators": [
+          "http",
+          "tcpwrapped"
+        ],
+        "banner_indicators": [
+          "tiny-web-server",
+          "custom",
+          "shenfeng"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "vulnerable_binary": {
+        "port_indicators": [
+          1111
+        ],
+        "service_indicators": [
+          "tcpwrapped",
+          "unknown"
+        ],
+        "technology_indicators": [
+          "c_binary",
+          "custom_service"
+        ],
+        "confidence_threshold": 0.7
+      },
+      "linux_target": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "path_traversal",
+          "when": "custom_web_server_detected",
+          "reason": "high_success_rate_immediate_file_access"
+        },
+        {
+          "attack": "directory_enumeration",
+          "when": "directory_listing_enabled",
+          "reason": "reveals_additional_attack_surface"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "buffer_overflow",
+          "when": "source_code_accessible",
+          "reason": "requires_analysis_but_high_impact"
+        },
+        {
+          "attack": "service_enumeration",
+          "when": "unusual_ports_detected",
+          "reason": "custom_services_often_vulnerable"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Path Traversal",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl --path-as-is http://{target}:{port}/../../../../{file_path}",
+            "actual_command": "curl --path-as-is http://10.10.10.89:1111/../../../../etc/passwd",
+            "output_pattern": "file contents displayed",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "netcat",
+            "command_template": "nc {target} {port}\\nGET /../../../../../{file_path} HTTP/1.0",
+            "actual_command": "nc 10.10.10.89 1111\\nGET /../../../../../etc/passwd HTTP/1.0",
+            "success_factors": [
+              "vulnerable_web_server",
+              "no_path_sanitization"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "vulnerable_path_handling",
+          "tiny_web_server_identified"
+        ],
+        "success_indicators": [
+          "file_contents_returned",
+          "http_200_response",
+          "access_to_system_files"
+        ],
+        "common_failures": [
+          "path_sanitization_enabled",
+          "access_controls_blocking_traversal",
+          "incorrect_traversal_depth"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "binary_download",
+          "buffer_overflow_development"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Buffer Overflow Exploitation",
+        "mitre_id": "T1055",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "pwntools",
+            "command_template": "python exploit.py",
+            "actual_command": "python tiny_exploit.py",
+            "output_pattern": "shell obtained",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "binary_analysis_completed",
+          "source_code_available",
+          "buffer_overflow_identified",
+          "rop_gadgets_found"
+        ],
+        "success_indicators": [
+          "shell_spawned",
+          "code_execution_achieved",
+          "privilege_escalation_to_www_user"
+        ],
+        "common_failures": [
+          "incorrect_offset_calculation",
+          "stack_protection_enabled",
+          "address_randomization",
+          "payload_encoding_issues"
+        ],
+        "follow_up_techniques": [
+          "local_enumeration",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "2-8 hours",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Padding Oracle Attack",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "python-paddingoracle",
+            "command_template": "pb.decrypt(encdata, block_size=AES.block_size, iv=iv)",
+            "actual_command": "pb.decrypt(encdata, block_size=AES.block_size, iv=iv)",
+            "output_pattern": "decrypted plaintext",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "netcat",
+            "command_template": "nc 127.0.0.1 {port}",
+            "actual_command": "nc 127.0.0.1 1337",
+            "success_factors": [
+              "padding_error_disclosure",
+              "oracle_service_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "oracle_service_identified",
+          "padding_error_messages_different",
+          "encrypted_data_available",
+          "block_cipher_in_use"
+        ],
+        "success_indicators": [
+          "plaintext_recovered",
+          "credentials_extracted",
+          "padding_errors_exploited"
+        ],
+        "common_failures": [
+          "no_padding_error_disclosure",
+          "rate_limiting_implemented",
+          "oracle_not_accessible"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse",
+          "user_impersonation",
+          "further_privilege_escalation"
+        ],
+        "time_investment": "30 minutes - 2 hours",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl --path-as-is",
+        "use_case": "path_traversal_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "directory_traversal_attacks"
+        ],
+        "alternatives": [
+          "netcat",
+          "burp_suite",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_path_as_is_flag_to_prevent_normalization",
+          "test_different_traversal_depths",
+          "target_sensitive_system_files"
+        ]
+      },
+      {
+        "tool": "pwntools",
+        "use_case": "buffer_overflow_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "high",
+        "essential_for": [
+          "binary_exploitation",
+          "rop_chain_development"
+        ],
+        "alternatives": [
+          "manual_exploitation",
+          "metasploit",
+          "custom_c_code"
+        ],
+        "best_practices": [
+          "analyze_binary_with_checksec",
+          "use_context_binary_for_automatic_setup",
+          "leverage_shellcraft_for_payload_generation"
+        ]
+      },
+      {
+        "tool": "python-paddingoracle",
+        "use_case": "padding_oracle_attacks",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "cryptographic_attacks",
+          "aes_cbc_exploitation"
+        ],
+        "alternatives": [
+          "manual_implementation",
+          "padbuster",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "implement_oracle_function_correctly",
+          "handle_different_error_responses",
+          "use_proper_exception_handling"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "path_traversal_to_source_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl --path-as-is http://10.10.10.89:1111/../../../../etc/passwd",
+            "purpose": "Verify path traversal vulnerability",
+            "expected_output": "System passwd file contents"
+          },
+          {
+            "step": 2,
+            "command": "curl -s --path-as-is \"10.10.10.89:1111/../tiny.c\" -O",
+            "purpose": "Download source code",
+            "expected_output": "Source code file saved locally"
+          },
+          {
+            "step": 3,
+            "command": "curl -s --path-as-is \"10.10.10.89:1111/../tiny\" -O",
+            "purpose": "Download binary for analysis",
+            "expected_output": "Binary file saved locally"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "buffer_overflow_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "python tiny_exploit.py",
+            "purpose": "Execute buffer overflow exploit",
+            "expected_output": "Remote shell as www user"
+          },
+          {
+            "step": 2,
+            "command": "id",
+            "purpose": "Verify shell and user context",
+            "expected_output": "uid=1000(www) gid=1000(www) groups=1000(www)"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "padding_oracle_credential_recovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nc 127.0.0.1 1337",
+            "purpose": "Connect to AES checker service",
+            "expected_output": "Welcome message with encrypted challenge"
+          },
+          {
+            "step": 2,
+            "command": "pb.decrypt(encdata, block_size=AES.block_size, iv=iv)",
+            "purpose": "Execute padding oracle attack",
+            "expected_output": "Decrypted plaintext containing credentials"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Smasher",
+      "difficulty": "Insane",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2018-06-09",
+      "author": "dzonerzy",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "buffer_overflow",
+        "path_traversal",
+        "padding_oracle"
+      ],
+      "key_vulnerabilities": [
+        "tiny_web_server_path_traversal",
+        "buffer_overflow_exploitation",
+        "aes_padding_oracle",
+        "timing_attack"
+      ],
+      "environment_type": "custom_vulnerable_applications",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "advanced_buffer_overflow",
+        "cryptographic_attacks",
+        "timing_vulnerabilities",
+        "binary_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "assembly_language",
+        "buffer_overflow_techniques",
+        "cryptography_fundamentals",
+        "binary_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "binary_exploitation",
+      "subcategories": [
+        "buffer_overflow",
+        "cryptographic_attacks",
+        "timing_attacks"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_coding_practices",
+        "input_validation",
+        "proper_crypto_implementation",
+        "timing_attack_mitigation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Rope",
+        "Ellingson",
+        "October"
+      ],
+      "similarity_reasons": [
+        "buffer_overflow_exploitation",
+        "binary_analysis_required",
+        "custom_vulnerable_applications"
+      ],
+      "unique_aspects": [
+        "padding_oracle_attack",
+        "timing_vulnerability_exploitation",
+        "multiple_complex_vulnerabilities"
+      ],
+      "difficulty_factors": [
+        "requires_exploit_development",
+        "advanced_cryptographic_knowledge",
+        "complex_vulnerability_chaining"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:08:20.296659",
+    "original_file": "0xdf_writeups/Htb Smasher.md",
+    "content_length": 34610,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

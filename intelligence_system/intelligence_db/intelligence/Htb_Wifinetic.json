@@ -1,0 +1,919 @@
+{
+  "writeup_id": "Htb_Wifinetic",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_wireless_router_credential_reuse",
+    "primary_services": [
+      "ftp",
+      "ssh",
+      "dns"
+    ],
+    "port_signature": "21+22+53",
+    "service_combination": "ftp+ssh+dns",
+    "os_family": "linux",
+    "environment_type": "wireless_router_infrastructure",
+    "entry_vector": "anonymous_ftp_access",
+    "privilege_path": "config_backup_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "openwrt_backup_files",
+      "wireless_config_credentials",
+      "wpa_preshared_key_reuse",
+      "reaver_wps_cracking"
+    ],
+    "environmental_clues": [
+      "anonymous_ftp_enabled",
+      "backup_tar_files",
+      "wireless_network_virtualization",
+      "dhcp_service_present"
+    ],
+    "similar_scenarios": [
+      "router_config_exposure",
+      "wireless_infrastructure_pentest"
+    ],
+    "unique_aspects": [
+      "virtualized_wireless_network",
+      "wps_pin_brute_force",
+      "openwrt_to_debian_migration",
+      "wireless_psk_password_reuse"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Anonymous FTP Access",
+        "success_reason": "FTP server allowed anonymous login with sensitive backup files",
+        "prerequisite_indicators": [
+          "ftp_service_running",
+          "anonymous_login_enabled",
+          "sensitive_files_accessible"
+        ],
+        "recognition_patterns": [
+          "nmap shows 'ftp-anon: Anonymous FTP login allowed'",
+          "backup files with recent timestamps",
+          "configuration files in archives"
+        ],
+        "failure_modes": [
+          "anonymous_access_disabled",
+          "no_sensitive_files_exposed",
+          "ftp_service_not_running"
+        ],
+        "environmental_factors": [
+          "default_ftp_configuration",
+          "backup_files_not_secured",
+          "development_environment_practices"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Configuration File Analysis",
+        "success_reason": "Wireless config contained plaintext PSK password",
+        "prerequisite_indicators": [
+          "backup_files_available",
+          "configuration_files_present",
+          "wireless_infrastructure_exists"
+        ],
+        "recognition_patterns": [
+          "OpenWrt config structure",
+          "wireless config files with PSK",
+          "plaintext passwords in configs"
+        ],
+        "failure_modes": [
+          "encrypted_backup_files",
+          "no_plaintext_credentials",
+          "sanitized_configurations"
+        ],
+        "environmental_factors": [
+          "openwrt_default_configs",
+          "unencrypted_backup_practices",
+          "wireless_network_present"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Password Reuse",
+        "success_reason": "WiFi PSK password reused for SSH access",
+        "prerequisite_indicators": [
+          "credentials_discovered",
+          "ssh_service_available",
+          "user_accounts_enumerated"
+        ],
+        "recognition_patterns": [
+          "netadmin user in passwd file",
+          "service accounts present",
+          "password complexity suggests reuse"
+        ],
+        "failure_modes": [
+          "unique_passwords_per_service",
+          "ssh_key_authentication_only",
+          "account_lockout_policies"
+        ],
+        "environmental_factors": [
+          "poor_password_management",
+          "single_administrator_setup",
+          "convenience_over_security"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "1-3 minutes"
+      },
+      {
+        "technique": "WPS PIN Brute Force",
+        "success_reason": "Reaver tool available and WPS enabled on wireless interface",
+        "prerequisite_indicators": [
+          "wireless_interfaces_present",
+          "wps_enabled_in_config",
+          "reaver_tool_installed"
+        ],
+        "recognition_patterns": [
+          "wps_pushbutton option enabled",
+          "wireless tools available on system",
+          "monitor mode capable interfaces"
+        ],
+        "failure_modes": [
+          "wps_disabled",
+          "no_wireless_tools",
+          "interfaces_not_configurable"
+        ],
+        "environmental_factors": [
+          "virtualized_wireless_setup",
+          "wps_default_enabled",
+          "penetration_testing_tools_present"
+        ],
+        "success_probability": 0.73,
+        "typical_timeframe": "10-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "backup-OpenWrt-2023-07-26.tar",
+        "discovery_method": "Anonymous FTP enumeration",
+        "why_critical": "Contains wireless configuration with plaintext PSK password",
+        "how_to_recognize": [
+          "recent backup file timestamps",
+          "configuration archive naming patterns",
+          "OpenWrt/wireless infrastructure context"
+        ],
+        "follow_up_actions": [
+          "extract_and_analyze_configs",
+          "test_password_reuse_ssh",
+          "enumerate_wireless_interfaces"
+        ]
+      },
+      {
+        "discovery": "netadmin user account",
+        "discovery_method": "passwd file analysis in backup",
+        "why_critical": "Target account for password reuse attack",
+        "how_to_recognize": [
+          "network administrator naming pattern",
+          "non-system user accounts",
+          "shell access enabled accounts"
+        ],
+        "follow_up_actions": [
+          "test_discovered_passwords",
+          "enumerate_user_privileges",
+          "check_wireless_capabilities"
+        ]
+      },
+      {
+        "discovery": "VeRyUniUqWiFIPasswrd1! PSK",
+        "discovery_method": "wireless config file analysis",
+        "why_critical": "Reused as both SSH and root password",
+        "how_to_recognize": [
+          "complex password in plaintext config",
+          "PSK/WPA configuration entries",
+          "unique password patterns suggesting reuse"
+        ],
+        "follow_up_actions": [
+          "test_ssh_authentication",
+          "attempt_privilege_escalation",
+          "check_other_service_reuse"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "netadmin_user",
+        "escalation_method": "WPS_PIN_brute_force",
+        "why_possible": "Reaver tool available and WPS enabled on wireless interfaces",
+        "recognition_signs": [
+          "wireless_interfaces_in_ifconfig",
+          "reaver_tool_present",
+          "wps_pushbutton_enabled_in_config"
+        ],
+        "exploitation_path": "reaver -i [interface] -b [bssid] -vv → extract PSK → su root"
+      },
+      {
+        "privilege_level": "user_to_root",
+        "escalation_method": "password_reuse",
+        "why_possible": "WiFi PSK password reused as root password",
+        "recognition_signs": [
+          "same_password_works_multiple_services",
+          "single_administrator_environment",
+          "convenience_over_security_practices"
+        ],
+        "exploitation_path": "Discovered PSK → su root with same password"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,53 open with anonymous FTP access",
+        "decision": "Enumerate FTP first for configuration files and credentials",
+        "reasoning": "Anonymous FTP often contains backup files with sensitive information",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "dns_enumeration",
+            "when": "if ftp yields no results"
+          },
+          {
+            "option": "ssh_bruteforce",
+            "when": "if usernames discovered"
+          }
+        ],
+        "success_indicators": [
+          "backup_files_found",
+          "configuration_files_present",
+          "credentials_in_configs"
+        ],
+        "next_decision": "analyze_backup_files"
+      },
+      {
+        "step": 2,
+        "situation": "Found wireless config with PSK password in backup tar file",
+        "decision": "Extract credentials from config files and test password reuse",
+        "reasoning": "WiFi PSK passwords often reused for system accounts",
+        "confidence": 0.75,
+        "prerequisites": [
+          "backup_files_downloaded",
+          "config_files_extracted"
+        ],
+        "success_indicators": [
+          "wireless_psk_found",
+          "usernames_from_passwd"
+        ],
+        "failure_fallbacks": [
+          "dns_zone_transfer",
+          "service_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Have PSK password and usernames from passwd file",
+        "decision": "Test password against all discovered usernames via SSH",
+        "reasoning": "Password reuse common in network infrastructure",
+        "confidence": 0.8,
+        "prerequisites": [
+          "psk_password_extracted",
+          "usernames_enumerated"
+        ],
+        "success_indicators": [
+          "ssh_authentication_successful"
+        ],
+        "failure_fallbacks": [
+          "try_ftp_users",
+          "enumerate_other_services"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_anonymous_ftp_available": {
+        "action": "download_all_files_prioritize_backups",
+        "tools": [
+          "ftp",
+          "mget"
+        ],
+        "next_phase": "analyze_configuration_files"
+      },
+      "if_backup_files_found": {
+        "action": "extract_and_analyze_configs",
+        "focus": [
+          "wireless_configs",
+          "passwd_files",
+          "network_configs"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_credentials_found": {
+        "action": "test_password_reuse_across_services",
+        "services": [
+          "ssh",
+          "ftp"
+        ],
+        "tools": [
+          "crackmapexec",
+          "hydra"
+        ]
+      },
+      "if_ssh_access_obtained": {
+        "action": "enumerate_wireless_interfaces",
+        "purpose": "find_privilege_escalation_via_wireless",
+        "tools": [
+          "iwconfig",
+          "reaver",
+          "wash"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_wireless_configs_for_psk_reuse",
+        "reasoning": "network_admins_often_reuse_wifi_passwords_for_system_accounts",
+        "applicability": "network_infrastructure_targets"
+      },
+      {
+        "rule": "prioritize_backup_tar_files_over_pdfs",
+        "reasoning": "backup_files_contain_actual_configurations_not_documentation",
+        "applicability": "anonymous_ftp_access"
+      },
+      {
+        "rule": "test_wifi_psk_against_network_related_usernames_first",
+        "reasoning": "netadmin_accounts_most_likely_to_share_wifi_passwords",
+        "applicability": "wireless_network_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Anonymous FTP Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_running",
+          "anonymous_login_enabled"
+        ],
+        "success_indicators": [
+          "ftp_banner_responds",
+          "anonymous_login_accepted",
+          "files_accessible"
+        ],
+        "incompatible_with": [
+          "anonymous_login_disabled",
+          "ftp_service_down",
+          "firewall_blocking_ftp"
+        ],
+        "confidence_boosters": [
+          "vsftpd_service",
+          "default_ftp_configuration",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Configuration File Analysis",
+        "mitre_id": "T1005",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "backup_files_accessible",
+          "configuration_files_present"
+        ],
+        "success_indicators": [
+          "tar_archive_extractable",
+          "config_files_readable",
+          "credentials_in_plaintext"
+        ],
+        "incompatible_with": [
+          "encrypted_backups",
+          "password_protected_archives",
+          "corrupted_files"
+        ],
+        "confidence_boosters": [
+          "openwrt_backup_naming",
+          "etc_directory_structure",
+          "wireless_config_files"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "WPA PSK Credential Reuse",
+        "mitre_id": "T1078",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "wireless_config_available",
+          "psk_password_extracted",
+          "ssh_service_accessible"
+        ],
+        "success_indicators": [
+          "ssh_login_successful",
+          "wireless_password_works_ssh",
+          "user_account_accessible"
+        ],
+        "incompatible_with": [
+          "different_password_policies",
+          "ssh_key_only_auth",
+          "account_lockout_enabled"
+        ],
+        "confidence_boosters": [
+          "same_admin_managing_both",
+          "default_credential_reuse",
+          "small_organization_practices"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "1-3 minutes"
+      },
+      {
+        "technique": "WPS PIN Brute Force",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "wireless"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "wireless_interfaces_present",
+          "wps_enabled_networks",
+          "reaver_tool_available"
+        ],
+        "success_indicators": [
+          "wireless_interfaces_detected",
+          "wps_networks_found",
+          "pin_cracking_successful"
+        ],
+        "incompatible_with": [
+          "wps_disabled",
+          "no_wireless_interfaces",
+          "rate_limiting_enabled"
+        ],
+        "confidence_boosters": [
+          "monitor_mode_capable",
+          "default_wps_configuration",
+          "legacy_wireless_equipment"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "ftp_anonymous": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp",
+          "vsftpd"
+        ],
+        "banner_indicators": [
+          "vsFTPd",
+          "Anonymous FTP login allowed"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "wireless_infrastructure": {
+        "port_indicators": [
+          53,
+          67
+        ],
+        "service_indicators": [
+          "dns",
+          "dhcp"
+        ],
+        "technology_indicators": [
+          "openwrt",
+          "wireless",
+          "hostapd"
+        ],
+        "confidence_threshold": 0.75
+      },
+      "linux_ssh": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "anonymous_ftp_enumeration",
+          "when": "ftp_anonymous_detected",
+          "reason": "immediate_access_no_credentials_needed"
+        },
+        {
+          "attack": "configuration_file_analysis",
+          "when": "backup_files_found",
+          "reason": "high_likelihood_of_credential_disclosure"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "credential_reuse_testing",
+          "when": "passwords_extracted_from_configs",
+          "reason": "common_admin_practice_moderate_success_rate"
+        },
+        {
+          "attack": "wps_pin_brute_force",
+          "when": "wireless_infrastructure_detected",
+          "reason": "effective_but_time_intensive"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Anonymous FTP Access",
+        "mitre_id": "T1078.001",
+        "category": "initial_access",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p 21,22,53 -sCV {target_ip}",
+            "actual_command": "nmap -p 21,22,53 -sCV 10.10.11.247",
+            "output_pattern": "ftp-anon: Anonymous FTP login allowed",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "ftp",
+            "command_template": "ftp {target_ip}",
+            "actual_command": "ftp 10.10.11.247",
+            "success_factors": [
+              "anonymous_login_enabled",
+              "sensitive_files_present"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "ftp_service_running",
+          "anonymous_access_enabled"
+        ],
+        "success_indicators": [
+          "230_login_successful",
+          "directory_listing_accessible",
+          "file_download_successful"
+        ],
+        "common_failures": [
+          "anonymous_access_disabled",
+          "empty_directory",
+          "permission_denied"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "configuration_analysis",
+          "password_spraying"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "WiFi Configuration Analysis",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "tar",
+            "command_template": "tar -tf {backup_file}",
+            "actual_command": "tar -tf backup-OpenWrt-2023-07-26.tar",
+            "output_pattern": "etc/config/wireless",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "cat",
+            "command_template": "cat etc/config/wireless",
+            "actual_command": "cat etc/config/wireless",
+            "success_factors": [
+              "psk_key_present",
+              "plaintext_password"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "backup_file_accessible",
+          "wireless_config_present"
+        ],
+        "success_indicators": [
+          "psk_key_extracted",
+          "wifi_ssid_identified",
+          "encryption_type_known"
+        ],
+        "common_failures": [
+          "encrypted_backup",
+          "missing_wireless_config",
+          "corrupted_archive"
+        ],
+        "follow_up_techniques": [
+          "password_spraying",
+          "ssh_authentication",
+          "credential_reuse"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSH Password Spraying",
+        "mitre_id": "T1110.003",
+        "category": "credential_access",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "crackmapexec",
+            "command_template": "crackmapexec ssh {target_ip} -u {userlist} -p '{password}' --continue-on-success",
+            "actual_command": "crackmapexec ssh 10.10.11.247 -u users -p 'VeRyUniUqWiFIPasswrd1!' --continue-on-success",
+            "output_pattern": "[+] netadmin:VeRyUniUqWiFIPasswrd1!",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "sshpass",
+            "command_template": "sshpass -p '{password}' ssh {username}@{target_ip}",
+            "actual_command": "sshpass -p 'VeRyUniUqWiFIPasswrd1!' ssh netadmin@10.10.11.247",
+            "success_factors": [
+              "password_reuse",
+              "valid_username"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "ssh_service_accessible",
+          "username_list_available",
+          "candidate_password_known"
+        ],
+        "success_indicators": [
+          "authentication_successful",
+          "shell_access_obtained",
+          "user_flag_accessible"
+        ],
+        "common_failures": [
+          "account_lockout_policies",
+          "no_password_reuse",
+          "ssh_key_only_auth"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "persistence"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "WPA WPS PIN Attack",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "reaver",
+            "command_template": "reaver -i {interface} -b {bssid} -vv",
+            "actual_command": "reaver -i mon0 -b 02:00:00:00:01:00 -vv",
+            "output_pattern": "WPS PIN: '[0-9]{8}'",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "wireless_interface_available",
+          "wps_enabled_on_target",
+          "monitor_mode_capable"
+        ],
+        "success_indicators": [
+          "wps_pin_discovered",
+          "psk_key_extracted",
+          "root_password_obtained"
+        ],
+        "common_failures": [
+          "wps_disabled",
+          "rate_limiting_enabled",
+          "ap_lockout_mechanisms"
+        ],
+        "follow_up_techniques": [
+          "root_authentication",
+          "system_compromise",
+          "persistence"
+        ],
+        "time_investment": "30-120 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "crackmapexec",
+        "use_case": "ssh_password_spraying",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "credential_validation",
+          "lateral_movement"
+        ],
+        "alternatives": [
+          "hydra",
+          "medusa",
+          "ncrack"
+        ],
+        "best_practices": [
+          "use_continue_on_success_flag",
+          "implement_rate_limiting",
+          "validate_usernames_first"
+        ]
+      },
+      {
+        "tool": "reaver",
+        "use_case": "wps_pin_brute_force",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "medium",
+        "essential_for": [
+          "wireless_penetration_testing"
+        ],
+        "alternatives": [
+          "bully",
+          "pixiewps"
+        ],
+        "best_practices": [
+          "verify_wps_enabled_first",
+          "use_verbose_output",
+          "monitor_for_ap_lockouts"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ftp_to_ssh_compromise",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p 21,22,53 -sCV 10.10.11.247",
+            "purpose": "Identify anonymous FTP access",
+            "expected_output": "Anonymous FTP login allowed"
+          },
+          {
+            "step": 2,
+            "command": "ftp 10.10.11.247",
+            "purpose": "Connect to FTP anonymously",
+            "expected_output": "230 Login successful"
+          },
+          {
+            "step": 3,
+            "command": "mget *",
+            "purpose": "Download all available files",
+            "expected_output": "Multiple files downloaded including backup tar"
+          },
+          {
+            "step": 4,
+            "command": "tar -xf backup-OpenWrt-2023-07-26.tar",
+            "purpose": "Extract backup configuration",
+            "expected_output": "etc/ directory extracted"
+          },
+          {
+            "step": 5,
+            "command": "cat etc/config/wireless",
+            "purpose": "Extract WiFi PSK password",
+            "expected_output": "key 'VeRyUniUqWiFIPasswrd1!'"
+          },
+          {
+            "step": 6,
+            "command": "crackmapexec ssh 10.10.11.247 -u users -p 'VeRyUniUqWiFIPasswrd1!' --continue-on-success",
+            "purpose": "Test password against SSH users",
+            "expected_output": "[+] netadmin:VeRyUniUqWiFIPasswrd1!"
+          },
+          {
+            "step": 7,
+            "command": "sshpass -p 'VeRyUniUqWiFIPasswrd1!' ssh netadmin@10.10.11.247",
+            "purpose": "Establish SSH session",
+            "expected_output": "Shell as netadmin user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Wifinetic",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2023-09-13",
+      "author": "felamos",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "ftp_anonymous",
+        "wireless_attacks",
+        "credential_reuse"
+      ],
+      "key_vulnerabilities": [
+        "anonymous_ftp",
+        "wps_pin_attack",
+        "weak_wireless_config"
+      ],
+      "environment_type": "wireless_network_simulation",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "wireless_security",
+        "wpa_attacks",
+        "reaver_tool"
+      ],
+      "prerequisite_knowledge": [
+        "basic_networking",
+        "wireless_fundamentals",
+        "linux_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "wireless_security",
+      "subcategories": [
+        "wpa_attacks",
+        "credential_access"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "brute_force",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "disable_wps",
+        "strong_wireless_passwords",
+        "secure_ftp_config"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Nibbles",
+        "Shocker",
+        "Lame"
+      ],
+      "similarity_reasons": [
+        "anonymous_ftp",
+        "credential_reuse",
+        "straightforward_path"
+      ],
+      "unique_aspects": [
+        "wireless_virtualization",
+        "reaver_wps_attacks",
+        "openwrt_config"
+      ],
+      "difficulty_factors": [
+        "clear_attack_path",
+        "specialized_wireless_tools",
+        "config_file_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:53:05.340843",
+    "original_file": "0xdf_writeups/Htb Wifinetic.md",
+    "content_length": 32167,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

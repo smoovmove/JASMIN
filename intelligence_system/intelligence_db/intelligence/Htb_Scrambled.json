@@ -1,0 +1,1019 @@
+{
+  "writeup_id": "Htb_Scrambled",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_ntlm_disabled_kerberoast",
+    "primary_services": [
+      "kerberos",
+      "ldap",
+      "smb",
+      "mssql",
+      "http"
+    ],
+    "port_signature": "53+80+88+389+445+1433",
+    "service_combination": "http+kerberos+ldap+smb+mssql",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "kerberoast_silver_ticket",
+    "privilege_path": "service_account_to_mssql_to_system",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "ntlm_authentication_disabled",
+      "kerberos_only_authentication",
+      "silver_ticket_generation",
+      "mssql_service_account_access"
+    ],
+    "environmental_clues": [
+      "webpage_credential_hints",
+      "file_share_enumeration",
+      "custom_dotnet_executables",
+      "deserialization_vulnerability"
+    ],
+    "similar_scenarios": [
+      "support_htb_easy",
+      "forest_htb_easy"
+    ],
+    "unique_aspects": [
+      "ntlm_disabled_environment",
+      "silver_ticket_mssql_access",
+      "dotnet_deserialization_privesc",
+      "dual_tooling_approach"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Kerberoasting",
+        "success_reason": "Service account had weak password and SPN configured",
+        "prerequisite_indicators": [
+          "kerberos_service_available",
+          "domain_controller_accessible",
+          "service_accounts_with_spns_exist"
+        ],
+        "recognition_patterns": [
+          "service account naming patterns",
+          "GetUserSPNs returns TGS tickets",
+          "hashcat crackable passwords"
+        ],
+        "failure_modes": [
+          "strong_service_passwords",
+          "no_spn_configured",
+          "kerberos_not_accessible"
+        ],
+        "environmental_factors": [
+          "default_active_directory_config",
+          "weak_password_policies",
+          "legacy_service_configurations"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Silver_Ticket_Attack",
+        "success_reason": "Service account hash allowed forged TGS for MSSQL access",
+        "prerequisite_indicators": [
+          "service_account_hash_obtained",
+          "target_service_spn_known",
+          "kerberos_authentication_enabled"
+        ],
+        "recognition_patterns": [
+          "MSSQL service running",
+          "kerberos authentication configured",
+          "service account credentials available"
+        ],
+        "failure_modes": [
+          "ntlm_authentication_required",
+          "service_account_disabled",
+          "additional_authentication_layers"
+        ],
+        "environmental_factors": [
+          "ntlm_disabled_environment",
+          "kerberos_only_authentication",
+          "service_account_permissions"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "Deserialization_Exploit",
+        "success_reason": "Custom .NET application vulnerable to unsafe deserialization",
+        "prerequisite_indicators": [
+          "custom_dotnet_applications_present",
+          "file_share_access_available",
+          "serialization_functionality_exists"
+        ],
+        "recognition_patterns": [
+          ".NET executables in shares",
+          "BinaryFormatter usage",
+          "serialization input handling"
+        ],
+        "failure_modes": [
+          "secure_deserialization_implemented",
+          "input_validation_present",
+          "application_not_accessible"
+        ],
+        "environmental_factors": [
+          "custom_application_development",
+          "insufficient_secure_coding",
+          "legacy_serialization_methods"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "NTLM authentication disabled",
+        "discovery_method": "Initial enumeration and tool behavior",
+        "why_critical": "Forces Kerberos-only attack path, changes entire methodology",
+        "how_to_recognize": [
+          "standard tools failing",
+          "kerberos errors in responses",
+          "authentication method restrictions"
+        ],
+        "follow_up_actions": [
+          "switch_to_kerberos_tools",
+          "enumerate_spn_accounts",
+          "focus_on_ticket_attacks"
+        ]
+      },
+      {
+        "discovery": "Service account credentials from webpage hints",
+        "discovery_method": "Web enumeration and credential testing",
+        "why_critical": "Provided initial domain access for further enumeration",
+        "how_to_recognize": [
+          "credential hints in web content",
+          "service account naming patterns",
+          "authentication testing success"
+        ],
+        "follow_up_actions": [
+          "enumerate_file_shares",
+          "run_bloodhound_collection",
+          "test_service_access"
+        ]
+      },
+      {
+        "discovery": "Custom .NET applications in file share",
+        "discovery_method": "File share enumeration with valid credentials",
+        "why_critical": "Contained deserialization vulnerability leading to SYSTEM",
+        "how_to_recognize": [
+          "custom executables in shares",
+          "development artifacts present",
+          "serialization functionality"
+        ],
+        "follow_up_actions": [
+          "reverse_engineer_applications",
+          "identify_deserialization_points",
+          "craft_exploitation_payload"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "initial_access",
+        "escalation_method": "Web_hints_to_domain_user",
+        "why_possible": "Credentials exposed through web application hints",
+        "recognition_signs": [
+          "credential_hints_in_web_content",
+          "service_account_patterns",
+          "authentication_success"
+        ],
+        "exploitation_path": "Web enumeration → Credential hints → Domain access"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "Kerberoast_to_service_account",
+        "why_possible": "Service account with SPN had weak password",
+        "recognition_signs": [
+          "spn_accounts_enumerable",
+          "tgs_tickets_obtainable",
+          "weak_password_crackable"
+        ],
+        "exploitation_path": "GetUserSPNs → TGS ticket → Hashcat → Service creds"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "Silver_ticket_to_MSSQL",
+        "why_possible": "Service account hash allowed forged TGS for database access",
+        "recognition_signs": [
+          "mssql_service_running",
+          "kerberos_authentication_enabled",
+          "service_account_hash_available"
+        ],
+        "exploitation_path": "Service hash → Silver ticket → MSSQL access → Additional creds"
+      },
+      {
+        "privilege_level": "mssql_access",
+        "escalation_method": "Deserialization_to_SYSTEM",
+        "why_possible": "Custom .NET application vulnerable to unsafe deserialization",
+        "recognition_signs": [
+          "custom_dotnet_applications",
+          "binaryformatter_usage",
+          "deserialization_input_handling"
+        ],
+        "exploitation_path": "MSSQL creds → File share → Custom app → Deserialization → SYSTEM"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Windows target with NTLM authentication disabled",
+        "decision": "Focus on Kerberos-based attacks exclusively",
+        "reasoning": "NTLM disabled means standard tools won't work, must pivot to Kerberos authentication methods",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if kerberos enumeration fails"
+          },
+          {
+            "option": "smb_with_kerberos",
+            "when": "if domain creds obtained"
+          }
+        ],
+        "success_indicators": [
+          "kerberos_service_responds",
+          "domain_enumeration_successful",
+          "web_hints_discovered"
+        ],
+        "next_decision": "gather_initial_credentials"
+      },
+      {
+        "step": 2,
+        "situation": "Initial credentials obtained from web hints",
+        "decision": "Enumerate file shares with Kerberos authentication",
+        "reasoning": "With NTLM disabled, must use Kerberos for all SMB access",
+        "confidence": 0.85,
+        "prerequisites": [
+          "valid_domain_credentials",
+          "kerberos_authentication_working"
+        ],
+        "success_indicators": [
+          "accessible_shares_found",
+          "additional_hints_discovered"
+        ],
+        "failure_fallbacks": [
+          "kerberoasting",
+          "service_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Domain user access established",
+        "decision": "Perform Kerberoasting to find service accounts",
+        "reasoning": "Service accounts often have weak passwords and higher privileges",
+        "confidence": 0.9,
+        "prerequisites": [
+          "domain_user_credentials"
+        ],
+        "success_indicators": [
+          "service_account_tickets_obtained",
+          "crackable_hashes_found"
+        ],
+        "failure_fallbacks": [
+          "asreproasting",
+          "bloodhound_enumeration"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Service account hash obtained but not crackable",
+        "decision": "Generate silver ticket for service access",
+        "reasoning": "Silver ticket allows direct service access without cracking password",
+        "confidence": 0.8,
+        "prerequisites": [
+          "service_account_hash",
+          "service_spn_known"
+        ],
+        "success_indicators": [
+          "mssql_access_obtained",
+          "service_authentication_successful"
+        ],
+        "failure_fallbacks": [
+          "hash_cracking_continued",
+          "other_services_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_ntlm_disabled": {
+        "action": "switch_to_kerberos_only_tools",
+        "tools": [
+          "kinit",
+          "klist",
+          "impacket_with_kerberos"
+        ],
+        "next_phase": "kerberos_based_enumeration"
+      },
+      "if_kerberoast_hash_uncrackable": {
+        "action": "create_silver_ticket",
+        "tools": [
+          "impacket-ticketer",
+          "impacket-mssqlclient"
+        ],
+        "purpose": "bypass_password_requirement"
+      },
+      "if_mssql_access_obtained": {
+        "action": "enumerate_database_for_credentials",
+        "tools": [
+          "mssqlclient",
+          "xp_cmdshell"
+        ],
+        "next_phase": "lateral_movement_preparation"
+      },
+      "if_additional_creds_found": {
+        "action": "access_restricted_shares",
+        "purpose": "find_custom_applications",
+        "tools": [
+          "smbclient_with_kerberos"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_ntlm_status_first",
+        "reasoning": "determines_entire_attack_methodology",
+        "applicability": "all_windows_targets"
+      },
+      {
+        "rule": "use_silver_tickets_for_uncrackable_service_hashes",
+        "reasoning": "bypasses_need_for_password_cracking",
+        "applicability": "when_service_hash_obtained_but_uncrackable"
+      },
+      {
+        "rule": "enumerate_custom_applications_in_shares",
+        "reasoning": "often_contain_deserialization_vulnerabilities",
+        "applicability": "when_development_shares_accessible"
+      },
+      {
+        "rule": "reverse_engineer_dotnet_applications",
+        "reasoning": "frequently_contain_exploitable_vulnerabilities",
+        "applicability": "when_custom_dotnet_apps_found"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Kerberoasting",
+        "mitre_id": "T1558.003",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "service_accounts_with_spn_exist"
+        ],
+        "success_indicators": [
+          "service_accounts_enumerated",
+          "tgs_tickets_obtained",
+          "hashcat_crackable_hashes"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "no_service_accounts",
+          "strong_service_passwords"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_service_accounts"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Silver Ticket Attack",
+        "mitre_id": "T1558.002",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "service_account_hash_obtained",
+          "target_service_identified"
+        ],
+        "success_indicators": [
+          "forged_tgs_ticket_created",
+          "service_access_granted",
+          "authentication_bypassed"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "service_account_password_changed",
+          "pac_validation_enforced"
+        ],
+        "confidence_boosters": [
+          "mssql_service_detected",
+          "service_hash_cracked",
+          "domain_sid_obtained"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "anonymous_access_allowed"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "files_accessible",
+          "usernames_discovered"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "anonymous_access_blocked",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_windows_configuration",
+          "legacy_smb_versions",
+          "domain_controller_detected"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "MSSQL Command Execution",
+        "mitre_id": "T1505.001",
+        "required_services": [
+          "mssql"
+        ],
+        "required_ports": [
+          1433
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "mssql_service_running",
+          "valid_credentials_obtained",
+          "xp_cmdshell_enabled_or_enableable"
+        ],
+        "success_indicators": [
+          "sql_authentication_successful",
+          "command_execution_confirmed",
+          "system_access_gained"
+        ],
+        "incompatible_with": [
+          "mssql_disabled",
+          "xp_cmdshell_permanently_disabled",
+          "insufficient_sql_privileges"
+        ],
+        "confidence_boosters": [
+          "sa_account_access",
+          "sysadmin_role_membership",
+          "default_mssql_configuration"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Deserialization Attack",
+        "mitre_id": "T1203",
+        "required_services": [
+          "custom_application"
+        ],
+        "required_ports": [
+          "variable"
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "dotnet_application_present",
+          "serialization_functionality_exists",
+          "user_controlled_input"
+        ],
+        "success_indicators": [
+          "serialized_objects_identified",
+          "payload_execution_confirmed",
+          "privilege_escalation_achieved"
+        ],
+        "incompatible_with": [
+          "input_validation_present",
+          "serialization_disabled",
+          "sandboxed_execution"
+        ],
+        "confidence_boosters": [
+          "custom_dotnet_binaries",
+          "binary_analysis_reveals_vulnerability",
+          "system_privileges_available"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "30-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "mssql_server": {
+        "port_indicators": [
+          1433,
+          1434
+        ],
+        "service_indicators": [
+          "mssql",
+          "ms-sql-s"
+        ],
+        "banner_indicators": [
+          "Microsoft SQL Server",
+          "MSSQL"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "windows_domain": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "rpc"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Active Directory"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "IIS",
+          "ASP.NET"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_usernames_and_shares"
+        },
+        {
+          "attack": "kerberoasting",
+          "when": "active_directory_detected_and_creds_available",
+          "reason": "high_success_rate_with_service_accounts"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "silver_ticket_attack",
+          "when": "service_account_hash_obtained",
+          "reason": "reliable_service_access_bypass"
+        },
+        {
+          "attack": "mssql_command_execution",
+          "when": "mssql_detected_and_authenticated",
+          "reason": "direct_system_access_potential"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "deserialization_attack",
+          "when": "custom_dotnet_applications_found",
+          "reason": "requires_reverse_engineering_and_analysis"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Kerberoasting",
+        "mitre_id": "T1558.003",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "kerberoasting_tool",
+            "command_template": "kerberoast {service_account}",
+            "actual_command": "kerberoast service_account",
+            "output_pattern": "challenge/response hash",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "domain_user_credentials",
+          "service_accounts_with_spn",
+          "kerberos_authentication_enabled"
+        ],
+        "success_indicators": [
+          "service_ticket_extracted",
+          "hash_crackable",
+          "service_account_credentials_obtained"
+        ],
+        "common_failures": [
+          "no_service_accounts_with_spn",
+          "strong_service_passwords",
+          "kerberos_authentication_issues"
+        ],
+        "follow_up_techniques": [
+          "silver_ticket_generation",
+          "service_authentication",
+          "lateral_movement"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Silver Ticket Attack",
+        "mitre_id": "T1558.002",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "silver_ticket_tool",
+            "command_template": "generate_silver_ticket {service_hash} {target_service}",
+            "actual_command": "generate silver ticket for MSSQL access",
+            "output_pattern": "forged service ticket",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "service_account_hash",
+          "target_service_identified",
+          "domain_information"
+        ],
+        "success_indicators": [
+          "ticket_generated_successfully",
+          "service_access_granted",
+          "authentication_bypassed"
+        ],
+        "common_failures": [
+          "incorrect_service_hash",
+          "service_configuration_issues",
+          "detection_by_security_controls"
+        ],
+        "follow_up_techniques": [
+          "mssql_exploitation",
+          "credential_extraction",
+          "file_system_access"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "MSSQL Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "mssql_client",
+            "command_template": "mssql_connect {target} {credentials}",
+            "actual_command": "connect to MSSQL with silver ticket",
+            "output_pattern": "database connection established",
+            "effectiveness_rating": 4,
+            "reliability": 0.88
+          }
+        ],
+        "prerequisites": [
+          "mssql_service_accessible",
+          "valid_authentication_method",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "database_connection_established",
+          "query_execution_successful",
+          "credential_extraction_possible"
+        ],
+        "common_failures": [
+          "authentication_failure",
+          "service_unavailable",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "file_system_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Deserialization Exploitation",
+        "mitre_id": "T1203",
+        "category": "execution",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "dotnet_reverse_engineering",
+            "command_template": "analyze_dotnet_binary {executable}",
+            "actual_command": "reverse custom .NET executables",
+            "output_pattern": "deserialization vulnerability identified",
+            "effectiveness_rating": 5,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "access_to_custom_executables",
+          "dotnet_reverse_engineering_skills",
+          "deserialization_vulnerability_present"
+        ],
+        "success_indicators": [
+          "vulnerability_identified",
+          "exploit_payload_crafted",
+          "system_level_access_achieved"
+        ],
+        "common_failures": [
+          "no_deserialization_vulnerability",
+          "exploit_mitigation_present",
+          "payload_detection"
+        ],
+        "follow_up_techniques": [
+          "system_level_persistence",
+          "credential_dumping",
+          "lateral_movement"
+        ],
+        "time_investment": "60-180 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Kerberoasting Tools",
+        "use_case": "service_account_credential_extraction",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "manual_kerberos_requests",
+          "powershell_kerberoasting"
+        ],
+        "best_practices": [
+          "target_high_privilege_service_accounts",
+          "use_strong_wordlists_for_cracking",
+          "validate_extracted_credentials"
+        ]
+      },
+      {
+        "tool": "Silver Ticket Generation",
+        "use_case": "service_authentication_bypass",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "high",
+        "essential_for": [
+          "kerberos_environments"
+        ],
+        "alternatives": [
+          "golden_ticket_attack",
+          "credential_stuffing"
+        ],
+        "best_practices": [
+          "ensure_accurate_service_hash",
+          "target_specific_services",
+          "minimize_detection_footprint"
+        ]
+      },
+      {
+        "tool": "MSSQL Client Tools",
+        "use_case": "database_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "low",
+        "essential_for": [
+          "mssql_environments"
+        ],
+        "alternatives": [
+          "sqlcmd",
+          "powershell_sql_modules"
+        ],
+        "best_practices": [
+          "enumerate_database_permissions",
+          "extract_stored_credentials",
+          "leverage_xp_cmdshell_if_available"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "kerberoast_to_silver_ticket",
+        "steps": [
+          {
+            "step": 1,
+            "command": "kerberoast service_account",
+            "purpose": "Extract service account hash",
+            "expected_output": "Challenge/response hash for service account"
+          },
+          {
+            "step": 2,
+            "command": "hashcat -m 13100 hash.txt wordlist.txt",
+            "purpose": "Crack kerberoast hash",
+            "expected_output": "Service account password"
+          },
+          {
+            "step": 3,
+            "command": "generate_silver_ticket service_hash MSSQL",
+            "purpose": "Create forged service ticket",
+            "expected_output": "Silver ticket for MSSQL access"
+          },
+          {
+            "step": 4,
+            "command": "mssql_connect target_server silver_ticket",
+            "purpose": "Access MSSQL with forged ticket",
+            "expected_output": "Database connection established"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "45-120 minutes"
+      },
+      {
+        "sequence_name": "mssql_to_system_via_deserialization",
+        "steps": [
+          {
+            "step": 1,
+            "command": "SELECT * FROM credential_table",
+            "purpose": "Extract credentials from database",
+            "expected_output": "Additional user credentials"
+          },
+          {
+            "step": 2,
+            "command": "access_file_share new_credentials",
+            "purpose": "Access restricted file shares",
+            "expected_output": "Custom .NET executables"
+          },
+          {
+            "step": 3,
+            "command": "analyze_dotnet_binary custom.exe",
+            "purpose": "Reverse engineer for vulnerabilities",
+            "expected_output": "Deserialization vulnerability identified"
+          },
+          {
+            "step": 4,
+            "command": "exploit_deserialization payload.ser",
+            "purpose": "Execute system-level payload",
+            "expected_output": "SYSTEM shell obtained"
+          }
+        ],
+        "success_rate": 0.65,
+        "typical_duration": "90-180 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Scrambled",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2022-06-11",
+      "author": "VbScrub",
+      "estimated_time": "3-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "kerberos",
+        "mssql",
+        "deserialization"
+      ],
+      "key_vulnerabilities": [
+        "kerberoasting",
+        "silver_ticket",
+        "deserialization_rce"
+      ],
+      "environment_type": "corporate_windows_domain",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "silver_ticket_attacks",
+        "mssql_exploitation",
+        "dotnet_reversing",
+        "deserialization_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_kerberos",
+        "mssql_basics",
+        "dotnet_fundamentals",
+        "deserialization_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "kerberos_attacks",
+        "database_exploitation",
+        "deserialization",
+        "reverse_engineering"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "code_execution"
+      ],
+      "defensive_lessons": [
+        "disable_ntlm",
+        "secure_service_accounts",
+        "input_validation",
+        "deserialization_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Active",
+        "Blackfield"
+      ],
+      "similarity_reasons": [
+        "windows_domain",
+        "kerberos_exploitation",
+        "service_account_abuse"
+      ],
+      "unique_aspects": [
+        "ntlm_disabled",
+        "silver_ticket_usage",
+        "mssql_pivot",
+        "custom_dotnet_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_phases",
+        "custom_application_reversing",
+        "advanced_kerberos_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T19:21:36.347530",
+    "original_file": "0xdf_writeups/Htb Scrambled.md",
+    "content_length": 2311,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

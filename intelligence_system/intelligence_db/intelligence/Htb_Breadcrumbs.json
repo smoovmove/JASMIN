@@ -1,0 +1,953 @@
+{
+  "writeup_id": "Htb_Breadcrumbs",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_web_app_multi_stage_exploitation",
+    "primary_services": [
+      "http",
+      "https",
+      "ssh",
+      "mysql",
+      "smb"
+    ],
+    "port_signature": "22+80+135+139+443+445+3306",
+    "service_combination": "ssh+http+https+mysql+smb+msrpc",
+    "os_family": "windows_server",
+    "environment_type": "web_application_server",
+    "entry_vector": "directory_traversal_to_source_disclosure",
+    "privilege_path": "web_user_to_local_user_to_admin",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "php_web_application",
+      "session_cookie_forgery",
+      "jwt_token_manipulation",
+      "windows_defender_bypass",
+      "sticky_notes_credential_storage",
+      "custom_password_manager",
+      "sql_injection_in_custom_app"
+    ],
+    "environmental_clues": [
+      "apache_php_stack_on_windows",
+      "mariadb_localhost_only",
+      "openssh_for_windows",
+      "multiple_web_applications",
+      "file_upload_functionality"
+    ],
+    "similar_scenarios": [
+      "json_htb_medium",
+      "worker_htb_medium"
+    ],
+    "unique_aspects": [
+      "multi_stage_cookie_forgery",
+      "sticky_notes_enumeration",
+      "custom_password_manager_exploitation",
+      "encryption_key_extraction"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Directory Traversal",
+        "success_reason": "bookController.php concatenated user input directly to file path without sanitization",
+        "prerequisite_indicators": [
+          "file_parameter_in_requests",
+          "error_messages_revealing_paths",
+          "file_get_contents_usage"
+        ],
+        "recognition_patterns": [
+          "filename parameters in POST/GET requests",
+          "error messages showing full file paths",
+          "C:\\xampp\\htdocs\\ path structure revealed",
+          "Permission denied errors on directory access"
+        ],
+        "failure_modes": [
+          "input_sanitization_present",
+          "whitelist_filtering_active",
+          "chroot_jail_implemented"
+        ],
+        "environmental_factors": [
+          "xampp_default_installation",
+          "windows_file_system",
+          "php_file_get_contents_function",
+          "no_input_validation"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Source Code Disclosure",
+        "success_reason": "file_get_contents displays file contents without executing PHP code",
+        "prerequisite_indicators": [
+          "directory_traversal_available",
+          "php_source_files_accessible",
+          "file_get_contents_implementation"
+        ],
+        "recognition_patterns": [
+          "PHP source code returned in response",
+          "database connection strings visible",
+          "application logic exposed",
+          "file paths and structure revealed"
+        ],
+        "failure_modes": [
+          "php_execution_instead_of_display",
+          "access_controls_on_source_files",
+          "obfuscated_source_code"
+        ],
+        "environmental_factors": [
+          "improper_file_handling_implementation",
+          "lack_of_access_controls",
+          "development_environment_exposure"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "bookController.php source code",
+        "discovery_method": "Directory traversal via book parameter",
+        "why_critical": "Revealed application logic, file structure, and database interaction patterns",
+        "how_to_recognize": [
+          "filename parameters in web requests",
+          "error messages showing file paths",
+          "XAMPP installation indicators",
+          "file_get_contents usage patterns"
+        ],
+        "follow_up_actions": [
+          "enumerate_additional_source_files",
+          "extract_database_credentials",
+          "map_application_structure",
+          "identify_authentication_mechanisms"
+        ]
+      },
+      {
+        "discovery": "XAMPP installation with default structure",
+        "discovery_method": "Error message path disclosure",
+        "why_critical": "Provides predictable file system layout for further exploitation",
+        "how_to_recognize": [
+          "C:\\xampp\\htdocs\\ path structure",
+          "Apache/PHP/MySQL stack indicators",
+          "Default XAMPP port configurations",
+          "Windows file system paths"
+        ],
+        "follow_up_actions": [
+          "enumerate_xampp_default_files",
+          "check_configuration_files",
+          "look_for_backup_files",
+          "identify_writable_directories"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_web_user",
+        "escalation_method": "source_code_analysis_to_authentication_bypass",
+        "why_possible": "Source code disclosure reveals authentication mechanisms and session handling",
+        "recognition_signs": [
+          "session_cookie_generation_logic_exposed",
+          "jwt_token_handling_visible",
+          "authentication_bypass_opportunities",
+          "hardcoded_secrets_in_source"
+        ],
+        "exploitation_path": "Directory Traversal → Source Disclosure → Authentication Analysis → Privilege Escalation"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found web application with multiple services (HTTP/HTTPS, SSH, SMB, MySQL)",
+        "decision": "Focus on web application enumeration first due to largest attack surface",
+        "reasoning": "Multiple web services with PHP backend offer more immediate attack vectors than closed SMB/MySQL",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if web attacks fail"
+          },
+          {
+            "option": "mysql_bruteforce",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "directory_traversal_found",
+          "file_inclusion_possible",
+          "source_code_leaked"
+        ],
+        "next_decision": "exploit_directory_traversal"
+      },
+      {
+        "step": 2,
+        "situation": "Directory traversal vulnerability found in bookController.php",
+        "decision": "Exploit file_get_contents to leak source code and configuration files",
+        "reasoning": "Can read arbitrary files to understand application logic and find credentials",
+        "confidence": 0.95,
+        "prerequisites": [
+          "bookController_endpoint_identified",
+          "traversal_path_confirmed"
+        ],
+        "success_indicators": [
+          "source_code_obtained",
+          "database_config_leaked",
+          "authentication_logic_understood"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Source code leaked revealing authentication mechanisms",
+        "decision": "Analyze session/JWT token generation to forge administrator access",
+        "reasoning": "Understanding crypto implementation allows token forgery for privilege escalation",
+        "confidence": 0.85,
+        "prerequisites": [
+          "session_logic_source_available",
+          "jwt_implementation_understood"
+        ],
+        "success_indicators": [
+          "admin_session_forged",
+          "jwt_token_crafted",
+          "admin_panel_access"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "sql_injection_attempts"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_directory_traversal_succeeds": {
+        "action": "systematically_leak_application_source",
+        "tools": [
+          "burp_repeater",
+          "custom_scripts"
+        ],
+        "next_phase": "analyze_authentication_mechanisms"
+      },
+      "if_source_code_obtained": {
+        "action": "reverse_engineer_session_generation",
+        "purpose": "forge_administrative_tokens",
+        "tools": [
+          "code_analysis",
+          "crypto_libraries"
+        ]
+      },
+      "if_admin_access_gained": {
+        "action": "upload_webshell_bypass_filters",
+        "purpose": "achieve_code_execution",
+        "tools": [
+          "custom_payloads",
+          "av_evasion"
+        ]
+      },
+      "if_webshell_uploaded": {
+        "action": "enumerate_system_and_users",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "system_enumeration",
+          "credential_hunting"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_file_parameters_for_traversal",
+        "reasoning": "high_success_rate_for_source_code_disclosure",
+        "applicability": "web_applications_with_file_parameters"
+      },
+      {
+        "rule": "analyze_leaked_source_for_crypto_weaknesses",
+        "reasoning": "custom_implementations_often_have_flaws",
+        "applicability": "when_authentication_source_available"
+      },
+      {
+        "rule": "check_sticky_notes_and_browser_data_on_windows",
+        "reasoning": "common_credential_storage_locations",
+        "applicability": "windows_systems_with_user_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "file_parameter_in_requests",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "filename_parameters_detected",
+          "file_include_functionality",
+          "path_traversal_sequences_accepted"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "chroot_jail",
+          "file_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "php_application_detected",
+          "book_file_html_pattern",
+          "method_parameter_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Session Cookie Forgery",
+        "mitre_id": "T1539",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_sessions",
+          "source_code_accessible",
+          "weak_session_generation"
+        ],
+        "success_indicators": [
+          "phpsessid_cookie_present",
+          "session_algorithm_discoverable",
+          "predictable_session_tokens"
+        ],
+        "incompatible_with": [
+          "strong_session_randomness",
+          "secure_session_flags",
+          "session_binding"
+        ],
+        "confidence_boosters": [
+          "php_application",
+          "custom_session_handling",
+          "source_code_leaked"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "JWT Token Forgery",
+        "mitre_id": "T1550.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "jwt_tokens_in_use",
+          "weak_jwt_secret",
+          "jwt_algorithm_known"
+        ],
+        "success_indicators": [
+          "jwt_tokens_detected",
+          "secret_key_discoverable",
+          "algorithm_manipulation_possible"
+        ],
+        "incompatible_with": [
+          "strong_jwt_secrets",
+          "algorithm_verification",
+          "token_binding"
+        ],
+        "confidence_boosters": [
+          "source_code_access",
+          "weak_secret_patterns",
+          "none_algorithm_accepted"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "Web Shell Upload",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "admin_access_achieved",
+          "insufficient_upload_filtering"
+        ],
+        "success_indicators": [
+          "upload_endpoint_accessible",
+          "filter_bypass_possible",
+          "execution_directory_writable"
+        ],
+        "incompatible_with": [
+          "strict_file_validation",
+          "antivirus_blocking",
+          "execution_prevention"
+        ],
+        "confidence_boosters": [
+          "php_execution_environment",
+          "weak_file_filtering",
+          "windows_defender_present"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb",
+          "netbios-ssn"
+        ],
+        "required_ports": [
+          139,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_accessible",
+          "null_session_allowed",
+          "share_enumeration_permitted"
+        ],
+        "success_indicators": [
+          "smb_ports_open",
+          "null_session_established",
+          "shares_enumerable"
+        ],
+        "incompatible_with": [
+          "null_session_disabled",
+          "smb_signing_required",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "windows_server_detected",
+          "legacy_smb_configuration",
+          "domain_environment"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https",
+          "mysql"
+        ],
+        "required_ports": [
+          80,
+          443,
+          3306
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "database_backend_present",
+          "user_input_to_queries",
+          "insufficient_input_sanitization"
+        ],
+        "success_indicators": [
+          "mysql_service_detected",
+          "dynamic_queries_present",
+          "error_messages_revealing"
+        ],
+        "incompatible_with": [
+          "prepared_statements",
+          "strict_input_validation",
+          "waf_protection"
+        ],
+        "confidence_boosters": [
+          "custom_application",
+          "search_functionality",
+          "parameter_manipulation"
+        ],
+        "typical_success_rate": 0.6,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx",
+          "iis"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "PHP",
+          "OpenSSL"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "windows_server": {
+        "port_indicators": [
+          135,
+          139,
+          445,
+          3389
+        ],
+        "service_indicators": [
+          "msrpc",
+          "netbios-ssn",
+          "microsoft-ds"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Microsoft"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "database_backend": {
+        "port_indicators": [
+          3306,
+          1433,
+          5432
+        ],
+        "service_indicators": [
+          "mysql",
+          "mssql",
+          "postgresql"
+        ],
+        "banner_indicators": [
+          "MariaDB",
+          "MySQL",
+          "SQL Server"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "PHP",
+          "PHPSESSID"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_traversal",
+          "when": "filename_parameters_detected",
+          "reason": "immediate_source_code_access_possible"
+        },
+        {
+          "attack": "session_cookie_forgery",
+          "when": "source_code_accessible_and_php_detected",
+          "reason": "leads_to_privilege_escalation"
+        },
+        {
+          "attack": "web_shell_upload",
+          "when": "admin_access_achieved",
+          "reason": "direct_code_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "jwt_token_forgery",
+          "when": "jwt_tokens_present",
+          "reason": "authentication_bypass_possible"
+        },
+        {
+          "attack": "sql_injection",
+          "when": "database_and_search_functionality_detected",
+          "reason": "data_extraction_and_authentication_bypass"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "access_denied_in_initial_testing"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Directory Traversal",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "POST /includes/bookController.php with book=../{target_file}&method=1",
+            "actual_command": "book=..\\includes\\bookController.php&method=1",
+            "output_pattern": "PHP source code or file contents",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "Custom Python Script",
+            "command_template": "python3 get_file.py /{target_path}",
+            "actual_command": "python3 get_file.py /index.php",
+            "success_factors": [
+              "file_get_contents_vulnerability",
+              "path_traversal_allowed"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_file_parameter",
+          "file_get_contents_function_used",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "source_code_disclosure",
+          "configuration_file_access",
+          "sensitive_information_leaked"
+        ],
+        "common_failures": [
+          "path_restrictions_in_place",
+          "file_permissions_deny_access",
+          "input_sanitization_blocks_traversal"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "authentication_bypass"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Web Application Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {target_url} -w {wordlist} -x {extensions}",
+            "actual_command": "gobuster dir -u http://10.10.10.228 -w /usr/share/wordlists/dirbuster/directory-list-lowercase-2.3-small.txt -x php",
+            "output_pattern": "/{directory} (Status: {code})",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 {target_ip}",
+            "actual_command": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp 10.10.10.228",
+            "success_factors": [
+              "open_ports_discovered",
+              "service_versions_identified"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "target_web_application_accessible",
+          "network_connectivity_established"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "admin_panels_found",
+          "sensitive_endpoints_identified"
+        ],
+        "common_failures": [
+          "rate_limiting_blocks_enumeration",
+          "waf_detection_and_blocking",
+          "insufficient_wordlist_coverage"
+        ],
+        "follow_up_techniques": [
+          "directory_traversal_testing",
+          "authentication_bypass_attempts",
+          "parameter_fuzzing"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Source Code Analysis",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "Manual Analysis",
+            "command_template": "Analyze PHP source for hardcoded credentials, algorithms, vulnerabilities",
+            "actual_command": "Review bookController.php for file_get_contents vulnerability",
+            "output_pattern": "Hardcoded passwords, encryption keys, algorithm details",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "source_code_access_obtained",
+          "programming_language_knowledge",
+          "security_vulnerability_awareness"
+        ],
+        "success_indicators": [
+          "hardcoded_credentials_found",
+          "encryption_algorithms_identified",
+          "authentication_bypass_methods_discovered"
+        ],
+        "common_failures": [
+          "obfuscated_or_encrypted_source",
+          "incomplete_source_code_access",
+          "complex_code_structure"
+        ],
+        "follow_up_techniques": [
+          "credential_validation",
+          "authentication_bypass",
+          "privilege_escalation"
+        ],
+        "time_investment": "30-120 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists_for_target",
+          "include_relevant_file_extensions",
+          "adjust_thread_count_for_target_capacity"
+        ]
+      },
+      {
+        "tool": "Burp Suite",
+        "use_case": "web_application_security_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_penetration_testing"
+        ],
+        "alternatives": [
+          "OWASP ZAP",
+          "manual_curl_requests"
+        ],
+        "best_practices": [
+          "use_repeater_for_parameter_manipulation",
+          "intercept_and_modify_responses_when_needed",
+          "maintain_organized_project_structure"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "network_service_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "start_with_fast_port_scan_then_detailed_service_scan",
+          "use_appropriate_timing_templates",
+          "save_output_in_multiple_formats"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_app_to_source_disclosure",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.228",
+            "purpose": "Discover open ports and services",
+            "expected_output": "Ports 22,80,135,139,443,445,3306,5040,7680 open"
+          },
+          {
+            "step": 2,
+            "command": "gobuster dir -u http://10.10.10.228 -w /usr/share/wordlists/dirbuster/directory-list-lowercase-2.3-small.txt -x php",
+            "purpose": "Enumerate web directories and files",
+            "expected_output": "Discovery of /portal, /includes, /php directories"
+          },
+          {
+            "step": 3,
+            "command": "POST /includes/bookController.php with book=..\\includes\\bookController.php&method=1",
+            "purpose": "Exploit directory traversal to read source code",
+            "expected_output": "PHP source code revealing file_get_contents vulnerability"
+          },
+          {
+            "step": 4,
+            "command": "python3 get_file.py /portal/login.php",
+            "purpose": "Extract additional source files for analysis",
+            "expected_output": "Login page source code with authentication logic"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Breadcrumbs",
+      "difficulty": "Hard",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2021-02-20",
+      "author": "helich0pper",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_application",
+        "cryptographic_attacks",
+        "sql_injection"
+      ],
+      "key_vulnerabilities": [
+        "directory_traversal",
+        "jwt_forgery",
+        "file_upload_bypass",
+        "sql_injection"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "jwt_manipulation",
+        "session_forgery",
+        "av_evasion",
+        "crypto_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "web_security",
+        "cryptography",
+        "jwt_tokens",
+        "sql_injection"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "cryptographic_attacks",
+        "file_upload",
+        "sql_injection",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "defense_evasion",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_jwt_implementation",
+        "input_validation",
+        "file_upload_restrictions",
+        "av_integration"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Intense",
+        "Jewel",
+        "Schooled"
+      ],
+      "similarity_reasons": [
+        "complex_web_exploitation",
+        "jwt_attacks",
+        "multi_stage_exploitation"
+      ],
+      "unique_aspects": [
+        "sticky_notes_enumeration",
+        "password_manager_exploitation",
+        "defender_bypass"
+      ],
+      "difficulty_factors": [
+        "multiple_exploitation_stages",
+        "cryptographic_analysis",
+        "av_evasion_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:31:30.201114",
+    "original_file": "0xdf_writeups/Htb Breadcrumbs.md",
+    "content_length": 53379,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

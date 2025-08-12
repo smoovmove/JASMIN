@@ -1,0 +1,707 @@
+{
+  "writeup_id": "Htb_Sniper_Beyondroot",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_chm_file_persistence",
+    "primary_services": [
+      "smb",
+      "http",
+      "rdp"
+    ],
+    "port_signature": "80+135+139+445+3389",
+    "service_combination": "http+smb+rdp",
+    "os_family": "windows_server",
+    "environment_type": "windows_workstation",
+    "entry_vector": "chm_file_execution",
+    "privilege_path": "user_to_administrator",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.85,
+    "distinguishing_factors": [
+      "automated_chm_execution",
+      "file_drop_monitoring",
+      "scheduled_task_persistence"
+    ],
+    "environmental_clues": [
+      "docs_directory_monitoring",
+      "administrator_automation",
+      "chm_file_processing"
+    ],
+    "similar_scenarios": [
+      "secnotes_htb",
+      "re_htb"
+    ],
+    "unique_aspects": [
+      "chm_black_magic_execution",
+      "c_docs_directory",
+      "boot_persistence"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "CHM_File_Execution",
+        "success_reason": "Administrator user automatically processes CHM files dropped in c:\\docs directory",
+        "prerequisite_indicators": [
+          "writable_directory_monitored_by_admin",
+          "automated_file_processing_exists",
+          "chm_handler_available"
+        ],
+        "recognition_patterns": [
+          "scheduled task monitoring file directory",
+          "service account with file system access",
+          "automated document processing workflows"
+        ],
+        "failure_modes": [
+          "directory_not_writable",
+          "file_processing_disabled",
+          "chm_execution_blocked"
+        ],
+        "environmental_factors": [
+          "windows_server_environment",
+          "automated_administration_tasks",
+          "legacy_help_file_support_enabled"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "1-5 minutes after file drop"
+      },
+      {
+        "technique": "Privilege_Escalation_via_File_Drop",
+        "success_reason": "Chris user can write to monitored directory processed by administrator",
+        "prerequisite_indicators": [
+          "user_write_access_to_monitored_path",
+          "administrator_automated_processing",
+          "insufficient_file_validation"
+        ],
+        "recognition_patterns": [
+          "writable directories in admin paths",
+          "scheduled tasks running as SYSTEM/Administrator",
+          "file monitoring services"
+        ],
+        "failure_modes": [
+          "directory_permissions_restricted",
+          "file_type_filtering_enabled",
+          "execution_prevention_active"
+        ],
+        "environmental_factors": [
+          "shared_document_processing",
+          "automated_workflow_systems",
+          "insufficient_privilege_separation"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "immediate upon file creation"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "c:\\docs directory with admin processing",
+        "discovery_method": "File system enumeration and scheduled task analysis",
+        "why_critical": "Direct path from user to administrator via file drop",
+        "how_to_recognize": [
+          "writable directories in system paths",
+          "scheduled tasks with elevated privileges",
+          "automated file processing workflows"
+        ],
+        "follow_up_actions": [
+          "analyze_scheduled_tasks",
+          "test_file_drop_capabilities",
+          "craft_malicious_chm_payload"
+        ]
+      },
+      {
+        "discovery": "CHM file execution mechanism",
+        "discovery_method": "Scheduled task enumeration with schtasks",
+        "why_critical": "Reveals automated execution vector for privilege escalation",
+        "how_to_recognize": [
+          "scheduled tasks running as SYSTEM",
+          "file monitoring patterns",
+          "help file processing capabilities"
+        ],
+        "follow_up_actions": [
+          "create_malicious_chm_file",
+          "drop_file_in_monitored_directory",
+          "wait_for_automated_execution"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "chris_user",
+        "escalation_method": "CHM_File_Drop_to_Administrator",
+        "why_possible": "User can write files to directory monitored by administrator process",
+        "recognition_signs": [
+          "writable_paths_with_admin_access",
+          "scheduled_tasks_processing_user_files",
+          "chm_file_execution_enabled"
+        ],
+        "exploitation_path": "File Write → CHM Creation → Admin Execution → SYSTEM Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Need to understand privilege escalation mechanism on Windows target",
+        "decision": "Check for persistence mechanisms starting with scheduled tasks",
+        "reasoning": "Automated privilege escalation typically requires persistence, scheduled tasks are common in HTB environments",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "check_running_processes",
+            "when": "if no suspicious scheduled tasks found"
+          },
+          {
+            "option": "check_services",
+            "when": "if processes don't reveal automation"
+          },
+          {
+            "option": "check_startup_programs",
+            "when": "if services are clean"
+          }
+        ],
+        "success_indicators": [
+          "non_standard_scheduled_tasks_found",
+          "custom_scripts_in_task_list",
+          "tasks_running_as_administrator"
+        ],
+        "next_decision": "analyze_task_execution_pattern"
+      },
+      {
+        "step": 2,
+        "situation": "No obvious scheduled tasks found, need alternative persistence check",
+        "decision": "Enumerate running processes with full command lines",
+        "reasoning": "Persistent processes may reveal automation mechanisms not visible in scheduled tasks",
+        "confidence": 0.8,
+        "prerequisites": [
+          "administrator_access",
+          "powershell_available"
+        ],
+        "success_indicators": [
+          "suspicious_processes_found",
+          "non_standard_command_lines",
+          "automation_scripts_running"
+        ],
+        "failure_fallbacks": [
+          "check_services",
+          "check_registry_run_keys",
+          "check_startup_folders"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_scheduled_tasks_found": {
+        "action": "analyze_task_details",
+        "tools": [
+          "schtasks",
+          "powershell"
+        ],
+        "next_phase": "understand_execution_trigger"
+      },
+      "if_no_scheduled_tasks": {
+        "action": "check_alternative_persistence",
+        "alternatives": [
+          "running_processes",
+          "services",
+          "registry_keys"
+        ],
+        "decision_criteria": "based_on_system_behavior_observed"
+      },
+      "if_processes_reveal_automation": {
+        "action": "trace_process_execution_chain",
+        "purpose": "understand_privilege_escalation_mechanism",
+        "tools": [
+          "Get-WmiObject",
+          "tasklist",
+          "wmic"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "filter_scheduled_tasks_output_for_custom_entries",
+        "reasoning": "default_windows_tasks_create_noise_in_analysis",
+        "applicability": "windows_privilege_escalation_analysis"
+      },
+      {
+        "rule": "use_powershell_wmi_for_detailed_process_info",
+        "reasoning": "provides_command_line_arguments_and_full_context",
+        "applicability": "windows_process_enumeration"
+      },
+      {
+        "rule": "check_multiple_persistence_mechanisms_systematically",
+        "reasoning": "automation_may_use_non_obvious_persistence_methods",
+        "applicability": "understanding_privilege_escalation_automation"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "CHM_File_Execution",
+        "mitre_id": "T1218.001",
+        "required_services": [
+          "file_system_access"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "writable_directory_access",
+          "automated_file_processing",
+          "html_help_workshop_installed"
+        ],
+        "success_indicators": [
+          "chm_files_accepted_in_target_directory",
+          "hh_exe_available",
+          "scheduled_task_or_service_monitoring_directory"
+        ],
+        "incompatible_with": [
+          "chm_files_blocked_by_policy",
+          "html_help_disabled",
+          "directory_not_monitored"
+        ],
+        "confidence_boosters": [
+          "docs_directory_writable",
+          "administrator_automation_detected",
+          "file_monitoring_service_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Scheduled_Task_Enumeration",
+        "mitre_id": "T1053.005",
+        "required_services": [
+          "task_scheduler"
+        ],
+        "required_ports": [
+          135,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "windows_system_access",
+          "schtasks_command_available"
+        ],
+        "success_indicators": [
+          "schtasks_query_successful",
+          "custom_tasks_identified",
+          "persistence_mechanisms_found"
+        ],
+        "incompatible_with": [
+          "task_scheduler_disabled",
+          "insufficient_privileges",
+          "command_execution_blocked"
+        ],
+        "confidence_boosters": [
+          "administrator_privileges",
+          "interactive_shell_access",
+          "windows_server_environment"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_server": {
+        "port_indicators": [
+          135,
+          139,
+          445,
+          3389
+        ],
+        "service_indicators": [
+          "smb",
+          "rpc",
+          "rdp"
+        ],
+        "banner_indicators": [
+          "Windows Server",
+          "Microsoft Windows"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "file_share_access": {
+        "port_indicators": [
+          445,
+          139
+        ],
+        "service_indicators": [
+          "smb",
+          "netbios"
+        ],
+        "technology_indicators": [
+          "samba",
+          "cifs"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "scheduled_task_enumeration",
+          "when": "windows_system_access_gained",
+          "reason": "reveals_persistence_mechanisms_and_automation"
+        },
+        {
+          "attack": "writable_directory_identification",
+          "when": "file_system_access_available",
+          "reason": "enables_file_based_privilege_escalation"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "chm_file_exploitation",
+          "when": "automated_file_processing_detected",
+          "reason": "requires_specific_automation_setup"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Windows Process Enumeration",
+        "mitre_id": "T1057",
+        "category": "discovery",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "PowerShell Get-WmiObject",
+            "command_template": "Get-WmiObject Win32_Process | Select-Object ProcessId, ProcessName, CommandLine",
+            "actual_command": "Get-WmiObject Win32_Process | Select-Object ProcessId, ProcessName, CommandLine, pid",
+            "output_pattern": "ProcessId ProcessName CommandLine",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "schtasks",
+            "command_template": "schtasks /query /v /fo LIST | findstr /c:\"Task To Run\" | findstr /v /c:\"Task To Run: COM handler\"",
+            "actual_command": "schtasks /query /v /fo LIST | findstr /c:\"Task To Run\" | findstr /v /c:\"Task To Run: COM handler\"",
+            "success_factors": [
+              "administrative_privileges",
+              "verbose_output_filtering"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "administrative_access",
+          "powershell_execution_allowed",
+          "wmi_service_running"
+        ],
+        "success_indicators": [
+          "complete_process_list_retrieved",
+          "command_line_arguments_visible",
+          "suspicious_processes_identified"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "wmi_service_disabled",
+          "output_truncation"
+        ],
+        "follow_up_techniques": [
+          "service_enumeration",
+          "persistence_mechanism_analysis",
+          "privilege_escalation_path_discovery"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Scheduled Task Analysis",
+        "mitre_id": "T1053.005",
+        "category": "persistence",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "schtasks",
+            "command_template": "schtasks /query /v /fo LIST",
+            "actual_command": "schtasks /query /v /fo LIST | findstr /c:\"Task To Run\"",
+            "output_pattern": "Task To Run: [executable_path]",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          },
+          {
+            "name": "findstr",
+            "command_template": "findstr /c:\"search_string\" | findstr /v /c:\"exclude_string\"",
+            "actual_command": "findstr /c:\"Task To Run\" | findstr /v /c:\"Task To Run: COM handler\"",
+            "success_factors": [
+              "proper_string_matching",
+              "noise_filtering"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "administrative_privileges",
+          "task_scheduler_service_running"
+        ],
+        "success_indicators": [
+          "custom_scheduled_tasks_identified",
+          "persistence_mechanisms_discovered",
+          "automation_patterns_revealed"
+        ],
+        "common_failures": [
+          "overwhelming_output_volume",
+          "legitimate_tasks_obscure_malicious_ones",
+          "insufficient_filtering"
+        ],
+        "follow_up_techniques": [
+          "task_detail_analysis",
+          "executable_path_investigation",
+          "trigger_condition_analysis"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "CHM File Execution Analysis",
+        "mitre_id": "T1218.001",
+        "category": "defense_evasion",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "file_system_monitoring",
+            "command_template": "dir c:\\docs /s",
+            "actual_command": "dir c:\\docs",
+            "output_pattern": "*.chm files in target directory",
+            "effectiveness_rating": 3,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "chm_files_present",
+          "automated_execution_mechanism",
+          "administrator_context"
+        ],
+        "success_indicators": [
+          "chm_files_executed_automatically",
+          "privilege_escalation_achieved",
+          "persistence_established"
+        ],
+        "common_failures": [
+          "execution_mechanism_not_identified",
+          "timing_issues",
+          "file_path_restrictions"
+        ],
+        "follow_up_techniques": [
+          "process_monitoring",
+          "file_system_auditing",
+          "execution_flow_analysis"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "PowerShell Get-WmiObject",
+        "use_case": "process_enumeration_with_command_lines",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_post_exploitation"
+        ],
+        "alternatives": [
+          "tasklist",
+          "wmic",
+          "Get-Process"
+        ],
+        "best_practices": [
+          "filter_output_for_readability",
+          "include_command_line_arguments",
+          "cross_reference_with_services"
+        ]
+      },
+      {
+        "tool": "schtasks",
+        "use_case": "scheduled_task_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "persistence_analysis"
+        ],
+        "alternatives": [
+          "Get-ScheduledTask",
+          "taskschd.msc"
+        ],
+        "best_practices": [
+          "use_verbose_output_with_filtering",
+          "focus_on_non_microsoft_tasks",
+          "check_task_triggers_and_conditions"
+        ]
+      },
+      {
+        "tool": "findstr",
+        "use_case": "windows_text_filtering",
+        "effectiveness_rating": 3,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "output_parsing"
+        ],
+        "alternatives": [
+          "Select-String",
+          "grep_equivalent"
+        ],
+        "best_practices": [
+          "use_exact_string_matching_with_/c",
+          "combine_include_and_exclude_filters",
+          "understand_regex_limitations"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "windows_persistence_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "whoami",
+            "purpose": "Verify current user context",
+            "expected_output": "sniper\\administrator"
+          },
+          {
+            "step": 2,
+            "command": "schtasks /query /v /fo LIST | findstr /c:\"Task To Run\" | findstr /v /c:\"Task To Run: COM handler\"",
+            "purpose": "Enumerate custom scheduled tasks",
+            "expected_output": "List of executable paths for scheduled tasks"
+          },
+          {
+            "step": 3,
+            "command": "Get-WmiObject Win32_Process | Select-Object ProcessId, ProcessName, CommandLine",
+            "purpose": "Enumerate running processes with command lines",
+            "expected_output": "Complete process list with execution parameters"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-15 minutes"
+      },
+      {
+        "sequence_name": "chm_execution_investigation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "dir c:\\docs",
+            "purpose": "Check for CHM files in target directory",
+            "expected_output": "List of .chm files"
+          },
+          {
+            "step": 2,
+            "command": "schtasks /query /v /fo LIST",
+            "purpose": "Look for automated execution tasks",
+            "expected_output": "Scheduled task details"
+          },
+          {
+            "step": 3,
+            "command": "Get-WmiObject Win32_Process | Where-Object {$_.CommandLine -like '*chm*'}",
+            "purpose": "Find CHM-related processes",
+            "expected_output": "Processes executing CHM files"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "10-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Sniper",
+      "difficulty": "Medium",
+      "os": "Windows Server 2019",
+      "platform": "HackTheBox",
+      "release_date": "2019-10-05",
+      "author": "MinatoTW & MrR3boot",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "file_upload",
+        "chm_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "rfi_lfi",
+        "file_upload_bypass",
+        "automated_chm_execution"
+      ],
+      "environment_type": "corporate_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "chm_file_exploitation",
+        "windows_persistence",
+        "scheduled_task_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "windows_fundamentals",
+        "file_upload_attacks"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "file_upload",
+        "windows_persistence",
+        "chm_exploitation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "file_upload_validation",
+        "scheduled_task_monitoring",
+        "chm_file_restrictions"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "SecNotes",
+        "RE",
+        "Jeeves"
+      ],
+      "similarity_reasons": [
+        "chm_exploitation",
+        "windows_persistence",
+        "scheduled_tasks"
+      ],
+      "unique_aspects": [
+        "automated_chm_execution",
+        "docs_directory_monitoring"
+      ],
+      "difficulty_factors": [
+        "chm_file_creation",
+        "understanding_automation",
+        "persistence_mechanisms"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:38:48.070513",
+    "original_file": "0xdf_writeups/Htb Sniper Beyondroot.md",
+    "content_length": 25396,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

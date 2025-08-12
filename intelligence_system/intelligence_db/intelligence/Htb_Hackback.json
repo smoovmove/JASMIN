@@ -1,0 +1,1070 @@
+{
+  "writeup_id": "Htb_Hackback",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_web_server_log_poisoning_winrm",
+    "primary_services": [
+      "http",
+      "https",
+      "winrm"
+    ],
+    "port_signature": "80+6666+64831",
+    "service_combination": "iis+custom_http+gophish",
+    "os_family": "windows_server",
+    "environment_type": "standalone_web_server",
+    "entry_vector": "log_poisoning_via_admin_interface",
+    "privilege_path": "web_shell_to_system_via_service_abuse",
+    "attack_complexity": "insane",
+    "estimated_time": "6+ days",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "gophish_phishing_platform",
+      "custom_powershell_web_service_6666",
+      "regeorge_tunnel_required",
+      "log_poisoning_attack_vector",
+      "diaghub_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "gophish_ssl_certificate",
+      "asp_net_powered_site",
+      "microsoft_iis_10",
+      "custom_command_interface_6666",
+      "gorilla_csrf_tokens"
+    ],
+    "similar_scenarios": [
+      "hackback_htb_insane"
+    ],
+    "unique_aspects": [
+      "phishing_platform_as_entry_point",
+      "tunneling_through_regeorge_for_winrm",
+      "named_pipe_lateral_movement",
+      "system32_file_overwrite_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "GoPhish_Interface_Discovery",
+        "success_reason": "GoPhish admin interface exposed on non-standard port with weak authentication",
+        "prerequisite_indicators": [
+          "gophish_process_running",
+          "ssl_cert_shows_gophish",
+          "web_interface_accessible"
+        ],
+        "recognition_patterns": [
+          "SSL certificate organizationName=Gophish",
+          "gorilla_csrf cookies in responses",
+          "login redirect patterns",
+          "process list shows gophish.exe"
+        ],
+        "failure_modes": [
+          "strong_authentication_enabled",
+          "interface_not_exposed",
+          "default_credentials_changed"
+        ],
+        "environmental_factors": [
+          "default_gophish_installation",
+          "weak_credential_management",
+          "exposed_admin_interfaces"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Custom_Web_API_Enumeration",
+        "success_reason": "PowerShell web server on port 6666 exposed system information without authentication",
+        "prerequisite_indicators": [
+          "custom_web_service_running",
+          "missing_command_error_response",
+          "microsoft_httpapi_server"
+        ],
+        "recognition_patterns": [
+          "Missing Command! error message",
+          "Microsoft-HTTPAPI/2.0 server header",
+          "JSON formatted responses",
+          "system command endpoints"
+        ],
+        "failure_modes": [
+          "authentication_required",
+          "command_filtering_enabled",
+          "service_not_exposed"
+        ],
+        "environmental_factors": [
+          "custom_powershell_web_server",
+          "debug_interfaces_left_enabled",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Log_Poisoning_via_Admin_Interface",
+        "success_reason": "Admin interface allowed file uploads that could poison log files for code execution",
+        "prerequisite_indicators": [
+          "admin_interface_accessible",
+          "file_upload_functionality",
+          "log_files_in_web_directory"
+        ],
+        "recognition_patterns": [
+          "file upload forms in admin panels",
+          "log file locations discoverable",
+          "web server processes uploaded content",
+          "insufficient input validation"
+        ],
+        "failure_modes": [
+          "file_upload_restrictions",
+          "logs_outside_web_root",
+          "input_sanitization_enabled"
+        ],
+        "environmental_factors": [
+          "iis_default_configuration",
+          "logs_in_accessible_locations",
+          "weak_upload_validation"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "reGeorge_Tunneling",
+        "success_reason": "Web server allowed tunnel script upload when direct RCE was blocked",
+        "prerequisite_indicators": [
+          "web_shell_upload_possible",
+          "internal_services_accessible",
+          "tunnel_script_execution_allowed"
+        ],
+        "recognition_patterns": [
+          "RCE functions disabled but file operations work",
+          "internal network services discoverable",
+          "tunnel scripts execute successfully",
+          "HTTP tunneling responses"
+        ],
+        "failure_modes": [
+          "all_script_execution_blocked",
+          "network_segmentation_prevents_tunneling",
+          "tunnel_detection_mechanisms"
+        ],
+        "environmental_factors": [
+          "partial_security_hardening",
+          "internal_services_exposed",
+          "insufficient_network_controls"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "45-90 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "gophish.exe process running",
+        "discovery_method": "Custom API /proc endpoint enumeration",
+        "why_critical": "Revealed phishing infrastructure and potential admin interfaces",
+        "how_to_recognize": [
+          "process enumeration shows gophish.exe",
+          "SSL certificate mentions Gophish",
+          "phishing-related directory names"
+        ],
+        "follow_up_actions": [
+          "enumerate_gophish_admin_interface",
+          "test_default_credentials",
+          "explore_phishing_campaigns"
+        ]
+      },
+      {
+        "discovery": "Custom PowerShell web API on port 6666",
+        "discovery_method": "Port scanning and parameter fuzzing",
+        "why_critical": "Provided system reconnaissance without authentication",
+        "how_to_recognize": [
+          "Microsoft-HTTPAPI server on unusual port",
+          "Missing Command! error suggests API",
+          "JSON formatted system information responses"
+        ],
+        "follow_up_actions": [
+          "fuzz_all_available_commands",
+          "extract_system_information",
+          "identify_running_services"
+        ]
+      },
+      {
+        "discovery": "Domain names from phishing sites",
+        "discovery_method": "GoPhish interface enumeration",
+        "why_critical": "Revealed additional attack surfaces and virtual hosts",
+        "how_to_recognize": [
+          "phishing campaign configurations",
+          "virtual host directory structures",
+          "domain name patterns in configs"
+        ],
+        "follow_up_actions": [
+          "add_domains_to_hosts_file",
+          "enumerate_each_virtual_host",
+          "test_admin_interfaces_per_domain"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "network_service",
+        "escalation_method": "File_System_Access_via_Log_Poisoning",
+        "why_possible": "Admin interface allowed file uploads that could be leveraged for code execution",
+        "recognition_signs": [
+          "file_upload_functionality_in_admin_panels",
+          "log_files_accessible_via_web",
+          "insufficient_upload_validation"
+        ],
+        "exploitation_path": "Upload malicious content → Poison logs → Code execution via web requests"
+      },
+      {
+        "privilege_level": "network_service",
+        "escalation_method": "Tunnel_to_Internal_Services",
+        "why_possible": "reGeorge tunnel allowed access to internal WinRM service",
+        "recognition_signs": [
+          "tunnel_script_upload_successful",
+          "internal_services_responding_through_tunnel",
+          "credentials_found_in_config_files"
+        ],
+        "exploitation_path": "Upload reGeorge → Tunnel to WinRM → Authenticate with found credentials"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 80,6666,64831 open on Windows host with IIS and GoPhish",
+        "decision": "Enumerate web services and identify attack vectors through multiple HTTP interfaces",
+        "reasoning": "Multiple web services indicate complex attack surface with potential for service interaction",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_service_exploitation",
+            "when": "if known vulnerabilities found"
+          },
+          {
+            "option": "credential_attacks",
+            "when": "if authentication interfaces discovered"
+          }
+        ],
+        "success_indicators": [
+          "additional_domains_discovered",
+          "admin_interfaces_found",
+          "service_enumeration_complete"
+        ],
+        "next_decision": "analyze_service_interactions"
+      },
+      {
+        "step": 2,
+        "situation": "GoPhish interface discovered with domain enumeration capability",
+        "decision": "Extract domain names from phishing interface to discover additional attack surfaces",
+        "reasoning": "GoPhish typically manages multiple domains that may reveal hidden admin interfaces",
+        "confidence": 0.85,
+        "prerequisites": [
+          "gophish_interface_accessible",
+          "domain_enumeration_possible"
+        ],
+        "success_indicators": [
+          "new_domains_found",
+          "admin_interfaces_discovered"
+        ],
+        "failure_fallbacks": [
+          "direct_file_system_attacks",
+          "service_credential_extraction"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Admin interface found with file upload capability but RCE functions disabled",
+        "decision": "Use log poisoning and tunneling tools like reGeorge for indirect access",
+        "reasoning": "When direct RCE is blocked, tunneling tools can provide alternative access paths",
+        "confidence": 0.75,
+        "prerequisites": [
+          "file_upload_available",
+          "rce_functions_disabled"
+        ],
+        "success_indicators": [
+          "tunnel_established",
+          "internal_services_accessible"
+        ],
+        "failure_fallbacks": [
+          "alternative_upload_methods",
+          "service_exploitation"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Tunnel established with access to internal WinRM service",
+        "decision": "Search for credentials in config files and use WinRM for authenticated access",
+        "reasoning": "Config files often contain service credentials, WinRM provides reliable shell access",
+        "confidence": 0.8,
+        "prerequisites": [
+          "tunnel_active",
+          "winrm_accessible",
+          "file_system_access"
+        ],
+        "success_indicators": [
+          "credentials_found",
+          "winrm_authentication_successful"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "alternative_services"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_gophish_enumeration_succeeds": {
+        "action": "enumerate_discovered_domains",
+        "tools": [
+          "gobuster",
+          "curl",
+          "custom_scripts"
+        ],
+        "next_phase": "admin_interface_exploitation"
+      },
+      "if_admin_interface_found": {
+        "action": "test_file_upload_and_rce_capabilities",
+        "alternatives": [
+          "log_poisoning",
+          "tunneling_tools",
+          "webshell_upload"
+        ],
+        "decision_criteria": "based_on_available_functions"
+      },
+      "if_direct_rce_blocked": {
+        "action": "deploy_tunneling_solution",
+        "tools": [
+          "regeorge",
+          "custom_tunnels"
+        ],
+        "purpose": "access_internal_services"
+      },
+      "if_tunnel_established": {
+        "action": "enumerate_internal_services_and_credentials",
+        "tools": [
+          "winrm",
+          "file_enumeration"
+        ],
+        "next_phase": "privilege_escalation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_enumerate_all_web_services_first",
+        "reasoning": "multiple_web_services_often_interconnected_with_shared_attack_vectors",
+        "applicability": "multiple_http_services_detected"
+      },
+      {
+        "rule": "extract_domains_from_phishing_platforms",
+        "reasoning": "phishing_platforms_manage_multiple_domains_revealing_hidden_interfaces",
+        "applicability": "gophish_or_similar_platform_detected"
+      },
+      {
+        "rule": "use_tunneling_when_rce_functions_disabled",
+        "reasoning": "tunneling_bypasses_function_restrictions_and_provides_internal_access",
+        "applicability": "file_upload_available_but_rce_blocked"
+      },
+      {
+        "rule": "prioritize_winrm_over_other_remote_access",
+        "reasoning": "winrm_provides_stable_authenticated_shell_access",
+        "applicability": "windows_environment_with_credentials"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Log Poisoning via File Upload",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_upload",
+          "log_file_accessible_via_web",
+          "server_side_scripting_enabled"
+        ],
+        "success_indicators": [
+          "upload_functionality_present",
+          "log_files_in_webroot",
+          "php_asp_aspx_execution_enabled"
+        ],
+        "incompatible_with": [
+          "upload_restrictions_enforced",
+          "logs_outside_webroot",
+          "script_execution_disabled"
+        ],
+        "confidence_boosters": [
+          "admin_interface_detected",
+          "iis_server_detected",
+          "error_messages_reveal_paths"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "HTTP Tunneling via reGeorge",
+        "mitre_id": "T1090.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_shell_upload_capability",
+          "internal_services_accessible",
+          "script_execution_enabled"
+        ],
+        "success_indicators": [
+          "webshell_successfully_uploaded",
+          "internal_network_connectivity",
+          "target_services_behind_firewall"
+        ],
+        "incompatible_with": [
+          "outbound_connections_blocked",
+          "webshell_detection_active",
+          "network_segmentation_strict"
+        ],
+        "confidence_boosters": [
+          "winrm_service_detected",
+          "internal_credentials_found",
+          "firewall_blocking_direct_access"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "Named Pipe Privilege Escalation",
+        "mitre_id": "T1055.001",
+        "required_services": [
+          "winrm",
+          "smb"
+        ],
+        "required_ports": [
+          5985,
+          5986,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "windows_domain_environment",
+          "named_pipes_accessible",
+          "service_account_privileges"
+        ],
+        "success_indicators": [
+          "named_pipe_enumeration_successful",
+          "service_impersonation_possible",
+          "elevated_token_obtained"
+        ],
+        "incompatible_with": [
+          "named_pipes_restricted",
+          "service_hardening_enabled",
+          "privilege_separation_enforced"
+        ],
+        "confidence_boosters": [
+          "legacy_windows_version",
+          "default_service_configurations",
+          "weak_service_permissions"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Custom Command Interface Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          6666,
+          8080,
+          9090
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "custom_web_service_running",
+          "command_interface_exposed",
+          "authentication_bypass_possible"
+        ],
+        "success_indicators": [
+          "command_endpoints_discovered",
+          "system_information_leaked",
+          "file_system_access_gained"
+        ],
+        "incompatible_with": [
+          "authentication_required",
+          "command_filtering_active",
+          "rate_limiting_enforced"
+        ],
+        "confidence_boosters": [
+          "help_command_available",
+          "verbose_error_messages",
+          "development_environment"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_iis": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "ASP.NET",
+          "X-Powered-By: ASP.NET"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "gophish_application": {
+        "port_indicators": [
+          64831
+        ],
+        "service_indicators": [
+          "https"
+        ],
+        "banner_indicators": [
+          "Gophish",
+          "_gorilla_csrf",
+          "organizationName=Gophish"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "custom_web_service": {
+        "port_indicators": [
+          6666,
+          8080,
+          9090
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "banner_indicators": [
+          "Microsoft-HTTPAPI",
+          "Missing Command"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_domain": {
+        "port_indicators": [
+          5985,
+          5986,
+          445,
+          88,
+          389
+        ],
+        "service_indicators": [
+          "winrm",
+          "smb",
+          "kerberos",
+          "ldap"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Active Directory"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "custom_command_enumeration",
+          "when": "custom_web_service_detected",
+          "reason": "often_reveals_system_info_and_credentials"
+        },
+        {
+          "attack": "gophish_interface_abuse",
+          "when": "gophish_service_detected",
+          "reason": "admin_interfaces_frequently_misconfigured"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "log_poisoning_via_upload",
+          "when": "iis_server_detected",
+          "reason": "effective_when_upload_functionality_present"
+        },
+        {
+          "attack": "http_tunneling",
+          "when": "webshell_upload_successful",
+          "reason": "enables_access_to_internal_services"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "named_pipe_escalation",
+          "when": "winrm_access_obtained",
+          "reason": "requires_existing_foothold_and_specific_conditions"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Web Service Enumeration",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -sT -p- --min-rate 10000 -oA {output} {target}",
+            "actual_command": "nmap -sT -p- --min-rate 10000 -oA nmap/alltcp 10.10.10.128",
+            "output_pattern": "PORT      STATE SERVICE",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "nmap service detection",
+            "command_template": "nmap -sC -sV -p {ports} -oA {output} {target}",
+            "actual_command": "nmap -sC -sV -p 80,6666,64831 -oA nmap/scripts 10.10.10.128",
+            "success_factors": [
+              "service_banners_revealed",
+              "ssl_cert_info_disclosed"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "network_connectivity",
+          "target_ip_known"
+        ],
+        "success_indicators": [
+          "open_ports_identified",
+          "service_versions_detected",
+          "ssl_certificate_analyzed"
+        ],
+        "common_failures": [
+          "firewall_blocking_scans",
+          "rate_limiting_detection"
+        ],
+        "follow_up_techniques": [
+          "web_content_discovery",
+          "service_specific_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Web Content Discovery",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -w {wordlist} --hc 404 http://{target}:{port}/FUZZ",
+            "actual_command": "wfuzz -c -w /usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt --hc 404 http://10.10.10.128:6666/FUZZ",
+            "output_pattern": "ID   Response   Lines      Word         Chars          Payload",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "web_service_identified",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "hidden_endpoints_discovered",
+          "api_commands_identified",
+          "administrative_interfaces_found"
+        ],
+        "common_failures": [
+          "waf_blocking_requests",
+          "rate_limiting_triggered",
+          "insufficient_wordlists"
+        ],
+        "follow_up_techniques": [
+          "api_enumeration",
+          "parameter_fuzzing"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "API Enumeration",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}:{port}/{endpoint}",
+            "actual_command": "curl http://10.10.10.128:6666/help",
+            "output_pattern": "hello,proc,whoami,list,info,services,netsat,ipconfig",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "jq",
+            "command_template": "curl -s http://{target}:{port}/{endpoint} | jq -c .[]",
+            "actual_command": "curl -s http://10.10.10.128:6666/proc | jq -c .[]",
+            "success_factors": [
+              "json_response_format",
+              "structured_data_returned"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "api_endpoints_discovered",
+          "json_parsing_tools_available"
+        ],
+        "success_indicators": [
+          "system_information_disclosed",
+          "process_list_obtained",
+          "network_configuration_revealed",
+          "service_enumeration_completed"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "rate_limiting_active",
+          "incomplete_api_documentation"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "privilege_escalation_planning",
+          "lateral_movement_preparation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Default Credential Authentication",
+        "mitre_id": "T1078.001",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "web_browser",
+            "command_template": "Navigate to https://{target}:{port} and try {username}:{password}",
+            "actual_command": "Login to GoPhish with admin:gophish",
+            "output_pattern": "Successful authentication to admin panel",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "application_identified",
+          "default_credentials_known",
+          "login_interface_accessible"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "admin_panel_access_gained",
+          "configuration_data_accessible"
+        ],
+        "common_failures": [
+          "default_credentials_changed",
+          "account_lockout_policies",
+          "multi_factor_authentication_enabled"
+        ],
+        "follow_up_techniques": [
+          "configuration_analysis",
+          "data_extraction",
+          "privilege_escalation"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Information Disclosure via Application Data",
+        "mitre_id": "T1213",
+        "category": "collection",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "gophish_interface",
+            "command_template": "Navigate to Email Templates section and examine HTML content",
+            "actual_command": "Extract domain names from phishing email templates",
+            "output_pattern": "admin.hackback.htb, www.facebook.htb, www.hackthebox.htb, www.paypal.htb, www.twitter.htb",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "application_access_obtained",
+          "email_templates_configured",
+          "phishing_campaign_data_available"
+        ],
+        "success_indicators": [
+          "additional_domains_discovered",
+          "infrastructure_mapping_completed",
+          "attack_surface_expanded"
+        ],
+        "common_failures": [
+          "no_configured_templates",
+          "sanitized_template_data",
+          "limited_application_permissions"
+        ],
+        "follow_up_techniques": [
+          "virtual_host_enumeration",
+          "subdomain_takeover_attempts",
+          "additional_service_discovery"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "nmap",
+        "use_case": "port_and_service_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance",
+          "service_enumeration"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "use_high_min_rate_for_speed",
+          "follow_up_with_service_detection",
+          "check_both_tcp_and_udp_ports"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "web_content_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "api_enumeration",
+          "hidden_endpoint_discovery"
+        ],
+        "alternatives": [
+          "gobuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists_for_target",
+          "filter_common_error_codes",
+          "adjust_threads_to_avoid_rate_limiting"
+        ]
+      },
+      {
+        "tool": "jq",
+        "use_case": "json_data_parsing",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "api_response_analysis",
+          "structured_data_extraction"
+        ],
+        "alternatives": [
+          "python_json_module",
+          "manual_parsing"
+        ],
+        "best_practices": [
+          "learn_basic_filter_syntax",
+          "use_compact_output_for_large_datasets",
+          "combine_with_curl_for_api_enumeration"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "comprehensive_port_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sT -p- --min-rate 10000 -oA nmap/alltcp 10.10.10.128",
+            "purpose": "Discover all open TCP ports",
+            "expected_output": "Ports 80, 6666, 64831 identified as open"
+          },
+          {
+            "step": 2,
+            "command": "nmap -sC -sV -p 80,6666,64831 -oA nmap/scripts 10.10.10.128",
+            "purpose": "Detailed service enumeration",
+            "expected_output": "Service versions and SSL certificate information"
+          },
+          {
+            "step": 3,
+            "command": "nmap -sU -p- --min-rate 10000 -oA nmap/alludp 10.10.10.128",
+            "purpose": "UDP port discovery",
+            "expected_output": "UDP services enumeration"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "api_enumeration_and_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wfuzz -c -w /usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt --hc 404 http://10.10.10.128:6666/FUZZ",
+            "purpose": "Discover API endpoints",
+            "expected_output": "Endpoints: info, list, hello, help discovered"
+          },
+          {
+            "step": 2,
+            "command": "curl http://10.10.10.128:6666/help",
+            "purpose": "Get available API commands",
+            "expected_output": "Command list: hello,proc,whoami,list,info,services,netsat,ipconfig"
+          },
+          {
+            "step": 3,
+            "command": "curl -s http://10.10.10.128:6666/netstat | jq -r '.[] | select(.State=2) | \"\\(.LocalAddress):\\(.LocalPort) [\\(.OwningProcess)]\"'",
+            "purpose": "Enumerate listening services",
+            "expected_output": "Internal services including WinRM on 5985"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "gophish_exploitation_to_domain_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Navigate to https://10.10.10.128:64831",
+            "purpose": "Access GoPhish login interface",
+            "expected_output": "GoPhish login page displayed"
+          },
+          {
+            "step": 2,
+            "command": "Login with admin:gophish",
+            "purpose": "Authenticate with default credentials",
+            "expected_output": "Successful authentication to admin panel"
+          },
+          {
+            "step": 3,
+            "command": "Navigate to Email Templates and examine HTML content",
+            "purpose": "Extract domain information from phishing templates",
+            "expected_output": "Domain list: admin.hackback.htb, www.facebook.htb, www.hackthebox.htb, www.paypal.htb, www.twitter.htb"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Hackback",
+      "difficulty": "Insane",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2019-02-23",
+      "author": "decoder, yuntao",
+      "estimated_time": "8-12 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "log_poisoning",
+        "tunneling"
+      ],
+      "key_vulnerabilities": [
+        "gophish_interface",
+        "admin_panel_abuse",
+        "service_misconfiguration"
+      ],
+      "environment_type": "corporate_web_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_web_exploitation",
+        "tunneling_techniques",
+        "privilege_escalation_chains"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_web_security",
+        "windows_internals",
+        "network_tunneling"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "log_poisoning",
+        "tunneling",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "persistence",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_admin_interfaces",
+        "log_file_permissions",
+        "service_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Arkham",
+        "Conceal",
+        "Ethereal"
+      ],
+      "similarity_reasons": [
+        "complex_attack_chains",
+        "tunneling_required",
+        "windows_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "gophish_exploitation",
+        "regeorge_tunneling",
+        "diaghub_abuse"
+      ],
+      "difficulty_factors": [
+        "multiple_complex_steps",
+        "advanced_techniques_required",
+        "limited_documentation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:30:19.330816",
+    "original_file": "0xdf_writeups/Htb Hackback.md",
+    "content_length": 106552,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

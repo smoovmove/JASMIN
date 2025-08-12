@@ -1,0 +1,887 @@
+{
+  "writeup_id": "Htb_Runner",
+  "scenario_fingerprint": {
+    "scenario_name": "teamcity_authentication_bypass_to_container_escape",
+    "primary_services": [
+      "http",
+      "ssh",
+      "docker"
+    ],
+    "port_signature": "22+80+8000",
+    "service_combination": "ssh+nginx+teamcity",
+    "os_family": "linux",
+    "environment_type": "ci_cd_server",
+    "entry_vector": "teamcity_auth_bypass",
+    "privilege_path": "api_token_to_container_escape",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "teamcity_subdomain",
+      "authentication_bypass_vulnerability",
+      "vulnerable_runc_binary",
+      "portainer_management_interface"
+    ],
+    "environmental_clues": [
+      "ci_cd_branding_on_main_site",
+      "powered_by_teamcity_reference",
+      "docker_containerized_services",
+      "port_8000_nagios_misidentification"
+    ],
+    "similar_scenarios": [
+      "jenkins_rce",
+      "gitlab_ci_exploitation"
+    ],
+    "unique_aspects": [
+      "teamcity_api_token_generation",
+      "container_escape_via_runc",
+      "portainer_without_docker_group",
+      "backup_extraction_method"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "TeamCity_Authentication_Bypass",
+        "success_reason": "TeamCity server vulnerable to authentication bypass allowing API token generation",
+        "prerequisite_indicators": [
+          "teamcity_service_accessible",
+          "vulnerable_teamcity_version",
+          "authentication_endpoint_exposed"
+        ],
+        "recognition_patterns": [
+          "TeamCity branding on main site",
+          "subdomain enumeration reveals teamcity.runner.htb",
+          "401 status on TeamCity subdomain",
+          "CVE-2023-42793 authentication bypass"
+        ],
+        "failure_modes": [
+          "teamcity_patched_version",
+          "authentication_bypass_mitigated",
+          "api_endpoints_disabled"
+        ],
+        "environmental_factors": [
+          "unpatched_teamcity_installation",
+          "default_teamcity_configuration",
+          "exposed_ci_cd_infrastructure"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Subdomain_Enumeration",
+        "success_reason": "TeamCity subdomain discoverable through extended wordlist fuzzing",
+        "prerequisite_indicators": [
+          "virtual_host_routing_enabled",
+          "multiple_services_on_same_ip",
+          "subdomain_dns_resolution"
+        ],
+        "recognition_patterns": [
+          "main site mentions 'powered by TeamCity'",
+          "larger wordlists reveal additional subdomains",
+          "401 response indicates protected service"
+        ],
+        "failure_modes": [
+          "no_virtual_hosts_configured",
+          "subdomain_not_in_wordlist",
+          "dns_resolution_blocked"
+        ],
+        "environmental_factors": [
+          "nginx_virtual_host_configuration",
+          "ci_cd_service_separation",
+          "standard_subdomain_naming"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Container_Escape_via_runc",
+        "success_reason": "Vulnerable runc binary allows container escape through Portainer",
+        "prerequisite_indicators": [
+          "docker_environment_present",
+          "portainer_access_available",
+          "vulnerable_runc_version"
+        ],
+        "recognition_patterns": [
+          "Portainer web interface accessible",
+          "container management capabilities",
+          "runc version check shows vulnerability"
+        ],
+        "failure_modes": [
+          "runc_patched_version",
+          "container_hardening_enabled",
+          "portainer_access_restricted"
+        ],
+        "environmental_factors": [
+          "docker_containerized_services",
+          "portainer_management_interface",
+          "insufficient_container_security"
+        ],
+        "success_probability": 0.68,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "teamcity.runner.htb subdomain",
+        "discovery_method": "Extended subdomain enumeration with 100k wordlist",
+        "why_critical": "Exposed vulnerable TeamCity server leading to authentication bypass",
+        "how_to_recognize": [
+          "main site mentions TeamCity branding",
+          "401 response on subdomain indicates protected service",
+          "CI/CD context suggests additional infrastructure"
+        ],
+        "follow_up_actions": [
+          "test_authentication_bypass_cve",
+          "enumerate_teamcity_version",
+          "attempt_api_token_generation"
+        ]
+      },
+      {
+        "discovery": "TeamCity authentication bypass vulnerability",
+        "discovery_method": "CVE-2023-42793 exploitation",
+        "why_critical": "Allows admin access to CI/CD infrastructure and credential extraction",
+        "how_to_recognize": [
+          "vulnerable TeamCity version",
+          "authentication bypass endpoints accessible",
+          "API token generation possible"
+        ],
+        "follow_up_actions": [
+          "generate_admin_api_token",
+          "enable_debug_mode",
+          "extract_backup_data"
+        ]
+      },
+      {
+        "discovery": "SSH keys and password hashes in TeamCity data",
+        "discovery_method": "TeamCity backup extraction or debug mode access",
+        "why_critical": "Provides host system access credentials",
+        "how_to_recognize": [
+          "TeamCity database contains user credentials",
+          "SSH keys stored in CI/CD configuration",
+          "password hashes in backup files"
+        ],
+        "follow_up_actions": [
+          "extract_ssh_private_keys",
+          "crack_password_hashes",
+          "test_ssh_access_to_host"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "teamcity_admin",
+        "escalation_method": "SSH_key_extraction_to_host_access",
+        "why_possible": "TeamCity stores SSH keys and credentials for CI/CD operations",
+        "recognition_signs": [
+          "teamcity_backup_accessible",
+          "debug_mode_enabled",
+          "ssh_keys_in_configuration"
+        ],
+        "exploitation_path": "TeamCity Admin → Extract SSH Keys → Host Shell Access"
+      },
+      {
+        "privilege_level": "container_user",
+        "escalation_method": "runc_vulnerability_container_escape",
+        "why_possible": "Vulnerable runc binary allows escape from container to host",
+        "recognition_signs": [
+          "portainer_interface_available",
+          "docker_containers_present",
+          "vulnerable_runc_version"
+        ],
+        "exploitation_path": "Container Access → Portainer → runc Exploit → Host Root"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,8000 open on Linux host with nginx redirect to runner.htb",
+        "decision": "Enumerate subdomains with larger wordlists after initial enumeration fails",
+        "reasoning": "Static site mentions TeamCity, suggesting additional services on subdomains",
+        "confidence": 0.8,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "if subdomain enum fails"
+          },
+          {
+            "option": "port_8000_enumeration",
+            "when": "if web enum exhausted"
+          }
+        ],
+        "success_indicators": [
+          "subdomain_responds_differently",
+          "teamcity_service_found",
+          "authentication_prompt_discovered"
+        ],
+        "next_decision": "identify_teamcity_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "TeamCity subdomain found with 401 authentication required",
+        "decision": "Research TeamCity authentication bypass vulnerabilities",
+        "reasoning": "TeamCity has known CVEs for auth bypass leading to RCE",
+        "confidence": 0.9,
+        "prerequisites": [
+          "teamcity_service_confirmed",
+          "version_fingerprinting_attempted"
+        ],
+        "success_indicators": [
+          "auth_bypass_successful",
+          "api_token_generated"
+        ],
+        "failure_fallbacks": [
+          "credential_bruteforce",
+          "default_credentials",
+          "version_specific_exploits"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "TeamCity authentication bypassed with API token obtained",
+        "decision": "Choose between debug mode RCE or admin user creation for data access",
+        "reasoning": "Both paths lead to TeamCity data access with different risk profiles",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "enable_debug_mode",
+            "when": "if direct RCE preferred"
+          },
+          {
+            "option": "create_admin_user",
+            "when": "if stealth and data extraction preferred"
+          }
+        ],
+        "success_indicators": [
+          "system_command_execution",
+          "teamcity_backup_obtained"
+        ],
+        "next_decision": "extract_credentials_from_teamcity_data"
+      },
+      {
+        "step": 4,
+        "situation": "TeamCity data accessed containing hashes and SSH keys",
+        "decision": "Prioritize SSH key over hash cracking for faster access",
+        "reasoning": "SSH keys provide immediate access without time-intensive cracking",
+        "confidence": 0.95,
+        "prerequisites": [
+          "teamcity_data_extracted",
+          "ssh_key_found"
+        ],
+        "success_indicators": [
+          "ssh_connection_successful",
+          "host_shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "hash_cracking",
+          "password_reuse_testing"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_subdomain_enum_succeeds": {
+        "action": "fingerprint_discovered_services",
+        "tools": [
+          "nmap",
+          "whatweb",
+          "manual_inspection"
+        ],
+        "next_phase": "service_specific_vulnerability_research"
+      },
+      "if_teamcity_found": {
+        "action": "exploit_authentication_bypass",
+        "alternatives": [
+          "CVE-2023-42793",
+          "default_credentials",
+          "version_specific_exploits"
+        ],
+        "decision_criteria": "based_on_version_and_patch_level"
+      },
+      "if_api_token_obtained": {
+        "action": "choose_exploitation_method",
+        "options": [
+          "debug_mode_rce",
+          "admin_user_creation"
+        ],
+        "decision_criteria": "based_on_stealth_requirements"
+      },
+      "if_ssh_key_found": {
+        "action": "attempt_ssh_connection",
+        "purpose": "gain_host_access",
+        "next_phase": "privilege_escalation_enumeration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "use_larger_wordlists_when_initial_subdomain_enum_fails",
+        "reasoning": "critical_services_often_on_less_common_subdomains",
+        "applicability": "web_applications_with_service_references"
+      },
+      {
+        "rule": "prioritize_ssh_keys_over_hash_cracking",
+        "reasoning": "immediate_access_without_computational_overhead",
+        "applicability": "when_both_credentials_types_available"
+      },
+      {
+        "rule": "research_service_specific_cves_after_identification",
+        "reasoning": "modern_services_often_have_recent_critical_vulnerabilities",
+        "applicability": "identified_enterprise_services"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "TeamCity Authentication Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8000,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "teamcity_server_detected",
+          "vulnerable_teamcity_version",
+          "authentication_bypass_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "api_token_generation_successful",
+          "admin_user_creation_possible",
+          "debug_mode_enablement",
+          "backup_access_granted"
+        ],
+        "incompatible_with": [
+          "patched_teamcity_version",
+          "authentication_bypass_patched",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "teamcity_branding_detected",
+          "default_teamcity_paths_accessible",
+          "version_disclosure_in_headers"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Container Escape via runc",
+        "mitre_id": "T1611",
+        "required_services": [
+          "docker",
+          "containerd"
+        ],
+        "required_ports": [
+          2375,
+          2376,
+          9000
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "vulnerable_runc_version",
+          "container_runtime_accessible",
+          "portainer_or_docker_management_available"
+        ],
+        "success_indicators": [
+          "container_creation_successful",
+          "host_filesystem_mount_possible",
+          "privilege_escalation_achieved"
+        ],
+        "incompatible_with": [
+          "patched_runc_version",
+          "container_isolation_hardened",
+          "no_container_privileges"
+        ],
+        "confidence_boosters": [
+          "portainer_interface_detected",
+          "docker_group_membership",
+          "container_management_permissions"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "SSH Key Extraction",
+        "mitre_id": "T1552.004",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "application_data_access",
+          "ssh_keys_stored_in_accessible_location",
+          "backup_or_config_file_access"
+        ],
+        "success_indicators": [
+          "private_key_file_found",
+          "key_format_validation_passed",
+          "ssh_connection_successful"
+        ],
+        "incompatible_with": [
+          "encrypted_ssh_keys",
+          "key_file_permissions_restricted",
+          "ssh_service_disabled"
+        ],
+        "confidence_boosters": [
+          "backup_files_contain_keys",
+          "application_config_accessible",
+          "default_key_locations_readable"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "teamcity_server": {
+        "port_indicators": [
+          80,
+          443,
+          8000,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "TeamCity",
+          "JetBrains"
+        ],
+        "path_indicators": [
+          "/login.html",
+          "/app/rest",
+          "/httpAuth"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "container_environment": {
+        "port_indicators": [
+          2375,
+          2376,
+          9000
+        ],
+        "service_indicators": [
+          "docker",
+          "containerd",
+          "portainer"
+        ],
+        "banner_indicators": [
+          "Docker",
+          "Portainer"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx"
+        ],
+        "technology_indicators": [
+          "nginx",
+          "apache",
+          "iis"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "teamcity_auth_bypass",
+          "when": "teamcity_server_detected",
+          "reason": "direct_path_to_admin_access_and_credentials"
+        },
+        {
+          "attack": "subdomain_enumeration",
+          "when": "virtual_host_redirect_detected",
+          "reason": "often_reveals_additional_attack_surfaces"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_key_extraction",
+          "when": "application_data_access_achieved",
+          "reason": "reliable_lateral_movement_method"
+        },
+        {
+          "attack": "container_escape",
+          "when": "container_environment_detected",
+          "reason": "privilege_escalation_opportunity"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "static_website_detected",
+          "reason": "limited_attack_surface_on_static_content"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "TeamCity Authentication Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST http://{teamcity_host}/app/rest/users -H 'Content-Type: application/json' -d '{\"username\": \"{username}\", \"password\": \"{password}\", \"roles\": {\"role\": [{\"roleId\": \"SYSTEM_ADMIN\", \"scope\": \"g\"}]}}'",
+            "actual_command": "curl -X POST http://teamcity.runner.htb/app/rest/users -H 'Content-Type: application/json' -d '{\"username\": \"admin\", \"password\": \"password\", \"roles\": {\"role\": [{\"roleId\": \"SYSTEM_ADMIN\", \"scope\": \"g\"}]}}'",
+            "output_pattern": "User created successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u http://{host} -m GET,POST",
+            "actual_command": "feroxbuster -u http://runner.htb:8000 -m GET,POST",
+            "success_factors": [
+              "api_endpoints_discovered",
+              "health_version_endpoints_found"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "teamcity_server_accessible",
+          "vulnerable_version_2023.05.3",
+          "rpc2_endpoint_bypass_available"
+        ],
+        "success_indicators": [
+          "authentication_bypass_successful",
+          "admin_user_created",
+          "system_admin_privileges_obtained"
+        ],
+        "common_failures": [
+          "patched_teamcity_version",
+          "network_connectivity_issues",
+          "endpoint_path_changes"
+        ],
+        "follow_up_techniques": [
+          "teamcity_backup_extraction",
+          "debug_mode_exploitation",
+          "credential_harvesting"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Subdomain Enumeration",
+        "mitre_id": "T1590.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u http://{ip} -H \"Host: FUZZ.{domain}\" -w {wordlist} -mc all -ac",
+            "actual_command": "ffuf -u http://10.10.11.13 -H \"Host: FUZZ.runner.htb\" -w /opt/SecLists/Discovery/DNS/bitquark-subdomains-top100000.txt -mc all -ac",
+            "output_pattern": "teamcity                [Status: 401, Size: 66, Words: 8, Lines: 2, Duration: 562ms]",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "target_domain_identified",
+          "comprehensive_wordlist_available",
+          "http_host_header_manipulation_possible"
+        ],
+        "success_indicators": [
+          "additional_subdomains_discovered",
+          "different_http_status_codes_returned",
+          "new_attack_surface_identified"
+        ],
+        "common_failures": [
+          "insufficient_wordlist_coverage",
+          "rate_limiting_blocking_requests",
+          "no_virtual_hosts_configured"
+        ],
+        "follow_up_techniques": [
+          "service_enumeration",
+          "vulnerability_assessment",
+          "credential_attacks"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u http://{target}",
+            "actual_command": "feroxbuster -u http://runner.htb",
+            "output_pattern": "200      GET      391l     1284w    16910c http://runner.htb/",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "appropriate_wordlist_selected",
+          "rate_limiting_considerations"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "interesting_files_found",
+          "admin_panels_located"
+        ],
+        "common_failures": [
+          "aggressive_rate_limiting",
+          "waf_blocking_requests",
+          "static_site_with_no_hidden_content"
+        ],
+        "follow_up_techniques": [
+          "file_content_analysis",
+          "parameter_fuzzing",
+          "technology_stack_identification"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ffuf",
+        "use_case": "subdomain_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_comprehensive_wordlists_for_thorough_coverage",
+          "enable_auto_calibration_to_filter_false_positives",
+          "consider_multiple_wordlist_sizes_for_different_scenarios"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_and_file_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_enumeration"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "include_multiple_http_methods_for_comprehensive_testing",
+          "use_appropriate_file_extensions_based_on_technology_stack",
+          "monitor_for_rate_limiting_and_adjust_threads_accordingly"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "port_scanning_and_service_detection",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "use_fast_port_scan_first_then_detailed_service_detection",
+          "include_version_detection_for_vulnerability_research",
+          "consider_udp_scanning_for_complete_coverage"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "teamcity_reconnaissance_to_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.13",
+            "purpose": "Discover open ports",
+            "expected_output": "Ports 22, 80, 8000 open"
+          },
+          {
+            "step": 2,
+            "command": "ffuf -u http://10.10.11.13 -H \"Host: FUZZ.runner.htb\" -w /opt/SecLists/Discovery/DNS/bitquark-subdomains-top100000.txt -mc all -ac",
+            "purpose": "Enumerate subdomains",
+            "expected_output": "teamcity subdomain discovered"
+          },
+          {
+            "step": 3,
+            "command": "curl -I http://teamcity.runner.htb",
+            "purpose": "Identify TeamCity version",
+            "expected_output": "TeamCity 2023.05.3 login page"
+          },
+          {
+            "step": 4,
+            "command": "curl -X POST http://teamcity.runner.htb/app/rest/users/RPC2 -H 'Content-Type: application/json' -d '{\"username\": \"admin\", \"password\": \"password\"}'",
+            "purpose": "Exploit CVE-2023-42793 authentication bypass",
+            "expected_output": "Admin user created successfully"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-40 minutes"
+      },
+      {
+        "sequence_name": "comprehensive_web_enumeration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "feroxbuster -u http://runner.htb",
+            "purpose": "Enumerate main website directories",
+            "expected_output": "Static website structure discovered"
+          },
+          {
+            "step": 2,
+            "command": "feroxbuster -u http://runner.htb:8000 -m GET,POST",
+            "purpose": "Enumerate API endpoints",
+            "expected_output": "Health and version endpoints found"
+          },
+          {
+            "step": 3,
+            "command": "curl runner.htb:8000/version",
+            "purpose": "Identify API version",
+            "expected_output": "Version 0.0.0-src"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Runner",
+      "difficulty": "Medium",
+      "os": "Ubuntu 22.04",
+      "platform": "HackTheBox",
+      "release_date": "2024-04-20",
+      "author": "TheCyberGeek",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "container_escape",
+        "api_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "teamcity_auth_bypass",
+        "runc_cve",
+        "container_misconfiguration"
+      ],
+      "environment_type": "containerized_ci_cd_environment",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "ci_cd_security",
+        "container_escape",
+        "api_token_abuse",
+        "portainer_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "docker_basics",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "container_escape",
+        "ci_cd_exploitation",
+        "api_abuse"
+      ],
+      "attack_types": [
+        "authentication_bypass",
+        "privilege_escalation",
+        "container_escape"
+      ],
+      "defensive_lessons": [
+        "secure_ci_cd_configuration",
+        "container_hardening",
+        "api_security",
+        "least_privilege"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Delivery",
+        "Forge",
+        "Backdoor"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "container_technologies",
+        "multi_stage_exploitation"
+      ],
+      "unique_aspects": [
+        "teamcity_exploitation",
+        "runc_vulnerability",
+        "portainer_abuse"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "container_escape_techniques",
+        "non_standard_exploitation_path"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T22:42:20.967504",
+    "original_file": "0xdf_writeups/Htb Runner.md",
+    "content_length": 53013,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

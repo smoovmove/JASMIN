@@ -1,0 +1,943 @@
+{
+  "writeup_id": "Htb_Altered",
+  "scenario_fingerprint": {
+    "scenario_name": "laravel_password_reset_bypass_sqli",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "password_reset_brute_force",
+    "privilege_path": "web_user_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "120-180 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "laravel_framework",
+      "password_reset_rate_limit_bypass",
+      "type_juggling_vulnerability",
+      "sql_injection_with_integrity_check",
+      "dirty_pipe_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "laravel_session_cookies",
+      "xsrf_token_headers",
+      "nginx_php_backend",
+      "ubuntu_20_04_focal",
+      "pam_wordle_authentication"
+    ],
+    "similar_scenarios": [
+      "ransom_htb_medium",
+      "laravel_web_apps"
+    ],
+    "unique_aspects": [
+      "uhc_themed_application",
+      "http_header_rate_limit_bypass",
+      "pam_wordle_custom_auth",
+      "dirty_pipe_suid_overwrite"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Password Reset Pin Brute Force",
+        "success_reason": "Rate limiting bypassed using HTTP headers (X-Originating-IP)",
+        "prerequisite_indicators": [
+          "password_reset_functionality_exists",
+          "numeric_pin_authentication",
+          "session_based_reset_process"
+        ],
+        "recognition_patterns": [
+          "forgot password functionality",
+          "pin-based verification system",
+          "rate limiting responses",
+          "session cookies maintained across requests"
+        ],
+        "failure_modes": [
+          "proper_rate_limiting_implementation",
+          "account_lockout_mechanisms",
+          "captcha_protection",
+          "ip_based_blocking"
+        ],
+        "environmental_factors": [
+          "laravel_framework_application",
+          "insufficient_rate_limiting_controls",
+          "header_based_ip_detection"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "SQL Injection via Type Juggling",
+        "success_reason": "PHP type juggling bypassed integrity check allowing SQL injection",
+        "prerequisite_indicators": [
+          "php_application_with_loose_comparisons",
+          "user_controlled_input_parameters",
+          "database_interaction_endpoints"
+        ],
+        "recognition_patterns": [
+          "laravel framework indicators",
+          "json payload acceptance",
+          "loose comparison vulnerabilities",
+          "integrity hash validation present"
+        ],
+        "failure_modes": [
+          "strict_comparison_operators_used",
+          "proper_input_validation",
+          "parameterized_queries_only",
+          "strong_integrity_checks"
+        ],
+        "environmental_factors": [
+          "laravel_php_framework",
+          "developer_security_misconceptions",
+          "legacy_code_patterns"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Dirty Pipe Privilege Escalation",
+        "success_reason": "Kernel vulnerability CVE-2022-0847 present with custom exploitation approach",
+        "prerequisite_indicators": [
+          "linux_kernel_5.8_to_5.16.11",
+          "unprivileged_user_access",
+          "writable_files_available"
+        ],
+        "recognition_patterns": [
+          "vulnerable kernel version",
+          "pam-wordle authentication present",
+          "suid binaries available",
+          "pipe_buffer_overwrite_possible"
+        ],
+        "failure_modes": [
+          "kernel_patched_against_dirty_pipe",
+          "no_suitable_target_files",
+          "enhanced_security_controls",
+          "container_restrictions"
+        ],
+        "environmental_factors": [
+          "ubuntu_20.04_base_system",
+          "custom_pam_modules_installed",
+          "unpatched_kernel_vulnerability"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "15-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "UHC player usernames",
+        "discovery_method": "Public information gathering from UHC winners page",
+        "why_critical": "Enabled username enumeration and password reset attack",
+        "how_to_recognize": [
+          "contest/competition related applications",
+          "public participant lists available",
+          "username enumeration via error messages"
+        ],
+        "follow_up_actions": [
+          "enumerate_valid_usernames",
+          "attempt_password_reset_attacks",
+          "test_rate_limiting_bypasses"
+        ]
+      },
+      {
+        "discovery": "Rate limiting bypass via headers",
+        "discovery_method": "Testing X-Originating-IP header manipulation",
+        "why_critical": "Allowed brute force of 4-digit PIN despite rate limiting",
+        "how_to_recognize": [
+          "rate limiting error messages",
+          "application accepts forwarded headers",
+          "ip-based rate limiting implementation"
+        ],
+        "follow_up_actions": [
+          "test_various_ip_headers",
+          "automate_pin_brute_force",
+          "maintain_session_cookies"
+        ]
+      },
+      {
+        "discovery": "Type juggling vulnerability in integrity check",
+        "discovery_method": "PHP loose comparison exploitation",
+        "why_critical": "Bypassed security controls to enable SQL injection",
+        "how_to_recognize": [
+          "php application with json input",
+          "hash-based integrity validation",
+          "loose comparison operators in code"
+        ],
+        "follow_up_actions": [
+          "craft_type_juggling_payload",
+          "test_sql_injection_vectors",
+          "attempt_file_write_via_sql"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "authenticated_user",
+        "escalation_method": "SQL_injection_to_webshell",
+        "why_possible": "Type juggling bypassed integrity check allowing database file write",
+        "recognition_signs": [
+          "sql_injection_confirmed",
+          "database_file_write_permissions",
+          "web_root_accessible_location"
+        ],
+        "exploitation_path": "Type Juggling → SQL Injection → INTO OUTFILE → Webshell"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "dirty_pipe_kernel_exploit",
+        "why_possible": "Vulnerable kernel version with custom exploitation technique",
+        "recognition_signs": [
+          "kernel_version_5.8_to_5.16.11",
+          "pam_wordle_authentication_bypass_needed",
+          "suid_binary_overwrite_possible"
+        ],
+        "exploitation_path": "Dirty Pipe → SUID Binary Overwrite → Root Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with Laravel application",
+        "decision": "Enumerate Laravel application for authentication bypass opportunities",
+        "reasoning": "Laravel applications often have predictable vulnerabilities like type juggling, password reset flaws",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "directory_brute_force",
+            "when": "if no obvious auth bypass"
+          },
+          {
+            "option": "credential_stuffing",
+            "when": "if user enumeration possible"
+          }
+        ],
+        "success_indicators": [
+          "laravel_session_cookie_present",
+          "password_reset_functionality_found",
+          "user_enumeration_possible"
+        ],
+        "next_decision": "exploit_password_reset_mechanism"
+      },
+      {
+        "step": 2,
+        "situation": "Found password reset with 4-digit PIN and rate limiting",
+        "decision": "Bypass rate limiting using HTTP headers before brute forcing PIN",
+        "reasoning": "4-digit PIN is easily brute forceable if rate limiting bypassed",
+        "confidence": 0.9,
+        "prerequisites": [
+          "valid_username_identified",
+          "password_reset_endpoint_found"
+        ],
+        "success_indicators": [
+          "rate_limit_bypassed",
+          "different_response_lengths"
+        ],
+        "failure_fallbacks": [
+          "session_manipulation",
+          "cookie_tampering",
+          "ip_rotation"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Gained authenticated access to Laravel application",
+        "decision": "Look for SQL injection in authenticated endpoints",
+        "reasoning": "Laravel applications often have SQL injection in admin/authenticated areas",
+        "confidence": 0.75,
+        "prerequisites": [
+          "authenticated_session_obtained"
+        ],
+        "success_indicators": [
+          "database_errors",
+          "time_delays",
+          "boolean_responses"
+        ],
+        "failure_fallbacks": [
+          "file_upload_vulnerabilities",
+          "deserialization_attacks",
+          "type_juggling"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Found SQL injection with integrity check bypass needed",
+        "decision": "Use type juggling to bypass integrity checks then exploit SQL injection",
+        "reasoning": "Laravel type juggling combined with SQL injection is common pattern",
+        "confidence": 0.8,
+        "prerequisites": [
+          "sql_injection_identified",
+          "integrity_check_present"
+        ],
+        "success_indicators": [
+          "file_write_successful",
+          "webshell_uploaded"
+        ],
+        "failure_fallbacks": [
+          "alternative_sqli_techniques",
+          "union_based_injection"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_rate_limit_bypass_succeeds": {
+        "action": "brute_force_pin_with_headers",
+        "tools": [
+          "wfuzz",
+          "burp_intruder"
+        ],
+        "headers": [
+          "X-Originating-IP",
+          "X-Forwarded-For",
+          "X-Real-IP"
+        ],
+        "next_phase": "authenticated_enumeration"
+      },
+      "if_pin_brute_force_succeeds": {
+        "action": "access_authenticated_areas",
+        "purpose": "find_additional_attack_vectors",
+        "tools": [
+          "burp_suite",
+          "manual_testing"
+        ]
+      },
+      "if_sql_injection_found": {
+        "action": "attempt_file_write_for_webshell",
+        "bypass_methods": [
+          "type_juggling",
+          "parameter_pollution"
+        ],
+        "tools": [
+          "sqlmap",
+          "manual_injection"
+        ]
+      },
+      "if_webshell_uploaded": {
+        "action": "establish_reverse_shell",
+        "next_phase": "privilege_escalation_enumeration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_rate_limit_bypass_headers_first",
+        "reasoning": "common_bypass_technique_with_high_success_rate",
+        "applicability": "web_applications_with_rate_limiting",
+        "headers": [
+          "X-Originating-IP",
+          "X-Forwarded-For",
+          "X-Real-IP",
+          "X-Remote-IP"
+        ]
+      },
+      {
+        "rule": "combine_type_juggling_with_sql_injection_on_laravel",
+        "reasoning": "laravel_applications_vulnerable_to_both_simultaneously",
+        "applicability": "laravel_framework_identified"
+      },
+      {
+        "rule": "prioritize_authenticated_endpoints_for_injection",
+        "reasoning": "less_input_validation_in_authenticated_areas",
+        "applicability": "after_authentication_bypass"
+      },
+      {
+        "rule": "use_into_outfile_for_webshell_on_linux_mysql",
+        "reasoning": "direct_file_write_capability_for_code_execution",
+        "applicability": "mysql_database_with_file_privileges"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Laravel Type Juggling",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "laravel_framework_detected",
+          "php_backend",
+          "loose_comparison_vulnerable_endpoint"
+        ],
+        "success_indicators": [
+          "laravel_session_cookie_present",
+          "xsrf_token_in_response",
+          "json_parameter_acceptance",
+          "authentication_bypass_successful"
+        ],
+        "incompatible_with": [
+          "strict_type_checking_enabled",
+          "input_validation_sanitized",
+          "framework_patched_recent"
+        ],
+        "confidence_boosters": [
+          "laravel_error_pages",
+          "typical_laravel_routing_patterns",
+          "blade_template_indicators"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Password Reset PIN Bruteforce",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "password_reset_functionality",
+          "numeric_pin_verification",
+          "session_based_verification"
+        ],
+        "success_indicators": [
+          "forgot_password_endpoint_exists",
+          "pin_verification_endpoint_accessible",
+          "rate_limiting_bypassable",
+          "session_cookies_maintained"
+        ],
+        "incompatible_with": [
+          "strong_rate_limiting",
+          "account_lockout_enabled",
+          "captcha_protection",
+          "ip_based_blocking"
+        ],
+        "confidence_boosters": [
+          "x_forwarded_for_accepted",
+          "x_real_ip_accepted",
+          "short_numeric_pins",
+          "no_attempt_counter_visible"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "SQL Injection via Type Juggling Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_database",
+          "php_backend",
+          "integrity_check_bypassable",
+          "sql_injection_vulnerable_endpoint"
+        ],
+        "success_indicators": [
+          "database_error_messages",
+          "time_based_delays_observable",
+          "union_queries_successful",
+          "file_write_permissions_available"
+        ],
+        "incompatible_with": [
+          "prepared_statements_only",
+          "strict_input_validation",
+          "waf_protection_active"
+        ],
+        "confidence_boosters": [
+          "php_loose_comparisons",
+          "json_parameter_handling",
+          "custom_integrity_checks",
+          "mysql_backend_detected"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Dirty Pipe Privilege Escalation",
+        "mitre_id": "T1068",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "linux_kernel_vulnerable_version",
+          "file_write_access_available",
+          "suid_binaries_present"
+        ],
+        "success_indicators": [
+          "kernel_version_5_8_to_5_17",
+          "cve_2022_0847_exploitable",
+          "passwd_file_writable",
+          "suid_executable_overwritable"
+        ],
+        "incompatible_with": [
+          "kernel_patched_recent",
+          "grsecurity_enabled",
+          "selinux_enforcing"
+        ],
+        "confidence_boosters": [
+          "ubuntu_20_04_detected",
+          "unpatched_system",
+          "standard_suid_binaries",
+          "pam_wordle_detected"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "laravel_framework": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "laravel_session",
+          "XSRF-TOKEN",
+          "nginx",
+          "apache"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "php_backend": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          "X-Powered-By: PHP"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "password_reset_pin_bruteforce",
+          "when": "password_reset_functionality_detected",
+          "reason": "often_weak_rate_limiting_and_short_pins"
+        },
+        {
+          "attack": "laravel_type_juggling",
+          "when": "laravel_framework_detected",
+          "reason": "common_vulnerability_in_older_versions"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "sql_injection_discovery",
+          "when": "web_application_with_parameters_detected",
+          "reason": "requires_endpoint_discovery_but_high_impact"
+        },
+        {
+          "attack": "dirty_pipe_exploitation",
+          "when": "linux_shell_access_obtained",
+          "reason": "recent_vulnerability_high_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Rate Limit Bypass via HTTP Headers",
+        "mitre_id": "T1110.003",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u {target_url} -d 'name={username}&pin=FUZZ' -z range,0000-9999 -H 'Cookie: {session_cookies}' -H 'X-Originating-IP: FUZ2Z' -w {ip_list} -m zip --hh {default_response_length}",
+            "actual_command": "wfuzz -u http://10.10.11.159/api/resettoken -d 'name=big0us&pin=FUZZ' -z range,0000-9999 -H 'Cookie: XSRF-TOKEN=...; laravel_session=...' -H 'X-Originating-IP: FUZ2Z' -w ips -m zip --hh 5645",
+            "output_pattern": "Different response length indicates successful bypass",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "bash",
+            "command_template": "for i in {0..50}; do for j in {0..250}; do echo '10.10.$i.$j'; done; done > {ip_file}",
+            "actual_command": "for i in {0..50}; do for j in {0..250}; do echo '10.10.$i.$j'; done; done > ips",
+            "success_factors": [
+              "generates_unique_ips",
+              "sufficient_quantity_for_brute_force"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "rate_limiting_implemented",
+          "server_trusts_forwarded_headers",
+          "session_cookies_available",
+          "known_valid_username"
+        ],
+        "success_indicators": [
+          "429_responses_avoided",
+          "brute_force_completes_successfully",
+          "valid_pin_discovered",
+          "authentication_bypass_achieved"
+        ],
+        "common_failures": [
+          "server_ignores_forwarded_headers",
+          "insufficient_ip_pool",
+          "session_cookies_expire",
+          "wrong_header_format"
+        ],
+        "follow_up_techniques": [
+          "session_hijacking",
+          "authenticated_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Laravel Framework Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "manual_analysis",
+            "command_template": "curl -H 'Cookie: {cookies}' {target_url}",
+            "actual_command": "curl -H 'Cookie: laravel_session=...' http://10.10.11.159/api/resettoken",
+            "output_pattern": "laravel_session cookie indicates Laravel framework",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "laravel_framework_identified",
+          "session_cookies_present",
+          "vulnerable_endpoints_discovered"
+        ],
+        "success_indicators": [
+          "framework_version_identified",
+          "session_structure_understood",
+          "vulnerable_functionality_located"
+        ],
+        "common_failures": [
+          "framework_hardened",
+          "custom_implementations",
+          "updated_versions"
+        ],
+        "follow_up_techniques": [
+          "type_juggling_attacks",
+          "sql_injection",
+          "file_upload_bypass"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Username Enumeration",
+        "mitre_id": "T1087.001",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "manual_testing",
+            "command_template": "curl -X POST -d 'username={test_user}&password={test_pass}' {login_url}",
+            "actual_command": "curl -X POST -d 'username=big0us&password=test' http://10.10.11.159/login",
+            "output_pattern": "Invalid Username vs Invalid Password responses",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "login_form_available",
+          "different_error_messages",
+          "known_potential_usernames"
+        ],
+        "success_indicators": [
+          "valid_usernames_identified",
+          "error_message_differences_confirmed",
+          "user_list_compiled"
+        ],
+        "common_failures": [
+          "generic_error_messages",
+          "account_lockout_mechanisms",
+          "rate_limiting_active"
+        ],
+        "follow_up_techniques": [
+          "password_brute_force",
+          "password_reset_abuse",
+          "credential_stuffing"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wfuzz",
+        "use_case": "rate_limit_bypass_brute_force",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing",
+          "brute_force_attacks"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "ffuf",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_zip_mode_for_paired_payloads",
+          "hide_default_responses_with_hh_parameter",
+          "rotate_source_ips_via_headers",
+          "maintain_session_cookies_throughout_attack"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "initial_port_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "reconnaissance",
+          "service_enumeration"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan",
+          "zmap"
+        ],
+        "best_practices": [
+          "start_with_fast_port_scan",
+          "follow_up_with_service_detection",
+          "use_appropriate_timing_templates",
+          "save_output_in_multiple_formats"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing",
+          "content_discovery"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "include_relevant_file_extensions",
+          "use_appropriate_wordlists",
+          "configure_proper_recursion_depth",
+          "filter_irrelevant_status_codes"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "rate_limit_bypass_pin_brute_force",
+        "steps": [
+          {
+            "step": 1,
+            "command": "for i in {0..50}; do for j in {0..250}; do echo '10.10.$i.$j'; done; done > ips",
+            "purpose": "Generate unique IP addresses for header spoofing",
+            "expected_output": "File with 12,801 unique IP addresses"
+          },
+          {
+            "step": 2,
+            "command": "wfuzz -u http://10.10.11.159/api/resettoken -d 'name=big0us&pin=FUZZ' -z range,0000-9999 -H 'Cookie: [session_cookies]' -H 'X-Originating-IP: FUZ2Z' -w ips -m zip --hh 5645",
+            "purpose": "Brute force 4-digit PIN while bypassing rate limits",
+            "expected_output": "Different response length indicating correct PIN"
+          },
+          {
+            "step": 3,
+            "command": "curl -X POST -d 'name=big0us&pin=[discovered_pin]' -H 'Cookie: [session_cookies]' http://10.10.11.159/api/resettoken",
+            "purpose": "Confirm PIN validity and gain access",
+            "expected_output": "Successful authentication response"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "laravel_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -I http://10.10.11.159/",
+            "purpose": "Identify web server and framework indicators",
+            "expected_output": "Headers showing nginx and Laravel session cookies"
+          },
+          {
+            "step": 2,
+            "command": "curl http://10.10.11.159/index.php",
+            "purpose": "Confirm PHP backend",
+            "expected_output": "Redirect to /index.php/login confirming PHP"
+          },
+          {
+            "step": 3,
+            "command": "feroxbuster -u http://10.10.11.159 -x php",
+            "purpose": "Discover PHP endpoints and directories",
+            "expected_output": "List of accessible PHP files and directories"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Altered",
+      "difficulty": "Hard",
+      "os": "Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2022-03-30",
+      "author": "ippsec",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_application",
+        "sql_injection",
+        "kernel_exploit"
+      ],
+      "key_vulnerabilities": [
+        "rate_limit_bypass",
+        "type_juggling",
+        "sql_injection",
+        "dirty_pipe"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "laravel_exploitation",
+        "type_juggling_attacks",
+        "dirty_pipe_exploitation",
+        "rate_limiting_bypass"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "sql_injection",
+        "php_type_juggling",
+        "linux_kernel_exploits"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "sql_injection",
+        "kernel_exploitation",
+        "authentication_bypass"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "implement_proper_rate_limiting",
+        "validate_input_types",
+        "keep_kernel_updated",
+        "secure_authentication_mechanisms"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Knife",
+        "Writer",
+        "Timing"
+      ],
+      "similarity_reasons": [
+        "laravel_framework",
+        "web_exploitation",
+        "complex_attack_chains"
+      ],
+      "unique_aspects": [
+        "pam_wordle_authentication",
+        "dirty_pipe_suid_overwrite",
+        "http_header_rate_limit_bypass"
+      ],
+      "difficulty_factors": [
+        "multiple_exploitation_stages",
+        "advanced_php_concepts",
+        "kernel_exploit_customization"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T20:18:57.707891",
+    "original_file": "0xdf_writeups/Htb Altered.md",
+    "content_length": 41534,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

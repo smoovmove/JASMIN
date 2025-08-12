@@ -1,0 +1,1026 @@
+{
+  "writeup_id": "Htb_Sherlock_I_Like_To",
+  "scenario_fingerprint": {
+    "scenario_name": "moveit_transfer_cve_2023_34362_exploitation",
+    "primary_services": [
+      "http",
+      "iis",
+      "sql_server",
+      "rdp"
+    ],
+    "port_signature": "80+443+1433+3389",
+    "service_combination": "iis+sql_server+rdp",
+    "os_family": "windows_server",
+    "environment_type": "file_transfer_server",
+    "entry_vector": "sql_injection_deserialization",
+    "privilege_path": "webshell_to_service_account_compromise",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "moveit_transfer_application",
+      "cve_2023_34362_sqli",
+      "metasploit_exploitation",
+      "webshell_upload_after_sqli"
+    ],
+    "environmental_clues": [
+      "iis_web_server",
+      "aspx_application_stack",
+      "file_transfer_service",
+      "guest_access_endpoint"
+    ],
+    "similar_scenarios": [
+      "file_transfer_server_compromise",
+      "iis_webshell_upload"
+    ],
+    "unique_aspects": [
+      "moveit_specific_endpoints",
+      "deserialization_via_sqli",
+      "service_account_password_change",
+      "defender_webshell_quarantine"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection_CVE-2023-34362",
+        "success_reason": "MOVEit Transfer server vulnerable to SQL injection with deserialization RCE",
+        "prerequisite_indicators": [
+          "moveit_transfer_service_running",
+          "vulnerable_version_installed",
+          "guest_access_enabled",
+          "api_endpoints_accessible"
+        ],
+        "recognition_patterns": [
+          "POST requests to /api/v1/folders/{id}/files",
+          "POST requests to /guestaccess.aspx",
+          "ysoserial payload patterns in requests",
+          "Ruby user agent from Metasploit"
+        ],
+        "failure_modes": [
+          "patched_moveit_version",
+          "guest_access_disabled",
+          "web_application_firewall_blocking",
+          "network_segmentation"
+        ],
+        "environmental_factors": [
+          "unpatched_moveit_installation",
+          "internet_facing_service",
+          "default_configurations",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Metasploit_Exploitation",
+        "success_reason": "Automated exploitation framework with reliable payload delivery",
+        "prerequisite_indicators": [
+          "vulnerable_web_application",
+          "deserialization_possible",
+          "command_execution_context"
+        ],
+        "recognition_patterns": [
+          "Ruby user agent strings",
+          "hardcoded MyPkgInstID value 1234",
+          "random alphanumeric email patterns",
+          "ysoserial.exe payload signatures"
+        ],
+        "failure_modes": [
+          "antivirus_blocking_payloads",
+          "application_whitelisting",
+          "network_monitoring_detection"
+        ],
+        "environmental_factors": [
+          "windows_server_environment",
+          "java_application_context",
+          "insufficient_endpoint_protection"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "Password_Change_via_RCE",
+        "success_reason": "Command execution allowed direct manipulation of service account",
+        "prerequisite_indicators": [
+          "system_level_command_execution",
+          "service_account_accessible",
+          "administrative_privileges"
+        ],
+        "recognition_patterns": [
+          "net user commands in logs",
+          "password change events in security logs",
+          "service account modification"
+        ],
+        "failure_modes": [
+          "insufficient_privileges",
+          "account_lockout_policies",
+          "password_complexity_requirements"
+        ],
+        "environmental_factors": [
+          "service_running_as_privileged_user",
+          "weak_password_policies",
+          "insufficient_account_monitoring"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Webshell_Upload",
+        "success_reason": "RCE capability allowed file system write access to web directory",
+        "prerequisite_indicators": [
+          "web_directory_write_permissions",
+          "command_execution_available",
+          "web_server_file_execution"
+        ],
+        "recognition_patterns": [
+          "ASPX file uploads to web directories",
+          "file creation in inetpub/wwwroot",
+          "webshell characteristic strings",
+          "HTTP requests to uploaded files"
+        ],
+        "failure_modes": [
+          "antivirus_quarantine",
+          "file_integrity_monitoring",
+          "web_directory_permissions",
+          "application_whitelisting"
+        ],
+        "environmental_factors": [
+          "writable_web_directories",
+          "insufficient_file_monitoring",
+          "permissive_antivirus_settings"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "MOVEit Transfer CVE-2023-34362 exploitation",
+        "discovery_method": "IIS log analysis and memory dump strings",
+        "why_critical": "Initial compromise vector leading to full system access",
+        "how_to_recognize": [
+          "SQL injection patterns in MOVEit API calls",
+          "ysoserial deserialization payloads",
+          "Ruby user agent from Metasploit",
+          "POST requests to /api/v1/folders/ endpoints"
+        ],
+        "follow_up_actions": [
+          "analyze_iis_logs_for_exploitation",
+          "check_moveit_version_and_patches",
+          "examine_database_for_injection_artifacts",
+          "review_network_logs_for_c2"
+        ]
+      },
+      {
+        "discovery": "moveitsvc service account compromise",
+        "discovery_method": "Windows Security Event logs and PowerShell history",
+        "why_critical": "Service account provided persistent access and privilege escalation",
+        "how_to_recognize": [
+          "password change events for service accounts",
+          "net user commands in command history",
+          "RDP logon events for service accounts",
+          "unusual service account activity"
+        ],
+        "follow_up_actions": [
+          "reset_service_account_password",
+          "audit_service_account_permissions",
+          "check_for_persistent_access_methods",
+          "review_rdp_access_logs"
+        ]
+      },
+      {
+        "discovery": "ASPX webshell deployment",
+        "discovery_method": "MFT analysis and Defender quarantine logs",
+        "why_critical": "Provided persistent backdoor access to compromised system",
+        "how_to_recognize": [
+          "ASPX files in web directories",
+          "antivirus quarantine events",
+          "file creation timestamps in MFT",
+          "HTTP requests to suspicious ASPX files"
+        ],
+        "follow_up_actions": [
+          "remove_webshell_files",
+          "analyze_webshell_functionality",
+          "check_for_additional_backdoors",
+          "review_web_access_logs"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "initial_compromise",
+        "escalation_method": "SQL_injection_to_RCE",
+        "why_possible": "MOVEit vulnerability allowed deserialization attack leading to command execution",
+        "recognition_signs": [
+          "ysoserial_payloads_in_requests",
+          "java_deserialization_patterns",
+          "command_execution_artifacts",
+          "metasploit_framework_indicators"
+        ],
+        "exploitation_path": "SQL Injection → Deserialization → Remote Code Execution"
+      },
+      {
+        "privilege_level": "code_execution",
+        "escalation_method": "service_account_takeover",
+        "why_possible": "RCE context allowed modification of service account credentials",
+        "recognition_signs": [
+          "net_user_password_change_commands",
+          "security_event_4724_password_reset",
+          "service_account_logon_events",
+          "rdp_access_with_service_account"
+        ],
+        "exploitation_path": "RCE → Password Change → Service Account Access → RDP"
+      },
+      {
+        "privilege_level": "authenticated_access",
+        "escalation_method": "webshell_persistence",
+        "why_possible": "Authenticated access allowed file upload to web-accessible directories",
+        "recognition_signs": [
+          "aspx_files_in_web_directories",
+          "webshell_characteristic_code",
+          "http_requests_to_backdoor_files",
+          "antivirus_detection_and_evasion"
+        ],
+        "exploitation_path": "Service Account → File Upload → Webshell → Persistent Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found MOVEit Transfer server with SQL injection vulnerability (CVE-2023-34362)",
+        "decision": "Exploit SQL injection to achieve remote code execution via deserialization",
+        "reasoning": "MOVEit CVE-2023-34362 allows SQL injection leading to RCE through deserialization attacks",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "direct_sql_extraction",
+            "when": "if RCE fails"
+          },
+          {
+            "option": "file_upload_bypass",
+            "when": "if deserialization blocked"
+          }
+        ],
+        "success_indicators": [
+          "csrf_token_obtained_from_guestaccess",
+          "sql_injection_successful",
+          "deserialization_payload_executed"
+        ],
+        "next_decision": "choose_post_exploitation_method"
+      },
+      {
+        "step": 2,
+        "situation": "Achieved initial code execution via MOVEit exploit",
+        "decision": "Change service account password for persistent access",
+        "reasoning": "Service accounts often have elevated privileges and password change enables RDP access",
+        "confidence": 0.85,
+        "prerequisites": [
+          "code_execution_achieved",
+          "service_account_identified"
+        ],
+        "success_indicators": [
+          "password_change_successful",
+          "account_lockout_avoided"
+        ],
+        "failure_fallbacks": [
+          "webshell_upload",
+          "scheduled_task_creation",
+          "registry_persistence"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Service account password changed successfully",
+        "decision": "Use RDP for interactive access before deploying webshell",
+        "reasoning": "RDP provides full interactive access for reconnaissance and file operations",
+        "confidence": 0.9,
+        "prerequisites": [
+          "valid_credentials",
+          "rdp_enabled",
+          "network_access"
+        ],
+        "success_indicators": [
+          "rdp_session_established",
+          "interactive_commands_possible"
+        ],
+        "failure_fallbacks": [
+          "webshell_deployment",
+          "winrm_access",
+          "smb_access"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Interactive access established via RDP",
+        "decision": "Deploy webshell for persistent web-based access",
+        "reasoning": "Webshell provides covert access channel that bypasses network restrictions",
+        "confidence": 0.8,
+        "prerequisites": [
+          "web_directory_write_access",
+          "antivirus_bypass_method"
+        ],
+        "success_indicators": [
+          "webshell_uploaded",
+          "webshell_accessible",
+          "commands_executable"
+        ],
+        "failure_fallbacks": [
+          "alternative_webshell",
+          "different_upload_location",
+          "encoded_payload"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_sql_injection_succeeds": {
+        "action": "attempt_deserialization_rce",
+        "tools": [
+          "metasploit",
+          "ysoserial"
+        ],
+        "next_phase": "credential_modification"
+      },
+      "if_initial_webshell_blocked": {
+        "action": "try_alternative_webshell_variants",
+        "alternatives": [
+          "different_file_extension",
+          "encoded_payload",
+          "alternative_webshell_family"
+        ],
+        "decision_criteria": "based_on_antivirus_detection_method"
+      },
+      "if_service_account_compromised": {
+        "action": "establish_multiple_persistence_methods",
+        "methods": [
+          "rdp_access",
+          "webshell_deployment",
+          "scheduled_tasks"
+        ],
+        "purpose": "ensure_continued_access"
+      },
+      "if_antivirus_detects_webshell": {
+        "action": "modify_webshell_signature",
+        "techniques": [
+          "rename_functions",
+          "change_file_extension",
+          "use_different_webshell"
+        ],
+        "tools": [
+          "custom_webshell",
+          "awen_webshell"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "exploit_moveit_via_metasploit_for_reliability",
+        "reasoning": "metasploit_module_handles_csrf_tokens_and_deserialization_automatically",
+        "applicability": "moveit_transfer_servers"
+      },
+      {
+        "rule": "change_service_account_passwords_before_webshell_deployment",
+        "reasoning": "provides_reliable_interactive_access_for_file_operations",
+        "applicability": "when_service_accounts_identified"
+      },
+      {
+        "rule": "use_multiple_webshell_variants_if_av_present",
+        "reasoning": "antivirus_may_detect_common_webshells_but_miss_variants",
+        "applicability": "environments_with_endpoint_protection"
+      },
+      {
+        "rule": "establish_rdp_access_when_possible",
+        "reasoning": "provides_full_interactive_capability_and_easier_file_operations",
+        "applicability": "windows_environments_with_rdp_enabled"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "MOVEit SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "moveit_transfer_server",
+          "iis_web_server",
+          "sql_server_backend",
+          "guestaccess_endpoint_available"
+        ],
+        "success_indicators": [
+          "guestaccess_aspx_responds",
+          "api_folders_endpoint_accessible",
+          "csrf_token_retrievable",
+          "deserialization_payload_accepted"
+        ],
+        "incompatible_with": [
+          "moveit_patched",
+          "web_application_firewall_blocking",
+          "guest_access_disabled"
+        ],
+        "confidence_boosters": [
+          "moveit_version_vulnerable",
+          "default_configuration",
+          "internet_facing_server"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Webshell Upload",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_write_access",
+          "aspx_execution_enabled",
+          "initial_compromise_achieved"
+        ],
+        "success_indicators": [
+          "aspx_file_uploaded_successfully",
+          "webshell_responds_to_requests",
+          "command_execution_available"
+        ],
+        "incompatible_with": [
+          "antivirus_quarantine_active",
+          "file_upload_restrictions",
+          "aspx_execution_disabled"
+        ],
+        "confidence_boosters": [
+          "iis_web_server",
+          "wwwroot_writable",
+          "defender_disabled"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Password Change via Deserialization",
+        "mitre_id": "T1098.001",
+        "required_services": [
+          "active_directory",
+          "sql_server"
+        ],
+        "required_ports": [
+          1433,
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "sql_injection_available",
+          "deserialization_vulnerability",
+          "service_account_accessible"
+        ],
+        "success_indicators": [
+          "password_change_event_logged",
+          "account_modification_successful",
+          "new_credentials_functional"
+        ],
+        "incompatible_with": [
+          "account_lockout_policies",
+          "privileged_account_protection",
+          "deserialization_blocked"
+        ],
+        "confidence_boosters": [
+          "service_account_identified",
+          "administrative_privileges",
+          "event_logging_enabled"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-25 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "moveit_server": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "iis"
+        ],
+        "banner_indicators": [
+          "MOVEit",
+          "Progress Software",
+          "guestaccess.aspx"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "iis_web_server": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "ASP.NET"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "sql_server": {
+        "port_indicators": [
+          1433,
+          1434
+        ],
+        "service_indicators": [
+          "mssql",
+          "sql-server"
+        ],
+        "banner_indicators": [
+          "Microsoft SQL Server",
+          "MSSQLSERVER"
+        ],
+        "confidence_threshold": 0.88
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "moveit_sql_injection",
+          "when": "moveit_server_detected",
+          "reason": "known_critical_vulnerability_high_success_rate"
+        },
+        {
+          "attack": "webshell_upload",
+          "when": "initial_compromise_achieved",
+          "reason": "persistence_and_command_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "password_modification",
+          "when": "service_accounts_identified",
+          "reason": "lateral_movement_opportunity"
+        },
+        {
+          "attack": "rdp_access",
+          "when": "credentials_obtained",
+          "reason": "interactive_access_for_further_exploitation"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "MOVEit SQL Injection Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Metasploit",
+            "command_template": "use exploit/windows/http/moveit_cve_2023_34362",
+            "actual_command": "Not specified in writeup",
+            "output_pattern": "Ruby user agent, random email addresses",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "Nmap",
+            "command_template": "nmap -sC -sV {target}",
+            "actual_command": "nmap scanning with scripting engine",
+            "success_factors": [
+              "service_enumeration",
+              "vulnerability_identification"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "moveit_server_accessible",
+          "cve_2023_34362_vulnerable_version",
+          "guestaccess_endpoint_available"
+        ],
+        "success_indicators": [
+          "csrf_token_obtained_from_guestaccess",
+          "sql_injection_payload_executed",
+          "deserialization_attack_successful",
+          "remote_code_execution_achieved"
+        ],
+        "common_failures": [
+          "patched_moveit_version",
+          "network_connectivity_issues",
+          "waf_blocking_payloads"
+        ],
+        "follow_up_techniques": [
+          "webshell_upload",
+          "credential_modification",
+          "rdp_access"
+        ],
+        "time_investment": "15-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Webshell Upload and Deployment",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "ASPX Webshell",
+            "command_template": "Upload via exploited file upload functionality",
+            "actual_command": "POST to /api/v1/folders/{folder_id}/files",
+            "output_pattern": "ASPX file in web directory",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "ASP Webshell",
+            "command_template": "Alternative webshell format",
+            "actual_command": "Failed upload attempt",
+            "success_factors": [
+              "correct_file_extension",
+              "bypass_av_detection"
+            ],
+            "effectiveness_rating": 2
+          }
+        ],
+        "prerequisites": [
+          "file_upload_capability",
+          "web_directory_write_access",
+          "bypass_antivirus_detection"
+        ],
+        "success_indicators": [
+          "webshell_file_uploaded_successfully",
+          "webshell_accessible_via_http",
+          "command_execution_through_webshell"
+        ],
+        "common_failures": [
+          "antivirus_quarantine",
+          "file_extension_restrictions",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "command_execution",
+          "data_exfiltration",
+          "lateral_movement"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Service Account Password Modification",
+        "mitre_id": "T1098",
+        "category": "persistence",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "Windows Commands",
+            "command_template": "net user {username} {new_password}",
+            "actual_command": "Password change via RCE",
+            "output_pattern": "Account password modified",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "administrative_privileges",
+          "service_account_identified",
+          "remote_code_execution"
+        ],
+        "success_indicators": [
+          "password_change_successful",
+          "account_authentication_works",
+          "maintained_service_functionality"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "password_policy_restrictions",
+          "account_lockout"
+        ],
+        "follow_up_techniques": [
+          "rdp_authentication",
+          "service_impersonation",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Remote Desktop Protocol Access",
+        "mitre_id": "T1021.001",
+        "category": "lateral_movement",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "RDP Client",
+            "command_template": "rdesktop -u {username} -p {password} {target}",
+            "actual_command": "RDP connection with compromised credentials",
+            "output_pattern": "Remote desktop session established",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "valid_credentials_obtained",
+          "rdp_service_enabled",
+          "network_connectivity_to_rdp_port"
+        ],
+        "success_indicators": [
+          "successful_rdp_authentication",
+          "interactive_desktop_session",
+          "ability_to_execute_commands"
+        ],
+        "common_failures": [
+          "rdp_disabled",
+          "network_level_authentication_required",
+          "firewall_blocking_connection"
+        ],
+        "follow_up_techniques": [
+          "file_system_access",
+          "additional_tool_deployment",
+          "data_collection"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Metasploit MOVEit Exploit",
+        "use_case": "cve_2023_34362_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "moveit_server_compromise"
+        ],
+        "alternatives": [
+          "custom_python_exploit",
+          "manual_sql_injection"
+        ],
+        "best_practices": [
+          "verify_target_version_vulnerable",
+          "test_guestaccess_endpoint_first",
+          "use_appropriate_payload_for_target_architecture"
+        ]
+      },
+      {
+        "tool": "IIS Log Analysis",
+        "use_case": "attack_timeline_reconstruction",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_incident_response"
+        ],
+        "alternatives": [
+          "application_logs",
+          "network_packet_capture"
+        ],
+        "best_practices": [
+          "focus_on_suspicious_user_agents",
+          "analyze_request_patterns_and_frequency",
+          "correlate_with_other_log_sources"
+        ]
+      },
+      {
+        "tool": "Memory Dump String Analysis",
+        "use_case": "artifact_recovery_without_volatility",
+        "effectiveness_rating": 3,
+        "reliability": 0.7,
+        "learning_curve": "low",
+        "essential_for": [
+          "memory_forensics_when_tools_unavailable"
+        ],
+        "alternatives": [
+          "volatility_framework",
+          "rekall"
+        ],
+        "best_practices": [
+          "use_targeted_grep_patterns",
+          "focus_on_specific_indicators",
+          "combine_with_other_evidence_sources"
+        ]
+      },
+      {
+        "tool": "KAPE Triage Collection",
+        "use_case": "comprehensive_artifact_collection",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "incident_response_artifact_collection"
+        ],
+        "alternatives": [
+          "manual_file_collection",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "use_appropriate_target_modules",
+          "collect_mft_for_timeline_analysis",
+          "include_application_specific_artifacts"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "moveit_exploitation_to_persistence",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sC -sV target_ip",
+            "purpose": "Initial reconnaissance and service enumeration",
+            "expected_output": "MOVEit service identified on target"
+          },
+          {
+            "step": 2,
+            "command": "use exploit/windows/http/moveit_cve_2023_34362",
+            "purpose": "Load Metasploit exploit module",
+            "expected_output": "Exploit module loaded successfully"
+          },
+          {
+            "step": 3,
+            "command": "set RHOSTS target_ip",
+            "purpose": "Configure target for exploitation",
+            "expected_output": "Target configured"
+          },
+          {
+            "step": 4,
+            "command": "exploit",
+            "purpose": "Execute SQL injection and deserialization attack",
+            "expected_output": "Remote code execution achieved"
+          },
+          {
+            "step": 5,
+            "command": "upload webshell.aspx",
+            "purpose": "Deploy persistent webshell",
+            "expected_output": "Webshell uploaded successfully"
+          },
+          {
+            "step": 6,
+            "command": "net user moveitsvc new_password",
+            "purpose": "Modify service account password",
+            "expected_output": "Password changed successfully"
+          },
+          {
+            "step": 7,
+            "command": "rdesktop -u moveitsvc -p new_password target_ip",
+            "purpose": "Establish RDP session with compromised account",
+            "expected_output": "Remote desktop session established"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "30-90 minutes"
+      },
+      {
+        "sequence_name": "forensic_analysis_workflow",
+        "steps": [
+          {
+            "step": 1,
+            "command": "cat iis_logs | cut -d' ' -f9 | sort | uniq -c | sort -nr",
+            "purpose": "Identify suspicious IP addresses",
+            "expected_output": "Histogram of client IPs"
+          },
+          {
+            "step": 2,
+            "command": "grep 'guestaccess.aspx' iis_logs",
+            "purpose": "Find MOVEit exploitation attempts",
+            "expected_output": "POST requests to guestaccess endpoint"
+          },
+          {
+            "step": 3,
+            "command": "strings memory_dump | grep -i 'webshell_name'",
+            "purpose": "Extract webshell artifacts from memory",
+            "expected_output": "Webshell content and metadata"
+          },
+          {
+            "step": 4,
+            "command": "grep 'password' event_logs",
+            "purpose": "Identify password change events",
+            "expected_output": "Account modification timestamps"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "60-180 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "i-like-to",
+      "difficulty": "Easy",
+      "os": "Windows Server",
+      "platform": "HackTheBox Sherlock",
+      "release_date": "2023-11-13",
+      "author": "sebh24",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "deserialization",
+        "webshell_upload"
+      ],
+      "key_vulnerabilities": [
+        "moveit_cve",
+        "sql_injection",
+        "file_upload"
+      ],
+      "environment_type": "file_transfer_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "digital_forensics",
+        "incident_response",
+        "memory_analysis",
+        "log_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "forensics_fundamentals",
+        "windows_artifacts",
+        "memory_analysis_tools"
+      ]
+    },
+    "categorization": {
+      "primary_category": "digital_forensics",
+      "subcategories": [
+        "incident_response",
+        "memory_forensics",
+        "log_analysis"
+      ],
+      "attack_types": [
+        "initial_access",
+        "persistence",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "patch_management",
+        "log_monitoring",
+        "memory_forensics",
+        "endpoint_detection"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Insider",
+        "Reminiscent",
+        "OpTinselTrace-1"
+      ],
+      "similarity_reasons": [
+        "forensics_investigation",
+        "compromised_server",
+        "log_analysis",
+        "memory_dumps"
+      ],
+      "unique_aspects": [
+        "moveit_exploitation",
+        "metasploit_deserialization",
+        "webshell_analysis"
+      ],
+      "difficulty_factors": [
+        "multiple_artifact_types",
+        "timeline_reconstruction",
+        "memory_analysis_without_vmss"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T19:13:06.790507",
+    "original_file": "0xdf_writeups/Htb Sherlock I Like To.md",
+    "content_length": 73430,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

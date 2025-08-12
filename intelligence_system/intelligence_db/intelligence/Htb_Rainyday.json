@@ -1,0 +1,966 @@
+{
+  "writeup_id": "Htb_Rainyday",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_container_escape_idor",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "containerized_web_application",
+    "entry_vector": "idor_vulnerability",
+    "privilege_path": "idor_to_container_escape_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "container_management_platform",
+      "api_endpoints_exposed",
+      "flask_secret_key_exposure",
+      "unicode_hash_collision_exploit"
+    ],
+    "environmental_clues": [
+      "docker_container_hosting_service",
+      "subdomain_enumeration_required",
+      "registration_disabled",
+      "documented_api_endpoints"
+    ],
+    "similar_scenarios": [
+      "docker_escape_challenges",
+      "web_api_exploitation"
+    ],
+    "unique_aspects": [
+      "regex_file_read_exploitation",
+      "python_unicode_hash_collision",
+      "container_jail_escape_via_misconfiguration",
+      "multi_stage_container_pivoting"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "IDOR_vulnerability",
+        "success_reason": "API endpoint /api/user/[id] leaked user information without proper authorization",
+        "prerequisite_indicators": [
+          "api_endpoints_exposed",
+          "sequential_user_ids",
+          "insufficient_access_controls"
+        ],
+        "recognition_patterns": [
+          "different response sizes for valid/invalid IDs",
+          "error messages revealing existence",
+          "enumerable integer parameters"
+        ],
+        "failure_modes": [
+          "proper_authorization_checks",
+          "uuid_instead_of_sequential_ids",
+          "rate_limiting_enabled"
+        ],
+        "environmental_factors": [
+          "development_api_exposed",
+          "missing_authentication_middleware",
+          "debug_endpoints_accessible"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "subdomain_enumeration",
+        "success_reason": "Dev subdomain exposed with different access controls",
+        "prerequisite_indicators": [
+          "dns_name_based_routing",
+          "multiple_environments_deployed",
+          "wildcard_dns_configured"
+        ],
+        "recognition_patterns": [
+          "redirect to domain name in nmap",
+          "different response codes/sizes",
+          "common subdomain naming (dev, staging, api)"
+        ],
+        "failure_modes": [
+          "no_wildcard_dns",
+          "proper_subdomain_isolation",
+          "internal_only_subdomains"
+        ],
+        "environmental_factors": [
+          "development_environment_exposed",
+          "insufficient_network_segmentation",
+          "default_nginx_configurations"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-15 minutes"
+      },
+      {
+        "technique": "api_fuzzing",
+        "success_reason": "Undocumented API endpoints revealed sensitive functionality",
+        "prerequisite_indicators": [
+          "api_directory_discovered",
+          "restful_api_patterns",
+          "development_endpoints_exposed"
+        ],
+        "recognition_patterns": [
+          "consistent API response formats",
+          "sequential ID parameters",
+          "different error messages for valid/invalid requests"
+        ],
+        "failure_modes": [
+          "api_properly_documented_only",
+          "authentication_required_all_endpoints",
+          "no_information_disclosure"
+        ],
+        "environmental_factors": [
+          "api_in_development_phase",
+          "missing_security_middleware",
+          "debug_mode_enabled"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "15-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "dev.rainycloud.htb subdomain",
+        "discovery_method": "ffuf subdomain enumeration",
+        "why_critical": "Separate development environment with different security controls",
+        "how_to_recognize": [
+          "403 status instead of default response",
+          "common development naming patterns",
+          "different response characteristics"
+        ],
+        "follow_up_actions": [
+          "enumerate_dev_endpoints",
+          "test_different_access_methods",
+          "compare_security_controls_with_main_site"
+        ]
+      },
+      {
+        "discovery": "IDOR in /api/user endpoint",
+        "discovery_method": "manual testing and ffuf fuzzing",
+        "why_critical": "Allows enumeration of valid users and potential information disclosure",
+        "how_to_recognize": [
+          "different response sizes for valid/invalid IDs",
+          "error message variations",
+          "sequential integer parameters"
+        ],
+        "follow_up_actions": [
+          "enumerate_all_valid_user_ids",
+          "analyze_leaked_information",
+          "test_other_endpoints_for_idor"
+        ]
+      },
+      {
+        "discovery": "API endpoints in development",
+        "discovery_method": "directory brute force with feroxbuster",
+        "why_critical": "Development APIs often have weaker security controls",
+        "how_to_recognize": [
+          "api directory structure",
+          "development status messages",
+          "inconsistent security implementations"
+        ],
+        "follow_up_actions": [
+          "test_all_discovered_endpoints",
+          "fuzz_parameters_and_methods",
+          "look_for_additional_functionality"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_user",
+        "escalation_method": "IDOR_to_information_disclosure",
+        "why_possible": "API lacks proper authorization checks on user data access",
+        "recognition_signs": [
+          "sequential_user_enumeration_possible",
+          "different_responses_for_valid_invalid_ids",
+          "api_returns_user_data_without_auth"
+        ],
+        "exploitation_path": "IDOR enumeration → Hash disclosure → Credential cracking → Authenticated access"
+      },
+      {
+        "privilege_level": "external_reconnaissance",
+        "escalation_method": "subdomain_to_dev_environment",
+        "why_possible": "Development environment exposed with different security posture",
+        "recognition_signs": [
+          "subdomain_enumeration_reveals_dev",
+          "different_http_status_codes",
+          "development_specific_functionality"
+        ],
+        "exploitation_path": "Subdomain discovery → Dev environment access → Additional attack surface"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 and 80 open on Linux host",
+        "decision": "Focus on web application enumeration and vulnerability discovery",
+        "reasoning": "Limited attack surface requires deep web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if credentials found"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if vulnerable versions identified"
+          }
+        ],
+        "success_indicators": [
+          "web_app_responds",
+          "subdomain_discovered",
+          "api_endpoints_found"
+        ],
+        "next_decision": "enumerate_web_application_thoroughly"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered API endpoints with user enumeration capability",
+        "decision": "Test for IDOR vulnerabilities in API endpoints",
+        "reasoning": "API user endpoints often vulnerable to parameter manipulation",
+        "confidence": 0.85,
+        "prerequisites": [
+          "api_endpoints_identified",
+          "user_id_pattern_observed"
+        ],
+        "success_indicators": [
+          "different_response_codes",
+          "data_leakage_detected"
+        ],
+        "failure_fallbacks": [
+          "parameter_pollution",
+          "http_method_tampering",
+          "header_injection"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "IDOR found using decimal notation (user/1.0 vs user/1)",
+        "decision": "Extract all user hashes and attempt to crack weakest first",
+        "reasoning": "Different hash types indicate varying security levels",
+        "confidence": 0.95,
+        "prerequisites": [
+          "idor_confirmed",
+          "hash_data_extracted"
+        ],
+        "success_indicators": [
+          "bcrypt_hashes_obtained",
+          "different_cost_factors_identified"
+        ],
+        "next_decision": "prioritize_hash_cracking_by_cost"
+      },
+      {
+        "step": 4,
+        "situation": "Multiple bcrypt hashes with different cost factors found",
+        "decision": "Target lowest cost factor hash first ($2a$05$ before $2a$10$ or $2b$12$)",
+        "reasoning": "Lower cost factors crack exponentially faster",
+        "confidence": 0.98,
+        "prerequisites": [
+          "multiple_hashes_available"
+        ],
+        "success_indicators": [
+          "hash_cracked_successfully"
+        ],
+        "failure_fallbacks": [
+          "try_next_lowest_cost",
+          "wordlist_expansion",
+          "rule_based_attacks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_idor_succeeds": {
+        "action": "extract_all_sensitive_data",
+        "tools": [
+          "curl",
+          "ffuf",
+          "custom_scripts"
+        ],
+        "next_phase": "credential_cracking"
+      },
+      "if_hash_cracked": {
+        "action": "authenticate_to_web_application",
+        "tools": [
+          "hashcat",
+          "john"
+        ],
+        "next_phase": "authenticated_enumeration"
+      },
+      "if_web_auth_successful": {
+        "action": "explore_authenticated_functionality",
+        "purpose": "find_container_access_or_file_operations",
+        "tools": [
+          "burp_suite",
+          "browser_dev_tools"
+        ]
+      },
+      "if_container_access_gained": {
+        "action": "enumerate_container_environment",
+        "purpose": "find_escape_vectors_or_internal_services",
+        "tools": [
+          "docker_escape_techniques",
+          "network_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_decimal_notation_on_integer_parameters",
+        "reasoning": "common_idor_bypass_technique_often_overlooked",
+        "applicability": "api_endpoints_with_numeric_parameters"
+      },
+      {
+        "rule": "prioritize_hash_cracking_by_computational_cost",
+        "reasoning": "exponential_time_difference_between_cost_factors",
+        "applicability": "multiple_bcrypt_hashes_available"
+      },
+      {
+        "rule": "enumerate_subdomains_when_dns_names_used",
+        "reasoning": "often_reveals_development_or_internal_interfaces",
+        "applicability": "dns_based_virtual_hosts_detected"
+      },
+      {
+        "rule": "test_api_endpoints_for_parameter_manipulation",
+        "reasoning": "apis_often_have_insufficient_access_controls",
+        "applicability": "rest_api_endpoints_discovered"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "no_rate_limiting",
+          "directory_structure_exists"
+        ],
+        "success_indicators": [
+          "200_status_responses",
+          "different_content_lengths",
+          "api_endpoints_discovered"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "web_application_firewall",
+          "complete_custom_routing"
+        ],
+        "confidence_boosters": [
+          "standard_web_frameworks",
+          "default_configurations",
+          "common_naming_patterns"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-30 minutes"
+      },
+      {
+        "technique": "Subdomain Enumeration",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "dns",
+          "http"
+        ],
+        "required_ports": [
+          53,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "dns_resolution_available",
+          "virtual_host_routing",
+          "multiple_subdomains_exist"
+        ],
+        "success_indicators": [
+          "different_response_sizes",
+          "different_status_codes",
+          "unique_content_discovered"
+        ],
+        "incompatible_with": [
+          "single_application_deployment",
+          "no_virtual_hosting",
+          "strict_dns_controls"
+        ],
+        "confidence_boosters": [
+          "hostname_in_redirects",
+          "ssl_certificate_san_entries",
+          "cloud_hosting_patterns"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "2-10 minutes"
+      },
+      {
+        "technique": "IDOR Vulnerability",
+        "mitre_id": "T1213",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_authentication_system",
+          "object_references_in_urls"
+        ],
+        "success_indicators": [
+          "sequential_ids_in_requests",
+          "unauthorized_data_access",
+          "different_user_data_returned"
+        ],
+        "incompatible_with": [
+          "proper_authorization_checks",
+          "encrypted_object_references",
+          "stateless_applications"
+        ],
+        "confidence_boosters": [
+          "numeric_ids_in_urls",
+          "api_endpoints_with_parameters",
+          "user_enumeration_possible"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "10-45 minutes"
+      },
+      {
+        "technique": "Container Escape",
+        "mitre_id": "T1611",
+        "required_services": [
+          "docker",
+          "containerd"
+        ],
+        "required_ports": [
+          2375,
+          2376
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "container_environment_detected",
+          "privileged_container_or_capabilities",
+          "host_filesystem_accessible"
+        ],
+        "success_indicators": [
+          "host_processes_visible",
+          "root_filesystem_mounted",
+          "container_runtime_accessible"
+        ],
+        "incompatible_with": [
+          "properly_configured_seccomp",
+          "restricted_capabilities",
+          "user_namespaces_enabled"
+        ],
+        "confidence_boosters": [
+          "privileged_flag_set",
+          "host_pid_namespace",
+          "docker_socket_mounted"
+        ],
+        "typical_success_rate": 0.35,
+        "estimated_time": "15-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "Apache",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "container_environment": {
+        "port_indicators": [
+          2375,
+          2376
+        ],
+        "service_indicators": [
+          "docker",
+          "containerd"
+        ],
+        "file_indicators": [
+          "/.dockerenv",
+          "/proc/1/cgroup"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "api_service": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          3000,
+          5000
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "path_indicators": [
+          "/api",
+          "/v1",
+          "/graphql"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_information_disclosure"
+        },
+        {
+          "attack": "subdomain_enumeration",
+          "when": "hostname_redirect_detected",
+          "reason": "often_reveals_additional_attack_surface"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "idor_testing",
+          "when": "api_endpoints_discovered",
+          "reason": "common_in_web_applications"
+        },
+        {
+          "attack": "container_escape",
+          "when": "container_environment_detected",
+          "reason": "high_impact_but_complex"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "time_consuming_low_success_rate"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "IDOR via Type Confusion",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/api/user/{id}.0",
+            "actual_command": "curl http://rainycloud.htb/api/user/1.0",
+            "output_pattern": "{\"id\":{id},\"password\":\"{hash}\",\"username\":\"{username}\"}",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -w <( seq 1 1000 ) -u http://{target}/api/user/FUZZ.0 -fs 3",
+            "actual_command": "ffuf -w <( seq 1 1000 ) -u http://rainycloud.htb/api/user/FUZZ.0 -fs 3",
+            "success_factors": [
+              "type_confusion_vulnerability",
+              "improper_input_validation"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "api_endpoint_accessible",
+          "improper_type_validation",
+          "direct_object_references"
+        ],
+        "success_indicators": [
+          "user_data_leaked",
+          "password_hashes_exposed",
+          "authentication_bypass_achieved"
+        ],
+        "common_failures": [
+          "proper_input_validation",
+          "authorization_checks_implemented",
+          "rate_limiting_active"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_stuffing",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Bcrypt Hash Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "john",
+            "command_template": "john {hash_file} --wordlist={wordlist}",
+            "actual_command": "john hashes --wordlist=/usr/share/wordlists/rockyou.txt",
+            "output_pattern": "{password}      ({username})",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "password_hashes_obtained",
+          "weak_passwords_in_use",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "password_cracked_successfully",
+          "authentication_possible",
+          "access_level_increased"
+        ],
+        "common_failures": [
+          "strong_passwords_resist_cracking",
+          "high_bcrypt_cost_factor",
+          "insufficient_wordlist_coverage"
+        ],
+        "follow_up_techniques": [
+          "web_application_authentication",
+          "lateral_movement",
+          "container_enumeration"
+        ],
+        "time_investment": "5 minutes - several hours",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Container Command Execution",
+        "mitre_id": "T1609",
+        "category": "execution",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "web_interface",
+            "command_template": "Execute via web form: {command}",
+            "actual_command": "id",
+            "output_pattern": "uid=1337 gid=1337",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "wget",
+            "command_template": "wget {attacker_ip}",
+            "actual_command": "wget 10.10.14.6",
+            "success_factors": [
+              "network_connectivity",
+              "wget_available"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "container_access_obtained",
+          "command_execution_interface",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "commands_execute_successfully",
+          "network_connectivity_confirmed",
+          "file_system_accessible"
+        ],
+        "common_failures": [
+          "restricted_command_set",
+          "network_isolation",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "container_escape",
+          "internal_network_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Subdomain Enumeration",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u http://{ip} -H \"Host: FUZZ.{domain}\" -w {wordlist} --fs {filter_size}",
+            "actual_command": "ffuf -u http://10.10.11.184 -H \"Host: FUZZ.rainycloud.htb\" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt --fs 229",
+            "output_pattern": "dev                     [Status: 403, Size: 26, Words: 5, Lines: 1, Duration: 110ms]",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "target_domain_identified",
+          "http_service_accessible",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "different_response_codes",
+          "additional_attack_surface_identified"
+        ],
+        "common_failures": [
+          "no_subdomains_configured",
+          "uniform_responses_across_subdomains",
+          "rate_limiting_interference"
+        ],
+        "follow_up_techniques": [
+          "subdomain_content_enumeration",
+          "virtual_host_analysis",
+          "service_fingerprinting"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ffuf",
+        "use_case": "subdomain_enumeration_and_fuzzing",
+        "effectiveness_rating": 5,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing",
+          "subdomain_discovery"
+        ],
+        "alternatives": [
+          "gobuster",
+          "wfuzz",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "use_appropriate_filter_sizes",
+          "adjust_thread_count_for_target",
+          "combine_with_multiple_wordlists"
+        ]
+      },
+      {
+        "tool": "john",
+        "use_case": "password_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "credential_recovery",
+          "password_auditing"
+        ],
+        "alternatives": [
+          "hashcat",
+          "hydra"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "leverage_rules_for_mutations",
+          "monitor_cracking_progress"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_and_file_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_enumeration"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_recursive_scanning",
+          "adjust_thread_count_appropriately",
+          "filter_irrelevant_status_codes"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "idor_to_container_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ffuf -u http://10.10.11.184 -H \"Host: FUZZ.rainycloud.htb\" -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt --fs 229",
+            "purpose": "Discover subdomains",
+            "expected_output": "dev subdomain found"
+          },
+          {
+            "step": 2,
+            "command": "curl http://rainycloud.htb/api/user/1.0",
+            "purpose": "Exploit IDOR via type confusion",
+            "expected_output": "User data with password hash"
+          },
+          {
+            "step": 3,
+            "command": "john hashes --wordlist=/usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack bcrypt hashes",
+            "expected_output": "rubberducky (gary)"
+          },
+          {
+            "step": 4,
+            "command": "Login via web interface with gary:rubberducky",
+            "purpose": "Authenticate to container management",
+            "expected_output": "Access to container creation interface"
+          },
+          {
+            "step": 5,
+            "command": "Create container and execute: id",
+            "purpose": "Establish command execution in container",
+            "expected_output": "uid=1337 gid=1337"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-40 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "RainyDay",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2022-10-15",
+      "author": "InfoSecJack",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "idor",
+        "container_escape",
+        "regex_injection"
+      ],
+      "key_vulnerabilities": [
+        "insecure_direct_object_reference",
+        "container_misconfiguration",
+        "flask_secret_exposure",
+        "unicode_bypass"
+      ],
+      "environment_type": "containerized_web_application",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "container_security",
+        "regex_exploitation",
+        "unicode_attacks",
+        "python_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "container_concepts",
+        "python_programming",
+        "regex_patterns"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "container_escape",
+        "programming_exploitation",
+        "cryptographic_attacks"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "container_escape"
+      ],
+      "defensive_lessons": [
+        "secure_container_configuration",
+        "input_validation",
+        "secret_management",
+        "unicode_normalization"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bucket",
+        "Forge",
+        "Timing"
+      ],
+      "similarity_reasons": [
+        "complex_attack_chains",
+        "programming_required",
+        "container_technologies"
+      ],
+      "unique_aspects": [
+        "regex_file_read",
+        "unicode_hash_bypass",
+        "multi_stage_container_escape"
+      ],
+      "difficulty_factors": [
+        "extensive_enumeration",
+        "custom_exploit_development",
+        "multiple_programming_languages"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:48:01.529901",
+    "original_file": "0xdf_writeups/Htb Rainyday.md",
+    "content_length": 57031,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

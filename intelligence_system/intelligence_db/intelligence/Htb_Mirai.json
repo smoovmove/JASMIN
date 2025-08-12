@@ -1,0 +1,827 @@
+{
+  "writeup_id": "Htb_Mirai",
+  "scenario_fingerprint": {
+    "scenario_name": "raspberry_pi_default_credentials",
+    "primary_services": [
+      "ssh",
+      "dns",
+      "http",
+      "upnp"
+    ],
+    "port_signature": "22+53+80+1877+32400+32469",
+    "service_combination": "ssh+dns+http+upnp+plex",
+    "os_family": "linux_embedded",
+    "environment_type": "iot_device",
+    "entry_vector": "default_credentials",
+    "privilege_path": "default_user_to_root_sudo",
+    "attack_complexity": "trivial",
+    "estimated_time": "5-15 minutes",
+    "scenario_confidence": 0.98,
+    "distinguishing_factors": [
+      "raspberry_pi_default_credentials",
+      "pihole_dns_server",
+      "plex_media_server",
+      "upnp_services"
+    ],
+    "environmental_clues": [
+      "x_pi_hole_header",
+      "lighttpd_web_server",
+      "dnsmasq_dns_service",
+      "debian_jessie_openssh"
+    ],
+    "similar_scenarios": [
+      "iot_default_creds",
+      "embedded_device_takeover"
+    ],
+    "unique_aspects": [
+      "pihole_admin_interface",
+      "plex_media_server",
+      "usb_drive_forensics"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Default Credential Attack",
+        "success_reason": "Raspberry Pi device retained default username/password (pi/raspberry)",
+        "prerequisite_indicators": [
+          "ssh_service_available",
+          "iot_device_identified",
+          "raspberry_pi_indicators_present"
+        ],
+        "recognition_patterns": [
+          "PiHole service running",
+          "Debian 8 jessie OS",
+          "IoT device fingerprints",
+          "Default service configurations"
+        ],
+        "failure_modes": [
+          "default_credentials_changed",
+          "ssh_disabled",
+          "account_lockout_policies",
+          "custom_authentication"
+        ],
+        "environmental_factors": [
+          "unmanaged_iot_deployment",
+          "lack_of_hardening",
+          "default_configurations_retained",
+          "home_lab_environment"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "1-5 minutes"
+      },
+      {
+        "technique": "Service Fingerprinting",
+        "success_reason": "PiHole service revealed device type and likely default credentials",
+        "prerequisite_indicators": [
+          "web_service_accessible",
+          "distinctive_service_headers",
+          "known_iot_services"
+        ],
+        "recognition_patterns": [
+          "X-Pi-hole header in HTTP response",
+          "lighttpd web server",
+          "dnsmasq DNS service",
+          "UPnP services on high ports"
+        ],
+        "failure_modes": [
+          "service_headers_removed",
+          "custom_web_interfaces",
+          "service_obfuscation"
+        ],
+        "environmental_factors": [
+          "default_service_configurations",
+          "unmodified_software_stack",
+          "standard_port_usage"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "PiHole service identification",
+        "discovery_method": "HTTP header analysis and directory enumeration",
+        "why_critical": "Revealed device type leading to default credential attack",
+        "how_to_recognize": [
+          "X-Pi-hole HTTP header",
+          "/admin directory with PiHole interface",
+          "lighttpd server on port 80",
+          "dnsmasq on port 53"
+        ],
+        "follow_up_actions": [
+          "attempt_default_pi_credentials",
+          "check_ssh_access",
+          "enumerate_iot_default_passwords"
+        ]
+      },
+      {
+        "discovery": "Default SSH credentials (pi/raspberry)",
+        "discovery_method": "Default credential testing based on device identification",
+        "why_critical": "Provided immediate user-level access to the system",
+        "how_to_recognize": [
+          "Raspberry Pi device indicators",
+          "Unmodified default configurations",
+          "Home lab or development environment"
+        ],
+        "follow_up_actions": [
+          "check_sudo_privileges",
+          "enumerate_system_configuration",
+          "look_for_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_pi",
+        "escalation_method": "sudo_nopasswd_all",
+        "why_possible": "Default Raspberry Pi configuration allows pi user full sudo access",
+        "recognition_signs": [
+          "sudo -l shows (ALL) NOPASSWD: ALL",
+          "default_raspberry_pi_configuration",
+          "unmodified_sudoers_file"
+        ],
+        "exploitation_path": "sudo su - → root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,53,80,1877,32400,32469 open on Linux host with PiHole detected",
+        "decision": "Identify as IoT device (RaspberryPi) and try default credentials",
+        "reasoning": "PiHole typically runs on RaspberryPi, Mirai botnet targeted IoT default creds",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_exploitation",
+            "when": "if default creds fail"
+          },
+          {
+            "option": "plex_exploitation",
+            "when": "if plex version vulnerable"
+          },
+          {
+            "option": "dns_zone_transfer",
+            "when": "if domain names discovered"
+          }
+        ],
+        "success_indicators": [
+          "pihole_admin_interface_found",
+          "raspberry_pi_indicators",
+          "ssh_service_available"
+        ],
+        "next_decision": "try_default_iot_credentials"
+      },
+      {
+        "step": 2,
+        "situation": "SSH service available on suspected RaspberryPi device",
+        "decision": "Try pi:raspberry default credentials first",
+        "reasoning": "Standard RaspberryPi default credentials, Mirai botnet attack vector",
+        "confidence": 0.85,
+        "prerequisites": [
+          "ssh_accessible",
+          "iot_device_identified"
+        ],
+        "success_indicators": [
+          "ssh_login_successful"
+        ],
+        "failure_fallbacks": [
+          "other_default_creds",
+          "web_attacks",
+          "service_exploitation"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Gained user access as pi user",
+        "decision": "Check sudo privileges immediately",
+        "reasoning": "Pi user typically has sudo access on RaspberryPi systems",
+        "confidence": 0.95,
+        "prerequisites": [
+          "user_shell_obtained"
+        ],
+        "success_indicators": [
+          "sudo_all_privileges",
+          "nopasswd_sudo"
+        ],
+        "next_decision": "escalate_to_root"
+      }
+    ],
+    "branching_logic": {
+      "if_default_creds_succeed": {
+        "action": "check_sudo_privileges",
+        "tools": [
+          "sudo -l"
+        ],
+        "next_phase": "privilege_escalation"
+      },
+      "if_default_creds_fail": {
+        "action": "try_alternative_attacks",
+        "alternatives": [
+          "web_exploitation",
+          "service_vulnerabilities",
+          "other_default_creds"
+        ],
+        "decision_criteria": "based_on_service_versions_and_configurations"
+      },
+      "if_sudo_available": {
+        "action": "escalate_to_root",
+        "commands": [
+          "sudo su -",
+          "sudo -i"
+        ],
+        "next_phase": "post_exploitation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_default_creds_on_iot_devices",
+        "reasoning": "high_success_rate_and_common_attack_vector",
+        "applicability": "iot_and_embedded_systems"
+      },
+      {
+        "rule": "check_sudo_immediately_after_user_access",
+        "reasoning": "common_privilege_escalation_path_on_iot",
+        "applicability": "iot_device_user_access"
+      },
+      {
+        "rule": "identify_device_type_from_service_fingerprints",
+        "reasoning": "device_type_determines_likely_default_credentials",
+        "applicability": "unknown_target_systems"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Default Credentials",
+        "mitre_id": "T1078.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_accessible",
+          "embedded_device_detected",
+          "raspberry_pi_indicators"
+        ],
+        "success_indicators": [
+          "ssh_login_successful",
+          "default_pi_user_exists",
+          "sudo_privileges_available"
+        ],
+        "incompatible_with": [
+          "password_policy_enforced",
+          "default_credentials_changed",
+          "account_lockout_enabled"
+        ],
+        "confidence_boosters": [
+          "pihole_service_detected",
+          "raspberry_pi_hardware_indicators",
+          "debian_jessie_detected",
+          "lighttpd_web_server"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "1-5 minutes"
+      },
+      {
+        "technique": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "directory_listing_enabled_or_predictable_paths"
+        ],
+        "success_indicators": [
+          "admin_directories_found",
+          "configuration_files_accessible",
+          "sensitive_paths_discovered"
+        ],
+        "incompatible_with": [
+          "web_application_firewall",
+          "rate_limiting_strict",
+          "custom_error_pages"
+        ],
+        "confidence_boosters": [
+          "standard_web_frameworks",
+          "default_installations",
+          "common_cms_patterns"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "DNS Zone Transfer",
+        "mitre_id": "T1590.002",
+        "required_services": [
+          "dns"
+        ],
+        "required_ports": [
+          53
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "dns_service_accessible",
+          "zone_transfer_enabled",
+          "domain_name_known"
+        ],
+        "success_indicators": [
+          "zone_transfer_successful",
+          "internal_hostnames_revealed",
+          "network_topology_exposed"
+        ],
+        "incompatible_with": [
+          "zone_transfer_disabled",
+          "dns_security_configured",
+          "access_control_lists"
+        ],
+        "confidence_boosters": [
+          "misconfigured_dns_server",
+          "internal_dns_server",
+          "legacy_dns_configuration"
+        ],
+        "typical_success_rate": 0.15,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "raspberry_pi": {
+        "port_indicators": [
+          22,
+          53,
+          80
+        ],
+        "service_indicators": [
+          "ssh",
+          "dns",
+          "http",
+          "pihole"
+        ],
+        "banner_indicators": [
+          "OpenSSH 6.7p1 Debian",
+          "dnsmasq",
+          "lighttpd",
+          "X-Pi-hole"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "pihole_service": {
+        "port_indicators": [
+          53,
+          80
+        ],
+        "service_indicators": [
+          "dnsmasq",
+          "lighttpd"
+        ],
+        "banner_indicators": [
+          "X-Pi-hole",
+          "dnsmasq"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "plex_media_server": {
+        "port_indicators": [
+          32400
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "banner_indicators": [
+          "Plex Media Server"
+        ],
+        "confidence_threshold": 0.98
+      },
+      "upnp_service": {
+        "port_indicators": [
+          1877,
+          32469
+        ],
+        "service_indicators": [
+          "upnp"
+        ],
+        "banner_indicators": [
+          "Platinum UPnP"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "default_credentials_ssh",
+          "when": "raspberry_pi_detected",
+          "reason": "raspberry_pi_default_creds_commonly_unchanged"
+        },
+        {
+          "attack": "pihole_admin_access",
+          "when": "pihole_service_detected",
+          "reason": "admin_interface_often_unprotected"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "web_directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "reveals_admin_interfaces_and_config_files"
+        },
+        {
+          "attack": "dns_zone_transfer",
+          "when": "dns_service_detected",
+          "reason": "low_success_rate_but_high_value_if_successful"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "plex_exploitation",
+          "when": "plex_service_detected",
+          "reason": "requires_specific_version_vulnerabilities"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Default Credential Attack",
+        "mitre_id": "T1078.001",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "sshpass",
+            "command_template": "sshpass -p {password} ssh {username}@{target_ip}",
+            "actual_command": "sshpass -p raspberry ssh pi@10.10.10.48",
+            "output_pattern": "successful_shell_prompt",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "ssh_service_accessible",
+          "default_credentials_unchanged",
+          "iot_device_identification"
+        ],
+        "success_indicators": [
+          "successful_ssh_authentication",
+          "shell_access_obtained",
+          "user_flag_accessible"
+        ],
+        "common_failures": [
+          "credentials_changed_from_default",
+          "ssh_service_disabled",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "sudo_enumeration",
+          "system_enumeration"
+        ],
+        "time_investment": "1-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Sudo Privilege Escalation",
+        "mitre_id": "T1548.003",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "sudo",
+            "command_template": "sudo -l",
+            "actual_command": "sudo -l",
+            "output_pattern": "(ALL : ALL) ALL",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "sudo",
+            "command_template": "sudo su -",
+            "actual_command": "sudo su -",
+            "output_pattern": "root@",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "user_shell_access",
+          "sudo_permissions_configured",
+          "nopasswd_sudo_enabled"
+        ],
+        "success_indicators": [
+          "root_shell_obtained",
+          "uid_0_confirmed",
+          "administrative_access_gained"
+        ],
+        "common_failures": [
+          "sudo_not_configured",
+          "password_required_for_sudo",
+          "restricted_sudo_commands"
+        ],
+        "follow_up_techniques": [
+          "file_system_enumeration",
+          "data_recovery",
+          "persistence_establishment"
+        ],
+        "time_investment": "1-2 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Data Recovery from Raw Device",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "grep",
+            "command_template": "grep -aPo '[a-fA-F0-9]{32}' {device}",
+            "actual_command": "grep -aPo '[a-fA-F0-9]{32}' /dev/sdb",
+            "output_pattern": "32_character_hex_string",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "strings",
+            "command_template": "strings {device} -n {length}",
+            "actual_command": "strings /dev/sdb -n 32",
+            "output_pattern": "readable_strings_from_device",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "dd",
+            "command_template": "dd if={source_device} | gzip -1 -",
+            "actual_command": "sudo dd if=/dev/sdb | gzip -1 -",
+            "output_pattern": "compressed_disk_image",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "root_access_obtained",
+          "target_device_identified",
+          "filesystem_mounted_readonly"
+        ],
+        "success_indicators": [
+          "deleted_data_recovered",
+          "flag_content_extracted",
+          "forensic_artifacts_preserved"
+        ],
+        "common_failures": [
+          "data_overwritten",
+          "filesystem_corruption",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "forensic_analysis",
+          "evidence_preservation",
+          "additional_data_carving"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "nmap",
+        "use_case": "service_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "use_service_version_detection",
+          "scan_all_ports_for_complete_coverage",
+          "correlate_versions_with_os_detection"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "adjust_thread_count_for_target",
+          "enable_recursion_for_thorough_coverage"
+        ]
+      },
+      {
+        "tool": "sshpass",
+        "use_case": "automated_ssh_authentication",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "credential_testing",
+          "automation"
+        ],
+        "alternatives": [
+          "expect_scripts",
+          "paramiko_python"
+        ],
+        "best_practices": [
+          "test_common_default_credentials",
+          "combine_with_credential_lists",
+          "use_for_iot_device_testing"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "iot_default_credential_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.48",
+            "purpose": "Identify open services",
+            "expected_output": "SSH on port 22, HTTP services"
+          },
+          {
+            "step": 2,
+            "command": "nmap -p 22,53,80,1877,32400,32469 -sCV 10.10.10.48",
+            "purpose": "Service version detection",
+            "expected_output": "OpenSSH 6.7p1, lighttpd, PiHole indicators"
+          },
+          {
+            "step": 3,
+            "command": "sshpass -p raspberry ssh pi@10.10.10.48",
+            "purpose": "Attempt default RaspberryPi credentials",
+            "expected_output": "Successful SSH shell as pi user"
+          },
+          {
+            "step": 4,
+            "command": "sudo -l",
+            "purpose": "Check sudo privileges",
+            "expected_output": "NOPASSWD: ALL permissions"
+          },
+          {
+            "step": 5,
+            "command": "sudo su -",
+            "purpose": "Escalate to root",
+            "expected_output": "Root shell access"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-15 minutes"
+      },
+      {
+        "sequence_name": "deleted_file_recovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "mount | grep usb",
+            "purpose": "Identify USB device mount point",
+            "expected_output": "/dev/sdb on /media/usbstick"
+          },
+          {
+            "step": 2,
+            "command": "lsblk",
+            "purpose": "Confirm block device structure",
+            "expected_output": "Device hierarchy and mount points"
+          },
+          {
+            "step": 3,
+            "command": "grep -aPo '[a-fA-F0-9]{32}' /dev/sdb",
+            "purpose": "Extract 32-character hex strings",
+            "expected_output": "Flag hash recovered from raw device"
+          },
+          {
+            "step": 4,
+            "command": "strings /dev/sdb -n 32",
+            "purpose": "Alternative recovery method",
+            "expected_output": "Readable strings including flag"
+          }
+        ],
+        "success_rate": 0.87,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Mirai",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2017-09-01",
+      "author": "Arrexel",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "default_credentials",
+        "sudo_misconfiguration"
+      ],
+      "key_vulnerabilities": [
+        "default_raspberry_pi_credentials",
+        "unrestricted_sudo_access"
+      ],
+      "environment_type": "iot_device_raspberry_pi",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "iot_security",
+        "default_credential_risks",
+        "file_recovery"
+      ],
+      "prerequisite_knowledge": [
+        "basic_linux",
+        "ssh_usage",
+        "file_system_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "iot_security",
+      "subcategories": [
+        "default_credentials",
+        "privilege_escalation",
+        "forensics"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "data_recovery"
+      ],
+      "defensive_lessons": [
+        "change_default_passwords",
+        "restrict_sudo_access",
+        "secure_iot_devices"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shocker",
+        "Lame",
+        "Legacy"
+      ],
+      "similarity_reasons": [
+        "beginner_friendly",
+        "simple_attack_path",
+        "single_vulnerability_focus"
+      ],
+      "unique_aspects": [
+        "raspberry_pi_environment",
+        "pihole_service",
+        "usb_drive_recovery"
+      ],
+      "difficulty_factors": [
+        "well_known_default_credentials",
+        "straightforward_escalation",
+        "file_recovery_twist"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T19:31:57.322127",
+    "original_file": "0xdf_writeups/Htb Mirai.md",
+    "content_length": 15707,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,400 +1,650 @@
-# scans.py
+#!/usr/bin/env python3
 
-from pathlib import Path
+"""
+Enhanced scans.py with intelligence integration and internal/external methodology
+"""
+
 import subprocess
+import time
+import threading
+from pathlib import Path
+from datetime import datetime
 
-import sys
+# INTELLIGENCE INTEGRATION - ADD THESE IMPORTS
+try:
+    from intelligence_integration import auto_analyze_scan_results
+    INTEL_AVAILABLE = True
+except ImportError:
+    INTEL_AVAILABLE = False
 
-from notes import append_to_notes_section
-
-from parser import extract_web_tech, extract_os_from_nmap, extract_nmap_services
-
-from state import update_state_field, mark_module_used
-
-#Function for tcp scans
-def run_tcp_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
-    print(f"[*] Running full TCP port scan on {ip}...")
-    tcp_output_file = outdir / f"{boxname}.tcp_scan.txt"
-
-    try: 
-        result = subprocess.run(
-            ["nmap", "-p-", "--min-rate", "1000", "-T4", "-Pn", ip, "-oN", str(tcp_output_file)], 
-            capture_output= True, text= True, check= True
-        )
-
-    except subprocess.CalledProcessError as e: 
-        print(f"[!] Error running full scan: {e}")
-        return
-
-    open_ports = []
-    for line in result.stdout.splitlines():
-        if line and line[0].isdigit():
-            port = line.split("/")[0]
-            open_ports.append(port)
-
-    if not open_ports: 
-        print("[-] No open ports found.")
-        return
+def run_tcp_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
+    """Run TCP port scan with service detection"""
     
-    port_string = ",".join(open_ports)
-    print(f"[+] Open ports found: {port_string}")
-
-    (outdir / "open_ports.txt").write_text(port_string)
-    update_state_field(outdir, "ports" , open_ports)
-
-    print(f"TCP Scan complete! Results saved to {tcp_output_file}")
-    mark_module_used(outdir, "tcp_scan")
-
-
-
-#Function for service scans
-def run_service_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
-    print("[*] Now running a targeted service scan...")
-    service_output_file = outdir / f"{boxname}.service_scan.txt"
-    port_file = outdir / "open_ports.txt"
-    note_file = outdir / f"{boxname}_notes.txt"
-
-    if not port_file.exists():
-        print(f"[-] Open ports file not found at: {outdir}")
-        print(f"[-] Run the full scan first!")
-        return
+    print(f"[*] Starting TCP scan on {ip}...")
     
-    port_string = port_file.read_text().strip()
-
-    try: 
-        result = subprocess.run(
-            ["nmap", f"-p{port_string}", "-sC", "-sV", "-Pn", "-oN", str(service_output_file), ip], 
-            capture_output= True, text= True, check= True
-        )
+    # Build command based on internal/external
+    if internal:
+        # Internal: Connect scan, no ping, faster rate
+        output_file = outdir / f"{boxname}_tcp_internal"
+        command = [
+            "nmap", "-sT", "-p-", "-T4", 
+            "--min-rate=1000", "--max-retries=1", "--host-timeout=2m", "-Pn",
+            "-oA", str(output_file), ip
+        ]
+        print(f"[*] Running internal TCP scan (connect scan, no ping)")
+    else:
+        # External: SYN scan, standard discovery
+        output_file = outdir / f"{boxname}_tcp"
+        command = [
+            "nmap", "-sS", "-p-", "-T4",
+            "--min-rate=2000", "--max-retries=1", "--host-timeout=2m",
+            "-oA", str(output_file), ip
+        ]
+        print(f"[*] Running external TCP scan (SYN scan)")
+    
+    # Execute scan
+    start_time = time.time()
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=600)
+        elapsed = time.time() - start_time
         
-                      
-        #extract and write os
-        os_info = extract_os_from_nmap(service_output_file)
-        update_state_field(outdir, "os", os_info)
-        
-        #extract and write services
-        raw_services = extract_nmap_services(service_output_file).splitlines()
-        service_objects = [{"version":line} for line in raw_services]
-        update_state_field(outdir, "services", service_objects)
-        
-        print(f"[+] OS Identified: {os_info}")
-        print(f"[+] Services Extracted: {len(service_objects)} entries")
+        if result.returncode == 0:
+            print(f"[+] TCP scan completed in {elapsed:.1f} seconds")
+            
+            # Log to file
+            with open(logfile, "a") as f:
+                timestamp = datetime.now().strftime("%F %T")
+                f.write(f"[{timestamp}] TCP scan completed: {' '.join(command)}\n")
+                
+        else:
+            print(f"[!] TCP scan failed: {result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        print("[!] TCP scan timed out after 10 minutes")
+    except Exception as e:
+        print(f"[!] TCP scan error: {e}")
+    
+    # Intelligence Analysis Integration (only if --intel flag provided)
+    if intel and INTEL_AVAILABLE:
+        env = {
+            'IP': ip,
+            'BOXNAME': boxname,
+            'OUTDIR': str(outdir),
+            'LOGFILE': str(logfile)
+        }
+        try:
+            auto_analyze_scan_results(env)
+        except Exception as e:
+            print(f"[!] Intelligence analysis failed: {e}")
 
-    except subprocess.CalledProcessError as e: 
-        print(f"[!] Error running service scan: {e}")
+def run_script_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
+    """Run targeted script scan based on open ports"""
+    
+    print(f"[*] Starting script scan on {ip}...")
+    
+    # Build command based on internal/external
+    if internal:
+        # Internal: Connect scan + default scripts only
+        output_file = outdir / f"{boxname}_script_internal"
+        command = [
+            "nmap", "-sT", "-sC", "-T4",
+            "--min-rate=1000", "--max-retries=1", "-Pn",
+            "-oA", str(output_file), ip
+        ]
+        print(f"[*] Running internal script scan (connect + default scripts)")
+    else:
+        # External: SYN scan + scripts + version detection
+        output_file = outdir / f"{boxname}_script"
+        command = [
+            "nmap", "-sS", "-sC", "-sV", "-T4",
+            "--min-rate=1000", "--max-retries=1",
+            "-oA", str(output_file), ip
+        ]
+        print(f"[*] Running external script scan (SYN + scripts + version)")
+    
+    # Execute scan
+    start_time = time.time()
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=900)
+        elapsed = time.time() - start_time
+        
+        if result.returncode == 0:
+            print(f"[+] Script scan completed in {elapsed:.1f} seconds")
+            
+            # Log to file
+            with open(logfile, "a") as f:
+                timestamp = datetime.now().strftime("%F %T")
+                f.write(f"[{timestamp}] Script scan completed: {' '.join(command)}\n")
+                
+        else:
+            print(f"[!] Script scan failed: {result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        print("[!] Script scan timed out after 15 minutes")
+    except Exception as e:
+        print(f"[!] Script scan error: {e}")
+    
+    # Intelligence Analysis Integration (only if --intel flag provided)
+    if intel and INTEL_AVAILABLE:
+        env = {
+            'IP': ip,
+            'BOXNAME': boxname,
+            'OUTDIR': str(outdir),
+            'LOGFILE': str(logfile)
+        }
+        try:
+            auto_analyze_scan_results(env)
+        except Exception as e:
+            print(f"[!] Intelligence analysis failed: {e}")
+
+def run_full_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
+    """Run comprehensive scan: TCP + Service + UDP + Scripts"""
+    
+    print(f"[*] Starting full scan on {ip}...")
+    print(f"[*] Mode: {'Internal' if internal else 'External'}")
+    
+    scan_start = time.time()
+    
+    # 1. TCP Scan
+    print(f"[*] Step 1/4: TCP port discovery...")
+    run_tcp_scan(ip, boxname, outdir, logfile, internal=internal, intel=False)
+    
+    # 2. Service Detection
+    print(f"[*] Step 2/4: Service detection...")
+    run_service_scan(ip, boxname, outdir, logfile, internal=internal)
+    
+    # 3. Script Scan
+    print(f"[*] Step 3/4: Script enumeration...")
+    run_script_scan(ip, boxname, outdir, logfile, internal=internal, intel=False)
+    
+    # 4. UDP Scan (only for external scans, internal doesn't work well with UDP)
+    if not internal:
+        print(f"[*] Step 4/4: UDP scan (background)...")
+        run_udp_scan(ip, boxname, outdir, logfile)
+    else:
+        print(f"[*] Step 4/4: Skipping UDP scan (internal mode)")
+    
+    total_elapsed = time.time() - scan_start
+    print(f"[+] Full scan sequence completed in {total_elapsed/60:.1f} minutes")
+    
+    # Log completion
+    with open(logfile, "a") as f:
+        timestamp = datetime.now().strftime("%F %T")
+        mode = "internal" if internal else "external"
+        f.write(f"[{timestamp}] Full scan ({mode}) completed in {total_elapsed/60:.1f} minutes\n")
+    
+    # Intelligence Analysis Integration (only if --intel flag provided)
+    if intel and INTEL_AVAILABLE:
+        env = {
+            'IP': ip,
+            'BOXNAME': boxname,
+            'OUTDIR': str(outdir),
+            'LOGFILE': str(logfile)
+        }
+        try:
+            auto_analyze_scan_results(env)
+        except Exception as e:
+            print(f"[!] Intelligence analysis failed: {e}")
+
+def run_service_scan(ip, boxname, outdir, logfile, internal=False):
+    """Run service version detection on discovered ports"""
+    
+    print(f"[*] Starting service detection on {ip}...")
+    
+    # Build command based on internal/external
+    if internal:
+        # Internal: Connect scan + version detection
+        output_file = outdir / f"{boxname}_service_internal"
+        command = [
+            "nmap", "-sT", "-sV", "-T4",
+            "--min-rate=1000", "--max-retries=1", "-Pn",
+            "-oA", str(output_file), ip
+        ]
+        print(f"[*] Running internal service scan (connect + version)")
+    else:
+        # External: SYN scan + version detection
+        output_file = outdir / f"{boxname}_service"
+        command = [
+            "nmap", "-sS", "-sV", "-T4",
+            "--min-rate=1000", "--max-retries=1",
+            "-oA", str(output_file), ip
+        ]
+        print(f"[*] Running external service scan (SYN + version)")
+    
+    # Execute scan
+    start_time = time.time()
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=600)
+        elapsed = time.time() - start_time
+        
+        if result.returncode == 0:
+            print(f"[+] Service scan completed in {elapsed:.1f} seconds")
+            
+            # Log to file
+            with open(logfile, "a") as f:
+                timestamp = datetime.now().strftime("%F %T")
+                f.write(f"[{timestamp}] Service scan completed: {' '.join(command)}\n")
+                
+        else:
+            print(f"[!] Service scan failed: {result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        print("[!] Service scan timed out after 10 minutes")
+    except Exception as e:
+        print(f"[!] Service scan error: {e}")
+
+def run_udp_scan(ip, boxname, outdir, logfile):
+    """Run UDP scan in background (external only)"""
+    
+    print(f"[*] Starting UDP scan on {ip} (background process)...")
+    
+    output_file = outdir / f"{boxname}_udp"
+    command = [
+        "nmap", "-sU", "--top-ports=100", "-T4",
+        "--max-retries=1", "--host-timeout=5m",
+        "-oA", str(output_file), ip
+    ]
+    
+    def run_udp_background():
+        try:
+            start_time = time.time()
+            result = subprocess.run(command, capture_output=True, text=True, timeout=1800)
+            elapsed = time.time() - start_time
+            
+            if result.returncode == 0:
+                print(f"[+] UDP scan completed in {elapsed/60:.1f} minutes")
+                
+                # Log to file
+                with open(logfile, "a") as f:
+                    timestamp = datetime.now().strftime("%F %T")
+                    f.write(f"[{timestamp}] UDP scan completed: {' '.join(command)}\n")
+            else:
+                print(f"[!] UDP scan failed: {result.stderr}")
+                
+        except subprocess.TimeoutExpired:
+            print("[!] UDP scan timed out after 30 minutes")
+        except Exception as e:
+            print(f"[!] UDP scan error: {e}")
+    
+    # Start UDP scan in background thread
+    udp_thread = threading.Thread(target=run_udp_background, daemon=True)
+    udp_thread.start()
+    
+    print(f"[*] UDP scan running in background. Use 'udp progress' to check status.")
+
+def check_udp_progress(boxname, outdir):
+    """Check UDP scan progress"""
+    
+    udp_file = outdir / f"{boxname}_udp.nmap"
+    
+    if not udp_file.exists():
+        print("[!] No UDP scan file found. Run a full scan first.")
         return
     
-    
-    print(f"Service scan complete! Scan saved to {service_output_file}")
-    mark_module_used(outdir, "service_scan")
-
-
-
-#Function for running TCP, Service and UDP Scan
-def run_full_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
-
-    run_tcp_scan(ip, boxname, outdir, logfile)
-
-    run_service_scan(ip, boxname, outdir, logfile)
-
-    print(f"[+] Full scan complete! Open ports saved to {outdir}/open_ports.txt")
-
-    #Prompt the user to run a target script scan
-    user_input = input("Do you want to run a targeted script scan on the open ports? (y/n)").strip().lower()
-    if user_input == "y":
-        run_script_scan(ip, boxname, outdir, logfile)
-    
-    #Runs the UDP scan last
-    run_udp_scan(ip, boxname, outdir, logfile)
-
-
-
-#Function for script scans on the ports that were found from the tcp scan
-def run_script_scan(ip:str, boxname: str, outdir: Path, logfile:Path):
-    port_file = outdir / "open_ports.txt"
-    service_scan_file = outdir / f"script_scan_port_{port}.txt"
-
-    if not port_file.exists():
-        print(f"[-] Open ports file not found at: {outdir}")
-        print(f"[-] Run the full scan first!")
-        return
-    
-    port_string = port_file.read_text().strip()
-    ports = port_string.split(",")
-
-    for port in ports: 
-        port = port.strip()
-        if port in ["80", "8000", "8080"]:
-            scripts = "http-title,http-methods,http-enum,http-headers"
-        elif port == "21": 
-            scripts = "ftp-anon,ftp-syst"
-        elif port == "22": 
-            scripts = "ssh-hostkey,ssh-auth-methods"
-        elif port in ["139", "445"]:
-            scripts = "smb-os-discovery,smb-enum-shares,smb-enum-users"
-        else: 
-            scripts = "default,safe"
-
-        print(f"[*] Scanning port {port} with scripts: {scripts}")
-        try: 
-            result = subprocess.run(
-                    ["nmap", "-Pn", "-p", f"{port}", "--script", f"{scripts}", "-sV", "-T4", "-v0", "--script-timeout", "30s", "-oN", f"{outdir}/script_scan_port_{port}.txt", ip], 
-                    capture_output= True, text= True, check= True
-                )
-            #log_output(logfile, "[SCRIPT] Script Scan Output", result.stdout)
-        except subprocess.CalledProcessError as e: 
-            print(f"[!] Script scan failed for port {port}: {e}")
-    
-    print(f"[!] Script scan complete! Scan saved to {service_scan_file}")       
-    mark_module_used(outdir, "script_scan")
-    
-    
-
-#Function for running UDP Scans
-def run_udp_scan(ip:str, boxname:str, outdir:Path, logfile:Path):
-    udp_output_file = outdir / f"{boxname}.udp.txt"
-    print(f"[*] Launching a UDP scan on {ip} in the background... (results will be in {udp_output_file})")
-
-    #run the udp scan in the background
-    try: 
-        with open(udp_output_file, "w") as log_file: 
-            result = subprocess.Popen(
-                ["nmap", "-sU", "--top-ports", "100", "-Pn", "--stats-every", "5s",
-                "-v", "-T4", "-oN", str(udp_output_file), ip], stdout=log_file, stderr=subprocess.STDOUT
-            )
-            #log_output(logfile, "[UDP] UDP Scan Started",f"UDP Scan started in background, writing to {udp_output_file}")
-    except subprocess.CalledProcessError as e: 
-        print(f"[!] Error running UDP scan: {e}")
-        return
-         
-    mark_module_used(outdir, "udp_scan")
-
-
-
-#Since UDP scans are long, this gives the user a update on the progress of the scan
-def check_udp_progress(boxname: str, outdir: Path):
-    udp_log = outdir / f"{boxname}.udp.txt"
-    if not udp_log.exists(): 
-        print("[!] No UDP log file found.")
-        return
-    
-    last_progress = None
-    with open(udp_log) as f: 
-        for line in f: 
-            if "Stats:" in line: 
-                last_progress = line.strip()
-    
-    if last_progress: 
-        print(f"[UDP Progress] {last_progress}")
-    else: 
-        print("No progress reported yet.")
-
-
-
-#To get user input on which wordlist to use
-def choose_wordlist():
-    default_wordlist = "/usr/share/wordlists/dirb/common.txt"
-    seclists_dir = Path("/usr/share/seclists/Discovery/Web-Content")
-
-    print("Which wordlist for web enumeration?")
-    print("1) Use default (common.txt)")
-    print("2) Browse Seclists/Web-Content")
-    print("3) Enter custom path")
-
-    choice = input("Enter choice: ").strip()
-
-    #default choice
-    if choice == "" or choice == "1": 
-        return default_wordlist
-
-    #choice number 2 
-    if choice == "2": 
-        wordlists = sorted(seclists_dir.glob(".txt"))
-        if not wordlists: 
-            print("[-] No wordlists found in Seclists. Using default wordlist.")
-            return default_wordlist
+    try:
+        # Check file modification time
+        mod_time = udp_file.stat().st_mtime
+        current_time = time.time()
+        age_minutes = (current_time - mod_time) / 60
         
-        print("\nAvailable Seclists wordlists")
-        for idx, wl in enumerate(wordlists):
-            print(f"{idx + 1}) {wl.name}")
-
-        sub_choice = input(f"Choose [1-{len(wordlists)}: ]").strip()
-
-        try: 
-            selected = wordlists[int(sub_choice) -1]
-            return str(selected)
-        except (ValueError, IndexError): 
-            print("[-] Invalid input. Using default wordlist")
-            return default_wordlist
-    
-    #choice number 3 
-    elif choice == "3": 
-        custom_path = input("Enter full path to wordlist: ").strip()
-        return custom_path
-    
-    else: 
-        print("[-] Invalid input. Using default wordlist")
-        return default_wordlist
-
-
-
-#Function for web enumeration
-def web_enum(ip: str, boxname: str, outdir: Path, logfile:Path ):
-    port_file = outdir / "open_ports.txt"
-    notes_file = outdir / f"{boxname}_notes.txt"
-
-    if not port_file.exists():
-        print(f"[-] Open ports file not found at: {outdir}")
-        print(f"[-] Run the full scan first!")
-        return
-    
-    port_string = port_file.read_text().strip()
-    ports = port_string.split(",")
-    web_ports = []
-
-    for port in ports: 
-        port = port.strip()
-        if port in ["80", "8080", "8000"]:
-            web_ports.append(port)
-
-    if len(web_ports) == 1: 
-        web_port = web_ports[0]
-        print(f"[+] Using detected web port: {web_port}")
-
-    elif len(web_ports) > 1: 
-        print(f"[!] Multiple web ports detected!: {web_ports}")
-        chosen_port = input("Which port would you like to use?").strip()
-
-        if chosen_port in web_ports: 
-            web_port = chosen_port
-        else: 
-            print("[-] Invalid choice. Returning to main menu.")
+        # Read current content
+        with open(udp_file, 'r') as f:
+            content = f.read()
         
-    elif len(web_ports) == 0: 
-        user_input = input("No standard web ports found. Use a non-standard port? (y/n)").strip().lower()
-        if user_input == "y": 
-            web_port = input("Please input the port you would like to use: ").strip()
-        else: 
-            print("Returning to main menu")
-            return
+        if "Nmap scan report" in content and "# Nmap done" in content:
+            print(f"[+] UDP scan completed")
+            
+            # Count open ports
+            open_ports = content.count("/udp open")
+            if open_ports > 0:
+                print(f"[+] Found {open_ports} open UDP ports")
+            else:
+                print(f"[*] No open UDP ports found")
+        else:
+            print(f"[*] UDP scan in progress... (running for {age_minutes:.1f} minutes)")
+            
+    except Exception as e:
+        print(f"[!] Error checking UDP progress: {e}")
+
+def web_enum(ip, boxname, outdir, logfile, port=None, internal=False, intel=False, tool="auto", protocol=None):
+    """Enhanced web enumeration with custom port support, tool selection, and protocol specification"""
     
-    #Check if site is HTTP or HTTPS
-    print("[*] Checking if site is HTTP or HTTPS...")
-
-    try: 
-        result = subprocess.run(
-            ["curl", "-s", "-o", "/dev/null", "-w", "%{scheme}", f"http://{ip}:{web_port}"], 
-            capture_output= True, text= True, check= True)
-        proto = result.stdout.strip()
-        #log_output(logfile, "[WEB] HTTP vs HTTPS Scan Output", result.stdout)
-    except subprocess.CalledProcessError: 
-        print("[!] Curl failed to connect, assuming HTTPS")
-        proto = "https"
-
-    #Fallback if for some reason curl doesnt return 'http'
-    if proto != "http":
-        proto = "https"
-
-    url = f"{proto}://{ip}:{web_port}"
-
-    print(f"[*] Detected protocol: {proto}")
-    print(f" Target url: {url}")
-
-    #Grab HTTP Headers
-    print("[*] Grabbing HTTP Headers...")
-    headers_file = outdir / f"web_headers_{web_port}.txt"
-
-    try: 
-        result = subprocess.run(
-            ["curl", "-I", "--insecure", url], 
-            capture_output=True, text=True, check=True
-        )
-        #log_output(logfile, "[WEB] HTTP Headers Scan", result.stdout)
-
-        #print headers to screen
-        print(result.stdout)
-
-        #save headers to file 
-        headers_file.write_text(result.stdout)
-        print(f"[+] Headers file saved to {headers_file}")
-
-        #save headers to notes
-        append_to_notes_section(notes_file, "[Web Services Enumeration]:", f"Headers for {url}:\n{result.stdout}")
-
-        #extract and log web tech 
-        tech_summary = extract_web_tech(tech_summary)
-        if tech_summary: 
-            #append_to_notes_section(notes_file, "Web Technology:", tech_summary)
-            update_state_field(outdir, "web_tech", tech_summary)
+    # Determine target URL, port, and protocol
+    if port:
+        target_port = int(port)
         
-
-    except subprocess.CalledProcessError as e:
-        print(f"[!] Failed to grab headers: {e}")
-
-    #Gobuster Directory Bruteforce
-    print("[*] Running Gobuster for Directories...")
-    gobuster_file = outdir / "web_gobuster.txt"
-
-    wordlist_path = choose_wordlist()
-
-    try: 
-        result = subprocess.run(
-            ["gobuster", "dir", 
-             "-u", url, 
-             wordlist_path, 
-             "-t", "40", "-o", "-w", str(gobuster_file)], 
-            capture_output=True, text=True, check=True
-        )
-
-        #log_output(logfile, "[WEB] Gobuster Scan Output", result.stdout)
-        append_to_notes_section(notes_file, "[Web Services Enumeration]:", f"Gobuster Scan for {url}:\n{result.stdout}")
+        # Determine protocol - explicit override takes precedence
+        if protocol:
+            scheme = protocol.lower()
+        else:
+            # Smart detection based on common ports
+            if target_port == 443:
+                scheme = "https"
+            elif target_port in [8443, 9443, 10443]:  # Common HTTPS alternate ports
+                scheme = "https"
+            else:
+                scheme = "http"
         
-        #extract discovered paths from gobuster output
-        paths = []
-        for line in result.stdout.splitlines():
-            parts = line.strip().split()
-            if len(parts) >= 2 and parts[1] in ("GET", "POST"): 
-                path = parts[0]
-                if path.startswith("/"):
-                    paths.append(path)
+        # Build URL
+        if scheme == "https":
+            if target_port == 443:
+                base_url = f"https://{ip}"
+            else:
+                base_url = f"https://{ip}:{port}"
+        else:  # http
+            if target_port == 80:
+                base_url = f"http://{ip}"
+            else:
+                base_url = f"http://{ip}:{port}"
+        
+        print(f"[*] Starting web enumeration on {ip}:{port} ({scheme.upper()})")
+        
+    else:
+        # No port specified - use protocol or default
+        if protocol:
+            scheme = protocol.lower()
+            if scheme == "https":
+                base_url = f"https://{ip}"
+                target_port = 443
+            else:
+                base_url = f"http://{ip}"
+                target_port = 80
+            print(f"[*] Starting web enumeration on {ip} ({scheme.upper()})")
+        else:
+            # Default behavior - scan both HTTP and HTTPS
+            print(f"[*] Starting web enumeration on {ip} (HTTP/HTTPS)")
+            base_url = f"http://{ip}"
+            target_port = 80
+            scheme = "http"
+    
+    # Create output files with port and protocol info
+    if port:
+        port_suffix = f"_{scheme}_port{port}"
+    elif protocol:
+        port_suffix = f"_{scheme}"
+    else:
+        port_suffix = ""
+    
+    # 1. Basic connectivity check
+    print(f"[*] Checking {scheme.upper()} connectivity...")
+    try:
+        curl_cmd = ["curl", "-s", "-I", "--max-time", "5"]
+        
+        # Add SSL options for HTTPS
+        if scheme == "https":
+            curl_cmd.extend(["-k"])  # Ignore SSL certificate errors
+        
+        curl_cmd.append(base_url)
+        
+        result = subprocess.run(curl_cmd, capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            print(f"[+] {scheme.upper()} service is responding")
+        else:
+            print(f"[!] {scheme.upper()} service not responding or filtered")
+    except Exception as e:
+        print(f"[!] Connectivity check failed: {e}")
+    
+    # 2. Directory enumeration with smart tool selection
+    
+    # Detect available tools
+    feroxbuster_available = False
+    gobuster_available = False
+    
+    try:
+        subprocess.run(["feroxbuster", "--version"], capture_output=True, timeout=5)
+        feroxbuster_available = True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    
+    try:
+        subprocess.run(["gobuster", "version"], capture_output=True, timeout=5)
+        gobuster_available = True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    
+    # Determine which tool to use
+    use_feroxbuster = False
+    
+    if tool == "ferox" and feroxbuster_available:
+        use_feroxbuster = True
+        print("[*] Using feroxbuster (user specified)")
+    elif tool == "gobuster" and gobuster_available:
+        use_feroxbuster = False
+        print("[*] Using gobuster (user specified)")
+    elif tool == "auto":
+        if feroxbuster_available:
+            use_feroxbuster = True
+            print("[*] Using feroxbuster (faster, more features)")
+        elif gobuster_available:
+            use_feroxbuster = False
+            print("[*] Using gobuster (feroxbuster not available)")
+        else:
+            print("[!] No directory enumeration tools available")
+            print("[!] Install feroxbuster or gobuster for directory enumeration")
+    
+    # Run directory enumeration
+    if use_feroxbuster and feroxbuster_available:
+        # FEROXBUSTER IMPLEMENTATION
+        
+        # Select best available wordlist
+        wordlists = [
+            "/usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt",
+            "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt",
+            "/usr/share/wordlists/dirb/common.txt"
+        ]
+        
+        wordlist = None
+        for wl in wordlists:
+            if Path(wl).exists():
+                wordlist = wl
+                break
+        
+        if wordlist:
+            output_file = outdir / f"{boxname}_feroxbuster{port_suffix}.txt"
+            
+            ferox_cmd = [
+                "feroxbuster",
+                "-u", base_url,
+                "-w", wordlist,
+                "-o", str(output_file),
+            ]
+            
+            # Add SSL support if HTTPS
+            if scheme == "https":
+                ferox_cmd.append("-k")  # Ignore SSL certificate
+            
+            # Adjust settings based on internal/external
+            if internal:
+                ferox_cmd.extend([
+                    "-t", "10",           # Lower thread count for internal
+                    "--timeout", "5",     # 5 second timeout
+                    "--depth", "2",       # Limit recursion depth
+                ])
+                print(f"[*] Running feroxbuster on {base_url} (internal mode)")
+            else:
+                ferox_cmd.extend([
+                    "-t", "30",           # Higher thread count for external
+                    "--timeout", "3",     # Faster timeout
+                    "--depth", "3",       # More recursion
+                ])
+                print(f"[*] Running feroxbuster on {base_url} (external mode)")
+            
+            # Add smart filtering
+            ferox_cmd.extend([
+                "--filter-status", "404",     # Filter 404s
+                "--filter-words", "0",        # Filter empty responses
+            ])
+            
+            try:
+                result = subprocess.run(ferox_cmd, capture_output=True, text=True, timeout=600)
+                if result.returncode == 0:
+                    print(f"[+] Directory enumeration completed -> {output_file.name}")
                     
-        #only update state.json if paths found
-        if paths: 
-            from state import load_state
-            services = load_state(outdir).get("services", [])
-            if services: 
-                services[0]["discovered_paths"] = paths
-            else: 
-                services = [{"discovered_paths" : paths}]
-            update_state_field(outdir, "services", services)
-
-        print(f"[+] Gobuster output saved to {gobuster_file}")
+                    # Show quick summary of findings
+                    try:
+                        with open(output_file, 'r') as f:
+                            content = f.read()
+                        
+                        lines = content.split('\n')
+                        status_200 = len([l for l in lines if ' 200 ' in l])
+                        status_301 = len([l for l in lines if ' 301 ' in l])
+                        status_403 = len([l for l in lines if ' 403 ' in l])
+                        
+                        if status_200 > 0:
+                            print(f"[+] Found {status_200} accessible paths (200)")
+                        if status_301 > 0:
+                            print(f"[+] Found {status_301} redirects (301)")
+                        if status_403 > 0:
+                            print(f"[*] Found {status_403} forbidden paths (403)")
+                            
+                    except Exception:
+                        pass  # Don't fail if we can't parse output
+                        
+                else:
+                    print(f"[!] Feroxbuster failed: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                print("[!] Feroxbuster timed out after 10 minutes")
+            except Exception as e:
+                print(f"[!] Feroxbuster error: {e}")
+        else:
+            print("[!] No suitable wordlist found for feroxbuster")
     
-    except subprocess.CalledProcessError as e: 
-        print(f"[-] Gobuster scan failed: {e}")
-
-    #Ferroxbuster Directory Bruteforce
-    print("[*] Running Ferroxbuster to confirm directories...")
-    ferrox_file = outdir / "web_ferrox.txt"
-
-    wordlist_path = choose_wordlist()
-
-    try: 
-        result = subprocess.run(
-            ["feroxbuster", "-u", 
-             url, "-w", wordlist_path, 
-             "-o", str(ferrox_file)], 
-            capture_output=True, text=True, check=True
-        )
-        #log_output(logfile, "[WEB] Feroxbuster Scan Result", result.stdout)
-        append_to_notes_section(notes_file, "[Web Services Enumeration]:", f"Feroxbuster Scan for {url}:\n{result.stdout}")
-
-        print(f"[+] Ferroxbuster output saved to {ferrox_file}")
+    elif gobuster_available:
+        # GOBUSTER IMPLEMENTATION
+        
+        wordlist = "/usr/share/wordlists/dirb/common.txt"
+        if Path(wordlist).exists():
+            output_file = outdir / f"{boxname}_gobuster{port_suffix}.txt"
+            
+            gobuster_cmd = [
+                "gobuster", "dir",
+                "-u", base_url,
+                "-w", wordlist,
+                "-o", str(output_file)
+            ]
+            
+            # Add SSL support if HTTPS
+            if scheme == "https":
+                gobuster_cmd.append("-k")  # Ignore SSL certificate
+            
+            # Adjust threading based on internal/external
+            if internal:
+                gobuster_cmd.extend(["-t", "10", "--timeout", "5s"])
+                print(f"[*] Running gobuster on {base_url} (internal mode)")
+            else:
+                gobuster_cmd.extend(["-t", "20", "--timeout", "3s"])
+                print(f"[*] Running gobuster on {base_url}")
+            
+            try:
+                result = subprocess.run(gobuster_cmd, capture_output=True, text=True, timeout=300)
+                if result.returncode == 0:
+                    print(f"[+] Directory enumeration completed -> {output_file.name}")
+                else:
+                    print(f"[!] Gobuster failed: {result.stderr}")
+            except Exception as e:
+                print(f"[!] Gobuster error: {e}")
+        else:
+            print("[!] Gobuster wordlist not found: {wordlist}")
     
-    except subprocess.CalledProcessError as e: 
-        print(f"[-] Ferroxbuster scan failed: {e}")
+    # 3. Additional web tools for custom ports (moved)
     
-    print("[+] Web Enumertion Complete!")
-    mark_module_used(outdir, "web_enum")
-    
+    # 4. Technology detection
+    whatweb_file = outdir / f"{boxname}_whatweb{port_suffix}.txt"
+    print(f"[*] Running technology detection...")
+    try:
+        whatweb_cmd = ["whatweb", "-a", "3", base_url]
+        result = subprocess.run(whatweb_cmd, capture_output=True, text=True, timeout=60)
+        if result.returncode == 0:
+            with open(whatweb_file, 'w') as f:
+                f.write(result.stdout)
+            print(f"[+] Technology detection completed -> {whatweb_file.name}")
+    except Exception as e:
+        print(f"[!] Technology detection failed: {e}")
 
+def run_host_discovery_only(ip, internal=False):
+    """Host discovery only (use with CIDR)"""
+    
+    print(f"[*] Starting host discovery on {ip}...")
+    
+    if internal:
+        # Internal host discovery might not work well through port forwarding
+        print(f"[!] Warning: Host discovery may not work reliably in internal mode")
+        print(f"[!] Consider running discovery from the jump host directly")
+        command = [
+            "nmap", "-sn", "-T4", "--min-rate=1000", "-Pn", ip
+        ]
+    else:
+        # External host discovery
+        command = [
+            "nmap", "-sn", "-T4", "--min-rate=2000", ip
+        ]
+    
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        
+        if result.returncode == 0:
+            print(f"[+] Host discovery completed")
+            print(result.stdout)
+        else:
+            print(f"[!] Host discovery failed: {result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        print("[!] Host discovery timed out")
+    except Exception as e:
+        print(f"[!] Host discovery error: {e}")
+
+# Additional utility functions (keep your existing ones)
+
+def extract_os_from_nmap(scan_file):
+    """Extract OS information from nmap scan file"""
+    try:
+        with open(scan_file, 'r') as f:
+            content = f.read()
+        
+        # Look for OS detection lines
+        os_lines = [line for line in content.split('\n') if 'OS:' in line or 'Running:' in line]
+        if os_lines:
+            return os_lines[0].strip()
+        
+        return None
+    except Exception:
+        return None
+
+def extract_nmap_services(scan_file):
+    """Extract services from nmap scan file"""
+    services = []
+    try:
+        with open(scan_file, 'r') as f:
+            for line in f:
+                if '/tcp' in line and 'open' in line:
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        port = parts[0].split('/')[0]
+                        service = parts[2] if len(parts) > 2 else 'unknown'
+                        services.append(f"{port}:{service}")
+        
+        return services
+    except Exception:
+        return []
+
+def extract_hostname_from_nmap(scan_file):
+    """Extract hostname from nmap scan file"""
+    try:
+        with open(scan_file, 'r') as f:
+            content = f.read()
+        
+        # Look for hostname in various formats
+        import re
+        hostname_patterns = [
+            r'Nmap scan report for ([^\s]+)',
+            r'rDNS record for [^:]+: ([^\s]+)',
+        ]
+        
+        for pattern in hostname_patterns:
+            matches = re.findall(pattern, content)
+            if matches:
+                return matches[0]
+        
+        return None
+    except Exception:
+        return None

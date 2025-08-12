@@ -1,0 +1,904 @@
+{
+  "writeup_id": "Htb_Conceal",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_ipsec_vpn_snmp_enumeration",
+    "primary_services": [
+      "ipsec",
+      "snmp",
+      "ftp",
+      "http"
+    ],
+    "port_signature": "161+500+4500",
+    "service_combination": "snmp+ipsec+nat-t",
+    "os_family": "windows_server",
+    "environment_type": "vpn_gateway",
+    "entry_vector": "ipsec_vpn_connection",
+    "privilege_path": "webshell_to_system",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.85,
+    "distinguishing_factors": [
+      "tcp_ports_filtered_behind_ipsec",
+      "snmp_reveals_hidden_services",
+      "vpn_configuration_required"
+    ],
+    "environmental_clues": [
+      "all_tcp_ports_filtered",
+      "ipsec_isakmp_open",
+      "snmp_netstat_shows_hidden_tcp",
+      "nat_traversal_enabled"
+    ],
+    "similar_scenarios": [
+      "vpn_gateway_pentests",
+      "firewall_bypass_scenarios"
+    ],
+    "unique_aspects": [
+      "requires_ipsec_vpn_setup",
+      "snmp_enumeration_critical",
+      "hidden_services_behind_vpn"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SNMP_enumeration",
+        "success_reason": "SNMP service exposed with default community string 'public'",
+        "prerequisite_indicators": [
+          "udp_161_accessible",
+          "default_community_strings",
+          "snmp_service_enabled"
+        ],
+        "recognition_patterns": [
+          "snmpwalk responds to public community",
+          "system information disclosure",
+          "network configuration exposure"
+        ],
+        "failure_modes": [
+          "snmp_disabled",
+          "custom_community_strings",
+          "snmp_access_controls"
+        ],
+        "environmental_factors": [
+          "default_windows_snmp_config",
+          "network_monitoring_requirements",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "IPSEC_VPN_connection",
+        "success_reason": "PSK credentials exposed via SNMP sysContact field",
+        "prerequisite_indicators": [
+          "ike_service_running",
+          "psk_authentication_enabled",
+          "credentials_discoverable"
+        ],
+        "recognition_patterns": [
+          "UDP 500 (IKE) open",
+          "UDP 4500 (NAT-T) open",
+          "PSK hash in SNMP data"
+        ],
+        "failure_modes": [
+          "certificate_based_auth",
+          "strong_psk_storage",
+          "ipsec_disabled"
+        ],
+        "environmental_factors": [
+          "remote_access_vpn_setup",
+          "weak_credential_storage",
+          "information_disclosure_via_snmp"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "webshell_upload_via_ftp",
+        "success_reason": "FTP service accessible after VPN connection with write permissions",
+        "prerequisite_indicators": [
+          "ftp_service_running",
+          "write_permissions_available",
+          "web_server_serving_ftp_directory"
+        ],
+        "recognition_patterns": [
+          "TCP 21 accessible via VPN",
+          "anonymous or weak FTP access",
+          "web root writable via FTP"
+        ],
+        "failure_modes": [
+          "ftp_read_only",
+          "web_server_not_serving_ftp_dir",
+          "file_upload_restrictions"
+        ],
+        "environmental_factors": [
+          "shared_ftp_web_directories",
+          "permissive_file_permissions",
+          "legacy_web_server_config"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "JuicyPotato_privilege_escalation",
+        "success_reason": "Unpatched Windows system vulnerable to token impersonation",
+        "prerequisite_indicators": [
+          "windows_server_unpatched",
+          "service_account_context",
+          "com_objects_available"
+        ],
+        "recognition_patterns": [
+          "SeImpersonatePrivilege enabled",
+          "vulnerable Windows version",
+          "DCOM service available"
+        ],
+        "failure_modes": [
+          "system_fully_patched",
+          "privilege_restrictions",
+          "com_hardening_enabled"
+        ],
+        "environmental_factors": [
+          "legacy_windows_installation",
+          "insufficient_patch_management",
+          "default_service_configurations"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "IPSEC PSK in SNMP sysContact",
+        "discovery_method": "snmpwalk with default community string",
+        "why_critical": "Provided VPN access to internal network and services",
+        "how_to_recognize": [
+          "SNMP responds to public community",
+          "sysContact contains credential information",
+          "hash format in system fields"
+        ],
+        "follow_up_actions": [
+          "crack_psk_hash",
+          "configure_ipsec_client",
+          "enumerate_internal_services"
+        ]
+      },
+      {
+        "discovery": "Internal TCP services via SNMP netstat",
+        "discovery_method": "SNMP process and network enumeration",
+        "why_critical": "Revealed hidden services accessible only via VPN",
+        "how_to_recognize": [
+          "snmp-netstat shows listening ports",
+          "TCP services not externally accessible",
+          "FTP and HTTP services enumerated"
+        ],
+        "follow_up_actions": [
+          "establish_vpn_connection",
+          "scan_internal_services",
+          "test_service_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "network_access",
+        "escalation_method": "IPSEC_VPN_to_internal_services",
+        "why_possible": "PSK credentials exposed via SNMP information disclosure",
+        "recognition_signs": [
+          "ike_service_available",
+          "psk_hash_discoverable",
+          "internal_services_enumerated"
+        ],
+        "exploitation_path": "SNMP enum → PSK discovery → VPN connection → Internal access"
+      },
+      {
+        "privilege_level": "web_access",
+        "escalation_method": "FTP_to_webshell",
+        "why_possible": "FTP write access to web-accessible directory",
+        "recognition_signs": [
+          "ftp_write_permissions",
+          "web_server_serving_ftp_directory",
+          "file_upload_capabilities"
+        ],
+        "exploitation_path": "FTP upload → Webshell → Code execution"
+      },
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "JuicyPotato_to_SYSTEM",
+        "why_possible": "Unpatched Windows system with impersonation privileges",
+        "recognition_signs": [
+          "seimpersonateprivilege_enabled",
+          "vulnerable_windows_version",
+          "dcom_service_available"
+        ],
+        "exploitation_path": "Service context → Token impersonation → SYSTEM privileges"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "All TCP ports filtered, only UDP 500 (ISAKMP) open",
+        "decision": "Enumerate UDP ports more thoroughly with scripts",
+        "reasoning": "ISAKMP suggests IPSEC VPN, need more info to connect",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "udp_top_ports_scan",
+            "when": "standard UDP scan incomplete"
+          },
+          {
+            "option": "snmp_enumeration",
+            "when": "if port 161 discovered"
+          }
+        ],
+        "success_indicators": [
+          "snmp_responds",
+          "additional_udp_services_found",
+          "ike_version_identified"
+        ],
+        "next_decision": "analyze_snmp_data"
+      },
+      {
+        "step": 2,
+        "situation": "SNMP reveals VPN PSK and TCP services behind VPN",
+        "decision": "Extract VPN credentials and establish IPSEC connection",
+        "reasoning": "SNMP sysContact contains PSK hash, netstat shows hidden services",
+        "confidence": 0.95,
+        "prerequisites": [
+          "snmp_accessible",
+          "psk_hash_found"
+        ],
+        "success_indicators": [
+          "psk_cracked",
+          "ipsec_connection_established"
+        ],
+        "failure_fallbacks": [
+          "brute_force_psk",
+          "alternative_vpn_configs"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Connected via IPSEC VPN, TCP services now accessible",
+        "decision": "Enumerate newly accessible TCP services",
+        "reasoning": "VPN reveals previously filtered services like FTP, HTTP, SMB",
+        "confidence": 0.85,
+        "prerequisites": [
+          "vpn_connected",
+          "tcp_services_accessible"
+        ],
+        "success_indicators": [
+          "ftp_accessible",
+          "http_service_found",
+          "smb_enumerable"
+        ],
+        "failure_fallbacks": [
+          "verify_vpn_routing",
+          "check_firewall_rules"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_snmp_accessible": {
+        "action": "extract_vpn_credentials",
+        "tools": [
+          "snmpwalk",
+          "crackstation",
+          "hashcat"
+        ],
+        "next_phase": "vpn_connection_setup"
+      },
+      "if_vpn_connected": {
+        "action": "enumerate_hidden_services",
+        "alternatives": [
+          "ftp_upload",
+          "web_exploitation",
+          "smb_enumeration"
+        ],
+        "decision_criteria": "based_on_service_accessibility"
+      },
+      "if_web_access_gained": {
+        "action": "upload_webshell_via_ftp",
+        "purpose": "achieve_code_execution",
+        "tools": [
+          "ftp_client",
+          "webshell",
+          "juicypotato"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_snmp_when_ipsec_present",
+        "reasoning": "snmp_often_contains_vpn_credentials_in_sysContact",
+        "applicability": "ipsec_vpn_environments"
+      },
+      {
+        "rule": "enumerate_udp_with_scripts_when_tcp_filtered",
+        "reasoning": "udp_services_may_reveal_access_methods",
+        "applicability": "heavily_filtered_environments"
+      },
+      {
+        "rule": "check_netstat_via_snmp_for_hidden_services",
+        "reasoning": "reveals_services_behind_firewall_or_vpn",
+        "applicability": "snmp_accessible_hosts"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SNMP Enumeration",
+        "mitre_id": "T1040",
+        "required_services": [
+          "snmp"
+        ],
+        "required_ports": [
+          161
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "snmp_service_enabled",
+          "default_community_strings",
+          "udp_161_accessible"
+        ],
+        "success_indicators": [
+          "snmpwalk_returns_data",
+          "system_info_accessible",
+          "network_interfaces_enumerated"
+        ],
+        "incompatible_with": [
+          "snmp_disabled",
+          "custom_community_strings_only",
+          "udp_port_filtered"
+        ],
+        "confidence_boosters": [
+          "default_public_community",
+          "windows_target",
+          "network_device_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "IPSEC VPN Connection",
+        "mitre_id": "T1133",
+        "required_services": [
+          "isakmp"
+        ],
+        "required_ports": [
+          500,
+          4500
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ipsec_service_enabled",
+          "ike_negotiation_possible",
+          "preshared_key_guessable"
+        ],
+        "success_indicators": [
+          "ike_version_detected",
+          "nat_t_supported",
+          "successful_phase1_negotiation"
+        ],
+        "incompatible_with": [
+          "certificate_based_auth_only",
+          "complex_psk_required",
+          "ipsec_disabled"
+        ],
+        "confidence_boosters": [
+          "microsoft_ike_detected",
+          "nat_t_enabled",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "UDP Port Discovery",
+        "mitre_id": "T1046",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "udp_services_running",
+          "firewall_allows_udp",
+          "services_respond_to_probes"
+        ],
+        "success_indicators": [
+          "service_banners_received",
+          "application_responses",
+          "nmap_scripts_trigger"
+        ],
+        "incompatible_with": [
+          "all_udp_filtered",
+          "stateful_firewall_blocking",
+          "no_udp_services"
+        ],
+        "confidence_boosters": [
+          "windows_target",
+          "default_service_configs",
+          "network_services_present"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "FTP Anonymous Access",
+        "mitre_id": "T1021.003",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_running",
+          "anonymous_login_enabled",
+          "write_permissions_available"
+        ],
+        "success_indicators": [
+          "anonymous_login_successful",
+          "directory_listing_works",
+          "file_upload_possible"
+        ],
+        "incompatible_with": [
+          "authentication_required",
+          "ftp_disabled",
+          "read_only_access"
+        ],
+        "confidence_boosters": [
+          "default_ftp_config",
+          "web_server_present",
+          "windows_iis_detected"
+        ],
+        "typical_success_rate": 0.35,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_server": {
+        "port_indicators": [
+          135,
+          139,
+          445,
+          3389
+        ],
+        "service_indicators": [
+          "smb",
+          "netbios",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Microsoft",
+          "IIS"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "snmp_enabled": {
+        "port_indicators": [
+          161,
+          162
+        ],
+        "service_indicators": [
+          "snmp",
+          "snmptrap"
+        ],
+        "banner_indicators": [
+          "public",
+          "private"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ipsec_vpn": {
+        "port_indicators": [
+          500,
+          4500
+        ],
+        "service_indicators": [
+          "isakmp",
+          "nat-t-ike"
+        ],
+        "banner_indicators": [
+          "IKE",
+          "IPSEC",
+          "Microsoft"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "web_server": {
+        "port_indicators": [
+          80,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "snmp_enumeration",
+          "when": "snmp_service_detected",
+          "reason": "reveals_network_topology_and_services"
+        },
+        {
+          "attack": "udp_service_discovery",
+          "when": "tcp_ports_filtered",
+          "reason": "often_reveals_hidden_services"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ipsec_vpn_connection",
+          "when": "isakmp_service_detected",
+          "reason": "provides_network_access_but_requires_credentials"
+        },
+        {
+          "attack": "ftp_anonymous_access",
+          "when": "ftp_service_behind_vpn",
+          "reason": "potential_file_upload_for_webshells"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SNMP Enumeration",
+        "mitre_id": "T1040",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -sU -sC --top-ports 20 -oA {output_file} {target_ip}",
+            "actual_command": "nmap -sU -sC --top-ports 20 -oA nmap/udp-top20-scripts 10.10.10.116",
+            "output_pattern": "snmp-netstat|snmp-interfaces|snmp-processes",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "snmpwalk",
+            "command_template": "snmpwalk -v 2c -c public {target_ip}",
+            "actual_command": "snmpwalk -v 2c -c public 10.10.10.116",
+            "success_factors": [
+              "default_community_string",
+              "snmp_enabled"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "udp_161_accessible",
+          "default_community_strings",
+          "snmp_service_enabled"
+        ],
+        "success_indicators": [
+          "system_information_disclosed",
+          "network_configuration_revealed",
+          "process_list_obtained",
+          "credentials_in_system_contact_field"
+        ],
+        "common_failures": [
+          "custom_community_strings",
+          "snmp_disabled",
+          "firewall_blocking_udp"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "network_service_enumeration",
+          "vpn_connection_establishment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "IPSEC VPN Reconnaissance",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ike-scan",
+            "command_template": "ike-scan -M {target_ip}",
+            "actual_command": "ike-scan -M 10.10.10.116",
+            "output_pattern": "Enc=3DES Hash=SHA1 Group=2:modp1024 Auth=PSK",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "udp_500_accessible",
+          "ike_service_responding"
+        ],
+        "success_indicators": [
+          "encryption_algorithms_identified",
+          "authentication_method_discovered",
+          "ike_version_determined"
+        ],
+        "common_failures": [
+          "ike_service_not_responding",
+          "custom_configurations"
+        ],
+        "follow_up_techniques": [
+          "vpn_configuration_setup",
+          "strongswan_connection"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "IPSEC VPN Connection",
+        "mitre_id": "T1133",
+        "category": "persistence",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "strongswan",
+            "command_template": "ipsec up {connection_name}",
+            "actual_command": "ipsec up conceal",
+            "success_factors": [
+              "correct_psk",
+              "proper_ike_configuration",
+              "transport_mode"
+            ],
+            "effectiveness_rating": 3,
+            "reliability": 0.7
+          }
+        ],
+        "prerequisites": [
+          "preshared_key_obtained",
+          "ike_parameters_known",
+          "strongswan_installed"
+        ],
+        "success_indicators": [
+          "vpn_tunnel_established",
+          "access_to_internal_services",
+          "tcp_ports_accessible"
+        ],
+        "common_failures": [
+          "incorrect_configuration_parameters",
+          "wrong_vpn_mode",
+          "authentication_failures"
+        ],
+        "follow_up_techniques": [
+          "internal_network_enumeration",
+          "service_exploitation"
+        ],
+        "time_investment": "30-120 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Hash Cracking via Online Services",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "crackstation",
+            "command_template": "Submit hash to crackstation.net",
+            "actual_command": "Hash: 9C8B1A372B1878851BE2C097031B6E43 -> Password: Dudecake1!",
+            "output_pattern": "plaintext_password_result",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "hash_extracted_from_target",
+          "internet_connectivity"
+        ],
+        "success_indicators": [
+          "hash_successfully_cracked",
+          "plaintext_password_obtained"
+        ],
+        "common_failures": [
+          "hash_not_in_database",
+          "custom_or_strong_password"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "authentication_attempts"
+        ],
+        "time_investment": "1-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "nmap",
+        "use_case": "udp_port_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.75,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "unicornscan"
+        ],
+        "best_practices": [
+          "use_scripts_for_udp_enumeration",
+          "scan_top_ports_first",
+          "enable_version_detection"
+        ]
+      },
+      {
+        "tool": "strongswan",
+        "use_case": "ipsec_vpn_connection",
+        "effectiveness_rating": 4,
+        "reliability": 0.8,
+        "learning_curve": "high",
+        "essential_for": [
+          "ipsec_vpn_penetration"
+        ],
+        "alternatives": [
+          "openswan",
+          "libreswan"
+        ],
+        "best_practices": [
+          "enable_debug_logging",
+          "test_different_modes",
+          "verify_encryption_parameters"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ipsec_vpn_penetration",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sU -sC --top-ports 20 10.10.10.116",
+            "purpose": "Discover UDP services and extract SNMP data",
+            "expected_output": "SNMP service with system information including PSK"
+          },
+          {
+            "step": 2,
+            "command": "snmpwalk -v 2c -c public 10.10.10.116",
+            "purpose": "Extract detailed SNMP information",
+            "expected_output": "IKE VPN password PSK in sysContact field"
+          },
+          {
+            "step": 3,
+            "command": "ike-scan -M 10.10.10.116",
+            "purpose": "Enumerate IKE configuration parameters",
+            "expected_output": "Encryption algorithms and authentication methods"
+          },
+          {
+            "step": 4,
+            "command": "Configure /etc/ipsec.conf and /etc/ipsec.secrets",
+            "purpose": "Setup VPN connection parameters",
+            "expected_output": "Configuration files ready for connection"
+          },
+          {
+            "step": 5,
+            "command": "ipsec up conceal",
+            "purpose": "Establish IPSEC VPN connection",
+            "expected_output": "VPN tunnel established with access to internal services"
+          }
+        ],
+        "success_rate": 0.65,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Conceal",
+      "difficulty": "Hard",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2019-01-05",
+      "author": "bashlogic",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "ipsec_vpn",
+        "snmp_enumeration",
+        "ftp_upload",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "ipsec_misconfiguration",
+        "ftp_write_access",
+        "unpatched_system"
+      ],
+      "environment_type": "network_infrastructure",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "vpn_exploitation",
+        "network_pivoting",
+        "snmp_enumeration",
+        "juicy_potato"
+      ],
+      "prerequisite_knowledge": [
+        "vpn_concepts",
+        "snmp_basics",
+        "windows_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "network_security",
+      "subcategories": [
+        "vpn_exploitation",
+        "snmp_enumeration",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_vpn_configuration",
+        "snmp_hardening",
+        "patch_management",
+        "ftp_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Carrier",
+        "Networked",
+        "Arkham"
+      ],
+      "similarity_reasons": [
+        "network_focus",
+        "complex_initial_access",
+        "infrastructure_exploitation"
+      ],
+      "unique_aspects": [
+        "ipsec_vpn_requirement",
+        "snmp_critical_enumeration",
+        "network_layer_attacks"
+      ],
+      "difficulty_factors": [
+        "vpn_configuration_complexity",
+        "extensive_enumeration_required",
+        "network_knowledge_needed"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T00:14:09.226802",
+    "original_file": "0xdf_writeups/Htb Conceal.md",
+    "content_length": 37165,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

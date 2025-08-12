@@ -1,0 +1,849 @@
+{
+  "writeup_id": "Htb_Reel2",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_exchange_social_engineering_ntlm_capture",
+    "primary_services": [
+      "http",
+      "https",
+      "winrm",
+      "exchange",
+      "rpc"
+    ],
+    "port_signature": "80+443+5985+6001-6017+8080",
+    "service_combination": "iis+exchange+winrm+social_media",
+    "os_family": "windows_server_2012r2",
+    "environment_type": "corporate_exchange",
+    "entry_vector": "password_spray_social_engineering",
+    "privilege_path": "user_to_jea_breakout_to_admin",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "wallstant_social_media_site",
+      "exchange_owa_integration",
+      "jea_powershell_restrictions",
+      "ntlm_hash_capture_via_responder"
+    ],
+    "environmental_clues": [
+      "exchange_server_paths_owa_ecp_ews",
+      "multiple_rpc_ports_6000_range",
+      "iis_8_5_server_2012r2",
+      "social_media_user_enumeration"
+    ],
+    "similar_scenarios": [
+      "reel_htb_hard",
+      "sizzle_htb_medium"
+    ],
+    "unique_aspects": [
+      "wallstant_php_social_platform",
+      "spraying_toolkit_usage",
+      "jea_constrained_powershell_breakout",
+      "social_engineering_via_internal_messaging"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Password Spraying",
+        "success_reason": "Weak password policy allowed common passwords like 'Summer2020'",
+        "prerequisite_indicators": [
+          "owa_login_available",
+          "user_enumeration_possible",
+          "no_account_lockout_policy"
+        ],
+        "recognition_patterns": [
+          "seasonal password patterns (Summer2020)",
+          "social media hints about timeframe",
+          "multiple user accounts accessible"
+        ],
+        "failure_modes": [
+          "strong_password_policy",
+          "account_lockout_enabled",
+          "mfa_required"
+        ],
+        "environmental_factors": [
+          "legacy_exchange_server",
+          "insufficient_password_complexity",
+          "social_engineering_context_available"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "NTLM Hash Capture",
+        "success_reason": "Responder captured NTLM hash when user clicked malicious link",
+        "prerequisite_indicators": [
+          "smb_accessible_from_target",
+          "user_interaction_possible",
+          "ntlm_authentication_enabled"
+        ],
+        "recognition_patterns": [
+          "responder shows incoming connections",
+          "ntlmv2 hash captured",
+          "user clicked UNC path link"
+        ],
+        "failure_modes": [
+          "smb_blocked_by_firewall",
+          "user_awareness_training",
+          "ntlm_disabled"
+        ],
+        "environmental_factors": [
+          "internal_network_access",
+          "legacy_authentication_protocols",
+          "user_trust_relationships"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "5-10 minutes after link click"
+      },
+      {
+        "technique": "JEA PowerShell Breakout",
+        "success_reason": "Limited PowerShell environment had exploitable command restrictions",
+        "prerequisite_indicators": [
+          "jea_endpoint_accessible",
+          "constrained_language_mode",
+          "limited_command_set_available"
+        ],
+        "recognition_patterns": [
+          "powershell execution policy restricted",
+          "only specific cmdlets available",
+          "custom jea configuration"
+        ],
+        "failure_modes": [
+          "proper_jea_hardening",
+          "no_exploitable_commands",
+          "application_whitelisting"
+        ],
+        "environmental_factors": [
+          "custom_jea_implementation",
+          "insufficient_restriction_testing",
+          "legacy_powershell_features"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Wallstant social media user enumeration",
+        "discovery_method": "Empty search query revealing all users",
+        "why_critical": "Provided username list for password spraying attack",
+        "how_to_recognize": [
+          "social media platform accessible",
+          "user directory enumeration possible",
+          "real names and usernames visible"
+        ],
+        "follow_up_actions": [
+          "extract_all_usernames",
+          "format_for_password_spraying",
+          "identify_naming_conventions"
+        ]
+      },
+      {
+        "discovery": "Summer2020 password pattern",
+        "discovery_method": "Social engineering from social media posts",
+        "why_critical": "Seasonal context provided password guessing direction",
+        "how_to_recognize": [
+          "posts mentioning current season/year",
+          "temporal context clues",
+          "company events or timeframes"
+        ],
+        "follow_up_actions": [
+          "create_seasonal_password_list",
+          "test_variations_of_theme",
+          "apply_to_all_discovered_users"
+        ]
+      },
+      {
+        "discovery": "Exchange/OWA infrastructure",
+        "discovery_method": "Directory enumeration on HTTPS port",
+        "why_critical": "Provided authentication target for password spraying",
+        "how_to_recognize": [
+          "owa directory accessible",
+          "exchange related paths",
+          "authentication forms present"
+        ],
+        "follow_up_actions": [
+          "test_authentication_methods",
+          "check_for_user_enumeration",
+          "prepare_password_spray_attack"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "authenticated_user",
+        "escalation_method": "Social_Engineering_NTLM_Capture",
+        "why_possible": "Authenticated user could send links to other users via OWA",
+        "recognition_signs": [
+          "owa_access_available",
+          "internal_user_communication_possible",
+          "smb_accessible_for_responder"
+        ],
+        "exploitation_path": "OWA Access → Send UNC Link → Responder Capture → Hash Cracking"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "JEA_Constraint_Bypass",
+        "why_possible": "JEA PowerShell had insufficient restrictions on available commands",
+        "recognition_signs": [
+          "jea_powershell_endpoint_available",
+          "constrained_language_mode_active",
+          "exploitable_cmdlets_still_available"
+        ],
+        "exploitation_path": "WinRM Access → JEA Breakout → Credential Discovery → Privilege Escalation"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 80,443,5985,8080 and multiple RPC ports on Windows host",
+        "decision": "Identify as Exchange server with web applications and prioritize credential gathering",
+        "reasoning": "OWA endpoints and WinRM suggest Exchange environment requiring valid credentials",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_web_exploitation",
+            "when": "if web apps have vulnerabilities"
+          },
+          {
+            "option": "rpc_enumeration",
+            "when": "if anonymous access available"
+          }
+        ],
+        "success_indicators": [
+          "owa_login_page_found",
+          "social_media_site_accessible",
+          "user_enumeration_possible"
+        ],
+        "next_decision": "gather_user_intelligence"
+      },
+      {
+        "step": 2,
+        "situation": "Found social media site with user profiles and hints",
+        "decision": "Extract usernames and contextual password hints for targeted spray",
+        "reasoning": "Social engineering data provides high-value intelligence for credential attacks",
+        "confidence": 0.95,
+        "prerequisites": [
+          "social_media_access",
+          "user_profiles_visible"
+        ],
+        "success_indicators": [
+          "usernames_extracted",
+          "password_patterns_identified"
+        ],
+        "failure_fallbacks": [
+          "generic_password_spray",
+          "web_vulnerability_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Collected usernames and seasonal password hints from profiles",
+        "decision": "Use SprayingToolkit for targeted OWA password spray with contextual passwords",
+        "reasoning": "Targeted spray with intelligence-driven passwords has higher success rate than generic",
+        "confidence": 0.85,
+        "prerequisites": [
+          "usernames_list",
+          "contextual_password_hints",
+          "owa_endpoint"
+        ],
+        "success_indicators": [
+          "valid_credentials_found"
+        ],
+        "failure_fallbacks": [
+          "expand_password_list",
+          "try_other_services"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_social_media_found": {
+        "action": "extract_user_intelligence",
+        "tools": [
+          "browser_console",
+          "custom_javascript"
+        ],
+        "next_phase": "credential_attack_preparation"
+      },
+      "if_password_spray_succeeds": {
+        "action": "authenticate_to_available_services",
+        "tools": [
+          "evil-winrm",
+          "owa_access"
+        ],
+        "next_phase": "lateral_movement_enumeration"
+      },
+      "if_exchange_environment_confirmed": {
+        "action": "focus_on_email_based_attacks",
+        "alternatives": [
+          "phishing",
+          "ntlm_relay",
+          "ews_exploitation"
+        ],
+        "decision_criteria": "based_on_credential_access_level"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_extract_social_intelligence_before_spraying",
+        "reasoning": "contextual_passwords_dramatically_increase_success_rates",
+        "applicability": "social_media_or_public_profiles_available"
+      },
+      {
+        "rule": "use_multiple_username_formats_for_spray",
+        "reasoning": "organizations_use_different_naming_conventions",
+        "applicability": "active_directory_environments"
+      },
+      {
+        "rule": "prioritize_exchange_owa_for_initial_access",
+        "reasoning": "common_attack_vector_with_good_success_rate",
+        "applicability": "exchange_server_identified"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Password Spray",
+        "mitre_id": "T1110.003",
+        "required_services": [
+          "http",
+          "winrm",
+          "owa"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5985
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "user_enumeration_possible",
+          "authentication_service_accessible",
+          "no_account_lockout_policy"
+        ],
+        "success_indicators": [
+          "valid_credentials_found",
+          "authentication_successful",
+          "access_granted"
+        ],
+        "incompatible_with": [
+          "strict_lockout_policy",
+          "mfa_required",
+          "ip_restrictions"
+        ],
+        "confidence_boosters": [
+          "social_media_site_present",
+          "user_enumeration_available",
+          "common_password_patterns"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "NTLM Hash Capture",
+        "mitre_id": "T1557.001",
+        "required_services": [
+          "smb",
+          "http"
+        ],
+        "required_ports": [
+          445,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ntlm_authentication_enabled",
+          "network_access_to_target",
+          "ability_to_send_malicious_links"
+        ],
+        "success_indicators": [
+          "ntlm_hash_captured",
+          "responder_receives_challenge",
+          "user_clicks_malicious_link"
+        ],
+        "incompatible_with": [
+          "ntlm_disabled",
+          "network_isolation",
+          "link_filtering"
+        ],
+        "confidence_boosters": [
+          "social_engineering_vector_available",
+          "internal_network_access",
+          "windows_domain_environment"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "JEA PowerShell Breakout",
+        "mitre_id": "T1055",
+        "required_services": [
+          "winrm",
+          "powershell"
+        ],
+        "required_ports": [
+          5985,
+          5986
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "jea_endpoint_accessible",
+          "limited_powershell_session",
+          "misconfigured_jea_constraints"
+        ],
+        "success_indicators": [
+          "full_powershell_access_gained",
+          "command_execution_unrestricted",
+          "jea_constraints_bypassed"
+        ],
+        "incompatible_with": [
+          "properly_configured_jea",
+          "application_whitelisting",
+          "strict_execution_policy"
+        ],
+        "confidence_boosters": [
+          "custom_jea_configuration",
+          "legacy_powershell_version",
+          "weak_constraint_definitions"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "20-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "exchange_server": {
+        "port_indicators": [
+          80,
+          443,
+          6001,
+          6002,
+          6004,
+          6005,
+          6006,
+          6007,
+          6008,
+          6010,
+          6011,
+          6012,
+          6017
+        ],
+        "service_indicators": [
+          "owa",
+          "ews",
+          "ecp",
+          "rpc",
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Microsoft Exchange",
+          "OWA",
+          "Outlook Web Access"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "social_media_application": {
+        "port_indicators": [
+          8080,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "php"
+        ],
+        "technology_indicators": [
+          "wallstant",
+          "social network",
+          "user profiles"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_domain": {
+        "port_indicators": [
+          5985,
+          445,
+          88,
+          389
+        ],
+        "service_indicators": [
+          "winrm",
+          "smb",
+          "kerberos",
+          "ldap"
+        ],
+        "banner_indicators": [
+          "Windows Server",
+          "Active Directory"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "iis_webserver": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "ASP.NET"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "user_enumeration_social_media",
+          "when": "social_media_site_detected",
+          "reason": "provides_usernames_for_password_spray"
+        },
+        {
+          "attack": "password_spray_owa",
+          "when": "exchange_server_detected_and_users_enumerated",
+          "reason": "common_weak_passwords_in_corporate_environments"
+        },
+        {
+          "attack": "ntlm_hash_capture",
+          "when": "valid_credentials_obtained",
+          "reason": "social_engineering_vector_available"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "winrm_enumeration",
+          "when": "winrm_service_detected",
+          "reason": "potential_jea_misconfiguration"
+        },
+        {
+          "attack": "exchange_service_enumeration",
+          "when": "exchange_detected",
+          "reason": "multiple_attack_vectors_available"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "rpc_enumeration",
+          "when": "multiple_rpc_ports_open",
+          "reason": "requires_authentication_first"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Password Spraying",
+        "mitre_id": "T1110.003",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "SprayingToolkit",
+            "command_template": "python3 atomizer.py owa {target_ip} '{password}' {usernames_file}",
+            "actual_command": "python3 atomizer.py owa 10.10.10.210 'Summer2020' usernames",
+            "output_pattern": "[+] Found credentials: {domain}\\{username}:{password}",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "spindrift.py",
+            "command_template": "python3 spindrift.py {names_file} --format \"{format}\" --target {ip}",
+            "actual_command": "python3 spindrift.py users --format \"{f}.{last}\" --target 10.10.10.210",
+            "success_factors": [
+              "common_naming_conventions",
+              "accurate_name_list"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "owa_service_accessible",
+          "employee_names_collected",
+          "common_password_patterns_identified"
+        ],
+        "success_indicators": [
+          "valid_credentials_found",
+          "owa_login_successful",
+          "autodiscover_domain_revealed"
+        ],
+        "common_failures": [
+          "account_lockout_policies",
+          "strong_password_requirements",
+          "mfa_enabled"
+        ],
+        "follow_up_techniques": [
+          "owa_phishing",
+          "credential_harvesting",
+          "internal_reconnaissance"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "OSINT Username Harvesting",
+        "mitre_id": "T1589.003",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "Browser Console JavaScript",
+            "command_template": "var res = []; [].forEach.call(userblocks, function(userblock) { if (userblock.textContent) {res.push(userblock.textContent.replace('@','')) }});",
+            "actual_command": "var res = []; [].forEach.call(userblocks, function(userblock) { if (userblock.textContent) {res.push(userblock.textContent.replace('@','')) }}); console.log(res.join('\\n'));",
+            "output_pattern": "List of full names from social media platform",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "social_media_platform_accessible",
+          "user_search_functionality_available",
+          "javascript_console_access"
+        ],
+        "success_indicators": [
+          "comprehensive_user_list_extracted",
+          "names_formatted_correctly",
+          "target_employees_identified"
+        ],
+        "common_failures": [
+          "rate_limiting",
+          "authentication_required",
+          "javascript_blocked"
+        ],
+        "follow_up_techniques": [
+          "username_generation",
+          "password_spraying",
+          "social_engineering"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "NTLM Hash Capture via Phishing",
+        "mitre_id": "T1566.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "Responder",
+            "command_template": "responder -I {interface}",
+            "actual_command": "responder -I tun0",
+            "output_pattern": "[HTTP] NTLMv2 Hash     : {username}::{domain}:{challenge}:{hash}",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "owa_access_obtained",
+          "global_address_list_accessible",
+          "network_connectivity_to_attacker"
+        ],
+        "success_indicators": [
+          "ntlmv2_hash_captured",
+          "victim_clicked_malicious_link",
+          "automatic_authentication_triggered"
+        ],
+        "common_failures": [
+          "email_filtering",
+          "user_awareness",
+          "network_segmentation"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "pass_the_hash",
+          "relay_attacks"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "SprayingToolkit",
+        "use_case": "owa_password_spraying",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "exchange_environments"
+        ],
+        "alternatives": [
+          "crackmapexec",
+          "mailsniper",
+          "ruler"
+        ],
+        "best_practices": [
+          "use_seasonal_passwords_first",
+          "generate_multiple_username_formats",
+          "monitor_for_account_lockouts"
+        ]
+      },
+      {
+        "tool": "Responder",
+        "use_case": "ntlm_hash_capture",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_environments"
+        ],
+        "alternatives": [
+          "inveigh",
+          "metasploit_auxiliary"
+        ],
+        "best_practices": [
+          "run_on_all_interfaces",
+          "use_with_phishing_campaigns",
+          "monitor_multiple_protocols"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "social_media_to_owa_compromise",
+        "steps": [
+          {
+            "step": 1,
+            "command": "var res = []; [].forEach.call(userblocks, function(userblock) { if (userblock.textContent) {res.push(userblock.textContent.replace('@','')) }});",
+            "purpose": "Extract user names from social media",
+            "expected_output": "List of employee full names"
+          },
+          {
+            "step": 2,
+            "command": "python3 spindrift.py users --format \"{f}.{last}\" --target 10.10.10.210",
+            "purpose": "Generate username variations",
+            "expected_output": "Multiple username format files"
+          },
+          {
+            "step": 3,
+            "command": "python3 atomizer.py owa 10.10.10.210 'Summer2020' usernames",
+            "purpose": "Password spray against OWA",
+            "expected_output": "Valid credentials: HTB\\s.svensson:Summer2020"
+          },
+          {
+            "step": 4,
+            "command": "responder -I tun0",
+            "purpose": "Capture NTLM hashes via phishing",
+            "expected_output": "NTLMv2 hash for k.svensson"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "30-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Reel2",
+      "difficulty": "Hard",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2020-10-03",
+      "author": "cube0x0",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "social_engineering",
+        "password_spraying",
+        "ntlm_relay",
+        "jea_breakout"
+      ],
+      "key_vulnerabilities": [
+        "weak_passwords",
+        "ntlm_authentication",
+        "jea_misconfiguration",
+        "privilege_escalation"
+      ],
+      "environment_type": "corporate_windows_domain",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "osint_techniques",
+        "password_spraying",
+        "ntlm_attacks",
+        "jea_bypass",
+        "powershell_constraints"
+      ],
+      "prerequisite_knowledge": [
+        "windows_authentication",
+        "powershell",
+        "ntlm_protocol",
+        "social_engineering"
+      ]
+    },
+    "categorization": {
+      "primary_category": "windows_exploitation",
+      "subcategories": [
+        "social_engineering",
+        "credential_attacks",
+        "privilege_escalation",
+        "constraint_bypass"
+      ],
+      "attack_types": [
+        "reconnaissance",
+        "credential_access",
+        "privilege_escalation",
+        "defense_evasion"
+      ],
+      "defensive_lessons": [
+        "strong_password_policies",
+        "disable_ntlm",
+        "proper_jea_configuration",
+        "user_awareness_training"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Reel",
+        "Blackfield",
+        "Monteverde"
+      ],
+      "similarity_reasons": [
+        "password_spraying",
+        "ntlm_attacks",
+        "windows_domain",
+        "social_engineering"
+      ],
+      "unique_aspects": [
+        "jea_breakout",
+        "social_media_osint",
+        "custom_command_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_phases",
+        "jea_constraint_bypass",
+        "complex_privilege_escalation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T17:49:03.952926",
+    "original_file": "0xdf_writeups/Htb Reel2.md",
+    "content_length": 37740,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

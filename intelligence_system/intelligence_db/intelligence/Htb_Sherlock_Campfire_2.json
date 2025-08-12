@@ -1,0 +1,644 @@
+{
+  "writeup_id": "Htb_Sherlock_Campfire_2",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_asrep_roasting_attack",
+    "primary_services": [
+      "kerberos",
+      "ldap",
+      "dns"
+    ],
+    "port_signature": "53+88+389",
+    "service_combination": "kerberos+ldap+dns",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "asrep_roasting",
+    "privilege_path": "unauthenticated_to_user_account",
+    "attack_complexity": "easy",
+    "estimated_time": "15-30 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "user_accounts_without_preauth",
+      "kerberos_event_4768_preauth_0",
+      "old_admin_accounts_enabled"
+    ],
+    "environmental_clues": [
+      "domain_controller_security_logs",
+      "kerberos_tgt_requests",
+      "no_preauthentication_required"
+    ],
+    "similar_scenarios": [
+      "campfire_1_htb",
+      "forest_htb_easy"
+    ],
+    "unique_aspects": [
+      "security_evtx_analysis",
+      "dfir_investigation",
+      "event_log_forensics"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "ASREPRoast",
+        "success_reason": "User account arthur.kyle had pre-authentication disabled (UF_DONT_REQUIRE_PREAUTH)",
+        "prerequisite_indicators": [
+          "kerberos_service_available",
+          "domain_controller_accessible",
+          "accounts_without_preauth_exist"
+        ],
+        "recognition_patterns": [
+          "Event ID 4768 with PreAuthType 0",
+          "ServiceName krbtgt in event logs",
+          "No pre-authentication required error",
+          "GetNPUsers returns hashes for target accounts"
+        ],
+        "failure_modes": [
+          "all_accounts_require_preauth",
+          "kerberos_not_accessible",
+          "no_vulnerable_accounts",
+          "network_segmentation_blocks_access"
+        ],
+        "environmental_factors": [
+          "legacy_active_directory_config",
+          "old_admin_accounts_with_weak_settings",
+          "insufficient_account_hardening",
+          "default_kerberos_configurations"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "arthur.kyle user account vulnerable to AS-REP roasting",
+        "discovery_method": "Event log analysis of 4768 events with PreAuthType 0",
+        "why_critical": "Old admin account with pre-authentication disabled allows password hash extraction",
+        "how_to_recognize": [
+          "Event ID 4768 with PreAuthType field set to 0",
+          "TargetUserName shows vulnerable account",
+          "ServiceName shows krbtgt service",
+          "Status 0x0 indicates successful ticket request"
+        ],
+        "follow_up_actions": [
+          "analyze_source_ip_for_compromise",
+          "check_account_usage_patterns",
+          "review_kerberos_ticket_requests",
+          "investigate_lateral_movement"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "compromised_workstation",
+        "escalation_method": "AS-REP_roasting_to_admin_account",
+        "why_possible": "Old admin account with disabled pre-authentication and likely weak password",
+        "recognition_signs": [
+          "event_4768_preauth_type_0",
+          "admin_account_naming_patterns",
+          "unused_legacy_accounts",
+          "source_ip_indicates_internal_compromise"
+        ],
+        "exploitation_path": "Internal compromise → AS-REP roast → Hash cracking → Admin access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445 open on Windows host",
+        "decision": "Identify as Domain Controller and try Kerberos attacks first",
+        "reasoning": "Port combination indicates AD DC with high probability",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if kerberos fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous access"
+          }
+        ],
+        "success_indicators": [
+          "kerberos_service_responds",
+          "domain_name_discovered",
+          "ldap_base_dn_found"
+        ],
+        "next_decision": "choose_kerberos_attack_method"
+      },
+      {
+        "step": 2,
+        "situation": "Confirmed Active Directory environment",
+        "decision": "Try ASREPRoast before Kerberoasting",
+        "reasoning": "ASREPRoast doesn't require valid credentials",
+        "confidence": 0.85,
+        "prerequisites": [
+          "domain_name_known",
+          "kerberos_accessible"
+        ],
+        "success_indicators": [
+          "accounts_without_preauth_found"
+        ],
+        "failure_fallbacks": [
+          "kerberoasting",
+          "password_spraying",
+          "smb_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "ASREPRoast successful, obtained hash for user account",
+        "decision": "Crack hash offline and attempt authentication",
+        "reasoning": "Hash cracking provides valid domain credentials",
+        "confidence": 0.9,
+        "tools": [
+          "hashcat",
+          "john"
+        ],
+        "success_indicators": [
+          "password_cracked",
+          "authentication_successful"
+        ],
+        "next_decision": "privilege_escalation_enumeration"
+      },
+      {
+        "step": 4,
+        "situation": "Valid domain credentials obtained",
+        "decision": "Run BloodHound enumeration immediately",
+        "reasoning": "Essential for mapping privilege escalation paths in AD",
+        "confidence": 0.95,
+        "tools": [
+          "bloodhound-python",
+          "sharphound"
+        ],
+        "success_indicators": [
+          "domain_data_collected",
+          "attack_paths_identified"
+        ],
+        "next_decision": "analyze_privilege_escalation_paths"
+      }
+    ],
+    "branching_logic": {
+      "if_asreproast_succeeds": {
+        "action": "crack_hash_and_authenticate",
+        "tools": [
+          "hashcat",
+          "evil-winrm"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      },
+      "if_asreproast_fails": {
+        "action": "try_alternative_attacks",
+        "alternatives": [
+          "kerberoasting",
+          "ldap_enumeration",
+          "smb_shares"
+        ],
+        "decision_criteria": "based_on_anonymous_access_level"
+      },
+      "if_credentials_obtained": {
+        "action": "bloodhound_enumeration",
+        "purpose": "find_privilege_escalation_paths",
+        "tools": [
+          "bloodhound-python",
+          "sharphound"
+        ]
+      },
+      "if_no_preauth_accounts_found": {
+        "action": "enumerate_service_accounts",
+        "purpose": "identify_kerberoasting_targets",
+        "tools": [
+          "impacket-GetUserSPNs"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_asreproast_first_on_ad",
+        "reasoning": "high_success_rate_and_no_credentials_needed",
+        "applicability": "active_directory_environments"
+      },
+      {
+        "rule": "run_bloodhound_after_any_domain_credentials",
+        "reasoning": "essential_for_privilege_escalation_paths",
+        "applicability": "domain_user_access_obtained"
+      },
+      {
+        "rule": "check_for_dont_require_preauth_flag",
+        "reasoning": "indicates_asreproast_vulnerability",
+        "applicability": "user_enumeration_phase"
+      },
+      {
+        "rule": "monitor_event_id_4768_with_preauth_0",
+        "reasoning": "detects_asreproast_attacks_in_progress",
+        "applicability": "defensive_monitoring"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "event_id_4768_preauth_type_0",
+          "domain_controller_accessible",
+          "krbtgt_service_requests"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "old_admin_accounts_present",
+          "default_ad_configuration",
+          "legacy_service_accounts"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "SMB_Anonymous_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "anonymous_access_allowed"
+        ],
+        "success_indicators": [
+          "null_session_established",
+          "share_enumeration_successful",
+          "user_enumeration_possible"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "anonymous_access_blocked",
+          "restrictanonymous_enabled"
+        ],
+        "confidence_boosters": [
+          "default_windows_configuration",
+          "legacy_systems_present",
+          "domain_controller_accessible"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "2-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "forela.local"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "domain_controller": {
+        "port_indicators": [
+          88,
+          389,
+          636,
+          3268,
+          3269
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "ldaps"
+        ],
+        "hostname_patterns": [
+          "DC01",
+          "DC02",
+          "domain-controller"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "windows_workstation": {
+        "port_indicators": [
+          135,
+          139,
+          445
+        ],
+        "service_indicators": [
+          "smb",
+          "rpc"
+        ],
+        "banner_indicators": [
+          "Windows"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected",
+          "reason": "high_success_rate_no_creds_needed"
+        },
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_usernames_and_shares"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "kerberoast",
+          "when": "active_directory_detected_with_creds",
+          "reason": "requires_valid_credentials_first"
+        },
+        {
+          "attack": "ldap_enumeration",
+          "when": "ldap_service_detected",
+          "reason": "information_gathering_phase"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "password_spraying",
+          "when": "user_accounts_enumerated",
+          "reason": "high_detection_risk_time_consuming"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "AS-REP Roasting",
+        "mitre_id": "T1558.004",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "GetNPUsers.py",
+            "command_template": "GetNPUsers.py {domain}/ -dc-ip {dc_ip} -no-pass -usersfile {userlist}",
+            "actual_command": "GetNPUsers.py forela.local/ -dc-ip 172.17.79.129 -no-pass",
+            "output_pattern": "$krb5asrep$23${username}@{domain}:",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "Rubeus",
+            "command_template": "Rubeus.exe asreproast /domain:{domain} /dc:{dc_ip}",
+            "actual_command": "Rubeus.exe asreproast /domain:forela.local /dc:172.17.79.129",
+            "success_factors": [
+              "accounts_without_preauth",
+              "network_access_to_dc"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "network_access_to_domain_controller",
+          "accounts_with_dont_require_preauth_flag",
+          "knowledge_of_domain_name"
+        ],
+        "success_indicators": [
+          "event_id_4768_with_preauth_type_0",
+          "kerberos_ticket_requested_without_preauth",
+          "as_rep_hash_extracted"
+        ],
+        "common_failures": [
+          "no_vulnerable_accounts_found",
+          "network_connectivity_issues",
+          "kerberos_service_unavailable"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_validation",
+          "lateral_movement"
+        ],
+        "time_investment": "1-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Event Log Analysis",
+        "use_case": "asrep_roasting_detection",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "incident_response",
+          "threat_hunting"
+        ],
+        "alternatives": [
+          "sysmon_logs",
+          "network_traffic_analysis"
+        ],
+        "best_practices": [
+          "filter_event_id_4768_with_preauth_type_0",
+          "correlate_source_ip_with_other_events",
+          "identify_compromised_user_accounts"
+        ]
+      },
+      {
+        "tool": "evtx_dump",
+        "use_case": "windows_event_log_parsing",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "dfir_analysis"
+        ],
+        "alternatives": [
+          "EvtxECmd",
+          "LogParser"
+        ],
+        "best_practices": [
+          "output_to_json_for_analysis",
+          "use_jq_for_filtering",
+          "correlate_multiple_event_types"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "asrep_roasting_detection_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "evtx_dump -o jsonl -t 1 -f Security.json Security.evtx",
+            "purpose": "Convert Windows event log to JSON format",
+            "expected_output": "JSON formatted event logs"
+          },
+          {
+            "step": 2,
+            "command": "cat Security.json | jq '.Event | select(.System.EventID == 4768)' -c | wc -l",
+            "purpose": "Count Kerberos TGT request events",
+            "expected_output": "Number of authentication events"
+          },
+          {
+            "step": 3,
+            "command": "cat Security.json | jq '.Event | select(.System.EventID == 4768 and .EventData.PreAuthType == \"0\")'",
+            "purpose": "Identify AS-REP roasting attempts",
+            "expected_output": "Events showing authentication without pre-auth"
+          },
+          {
+            "step": 4,
+            "command": "cat Security.json | grep {source_ip} | jq -r .Event.System.EventID | sort | uniq -c",
+            "purpose": "Correlate source IP with other activities",
+            "expected_output": "Related event types from same source"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "asrep_roasting_attack_execution",
+        "steps": [
+          {
+            "step": 1,
+            "command": "GetNPUsers.py forela.local/ -dc-ip 172.17.79.129 -no-pass",
+            "purpose": "Extract AS-REP hashes for accounts without preauth",
+            "expected_output": "Kerberos AS-REP hashes"
+          },
+          {
+            "step": 2,
+            "command": "hashcat -m 18200 asrep_hashes.txt /usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack extracted AS-REP hashes",
+            "expected_output": "Plaintext passwords for vulnerable accounts"
+          },
+          {
+            "step": 3,
+            "command": "crackmapexec smb {target_range} -u arthur.kyle -p {cracked_password}",
+            "purpose": "Validate cracked credentials",
+            "expected_output": "Successful authentication to domain resources"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "5-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Campfire-2",
+      "difficulty": "Very Easy",
+      "os": "Windows Server",
+      "platform": "HackTheBox Sherlock",
+      "release_date": "2024-06-27",
+      "author": "CyberJunkie",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "kerberos",
+        "asrep_roasting"
+      ],
+      "key_vulnerabilities": [
+        "disabled_preauthentication",
+        "unused_admin_accounts"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "asrep_roasting",
+        "event_log_analysis",
+        "kerberos_forensics"
+      ],
+      "prerequisite_knowledge": [
+        "basic_kerberos",
+        "windows_event_logs",
+        "active_directory_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "digital_forensics",
+      "subcategories": [
+        "kerberos_attacks",
+        "event_log_analysis",
+        "incident_response"
+      ],
+      "attack_types": [
+        "credential_access",
+        "asrep_roasting"
+      ],
+      "defensive_lessons": [
+        "enable_preauthentication",
+        "monitor_unused_accounts",
+        "kerberos_logging"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Campfire-1",
+        "Forest",
+        "Sauna"
+      ],
+      "similarity_reasons": [
+        "kerberos_attacks",
+        "ad_forensics",
+        "asrep_roasting"
+      ],
+      "unique_aspects": [
+        "pure_forensics_focus",
+        "event_log_analysis",
+        "attack_timeline_reconstruction"
+      ],
+      "difficulty_factors": [
+        "straightforward_log_analysis",
+        "clear_attack_indicators",
+        "guided_questions"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T23:14:32.759984",
+    "original_file": "0xdf_writeups/Htb Sherlock Campfire 2.md",
+    "content_length": 12806,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.8333333333333334,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.3333333333333333,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

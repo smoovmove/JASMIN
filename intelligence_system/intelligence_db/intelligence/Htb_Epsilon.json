@@ -1,0 +1,971 @@
+{
+  "writeup_id": "Htb_Epsilon",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_git_exposure_aws_lambda",
+    "primary_services": [
+      "http",
+      "ssh",
+      "python_web"
+    ],
+    "port_signature": "22+80+5000",
+    "service_combination": "ssh+apache+werkzeug",
+    "os_family": "linux",
+    "environment_type": "web_application_cloud",
+    "entry_vector": "git_repository_exposure",
+    "privilege_path": "git_secrets_to_aws_lambda_to_jwt_forge_to_ssti_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "exposed_git_repository",
+      "aws_credentials_in_source",
+      "lambda_function_secrets",
+      "jwt_token_signing_secret_reuse",
+      "server_side_template_injection"
+    ],
+    "environmental_clues": [
+      "werkzeug_python_server",
+      "apache_403_forbidden",
+      "git_repository_detection",
+      "costume_shop_application",
+      "tracking_functionality"
+    ],
+    "similar_scenarios": [
+      "secret_htb_medium",
+      "forge_htb_medium"
+    ],
+    "unique_aspects": [
+      "aws_lambda_integration",
+      "jwt_secret_reuse_pattern",
+      "tar_backup_privilege_escalation",
+      "htb_university_ctf_origin"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Git Repository Exposure",
+        "success_reason": "Exposed .git directory on Apache webserver containing source code and AWS credentials",
+        "prerequisite_indicators": [
+          "apache_webserver_accessible",
+          "git_directory_exposed",
+          "source_code_in_repository"
+        ],
+        "recognition_patterns": [
+          "nmap http-git script detection",
+          "403 forbidden on main site but .git accessible",
+          "GitTools dumper successful extraction"
+        ],
+        "failure_modes": [
+          "git_directory_properly_restricted",
+          "no_sensitive_data_in_commits",
+          "repository_not_accessible"
+        ],
+        "environmental_factors": [
+          "misconfigured_apache_directory_permissions",
+          "developer_deployment_practices",
+          "lack_of_gitignore_for_secrets"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "AWS Lambda Secret Extraction",
+        "success_reason": "AWS credentials in source code provided access to Lambda functions containing JWT signing secret",
+        "prerequisite_indicators": [
+          "aws_credentials_in_source",
+          "lambda_functions_accessible",
+          "secrets_stored_in_lambda"
+        ],
+        "recognition_patterns": [
+          "AWS access keys in code",
+          "lambda function names in source",
+          "boto3 usage patterns"
+        ],
+        "failure_modes": [
+          "aws_credentials_expired",
+          "insufficient_lambda_permissions",
+          "secrets_not_in_lambda_code"
+        ],
+        "environmental_factors": [
+          "developer_hardcoded_credentials",
+          "shared_secrets_across_services",
+          "insufficient_aws_iam_restrictions"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "JWT Token Forgery",
+        "success_reason": "Extracted Lambda secret was reused as JWT signing key, allowing admin token creation",
+        "prerequisite_indicators": [
+          "jwt_authentication_in_use",
+          "secret_key_discovered",
+          "admin_role_exists"
+        ],
+        "recognition_patterns": [
+          "JWT tokens in cookies/headers",
+          "Flask-JWT or similar implementation",
+          "shared secret across services"
+        ],
+        "failure_modes": [
+          "different_secrets_used",
+          "jwt_properly_validated",
+          "no_admin_privileges_available"
+        ],
+        "environmental_factors": [
+          "secret_reuse_across_applications",
+          "weak_jwt_implementation",
+          "insufficient_token_validation"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "10-15 minutes"
+      },
+      {
+        "technique": "Server-Side Template Injection",
+        "success_reason": "Authenticated endpoint vulnerable to SSTI allowing code execution",
+        "prerequisite_indicators": [
+          "template_engine_in_use",
+          "user_input_in_templates",
+          "authenticated_access_available"
+        ],
+        "recognition_patterns": [
+          "Flask/Jinja2 template syntax",
+          "user input reflected in responses",
+          "template injection payloads successful"
+        ],
+        "failure_modes": [
+          "input_properly_sanitized",
+          "template_engine_sandboxed",
+          "no_user_controlled_input"
+        ],
+        "environmental_factors": [
+          "flask_jinja2_default_configuration",
+          "insufficient_input_validation",
+          "direct_template_rendering"
+        ],
+        "success_probability": 0.73,
+        "typical_timeframe": "20-40 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "AWS credentials in Git repository",
+        "discovery_method": "Git repository dump and source code analysis",
+        "why_critical": "Provided access to Lambda functions containing JWT signing secret",
+        "how_to_recognize": [
+          "hardcoded AWS_ACCESS_KEY_ID in source",
+          "boto3 client configurations",
+          "lambda function references"
+        ],
+        "follow_up_actions": [
+          "enumerate_aws_permissions",
+          "extract_lambda_function_code",
+          "identify_shared_secrets"
+        ]
+      },
+      {
+        "discovery": "JWT signing secret in Lambda function",
+        "discovery_method": "AWS Lambda function code extraction",
+        "why_critical": "Enabled forging of admin JWT tokens for application access",
+        "how_to_recognize": [
+          "secret variables in lambda code",
+          "jwt.encode/decode operations",
+          "shared secret patterns"
+        ],
+        "follow_up_actions": [
+          "forge_admin_jwt_token",
+          "test_authentication_bypass",
+          "enumerate_admin_functionality"
+        ]
+      },
+      {
+        "discovery": "Server-Side Template Injection vulnerability",
+        "discovery_method": "Authenticated endpoint testing with template payloads",
+        "why_critical": "Allowed remote code execution and initial shell access",
+        "how_to_recognize": [
+          "jinja2 template syntax execution",
+          "python code execution in templates",
+          "os command injection via templates"
+        ],
+        "follow_up_actions": [
+          "establish_reverse_shell",
+          "enumerate_system_information",
+          "identify_privilege_escalation_paths"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "tar_backup_script_abuse",
+        "why_possible": "Backup script creating tar archives could be manipulated to extract sensitive files",
+        "recognition_signs": [
+          "backup_scripts_running",
+          "tar_archive_creation",
+          "predictable_backup_locations"
+        ],
+        "exploitation_path": "Manipulate backup process → Extract root files → SSH key access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,5000 open on Linux host with exposed .git repo",
+        "decision": "Prioritize git repository enumeration over web application testing",
+        "reasoning": "Git repos often contain source code, credentials, and configuration details",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "web_app_fuzzing",
+            "when": "if git repo is empty or corrupted"
+          },
+          {
+            "option": "service_enumeration",
+            "when": "if git access fails"
+          }
+        ],
+        "success_indicators": [
+          "git_repo_accessible",
+          "source_code_recovered",
+          "credentials_or_secrets_found"
+        ],
+        "next_decision": "analyze_source_code_for_secrets"
+      },
+      {
+        "step": 2,
+        "situation": "Git repo contains source code with AWS keys and JWT secret references",
+        "decision": "Extract AWS credentials and test cloud access before web exploitation",
+        "reasoning": "Cloud credentials often provide broader access than web vulnerabilities",
+        "confidence": 0.9,
+        "prerequisites": [
+          "source_code_analyzed",
+          "aws_keys_identified"
+        ],
+        "success_indicators": [
+          "aws_cli_access_confirmed",
+          "lambda_functions_accessible"
+        ],
+        "failure_fallbacks": [
+          "jwt_secret_bruteforce",
+          "web_app_exploitation",
+          "ssti_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "AWS access obtained, lambda functions contain reused secrets",
+        "decision": "Use lambda secrets as JWT signing key for web application access",
+        "reasoning": "Secret reuse is common, lambda secret likely used for JWT tokens",
+        "confidence": 0.85,
+        "prerequisites": [
+          "aws_lambda_access",
+          "secret_extracted"
+        ],
+        "success_indicators": [
+          "jwt_token_forged",
+          "web_app_authenticated"
+        ],
+        "failure_fallbacks": [
+          "direct_lambda_exploitation",
+          "enumerate_other_aws_services"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Authenticated to web application with forged JWT",
+        "decision": "Test for server-side template injection in dynamic content",
+        "reasoning": "Flask applications commonly vulnerable to SSTI, especially in tracking/templating features",
+        "confidence": 0.8,
+        "prerequisites": [
+          "web_app_access",
+          "dynamic_content_identified"
+        ],
+        "success_indicators": [
+          "template_injection_confirmed",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "file_upload_testing",
+          "sql_injection",
+          "command_injection"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_git_repo_found": {
+        "action": "dump_entire_repository",
+        "tools": [
+          "gitdumper",
+          "git_reset_hard"
+        ],
+        "next_phase": "source_code_analysis"
+      },
+      "if_aws_keys_found": {
+        "action": "enumerate_aws_services",
+        "alternatives": [
+          "lambda_functions",
+          "s3_buckets",
+          "ec2_instances"
+        ],
+        "decision_criteria": "based_on_key_permissions"
+      },
+      "if_jwt_secret_obtained": {
+        "action": "forge_admin_token",
+        "purpose": "gain_web_application_access",
+        "tools": [
+          "pyjwt",
+          "custom_scripts"
+        ]
+      },
+      "if_web_access_gained": {
+        "action": "test_template_injection",
+        "purpose": "achieve_code_execution",
+        "tools": [
+          "burp_suite",
+          "manual_payloads"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_prioritize_git_repos_over_web_fuzzing",
+        "reasoning": "source_code_provides_direct_path_to_vulnerabilities",
+        "applicability": "any_exposed_git_repository"
+      },
+      {
+        "rule": "test_secret_reuse_across_services",
+        "reasoning": "developers_commonly_reuse_secrets_between_components",
+        "applicability": "multi_service_environments"
+      },
+      {
+        "rule": "check_flask_apps_for_ssti_after_authentication",
+        "reasoning": "flask_template_engines_commonly_vulnerable_to_injection",
+        "applicability": "python_flask_applications"
+      },
+      {
+        "rule": "enumerate_cloud_services_when_keys_found",
+        "reasoning": "cloud_access_often_provides_privilege_escalation_paths",
+        "applicability": "aws_gcp_azure_credentials_discovered"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Git Repository Exposure",
+        "mitre_id": "T1213.002",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "git_directory_accessible",
+          "directory_listing_enabled_or_known_paths"
+        ],
+        "success_indicators": [
+          "git_directory_returns_200_or_403",
+          "git_objects_accessible",
+          "git_config_readable"
+        ],
+        "incompatible_with": [
+          "git_directory_properly_blocked",
+          "web_server_access_controls"
+        ],
+        "confidence_boosters": [
+          "nmap_http_git_script_detection",
+          "git_files_in_webroot",
+          "development_environment_indicators"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "JWT Secret Extraction",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "jwt_authentication_in_use",
+          "secret_key_exposed_in_source",
+          "web_application_present"
+        ],
+        "success_indicators": [
+          "jwt_tokens_in_responses",
+          "secret_key_found_in_code",
+          "successful_token_forgery"
+        ],
+        "incompatible_with": [
+          "proper_secret_management",
+          "environment_variable_secrets"
+        ],
+        "confidence_boosters": [
+          "flask_werkzeug_detected",
+          "python_web_framework",
+          "hardcoded_secrets_in_git"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Server-Side Template Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "template_engine_in_use",
+          "user_input_in_templates",
+          "web_application_with_dynamic_content"
+        ],
+        "success_indicators": [
+          "template_syntax_evaluation",
+          "error_messages_reveal_engine",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "input_sanitization",
+          "template_sandboxing",
+          "static_content_only"
+        ],
+        "confidence_boosters": [
+          "flask_jinja2_detected",
+          "python_template_engines",
+          "dynamic_page_generation"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "AWS Credential Exposure",
+        "mitre_id": "T1552.005",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [
+          "any"
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "aws_credentials_in_source",
+          "git_repository_accessible",
+          "cloud_services_integration"
+        ],
+        "success_indicators": [
+          "aws_access_keys_found",
+          "lambda_function_access",
+          "cloud_resource_enumeration"
+        ],
+        "incompatible_with": [
+          "proper_credential_management",
+          "iam_role_based_access"
+        ],
+        "confidence_boosters": [
+          "aws_key_format_detected",
+          "cloud_service_references",
+          "lambda_function_names"
+        ],
+        "typical_success_rate": 0.91,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "git_repository": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "path_indicators": [
+          "/.git/",
+          "/.git/config",
+          "/.git/HEAD"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "python_web_app": {
+        "port_indicators": [
+          5000,
+          8000,
+          8080
+        ],
+        "service_indicators": [
+          "werkzeug",
+          "flask",
+          "django"
+        ],
+        "banner_indicators": [
+          "Python",
+          "Werkzeug",
+          "Flask"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "jwt_authentication": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8080
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "header_indicators": [
+          "Authorization: Bearer",
+          "JWT"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "aws_integration": {
+        "port_indicators": [
+          "any"
+        ],
+        "service_indicators": [
+          "any"
+        ],
+        "code_indicators": [
+          "boto3",
+          "aws-sdk",
+          "lambda"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "git_repository_dump",
+          "when": "git_directory_detected",
+          "reason": "high_success_rate_reveals_source_code_and_secrets"
+        },
+        {
+          "attack": "aws_credential_exploitation",
+          "when": "aws_keys_found_in_source",
+          "reason": "immediate_cloud_access_high_impact"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "jwt_token_forgery",
+          "when": "jwt_secret_extracted",
+          "reason": "authentication_bypass_reliable"
+        },
+        {
+          "attack": "server_side_template_injection",
+          "when": "python_template_engine_detected",
+          "reason": "code_execution_but_requires_access"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Git Repository Exposure",
+        "mitre_id": "T1213.003",
+        "category": "collection",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p {ports} -sCV -oA scans/nmap-tcpscripts {target}",
+            "actual_command": "nmap -p 22,80,5000 -sCV -oA scans/nmap-tcpscripts 10.10.11.134",
+            "output_pattern": "http-git: Git repository found!",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "GitTools gitdumper.sh",
+            "command_template": "/opt/GitTools/Dumper/gitdumper.sh http://{target}/.git/ {output_dir}",
+            "actual_command": "/opt/GitTools/Dumper/gitdumper.sh http://10.10.11.134/.git/ .",
+            "success_factors": [
+              "exposed_git_directory",
+              "accessible_git_objects"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "exposed_git_directory",
+          "web_server_misconfiguration",
+          "directory_listing_enabled"
+        ],
+        "success_indicators": [
+          "git_objects_downloaded",
+          "source_code_recovered",
+          "sensitive_data_exposed"
+        ],
+        "common_failures": [
+          "git_directory_protected",
+          "incomplete_repository_exposure",
+          "corrupted_git_objects"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "commit_history_analysis"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "JWT Secret Extraction",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "git",
+            "command_template": "git reset --hard && git log --oneline && git diff {commit1} {commit2}",
+            "actual_command": "git reset --hard",
+            "output_pattern": "secret = '<secret_key>'",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "git_repository_access",
+          "source_code_containing_secrets",
+          "jwt_implementation_present"
+        ],
+        "success_indicators": [
+          "jwt_secret_identified",
+          "authentication_mechanism_understood",
+          "token_generation_possible"
+        ],
+        "common_failures": [
+          "secrets_properly_externalized",
+          "environment_variables_used",
+          "secrets_rotated_since_commit"
+        ],
+        "follow_up_techniques": [
+          "jwt_token_forging",
+          "authentication_bypass",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "AWS Credentials Discovery",
+        "mitre_id": "T1552.005",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "source_code_analysis",
+            "command_template": "grep -r 'aws_access_key_id\\|aws_secret_access_key' {source_dir}",
+            "actual_command": "analysis of track_api_CR_148.py",
+            "output_pattern": "aws_access_key_id='<aws_access_key_id>'",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "source_code_access",
+          "aws_integration_present",
+          "hardcoded_credentials"
+        ],
+        "success_indicators": [
+          "aws_keys_identified",
+          "endpoint_url_discovered",
+          "lambda_functions_accessible"
+        ],
+        "common_failures": [
+          "credentials_externalized",
+          "iam_roles_used_instead",
+          "credentials_expired"
+        ],
+        "follow_up_techniques": [
+          "aws_lambda_enumeration",
+          "cloud_service_abuse",
+          "lateral_movement"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Server-Side Template Injection Discovery",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "source_code_analysis",
+            "command_template": "grep -r 'render_template_string\\|format.*request' {source_dir}",
+            "actual_command": "analysis of server.py /order route",
+            "output_pattern": "render_template_string(message,costume=costume)",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "source_code_access",
+          "flask_application",
+          "user_input_in_template"
+        ],
+        "success_indicators": [
+          "template_injection_point_identified",
+          "user_controlled_input_confirmed",
+          "template_engine_identified"
+        ],
+        "common_failures": [
+          "input_sanitization_present",
+          "template_sandboxing_enabled",
+          "authentication_required"
+        ],
+        "follow_up_techniques": [
+          "ssti_payload_crafting",
+          "remote_code_execution",
+          "system_compromise"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "GitTools",
+        "use_case": "exposed_git_repository_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "git_repository_disclosure"
+        ],
+        "alternatives": [
+          "manual_git_object_download",
+          "wget_recursive"
+        ],
+        "best_practices": [
+          "always_check_for_git_exposure_during_recon",
+          "examine_commit_history_for_secrets",
+          "look_for_configuration_files_and_credentials"
+        ]
+      },
+      {
+        "tool": "nmap_http-git_script",
+        "use_case": "automated_git_repository_detection",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_reconnaissance"
+        ],
+        "alternatives": [
+          "manual_directory_enumeration",
+          "dirb",
+          "gobuster"
+        ],
+        "best_practices": [
+          "include_in_standard_web_enumeration",
+          "follow_up_immediately_when_detected",
+          "check_for_other_vcs_exposures"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "git_repository_to_source_disclosure",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p 22,80,5000 -sCV -oA scans/nmap-tcpscripts 10.10.11.134",
+            "purpose": "Identify exposed git repository",
+            "expected_output": "http-git: Git repository found!"
+          },
+          {
+            "step": 2,
+            "command": "/opt/GitTools/Dumper/gitdumper.sh http://10.10.11.134/.git/ .",
+            "purpose": "Extract git repository contents",
+            "expected_output": "Downloaded git objects and metadata"
+          },
+          {
+            "step": 3,
+            "command": "git reset --hard",
+            "purpose": "Restore working directory to last commit",
+            "expected_output": "Source files restored: server.py, track_api_CR_148.py"
+          },
+          {
+            "step": 4,
+            "command": "git log --oneline",
+            "purpose": "Examine commit history for sensitive changes",
+            "expected_output": "List of commits with potential secret exposure"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "source_code_secret_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "grep -r 'secret\\|key\\|password' *.py",
+            "purpose": "Search for hardcoded secrets",
+            "expected_output": "JWT secrets, AWS keys, passwords"
+          },
+          {
+            "step": 2,
+            "command": "grep -r 'render_template_string\\|format.*request' *.py",
+            "purpose": "Identify template injection vulnerabilities",
+            "expected_output": "SSTI vulnerability in /order route"
+          },
+          {
+            "step": 3,
+            "command": "git diff b10dd06 c622771",
+            "purpose": "Compare commits for configuration changes",
+            "expected_output": "URL changes, credential updates"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "15-25 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Epsilon",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2022-02-07",
+      "author": "MrR3boot",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "git_exposure",
+        "aws_misconfiguration",
+        "jwt_manipulation",
+        "ssti"
+      ],
+      "key_vulnerabilities": [
+        "exposed_git_repository",
+        "hardcoded_aws_credentials",
+        "jwt_secret_reuse",
+        "server_side_template_injection",
+        "tar_wildcard_injection"
+      ],
+      "environment_type": "cloud_integrated_web_application",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "git_forensics",
+        "aws_lambda_exploitation",
+        "jwt_attacks",
+        "ssti_exploitation",
+        "tar_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "aws_basics",
+        "jwt_concepts",
+        "template_engines",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "cloud_security",
+        "source_code_analysis",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "credential_access",
+        "code_execution",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_git_deployment",
+        "aws_credential_management",
+        "jwt_secret_protection",
+        "input_validation",
+        "secure_backup_practices"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Secret",
+        "Bucket",
+        "Schooled"
+      ],
+      "similarity_reasons": [
+        "git_exposure",
+        "jwt_attacks",
+        "cloud_integration",
+        "ssti_vulnerabilities"
+      ],
+      "unique_aspects": [
+        "aws_lambda_integration",
+        "htb_university_ctf_origin",
+        "tar_wildcard_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_vectors",
+        "cloud_knowledge_required",
+        "complex_attack_chain"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T17:16:27.287439",
+    "original_file": "0xdf_writeups/Htb Epsilon.md",
+    "content_length": 33334,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,1036 @@
+{
+  "writeup_id": "Htb_Encoding",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_app_ssrf_lfi_chain",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "file_read_vulnerability",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "php_parameter_inclusion",
+      "git_repository_exposure",
+      "ssrf_to_lfi_chain",
+      "php_filter_injection",
+      "git_hooks_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "ubuntu_22_04_jammy",
+      "apache_2_4_52",
+      "openssh_8_9p1",
+      "php_web_application",
+      "api_subdomain_references"
+    ],
+    "similar_scenarios": [
+      "htb_medium_web_chains",
+      "php_lfi_ssrf_combos"
+    ],
+    "unique_aspects": [
+      "haxtables_conversion_service",
+      "git_hook_malicious_installation",
+      "service_creation_privileges",
+      "php_parse_url_behavior"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "File_Read_via_LFI",
+        "success_reason": "Web application had unfiltered file read vulnerability through page parameter",
+        "prerequisite_indicators": [
+          "php_application_with_includes",
+          "page_parameter_in_url",
+          "common_php_include_pattern"
+        ],
+        "recognition_patterns": [
+          "URL pattern: index.php?page=value",
+          "Direct file access returns 404",
+          "Path traversal sequences accepted"
+        ],
+        "failure_modes": [
+          "input_filtering_implemented",
+          "whitelist_validation",
+          "chroot_restrictions"
+        ],
+        "environmental_factors": [
+          "default_php_configuration",
+          "insufficient_input_validation",
+          "developer_convenience_over_security"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Git_Repository_Extraction",
+        "success_reason": "Accessible .git directory through file read vulnerability",
+        "prerequisite_indicators": [
+          "file_read_capability",
+          "web_application_deployment",
+          "git_version_control_used"
+        ],
+        "recognition_patterns": [
+          ".git/config file accessible",
+          ".git/HEAD file present",
+          "Repository structure intact"
+        ],
+        "failure_modes": [
+          "git_directory_removed",
+          "proper_deployment_process",
+          "file_permissions_restricted"
+        ],
+        "environmental_factors": [
+          "development_to_production_migration",
+          "incomplete_deployment_cleanup",
+          "version_control_in_webroot"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "SSRF_to_Internal_Services",
+        "success_reason": "Handler.php made unvalidated requests to uri_path parameter",
+        "prerequisite_indicators": [
+          "api_endpoint_accepts_urls",
+          "server_makes_outbound_requests",
+          "insufficient_url_validation"
+        ],
+        "recognition_patterns": [
+          "uri_path parameter in requests",
+          "Server-side HTTP requests made",
+          "Internal network accessible"
+        ],
+        "failure_modes": [
+          "url_whitelist_implemented",
+          "network_segmentation",
+          "request_validation"
+        ],
+        "environmental_factors": [
+          "internal_services_accessible",
+          "trust_boundary_assumptions",
+          "microservice_architecture"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "20-60 minutes"
+      },
+      {
+        "technique": "PHP_Filter_Chain_RCE",
+        "success_reason": "Local file include vulnerability combined with PHP filter chains",
+        "prerequisite_indicators": [
+          "php_application",
+          "file_include_functionality",
+          "php_filters_enabled"
+        ],
+        "recognition_patterns": [
+          "LFI vulnerability present",
+          "PHP filter wrappers work",
+          "Base64 encoding/decoding available"
+        ],
+        "failure_modes": [
+          "php_filters_disabled",
+          "include_path_restrictions",
+          "safe_mode_enabled"
+        ],
+        "environmental_factors": [
+          "default_php_configuration",
+          "filter_wrappers_enabled",
+          "modern_php_version"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "30-90 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "handler.php endpoint with uri_path parameter",
+        "discovery_method": "JavaScript source code analysis",
+        "why_critical": "Enabled SSRF to internal services and LFI exploitation",
+        "how_to_recognize": [
+          "POST endpoint accepting JSON",
+          "uri_path parameter in requests",
+          "Server-side request functionality"
+        ],
+        "follow_up_actions": [
+          "test_ssrf_to_internal_ips",
+          "attempt_file_protocol_access",
+          "enumerate_internal_services"
+        ]
+      },
+      {
+        "discovery": "Git repository in webroot",
+        "discovery_method": "File read vulnerability exploitation",
+        "why_critical": "Revealed source code and internal service URLs",
+        "how_to_recognize": [
+          ".git directory accessible",
+          "Repository files readable",
+          "Source code contains secrets"
+        ],
+        "follow_up_actions": [
+          "extract_full_repository",
+          "analyze_source_code",
+          "search_for_credentials"
+        ]
+      },
+      {
+        "discovery": "Internal API service with LFI",
+        "discovery_method": "Git repository source code analysis",
+        "why_critical": "Provided code execution path through PHP filters",
+        "how_to_recognize": [
+          "Internal service endpoints",
+          "File include patterns in code",
+          "Insufficient input validation"
+        ],
+        "follow_up_actions": [
+          "test_lfi_with_php_filters",
+          "craft_filter_chain_payload",
+          "achieve_code_execution"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "Malicious_Git_Hook",
+        "why_possible": "Target user had git repositories with executable hooks",
+        "recognition_signs": [
+          "git_repositories_in_user_directory",
+          "hook_directories_writable",
+          "automated_git_operations"
+        ],
+        "exploitation_path": "Install malicious pre-commit hook → Wait for git operation → User shell"
+      },
+      {
+        "privilege_level": "user",
+        "escalation_method": "Service_Creation_Abuse",
+        "why_possible": "User had permissions to create and start systemd services",
+        "recognition_signs": [
+          "systemctl_create_permissions",
+          "service_start_capabilities",
+          "systemd_user_services_enabled"
+        ],
+        "exploitation_path": "Create malicious service → Start service → Root execution"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with Apache web server",
+        "decision": "Enumerate web application and identify tech stack first",
+        "reasoning": "Limited attack surface suggests web app is primary entry point",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs exist"
+          }
+        ],
+        "success_indicators": [
+          "web_app_functionality_mapped",
+          "tech_stack_identified",
+          "input_parameters_found"
+        ],
+        "next_decision": "analyze_web_app_attack_vectors"
+      },
+      {
+        "step": 2,
+        "situation": "Identified PHP application with page parameter and API functionality",
+        "decision": "Test for local file inclusion via page parameter",
+        "reasoning": "PHP page parameter pattern commonly vulnerable to LFI",
+        "confidence": 0.85,
+        "prerequisites": [
+          "php_app_confirmed",
+          "page_parameter_identified"
+        ],
+        "success_indicators": [
+          "file_contents_disclosed",
+          "directory_traversal_works"
+        ],
+        "failure_fallbacks": [
+          "api_parameter_testing",
+          "directory_bruteforce",
+          "subdomain_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found subdomain api.haxtables.htb mentioned in documentation",
+        "decision": "Enumerate subdomains and test API endpoints",
+        "reasoning": "API endpoints often have different security controls",
+        "confidence": 0.8,
+        "prerequisites": [
+          "subdomain_identified"
+        ],
+        "success_indicators": [
+          "api_accessible",
+          "different_functionality_found"
+        ],
+        "failure_fallbacks": [
+          "parameter_manipulation",
+          "ssrf_testing"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "API accepts JSON with uri_path parameter",
+        "decision": "Test uri_path parameter for SSRF vulnerabilities",
+        "reasoning": "URI parameters in APIs commonly vulnerable to SSRF",
+        "confidence": 0.75,
+        "prerequisites": [
+          "api_parameters_identified",
+          "json_input_accepted"
+        ],
+        "success_indicators": [
+          "internal_services_accessible",
+          "file_protocol_works"
+        ],
+        "failure_fallbacks": [
+          "parameter_injection",
+          "file_upload_testing"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_lfi_succeeds": {
+        "action": "enumerate_sensitive_files",
+        "tools": [
+          "curl",
+          "burp_suite"
+        ],
+        "targets": [
+          "/etc/passwd",
+          "/proc/self/environ",
+          "application_config_files"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_ssrf_succeeds": {
+        "action": "enumerate_internal_services",
+        "tools": [
+          "curl",
+          "custom_scripts"
+        ],
+        "targets": [
+          "localhost_services",
+          "internal_network_scan"
+        ],
+        "next_phase": "internal_service_exploitation"
+      },
+      "if_api_enumeration_succeeds": {
+        "action": "test_api_specific_vulnerabilities",
+        "focus": [
+          "parameter_injection",
+          "authentication_bypass",
+          "data_exfiltration"
+        ],
+        "next_phase": "api_exploitation"
+      },
+      "if_file_read_achieved": {
+        "action": "extract_application_source_code",
+        "purpose": "find_additional_vulnerabilities",
+        "targets": [
+          "config_files",
+          "source_code",
+          "git_repositories"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_page_parameter_for_lfi_in_php",
+        "reasoning": "extremely_common_vulnerability_pattern",
+        "applicability": "php_applications_with_page_routing"
+      },
+      {
+        "rule": "enumerate_subdomains_when_api_mentioned",
+        "reasoning": "apis_often_on_separate_subdomains_with_different_security",
+        "applicability": "api_documentation_found"
+      },
+      {
+        "rule": "test_uri_parameters_for_ssrf_in_apis",
+        "reasoning": "common_pattern_for_server_side_request_functionality",
+        "applicability": "api_endpoints_with_uri_parameters"
+      },
+      {
+        "rule": "prioritize_file_read_over_code_execution_initially",
+        "reasoning": "file_read_can_reveal_source_code_and_additional_attack_vectors",
+        "applicability": "web_application_initial_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Local File Inclusion",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_application",
+          "parameter_based_file_inclusion",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "page_parameter_exists",
+          "file_contents_returned",
+          "error_messages_reveal_paths"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "chroot_jail",
+          "file_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "php_extension_visible",
+          "index_php_page_pattern",
+          "directory_traversal_possible"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Server-Side Request Forgery",
+        "mitre_id": "T1090.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_makes_requests",
+          "user_controlled_url_parameters",
+          "insufficient_url_validation"
+        ],
+        "success_indicators": [
+          "internal_services_accessible",
+          "response_time_variations",
+          "error_messages_from_internal_services"
+        ],
+        "incompatible_with": [
+          "strict_url_validation",
+          "network_segmentation",
+          "request_whitelisting"
+        ],
+        "confidence_boosters": [
+          "api_endpoints_present",
+          "url_parameters_in_requests",
+          "webhook_functionality"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Git Repository Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "git_directory_accessible",
+          "web_server_serves_dot_files",
+          "development_files_exposed"
+        ],
+        "success_indicators": [
+          "git_directory_found",
+          "git_objects_accessible",
+          "source_code_recovered"
+        ],
+        "incompatible_with": [
+          "dot_files_blocked",
+          "production_deployment_process",
+          "proper_file_permissions"
+        ],
+        "confidence_boosters": [
+          "development_environment",
+          "version_control_artifacts",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "5-20 minutes"
+      },
+      {
+        "technique": "PHP Filter Chain Injection",
+        "mitre_id": "T1059.004",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_application",
+          "file_inclusion_vulnerability",
+          "php_filters_enabled"
+        ],
+        "success_indicators": [
+          "php_code_execution",
+          "filter_chains_processed",
+          "base64_encoded_output"
+        ],
+        "incompatible_with": [
+          "php_filters_disabled",
+          "strict_file_inclusion_controls",
+          "safe_mode_enabled"
+        ],
+        "confidence_boosters": [
+          "local_file_inclusion_confirmed",
+          "php_wrapper_support",
+          "error_messages_show_php"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-25 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "php_web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "PHP",
+          "Apache",
+          "nginx"
+        ],
+        "url_patterns": [
+          "index.php",
+          ".php",
+          "?page="
+        ],
+        "confidence_threshold": 0.9
+      },
+      "git_repository": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "path_indicators": [
+          "/.git/",
+          "/.git/config",
+          "/.git/HEAD"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "api_endpoints": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "subdomain_indicators": [
+          "api.",
+          "rest.",
+          "v1."
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "local_file_inclusion",
+          "when": "php_application_with_page_parameter",
+          "reason": "direct_path_to_code_execution"
+        },
+        {
+          "attack": "git_repository_enumeration",
+          "when": "development_environment_detected",
+          "reason": "source_code_reveals_vulnerabilities"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "server_side_request_forgery",
+          "when": "api_endpoints_present",
+          "reason": "internal_service_access_possible"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_functionality"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Local File Inclusion via PHP Filter Chain",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST {api_endpoint} -H 'Content-Type: application/json' -d '{\"action\":\"{action}\",\"file_url\":\"php://filter/convert.base64-encode/resource={file_path}\"}'",
+            "actual_command": "curl -X POST http://api.haxtables.htb/v3/tools/string/index.php -H 'Content-Type: application/json' -d '{\"action\":\"str2hex\",\"file_url\":\"php://filter/convert.base64-encode/resource=/etc/passwd\"}'",
+            "output_pattern": "base64_encoded_file_content",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "php_application_with_file_inclusion",
+          "user_controlled_file_parameter",
+          "php_filter_wrappers_enabled"
+        ],
+        "success_indicators": [
+          "base64_encoded_content_returned",
+          "file_contents_successfully_decoded",
+          "sensitive_files_accessible"
+        ],
+        "common_failures": [
+          "php_filters_disabled",
+          "file_path_restrictions",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "configuration_file_enumeration"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Server-Side Request Forgery (SSRF)",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST {handler_endpoint} -H 'Content-Type: application/json' -d '{\"action\":\"{action}\",\"data\":\"{data}\",\"uri_path\":\"{internal_url}\"}'",
+            "actual_command": "curl -X POST http://10.10.11.198/handler.php -H 'Content-Type: application/json' -d '{\"action\":\"md5\",\"data\":\"test\",\"uri_path\":\"http://image.haxtables.htb/\"}'",
+            "output_pattern": "internal_service_response",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "application_makes_server_side_requests",
+          "user_controlled_url_parameter",
+          "internal_services_accessible"
+        ],
+        "success_indicators": [
+          "internal_service_responses_received",
+          "network_topology_mapped",
+          "restricted_resources_accessed"
+        ],
+        "common_failures": [
+          "url_validation_blocks_requests",
+          "network_segmentation_prevents_access",
+          "timeout_issues"
+        ],
+        "follow_up_techniques": [
+          "internal_service_enumeration",
+          "credential_harvesting",
+          "pivot_to_internal_systems"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Git Repository Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "git",
+            "command_template": "git log --oneline",
+            "actual_command": "git log --oneline",
+            "output_pattern": "commit_history_with_messages",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "git",
+            "command_template": "git show {commit_hash}",
+            "actual_command": "git show HEAD~1",
+            "output_pattern": "commit_diff_with_changes",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "git_repository_accessible",
+          "git_client_available"
+        ],
+        "success_indicators": [
+          "commit_history_retrieved",
+          "sensitive_information_in_commits",
+          "configuration_changes_identified"
+        ],
+        "common_failures": [
+          "repository_access_denied",
+          "empty_repository",
+          "no_sensitive_data_in_history"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "malicious_git_hooks"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Malicious Git Hook Installation",
+        "mitre_id": "T1546.015",
+        "category": "persistence",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "bash",
+            "command_template": "echo '{payload}' > .git/hooks/{hook_name} && chmod +x .git/hooks/{hook_name}",
+            "actual_command": "echo '#!/bin/bash\\ncp /bin/bash /tmp/0xdf && chmod 4755 /tmp/0xdf' > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit",
+            "output_pattern": "hook_file_created",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "write_access_to_git_repository",
+          "target_user_performs_git_operations",
+          "git_hooks_enabled"
+        ],
+        "success_indicators": [
+          "hook_file_successfully_created",
+          "hook_executed_on_git_operation",
+          "privilege_escalation_achieved"
+        ],
+        "common_failures": [
+          "insufficient_permissions_to_write_hooks",
+          "git_operations_not_performed",
+          "hooks_disabled_or_restricted"
+        ],
+        "follow_up_techniques": [
+          "lateral_movement",
+          "credential_harvesting",
+          "system_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Service Creation Privilege Escalation",
+        "mitre_id": "T1543.002",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "systemctl",
+            "command_template": "systemctl --user daemon-reload && systemctl --user enable {service_name} && systemctl --user start {service_name}",
+            "actual_command": "systemctl --user daemon-reload && systemctl --user enable root.service && systemctl --user start root.service",
+            "output_pattern": "service_started_successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "user_service_creation_permissions",
+          "systemd_user_services_enabled",
+          "writable_service_directory"
+        ],
+        "success_indicators": [
+          "service_file_created",
+          "service_started_successfully",
+          "root_privileges_obtained"
+        ],
+        "common_failures": [
+          "insufficient_service_permissions",
+          "systemd_restrictions",
+          "service_execution_blocked"
+        ],
+        "follow_up_techniques": [
+          "system_persistence",
+          "credential_dumping",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.92,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_appropriate_extensions_for_technology_stack",
+          "adjust_thread_count_based_on_target_stability",
+          "filter_common_false_positives"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "subdomain_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.88,
+        "learning_curve": "medium",
+        "essential_for": [
+          "subdomain_discovery",
+          "parameter_fuzzing"
+        ],
+        "alternatives": [
+          "ffuf",
+          "gobuster",
+          "amass"
+        ],
+        "best_practices": [
+          "filter_default_response_sizes",
+          "use_appropriate_wordlists",
+          "adjust_request_rate_to_avoid_blocking"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "api_testing_and_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "api_testing",
+          "http_request_crafting"
+        ],
+        "alternatives": [
+          "httpie",
+          "postman",
+          "burp_suite"
+        ],
+        "best_practices": [
+          "use_proper_content_type_headers",
+          "save_responses_for_analysis",
+          "test_various_http_methods"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "php_filter_lfi_to_source_disclosure",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST http://api.haxtables.htb/v3/tools/string/index.php -H 'Content-Type: application/json' -d '{\"action\":\"str2hex\",\"file_url\":\"php://filter/convert.base64-encode/resource=/etc/passwd\"}'",
+            "purpose": "Test LFI vulnerability with system file",
+            "expected_output": "Base64 encoded /etc/passwd content"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST http://api.haxtables.htb/v3/tools/string/index.php -H 'Content-Type: application/json' -d '{\"action\":\"str2hex\",\"file_url\":\"php://filter/convert.base64-encode/resource=index.php\"}'",
+            "purpose": "Extract source code of application",
+            "expected_output": "Base64 encoded PHP source code"
+          },
+          {
+            "step": 3,
+            "command": "echo '{base64_output}' | base64 -d",
+            "purpose": "Decode extracted source code",
+            "expected_output": "Readable PHP source code"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "ssrf_to_internal_service_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST http://10.10.11.198/handler.php -H 'Content-Type: application/json' -d '{\"action\":\"md5\",\"data\":\"test\",\"uri_path\":\"http://image.haxtables.htb/\"}'",
+            "purpose": "Test SSRF to internal subdomain",
+            "expected_output": "Internal service response"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST http://10.10.11.198/handler.php -H 'Content-Type: application/json' -d '{\"action\":\"md5\",\"data\":\"test\",\"uri_path\":\"http://image.haxtables.htb/.git/\"}'",
+            "purpose": "Enumerate git repository on internal service",
+            "expected_output": "Git repository directory listing"
+          },
+          {
+            "step": 3,
+            "command": "git clone http://image.haxtables.htb/.git/ via_ssrf",
+            "purpose": "Clone git repository through SSRF",
+            "expected_output": "Complete git repository with history"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "20-40 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Encoding",
+      "difficulty": "Medium",
+      "os": "Ubuntu 22.04",
+      "platform": "HackTheBox",
+      "release_date": "2023-01-28",
+      "author": "kavigihan",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "ssrf",
+        "lfi",
+        "git_hooks"
+      ],
+      "key_vulnerabilities": [
+        "file_read",
+        "local_file_include",
+        "server_side_request_forgery",
+        "php_filter_injection"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ssrf_exploitation",
+        "php_filter_chains",
+        "git_hook_abuse",
+        "service_privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "php_vulnerabilities",
+        "linux_services",
+        "git_internals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "ssrf",
+        "lfi",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "url_parsing_security",
+        "service_permissions",
+        "git_hook_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Intentions",
+        "Shoppy",
+        "Previse"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "ssrf_exploitation",
+        "file_inclusion_vulnerabilities"
+      ],
+      "unique_aspects": [
+        "php_filter_injection",
+        "git_hook_privilege_escalation",
+        "parse_url_quirks"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "multiple_web_vulnerabilities",
+        "service_escalation"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T13:20:04.510438",
+    "original_file": "0xdf_writeups/Htb Encoding.md",
+    "content_length": 77239,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

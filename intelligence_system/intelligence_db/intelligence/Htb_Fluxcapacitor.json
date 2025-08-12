@@ -1,0 +1,824 @@
+{
+  "writeup_id": "Htb_Fluxcapacitor",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_command_injection_waf_bypass",
+    "primary_services": [
+      "http"
+    ],
+    "port_signature": "80",
+    "service_combination": "http_only",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "command_injection",
+    "privilege_path": "web_to_system",
+    "attack_complexity": "hard",
+    "estimated_time": "120-180 minutes",
+    "scenario_confidence": 0.85,
+    "distinguishing_factors": [
+      "single_port_exposure",
+      "waf_protection",
+      "parameter_fuzzing_required",
+      "user_agent_filtering"
+    ],
+    "environmental_clues": [
+      "superwaf_server_header",
+      "openresty_backend",
+      "sync_endpoint_functionality",
+      "timestamp_api_response"
+    ],
+    "similar_scenarios": [
+      "single_service_web_apps",
+      "waf_bypass_challenges"
+    ],
+    "unique_aspects": [
+      "quote_based_injection",
+      "extensive_parameter_discovery",
+      "minimal_attack_surface",
+      "heavy_input_filtering"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Command_Injection_via_Parameter",
+        "success_reason": "opt parameter vulnerable to command injection with quote-based bypass",
+        "prerequisite_indicators": [
+          "web_application_with_parameters",
+          "dynamic_content_generation",
+          "insufficient_input_validation"
+        ],
+        "recognition_patterns": [
+          "parameter returns different responses (403 vs 200 vs empty)",
+          "single quote returns different behavior",
+          "quote manipulation changes response patterns",
+          "WAF blocking certain commands but not quote-broken variants"
+        ],
+        "failure_modes": [
+          "proper_input_sanitization",
+          "comprehensive_WAF_rules",
+          "no_command_execution_context"
+        ],
+        "environmental_factors": [
+          "SuperWAF present but bypassable",
+          "bash command execution context",
+          "quote-based filtering weakness"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "WAF_Bypass_Quote_Breaking",
+        "success_reason": "WAF blocks complete commands but allows quote-broken variants",
+        "prerequisite_indicators": [
+          "403_responses_for_certain_payloads",
+          "different_server_headers",
+          "command_filtering_present"
+        ],
+        "recognition_patterns": [
+          "ls blocked but l''s works",
+          "curl blocked but cu''rl works",
+          "quote manipulation bypasses detection",
+          "bash concatenates broken quotes"
+        ],
+        "failure_modes": [
+          "comprehensive_character_filtering",
+          "execution_context_restrictions",
+          "proper_WAF_configuration"
+        ],
+        "environmental_factors": [
+          "bash_shell_environment",
+          "SuperWAF_with_signature_based_detection",
+          "quote_concatenation_behavior"
+        ],
+        "success_probability": 0.72,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "/sync endpoint with opt parameter",
+        "discovery_method": "source code analysis and parameter fuzzing",
+        "why_critical": "Provided command injection entry point",
+        "how_to_recognize": [
+          "hidden endpoint in HTML comments",
+          "parameter fuzzing reveals opt parameter",
+          "different response codes indicate filtering"
+        ],
+        "follow_up_actions": [
+          "test_command_injection_payloads",
+          "identify_WAF_bypass_techniques",
+          "enumerate_system_without_shell"
+        ]
+      },
+      {
+        "discovery": "Quote-based WAF bypass technique",
+        "discovery_method": "manual payload testing and response analysis",
+        "why_critical": "Enabled command execution despite WAF protection",
+        "how_to_recognize": [
+          "403 responses for normal commands",
+          "successful execution with quote breaking",
+          "bash quote concatenation behavior"
+        ],
+        "follow_up_actions": [
+          "enumerate_file_system",
+          "locate_user_flags",
+          "attempt_privilege_escalation"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "shellless_enumeration",
+        "why_possible": "Command injection allows file system access without shell",
+        "recognition_signs": [
+          "can_execute_system_commands",
+          "file_system_readable",
+          "user_directories_accessible"
+        ],
+        "exploitation_path": "Command Injection → File Enumeration → Privilege Escalation Research"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Only port 80 open on target host",
+        "decision": "Focus on web application enumeration and source code analysis",
+        "reasoning": "Limited attack surface requires thorough web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "udp_scan",
+            "when": "if tcp enumeration fails"
+          },
+          {
+            "option": "service_version_detection",
+            "when": "always"
+          }
+        ],
+        "success_indicators": [
+          "hidden_paths_in_source",
+          "comments_revealing_functionality",
+          "additional_endpoints_discovered"
+        ],
+        "next_decision": "analyze_discovered_endpoints"
+      },
+      {
+        "step": 2,
+        "situation": "Found /sync endpoint with user-agent filtering",
+        "decision": "Bypass WAF using custom user-agent and parameter fuzzing",
+        "reasoning": "WAF blocks common browsers but allows other user-agents",
+        "confidence": 0.85,
+        "prerequisites": [
+          "endpoint_discovered",
+          "user_agent_filtering_identified"
+        ],
+        "success_indicators": [
+          "parameter_accepts_input",
+          "different_responses_observed"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "alternative_endpoints"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Parameter injection possible but WAF blocks common commands",
+        "decision": "Use command obfuscation with quote breaking to bypass WAF",
+        "reasoning": "WAF filters specific characters but quote manipulation can bypass",
+        "confidence": 0.75,
+        "prerequisites": [
+          "command_injection_confirmed",
+          "waf_rules_identified"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "file_system_access"
+        ],
+        "failure_fallbacks": [
+          "alternative_encoding",
+          "different_injection_points"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Command execution achieved but shell access difficult",
+        "decision": "Perform privilege escalation enumeration through web interface",
+        "reasoning": "Direct enumeration more reliable than establishing reverse shell",
+        "confidence": 0.8,
+        "prerequisites": [
+          "command_execution_working",
+          "file_read_capability"
+        ],
+        "success_indicators": [
+          "sudo_permissions_found",
+          "suid_binaries_discovered"
+        ],
+        "failure_fallbacks": [
+          "establish_reverse_shell",
+          "file_upload_attempts"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_waf_detected": {
+        "action": "analyze_waf_rules_and_bypass",
+        "tools": [
+          "custom_user_agents",
+          "encoding_techniques",
+          "quote_manipulation"
+        ],
+        "next_phase": "command_injection_testing"
+      },
+      "if_command_injection_found": {
+        "action": "enumerate_system_without_shell",
+        "alternatives": [
+          "sudo_enumeration",
+          "suid_search",
+          "config_file_analysis"
+        ],
+        "decision_criteria": "based_on_available_commands"
+      },
+      "if_sudo_permissions_found": {
+        "action": "exploit_sudo_script",
+        "purpose": "achieve_root_access",
+        "tools": [
+          "base64_encoding",
+          "custom_scripts"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_source_code_for_hidden_endpoints",
+        "reasoning": "developers_often_leave_hints_in_comments",
+        "applicability": "web_application_targets"
+      },
+      {
+        "rule": "test_user_agent_filtering_on_restricted_endpoints",
+        "reasoning": "common_waf_bypass_technique",
+        "applicability": "403_forbidden_responses"
+      },
+      {
+        "rule": "use_quote_breaking_for_waf_bypass",
+        "reasoning": "effective_against_regex_based_filters",
+        "applicability": "command_injection_with_waf"
+      },
+      {
+        "rule": "enumerate_sudo_permissions_when_shell_difficult",
+        "reasoning": "privilege_escalation_possible_without_interactive_shell",
+        "applicability": "limited_command_execution"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Web Parameter Fuzzing",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "parameter_based_functionality",
+          "dynamic_content_generation"
+        ],
+        "success_indicators": [
+          "different_response_codes",
+          "varying_content_length",
+          "error_messages_revealed",
+          "hidden_parameters_found"
+        ],
+        "incompatible_with": [
+          "static_content_only",
+          "no_query_parameters",
+          "complete_input_validation"
+        ],
+        "confidence_boosters": [
+          "comments_in_source_code",
+          "javascript_ajax_calls",
+          "form_parameters_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "User-Agent Filtering Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_agent_based_filtering",
+          "different_responses_by_client"
+        ],
+        "success_indicators": [
+          "403_forbidden_with_browser",
+          "200_ok_with_curl",
+          "different_content_by_user_agent"
+        ],
+        "incompatible_with": [
+          "no_user_agent_filtering",
+          "ip_based_restrictions_only",
+          "certificate_based_auth"
+        ],
+        "confidence_boosters": [
+          "waf_server_headers",
+          "consistent_filtering_pattern",
+          "bot_detection_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Command Injection via Web Parameters",
+        "mitre_id": "T1059",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "dynamic_parameter_processing",
+          "server_side_command_execution"
+        ],
+        "success_indicators": [
+          "command_output_in_response",
+          "timing_delays_with_sleep",
+          "error_messages_from_shell",
+          "different_responses_to_payloads"
+        ],
+        "incompatible_with": [
+          "input_sanitization_complete",
+          "sandboxed_execution",
+          "static_responses_only"
+        ],
+        "confidence_boosters": [
+          "shell_metacharacters_accepted",
+          "quote_handling_differences",
+          "waf_bypass_successful"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "WAF Evasion",
+        "mitre_id": "T1562.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_firewall_present",
+          "pattern_based_filtering",
+          "blacklist_approach_used"
+        ],
+        "success_indicators": [
+          "403_forbidden_for_obvious_payloads",
+          "200_ok_for_obfuscated_payloads",
+          "waf_server_headers_present",
+          "partial_command_execution"
+        ],
+        "incompatible_with": [
+          "whitelist_only_filtering",
+          "no_waf_present",
+          "complete_input_validation"
+        ],
+        "confidence_boosters": [
+          "superwaf_or_similar_headers",
+          "consistent_blocking_patterns",
+          "character_encoding_differences"
+        ],
+        "typical_success_rate": 0.55,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "apache",
+          "nginx",
+          "iis",
+          "openresty"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "waf_present": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "SuperWAF",
+          "openresty",
+          "cloudflare"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "parameter_injection": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "dynamic_responses",
+          "query_parameters"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "user_agent_bypass",
+          "when": "403_forbidden_in_browser_200_in_curl",
+          "reason": "immediate_access_to_hidden_functionality"
+        },
+        {
+          "attack": "parameter_fuzzing",
+          "when": "web_application_with_parameters",
+          "reason": "reveals_hidden_functionality_and_injection_points"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "command_injection_testing",
+          "when": "dynamic_parameter_responses_detected",
+          "reason": "potential_rce_but_requires_waf_bypass"
+        },
+        {
+          "attack": "waf_evasion",
+          "when": "waf_headers_and_403_responses",
+          "reason": "necessary_for_payload_delivery"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Web Application Firewall Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl \"http://{target}/sync?opt=' {command_fragment}''d'\"",
+            "actual_command": "curl \"10.10.10.69/sync?opt=' pw''d'\"",
+            "output_pattern": "Command output followed by 'bash: -c: option requires an argument'",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -c -w {wordlist} -H \"User-Agent: {custom_ua}\" --hh={hide_chars} \"http://{target}/sync?FUZZ=test\"",
+            "actual_command": "wfuzz -c -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -H \"User-Agent: nothingtoseehere\" --hh=19 \"http://fluxcapacitor.htb/sync?FUZZ=test\"",
+            "success_factors": [
+              "custom_user_agent",
+              "parameter_discovery"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "parameter_injection_point_identified",
+          "waf_rules_understood"
+        ],
+        "success_indicators": [
+          "command_execution_achieved",
+          "file_system_access_gained",
+          "waf_blocking_bypassed"
+        ],
+        "common_failures": [
+          "waf_blocks_common_commands",
+          "user_agent_filtering_active",
+          "character_filtering_too_restrictive"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation_enumeration",
+          "sudo_configuration_discovery",
+          "file_system_exploration"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Command Injection via Parameter Manipulation",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl \"http://{target}/sync?opt=' {cmd_part1}''ch cu''rl'\"",
+            "actual_command": "curl \"10.10.10.69/sync?opt=' whi''ch cu''rl'\"",
+            "output_pattern": "/usr/bin/curl",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "injectable_parameter_found",
+          "waf_bypass_method_established",
+          "command_splitting_technique_working"
+        ],
+        "success_indicators": [
+          "arbitrary_commands_executed",
+          "file_system_readable",
+          "network_connectivity_established"
+        ],
+        "common_failures": [
+          "command_characters_filtered",
+          "output_truncation",
+          "execution_context_limitations"
+        ],
+        "follow_up_techniques": [
+          "file_enumeration",
+          "privilege_escalation_discovery",
+          "reverse_shell_attempts"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Sudo Privilege Escalation via Custom Script",
+        "mitre_id": "T1548.003",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl \"http://{target}/sync?opt=' su''do -l'\"",
+            "actual_command": "curl \"10.10.10.69/sync?opt=' su''do -l'\"",
+            "output_pattern": "User nobody may run the following commands",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "base64",
+            "command_template": "echo {command} | base64",
+            "actual_command": "echo cat /root/root.txt | base64",
+            "success_factors": [
+              "base64_encoding_accepted",
+              "arbitrary_command_execution"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "sudo_permissions_discovered",
+          "custom_script_with_sudo_access",
+          "base64_decoding_functionality"
+        ],
+        "success_indicators": [
+          "root_command_execution",
+          "sensitive_file_access",
+          "privilege_escalation_confirmed"
+        ],
+        "common_failures": [
+          "script_input_validation",
+          "base64_encoding_issues",
+          "command_execution_restrictions"
+        ],
+        "follow_up_techniques": [
+          "root_flag_extraction",
+          "system_configuration_analysis",
+          "persistence_establishment"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "waf_bypass_command_injection",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "burp_repeater",
+          "python_requests"
+        ],
+        "best_practices": [
+          "use_custom_user_agents",
+          "split_commands_to_bypass_filters",
+          "test_character_encoding_variations"
+        ]
+      },
+      {
+        "tool": "wfuzz",
+        "use_case": "parameter_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_parameter_fuzzing"
+        ],
+        "alternatives": [
+          "ffuf",
+          "gobuster"
+        ],
+        "best_practices": [
+          "use_custom_headers_to_bypass_filtering",
+          "hide_common_response_sizes",
+          "test_different_wordlists"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "waf_bypass_to_root_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wfuzz -c -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -H \"User-Agent: nothingtoseehere\" --hh=19 \"http://fluxcapacitor.htb/sync?FUZZ=test\"",
+            "purpose": "Discover injectable parameter",
+            "expected_output": "Parameter 'opt' returns 403 status"
+          },
+          {
+            "step": 2,
+            "command": "curl \"10.10.10.69/sync?opt=' pw''d'\"",
+            "purpose": "Test command injection bypass",
+            "expected_output": "Current directory path"
+          },
+          {
+            "step": 3,
+            "command": "curl \"10.10.10.69/sync?opt=' su''do -l'\"",
+            "purpose": "Enumerate sudo privileges",
+            "expected_output": "Sudo permissions for custom script"
+          },
+          {
+            "step": 4,
+            "command": "curl \"10.10.10.69/sync?opt=' c''at /home/themiddle/.monit'\"",
+            "purpose": "Analyze privilege escalation script",
+            "expected_output": "Base64 decoding script content"
+          },
+          {
+            "step": 5,
+            "command": "curl \"10.10.10.69/sync?opt=' su''do /home/themiddle/.monit cmd $(echo cat /root/root.txt | base64)'\"",
+            "purpose": "Execute root command via sudo script",
+            "expected_output": "Root flag content"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "FluxCapacitor",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2017-12-16",
+      "author": "del_EzjAx34h",
+      "estimated_time": "2-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "path_traversal",
+        "command_injection",
+        "misconfiguration"
+      ],
+      "environment_type": "web_server",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "web_enumeration",
+        "linux_privesc",
+        "guessing_techniques"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "linux_fundamentals",
+        "enumeration_techniques"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "enumeration",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "proper_access_controls",
+        "input_validation",
+        "secure_configurations"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Nineveh",
+        "Shocker",
+        "Bashed"
+      ],
+      "similarity_reasons": [
+        "web_enumeration_heavy",
+        "linux_privesc",
+        "limited_attack_surface"
+      ],
+      "unique_aspects": [
+        "guessing_required",
+        "sync_endpoint",
+        "minimal_services"
+      ],
+      "difficulty_factors": [
+        "requires_guessing",
+        "limited_initial_foothold",
+        "enumeration_intensive"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T22:58:34.657005",
+    "original_file": "0xdf_writeups/Htb Fluxcapacitor.md",
+    "content_length": 12482,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

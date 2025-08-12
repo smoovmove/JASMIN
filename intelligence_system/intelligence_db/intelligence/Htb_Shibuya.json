@@ -1,0 +1,1141 @@
+{
+  "writeup_id": "Htb_Shibuya",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_kerberos_bruteforce_registry_dump",
+    "primary_services": [
+      "kerberos",
+      "ldap",
+      "smb",
+      "dns",
+      "adcs"
+    ],
+    "port_signature": "53+88+389+445+464+3268+3269+9389",
+    "service_combination": "dns+kerberos+ldap+smb+adcs",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "kerberos_user_enumeration",
+    "privilege_path": "service_account_to_registry_dump_to_esc1",
+    "attack_complexity": "hard",
+    "estimated_time": "120-180 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "machine_accounts_weak_passwords",
+      "registry_backups_in_wim_images",
+      "esc1_certificate_template_misconfiguration",
+      "cross_session_relay_attack"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "smb_shares_with_wim_images",
+      "adcs_certificate_authority",
+      "multiple_logged_users"
+    ],
+    "similar_scenarios": [
+      "forest_htb_hard",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "windows_imaging_files_containing_registry",
+      "remotepotato0_cross_session_relay",
+      "kerberos_machine_account_bruteforce"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Kerberos_Username_Enumeration",
+        "success_reason": "Domain controller exposed Kerberos service without rate limiting",
+        "prerequisite_indicators": [
+          "kerberos_port_88_open",
+          "domain_controller_accessible",
+          "no_account_lockout_policy"
+        ],
+        "recognition_patterns": [
+          "kerbrute returns valid usernames",
+          "no authentication required for enumeration",
+          "rapid username discovery"
+        ],
+        "failure_modes": [
+          "kerberos_not_accessible",
+          "aggressive_rate_limiting",
+          "account_lockout_enabled"
+        ],
+        "environmental_factors": [
+          "default_kerberos_configuration",
+          "no_brute_force_protection",
+          "exposed_domain_controller"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "1-5 minutes"
+      },
+      {
+        "technique": "Password_Spraying_Machine_Accounts",
+        "success_reason": "Machine accounts had passwords set to their username",
+        "prerequisite_indicators": [
+          "valid_usernames_discovered",
+          "weak_password_policies",
+          "machine_accounts_present"
+        ],
+        "recognition_patterns": [
+          "username equals password",
+          "simple naming conventions",
+          "default configurations"
+        ],
+        "failure_modes": [
+          "strong_password_policies",
+          "account_lockout_protection",
+          "no_weak_passwords"
+        ],
+        "environmental_factors": [
+          "poor_password_management",
+          "default_machine_account_setup",
+          "insufficient_security_hardening"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "LDAP_Credential_Discovery",
+        "success_reason": "Service account credentials stored in LDAP comment field",
+        "prerequisite_indicators": [
+          "ldap_access_available",
+          "authenticated_domain_user",
+          "poor_credential_storage_practices"
+        ],
+        "recognition_patterns": [
+          "credentials in description fields",
+          "service account information",
+          "cleartext passwords in attributes"
+        ],
+        "failure_modes": [
+          "no_ldap_access",
+          "proper_credential_management",
+          "encrypted_attribute_storage"
+        ],
+        "environmental_factors": [
+          "legacy_documentation_practices",
+          "poor_secrets_management",
+          "administrative_shortcuts"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Registry_Hive_Hash_Extraction",
+        "success_reason": "Windows imaging backups contained registry hives with password hashes",
+        "prerequisite_indicators": [
+          "smb_share_access",
+          "backup_files_present",
+          "registry_hives_accessible"
+        ],
+        "recognition_patterns": [
+          "wim files on shares",
+          "system/sam/security hives",
+          "backup directories"
+        ],
+        "failure_modes": [
+          "no_backup_access",
+          "encrypted_backups",
+          "proper_backup_security"
+        ],
+        "environmental_factors": [
+          "unsecured_backup_storage",
+          "imaging_process_artifacts",
+          "insufficient_backup_protection"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "RemotePotato0_Cross_Session_Relay",
+        "success_reason": "Another user logged into system allowing cross-session relay attack",
+        "prerequisite_indicators": [
+          "multiple_users_logged_in",
+          "rpc_services_available",
+          "cross_session_relay_possible"
+        ],
+        "recognition_patterns": [
+          "active user sessions",
+          "rpc endpoint accessibility",
+          "privilege escalation opportunity"
+        ],
+        "failure_modes": [
+          "single_user_session",
+          "rpc_hardening_enabled",
+          "session_isolation"
+        ],
+        "environmental_factors": [
+          "multi_user_environment",
+          "shared_system_usage",
+          "insufficient_session_security"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "10-15 minutes"
+      },
+      {
+        "technique": "ESC1_Certificate_Template_Abuse",
+        "success_reason": "ADCS certificate template allowed subject alternative name specification",
+        "prerequisite_indicators": [
+          "adcs_services_available",
+          "vulnerable_certificate_templates",
+          "certificate_enrollment_rights"
+        ],
+        "recognition_patterns": [
+          "esc1 vulnerable templates",
+          "subject_alternative_name_allowed",
+          "certificate_authority_accessible"
+        ],
+        "failure_modes": [
+          "hardened_certificate_templates",
+          "no_enrollment_permissions",
+          "adcs_not_available"
+        ],
+        "environmental_factors": [
+          "default_adcs_configuration",
+          "legacy_certificate_templates",
+          "insufficient_pki_hardening"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "purple and red machine accounts",
+        "discovery_method": "kerbrute username enumeration",
+        "why_critical": "Provided initial domain access with weak passwords",
+        "how_to_recognize": [
+          "simple single-word usernames",
+          "machine account patterns",
+          "rapid kerbrute discovery"
+        ],
+        "follow_up_actions": [
+          "password_spray_with_usernames",
+          "test_smb_access",
+          "enumerate_ldap_with_credentials"
+        ]
+      },
+      {
+        "discovery": "service account credentials in LDAP",
+        "discovery_method": "authenticated LDAP enumeration",
+        "why_critical": "Escalated to service account with SMB share access",
+        "how_to_recognize": [
+          "credentials in comment fields",
+          "service account naming patterns",
+          "cleartext passwords in attributes"
+        ],
+        "follow_up_actions": [
+          "test_service_account_access",
+          "enumerate_smb_shares",
+          "check_additional_permissions"
+        ]
+      },
+      {
+        "discovery": "Windows imaging files with registry hives",
+        "discovery_method": "SMB share enumeration",
+        "why_critical": "Contained password hashes for privilege escalation",
+        "how_to_recognize": [
+          "wim file extensions",
+          "backup directories on shares",
+          "system imaging artifacts"
+        ],
+        "follow_up_actions": [
+          "extract_registry_hives",
+          "dump_password_hashes",
+          "spray_hashes_for_access"
+        ]
+      },
+      {
+        "discovery": "vulnerable ADCS certificate template",
+        "discovery_method": "certificate template enumeration",
+        "why_critical": "Allowed impersonation of administrator account",
+        "how_to_recognize": [
+          "esc1 template vulnerability",
+          "subject_alternative_name_enabled",
+          "enrollment_permissions_granted"
+        ],
+        "follow_up_actions": [
+          "request_certificate_with_admin_san",
+          "authenticate_with_certificate",
+          "achieve_domain_admin_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "kerberos_username_enumeration",
+        "why_possible": "Kerberos service exposed without protection",
+        "recognition_signs": [
+          "port_88_accessible",
+          "kerbrute_successful_enumeration",
+          "no_rate_limiting"
+        ],
+        "exploitation_path": "kerbrute → valid usernames → password spraying"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "ldap_credential_discovery",
+        "why_possible": "Poor credential storage practices in LDAP attributes",
+        "recognition_signs": [
+          "authenticated_ldap_access",
+          "service_accounts_present",
+          "credentials_in_comments"
+        ],
+        "exploitation_path": "LDAP enumeration → service account creds → SMB access"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "registry_hive_hash_extraction",
+        "why_possible": "Unsecured backup files containing password hashes",
+        "recognition_signs": [
+          "smb_share_access",
+          "wim_files_present",
+          "registry_hives_accessible"
+        ],
+        "exploitation_path": "SMB access → WIM files → registry hives → password hashes"
+      },
+      {
+        "privilege_level": "local_user",
+        "escalation_method": "remotepotato0_cross_session",
+        "why_possible": "Multiple user sessions allowing relay attacks",
+        "recognition_signs": [
+          "multiple_active_sessions",
+          "rpc_services_available",
+          "cross_session_relay_possible"
+        ],
+        "exploitation_path": "RemotePotato0 → cross-session relay → higher privileges"
+      },
+      {
+        "privilege_level": "privileged_user",
+        "escalation_method": "esc1_certificate_abuse",
+        "why_possible": "Vulnerable ADCS certificate template configuration",
+        "recognition_signs": [
+          "adcs_services_running",
+          "esc1_vulnerable_templates",
+          "certificate_enrollment_rights"
+        ],
+        "exploitation_path": "ESC1 template → admin certificate → domain admin"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,135,139,445,464,593,3268,3269,3389,9389 open on Windows host",
+        "decision": "Identify as Domain Controller and try Kerberos user enumeration first",
+        "reasoning": "Port combination indicates AD DC, Kerberos accessible without credentials",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "smb_enumeration",
+            "when": "if kerberos fails"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous access available"
+          }
+        ],
+        "success_indicators": [
+          "kerberos_service_responds",
+          "domain_name_discovered",
+          "valid_usernames_found"
+        ],
+        "next_decision": "test_weak_credentials"
+      },
+      {
+        "step": 2,
+        "situation": "Found valid usernames via Kerberos enumeration",
+        "decision": "Test username-as-password with Kerberos authentication",
+        "reasoning": "Machine accounts often have weak passwords, Kerberos required for machine accounts",
+        "confidence": 0.8,
+        "prerequisites": [
+          "valid_usernames_enumerated",
+          "kerberos_accessible"
+        ],
+        "success_indicators": [
+          "kerberos_authentication_successful"
+        ],
+        "failure_fallbacks": [
+          "asreproast",
+          "password_spraying",
+          "kerberoasting"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Obtained machine account credentials",
+        "decision": "Enumerate LDAP and SMB shares for sensitive information",
+        "reasoning": "Machine accounts typically have read access to domain data",
+        "confidence": 0.9,
+        "prerequisites": [
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "ldap_enumeration_successful",
+          "smb_shares_accessible"
+        ],
+        "next_decision": "search_for_credential_disclosure"
+      },
+      {
+        "step": 4,
+        "situation": "Found service account credentials in LDAP comments",
+        "decision": "Test new credentials and enumerate accessible resources",
+        "reasoning": "Service accounts often have elevated privileges and access",
+        "confidence": 0.85,
+        "prerequisites": [
+          "service_account_credentials_found"
+        ],
+        "success_indicators": [
+          "additional_smb_access",
+          "registry_backups_found"
+        ],
+        "next_decision": "extract_credentials_from_backups"
+      }
+    ],
+    "branching_logic": {
+      "if_kerberos_user_enum_succeeds": {
+        "action": "test_weak_passwords",
+        "methods": [
+          "username_as_password",
+          "common_passwords"
+        ],
+        "auth_type": "kerberos_for_machine_accounts",
+        "next_phase": "authenticated_enumeration"
+      },
+      "if_machine_account_access_obtained": {
+        "action": "enumerate_domain_resources",
+        "targets": [
+          "ldap_directory",
+          "smb_shares"
+        ],
+        "search_for": [
+          "user_comments",
+          "service_accounts",
+          "sensitive_files"
+        ]
+      },
+      "if_service_account_found": {
+        "action": "escalate_access_level",
+        "methods": [
+          "smb_share_enumeration",
+          "registry_backup_analysis"
+        ],
+        "tools": [
+          "impacket",
+          "secretsdump"
+        ]
+      },
+      "if_registry_backups_found": {
+        "action": "extract_password_hashes",
+        "purpose": "credential_harvesting_and_lateral_movement",
+        "tools": [
+          "secretsdump",
+          "hashcat"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_kerberos_user_enumeration_first_on_dc",
+        "reasoning": "no_credentials_required_and_high_success_rate",
+        "applicability": "domain_controller_environments"
+      },
+      {
+        "rule": "test_username_as_password_with_kerberos_for_machine_accounts",
+        "reasoning": "machine_accounts_often_have_weak_passwords_and_require_kerberos",
+        "applicability": "machine_account_usernames_discovered"
+      },
+      {
+        "rule": "search_ldap_comments_for_credentials",
+        "reasoning": "common_location_for_credential_disclosure",
+        "applicability": "authenticated_ldap_access_available"
+      },
+      {
+        "rule": "prioritize_registry_backup_analysis_when_found",
+        "reasoning": "high_probability_of_credential_extraction",
+        "applicability": "smb_access_to_backup_files"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Kerberos User Enumeration",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "domain_controller_accessible"
+        ],
+        "success_indicators": [
+          "valid_usernames_returned",
+          "machine_accounts_discovered",
+          "service_accounts_identified"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "network_isolation",
+          "strict_account_lockout_policy"
+        ],
+        "confidence_boosters": [
+          "default_ad_configuration",
+          "machine_account_naming_patterns",
+          "service_account_conventions"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "LDAP Enumeration",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "ldap"
+        ],
+        "required_ports": [
+          389,
+          3268,
+          636,
+          3269
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "ldap_service_enabled",
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "user_objects_enumerated",
+          "service_accounts_found",
+          "credentials_in_comments"
+        ],
+        "incompatible_with": [
+          "ldap_disabled",
+          "anonymous_bind_disabled",
+          "strict_access_controls"
+        ],
+        "confidence_boosters": [
+          "service_account_descriptions",
+          "legacy_configurations",
+          "administrative_comments"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "SMB Share Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_enabled",
+          "valid_domain_credentials",
+          "accessible_file_shares"
+        ],
+        "success_indicators": [
+          "accessible_shares_found",
+          "sensitive_files_discovered",
+          "backup_files_located"
+        ],
+        "incompatible_with": [
+          "smb_disabled",
+          "strict_share_permissions",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "backup_share_naming",
+          "administrative_shares",
+          "legacy_file_permissions"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Registry Hive Extraction",
+        "mitre_id": "T1003.002",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "registry_backup_files_accessible",
+          "sam_system_security_hives_present",
+          "file_read_permissions"
+        ],
+        "success_indicators": [
+          "sam_hive_extracted",
+          "system_hive_extracted",
+          "password_hashes_dumped"
+        ],
+        "incompatible_with": [
+          "encrypted_backups",
+          "missing_system_hive",
+          "corrupted_registry_files"
+        ],
+        "confidence_boosters": [
+          "windows_imaging_backups",
+          "system_state_backups",
+          "unencrypted_registry_files"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Password Spraying",
+        "mitre_id": "T1110.003",
+        "required_services": [
+          "smb",
+          "kerberos"
+        ],
+        "required_ports": [
+          88,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "valid_username_list",
+          "extracted_password_hashes",
+          "no_account_lockout_policy"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "valid_credentials_found",
+          "user_shell_obtained"
+        ],
+        "incompatible_with": [
+          "strict_lockout_policy",
+          "mfa_enforcement",
+          "credential_guard_enabled"
+        ],
+        "confidence_boosters": [
+          "weak_password_policies",
+          "reused_passwords",
+          "default_configurations"
+        ],
+        "typical_success_rate": 0.73,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "RemotePotato0",
+        "mitre_id": "T1134.002",
+        "required_services": [
+          "rpc"
+        ],
+        "required_ports": [
+          135
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "logged_in_user_session",
+          "rpc_service_accessible",
+          "cross_session_relay_possible"
+        ],
+        "success_indicators": [
+          "token_impersonation_successful",
+          "elevated_shell_obtained",
+          "system_privileges_gained"
+        ],
+        "incompatible_with": [
+          "rpc_hardening_enabled",
+          "session_isolation",
+          "modern_windows_versions"
+        ],
+        "confidence_boosters": [
+          "multiple_logged_users",
+          "legacy_rpc_configuration",
+          "service_account_sessions"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "20-40 minutes"
+      },
+      {
+        "technique": "ESC1 Certificate Abuse",
+        "mitre_id": "T1649",
+        "required_services": [
+          "adcs"
+        ],
+        "required_ports": [
+          135
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "adcs_service_enabled",
+          "vulnerable_certificate_template",
+          "certificate_enrollment_rights"
+        ],
+        "success_indicators": [
+          "certificate_template_identified",
+          "certificate_enrollment_successful",
+          "administrator_privileges_obtained"
+        ],
+        "incompatible_with": [
+          "hardened_certificate_templates",
+          "enrollment_restrictions",
+          "certificate_approval_required"
+        ],
+        "confidence_boosters": [
+          "default_adcs_templates",
+          "legacy_certificate_configurations",
+          "weak_enrollment_permissions"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "30-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          464,
+          593,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "adws"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Microsoft Windows Kerberos"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          464,
+          593,
+          3268,
+          3269
+        ],
+        "service_indicators": [
+          "kerberos-sec",
+          "ldap",
+          "kpasswd5",
+          "globalcatLDAP"
+        ],
+        "banner_indicators": [
+          "Domain Controller",
+          "Global Catalog"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "certificate_services": {
+        "port_indicators": [
+          135
+        ],
+        "service_indicators": [
+          "msrpc"
+        ],
+        "banner_indicators": [
+          "Certificate Services",
+          "ADCS"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "kerberos_user_enumeration",
+          "when": "active_directory_detected",
+          "reason": "high_success_rate_reveals_machine_accounts"
+        },
+        {
+          "attack": "registry_hive_extraction",
+          "when": "backup_files_accessible",
+          "reason": "reliable_credential_extraction"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ldap_enumeration",
+          "when": "valid_credentials_obtained",
+          "reason": "reveals_service_accounts_and_comments"
+        },
+        {
+          "attack": "esc1_certificate_abuse",
+          "when": "adcs_detected_and_user_access",
+          "reason": "direct_path_to_domain_admin"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "remotepotato0",
+          "when": "user_shell_and_logged_sessions",
+          "reason": "requires_specific_conditions"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Kerberos User Enumeration",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "kerbrute",
+            "command_template": "kerbrute userenum -d {domain} --dc {dc_ip} {wordlist}",
+            "actual_command": "kerbrute userenum -d shibuya.vl --dc 10.129.234.42 /opt/SecLists/Usernames/xato-net-10-million-usernames.txt",
+            "output_pattern": "[+] VALID USERNAME: {username}@{domain}",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "kerberos_service_accessible",
+          "domain_name_known",
+          "no_account_lockout_policy"
+        ],
+        "success_indicators": [
+          "valid_usernames_discovered",
+          "no_account_lockouts_triggered",
+          "machine_accounts_identified"
+        ],
+        "common_failures": [
+          "account_lockout_policies",
+          "rate_limiting_enabled",
+          "kerberos_service_unavailable"
+        ],
+        "follow_up_techniques": [
+          "password_spraying",
+          "asreproasting",
+          "kerberoasting"
+        ],
+        "time_investment": "5 minutes - several hours",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Machine Account Password Attack",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "netexec",
+            "command_template": "netexec smb {target} -u {users_file} -p {passwords_file} --no-bruteforce --continue-on-success -k",
+            "actual_command": "netexec smb shibuya.vl -u users -p users --no-bruteforce --continue-on-success -k",
+            "output_pattern": "[+] {domain}\\{username}:{password}",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "machine_accounts_identified",
+          "kerberos_authentication_available",
+          "weak_password_policy"
+        ],
+        "success_indicators": [
+          "successful_kerberos_authentication",
+          "machine_account_credentials_valid",
+          "smb_access_granted"
+        ],
+        "common_failures": [
+          "ntlm_authentication_attempted_on_machine_accounts",
+          "strong_password_policy",
+          "account_disabled"
+        ],
+        "follow_up_techniques": [
+          "smb_enumeration",
+          "ldap_enumeration",
+          "bloodhound_collection"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SMB Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "netexec",
+            "command_template": "netexec smb {target} -u {username} -p {password} -k --shares",
+            "actual_command": "netexec smb shibuya.vl -u red -p red -k --shares",
+            "output_pattern": "Share\\s+Permissions\\s+Remark",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "valid_domain_credentials",
+          "smb_service_accessible",
+          "appropriate_permissions"
+        ],
+        "success_indicators": [
+          "shares_enumerated_successfully",
+          "permissions_identified",
+          "custom_shares_discovered"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "smb_signing_issues",
+          "network_connectivity_problems"
+        ],
+        "follow_up_techniques": [
+          "share_content_enumeration",
+          "file_download",
+          "sensitive_data_extraction"
+        ],
+        "time_investment": "1-2 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Domain User Enumeration",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "netexec",
+            "command_template": "netexec smb {target} -k -u {username} -p {password} --users",
+            "actual_command": "netexec smb shibuya.vl -k -u red -p red --users",
+            "output_pattern": "-Username-\\s+-Last PW Set-\\s+-BadPW-\\s+-Description-",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          }
+        ],
+        "prerequisites": [
+          "valid_domain_credentials",
+          "domain_controller_accessible",
+          "read_permissions_on_domain"
+        ],
+        "success_indicators": [
+          "user_list_retrieved",
+          "service_accounts_identified",
+          "password_in_description_found"
+        ],
+        "common_failures": [
+          "insufficient_domain_permissions",
+          "ldap_service_unavailable",
+          "authentication_failures"
+        ],
+        "follow_up_techniques": [
+          "password_spraying",
+          "targeted_attacks_on_service_accounts",
+          "privilege_escalation_enumeration"
+        ],
+        "time_investment": "1-2 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "kerbrute",
+        "use_case": "kerberos_user_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "enum4linux",
+          "rpcclient",
+          "ldapsearch"
+        ],
+        "best_practices": [
+          "use_large_comprehensive_wordlists",
+          "monitor_for_account_lockouts",
+          "identify_machine_accounts_vs_user_accounts"
+        ]
+      },
+      {
+        "tool": "netexec",
+        "use_case": "smb_enumeration_and_authentication",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_domain_environments"
+        ],
+        "alternatives": [
+          "smbclient",
+          "crackmapexec",
+          "smbmap"
+        ],
+        "best_practices": [
+          "use_kerberos_authentication_for_machine_accounts",
+          "enable_continue_on_success_for_comprehensive_enumeration",
+          "combine_multiple_enumeration_flags"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "kerberos_user_enum_to_machine_account_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "kerbrute userenum -d shibuya.vl --dc 10.129.234.42 /opt/SecLists/Usernames/xato-net-10-million-usernames.txt",
+            "purpose": "Enumerate valid domain usernames",
+            "expected_output": "VALID USERNAME: red@shibuya.vl, purple@shibuya.vl"
+          },
+          {
+            "step": 2,
+            "command": "netexec smb shibuya.vl -u users -p users --no-bruteforce --continue-on-success -k",
+            "purpose": "Test username as password with Kerberos",
+            "expected_output": "[+] shibuya.vl\\red:red, [+] shibuya.vl\\purple:purple"
+          },
+          {
+            "step": 3,
+            "command": "netexec smb shibuya.vl -u red -p red -k --shares",
+            "purpose": "Enumerate accessible SMB shares",
+            "expected_output": "images$, users, NETLOGON, SYSVOL shares"
+          },
+          {
+            "step": 4,
+            "command": "netexec smb shibuya.vl -k -u red -p red --users",
+            "purpose": "Enumerate domain users and find credentials",
+            "expected_output": "svc_autojoin with password K5&A6Dw9d8jrKWhV in description"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Shibuya",
+      "difficulty": "Hard",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2025-06-19",
+      "author": "xct",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "kerberos",
+        "active_directory",
+        "certificate_services"
+      ],
+      "key_vulnerabilities": [
+        "weak_machine_passwords",
+        "registry_backup_exposure",
+        "esc1_certificate_template",
+        "cross_session_relay"
+      ],
+      "environment_type": "corporate_domain_controller_with_adcs",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "kerberos_user_enumeration",
+        "registry_hive_analysis",
+        "remotepotato0_exploitation",
+        "adcs_esc1_attack"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_ad_concepts",
+        "certificate_services",
+        "registry_forensics",
+        "relay_attacks"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "kerberos_attacks",
+        "certificate_services",
+        "registry_analysis",
+        "relay_attacks"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "secure_machine_passwords",
+        "protect_registry_backups",
+        "harden_certificate_templates",
+        "monitor_cross_session_activity"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Escape",
+        "Authority",
+        "Manager"
+      ],
+      "similarity_reasons": [
+        "adcs_exploitation",
+        "registry_analysis",
+        "complex_ad_attack_chain"
+      ],
+      "unique_aspects": [
+        "remotepotato0_cross_session",
+        "wim_image_analysis",
+        "machine_account_weak_passwords"
+      ],
+      "difficulty_factors": [
+        "multi_stage_attack_chain",
+        "advanced_certificate_exploitation",
+        "cross_session_relay_complexity"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T18:11:37.461335",
+    "original_file": "0xdf_writeups/Htb Shibuya.md",
+    "content_length": 393186,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

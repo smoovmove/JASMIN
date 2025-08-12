@@ -1,0 +1,928 @@
+{
+  "writeup_id": "Htb_Snoopy",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_dns_server_file_traversal_to_privilege_escalation",
+    "primary_services": [
+      "http",
+      "dns",
+      "ssh"
+    ],
+    "port_signature": "22+53+80",
+    "service_combination": "ssh+dns+http",
+    "os_family": "linux",
+    "environment_type": "standalone_server",
+    "entry_vector": "file_traversal",
+    "privilege_path": "web_to_dns_to_service_account_to_root",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "bind_dns_configuration_exposure",
+      "dns_key_manipulation",
+      "email_redirection_attack",
+      "mattermost_integration",
+      "ssh_honeypot_credential_harvesting"
+    ],
+    "environmental_clues": [
+      "nginx_web_server",
+      "bind_dns_server",
+      "ubuntu_22_04",
+      "file_download_functionality",
+      "mail_server_migration_notice"
+    ],
+    "similar_scenarios": [
+      "dns_manipulation_attacks",
+      "file_traversal_to_rce"
+    ],
+    "unique_aspects": [
+      "git_apply_cve_exploitation",
+      "clamav_xxe_vulnerability",
+      "dns_record_poisoning_for_email_redirect",
+      "slash_command_abuse_in_mattermost"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Directory_Traversal_File_Read",
+        "success_reason": "Download functionality vulnerable to path traversal via file parameter",
+        "prerequisite_indicators": [
+          "file_parameter_in_url",
+          "download_functionality_present",
+          "insufficient_input_validation"
+        ],
+        "recognition_patterns": [
+          "download?file= parameter structure",
+          "different file sizes for same endpoint",
+          "no path sanitization errors"
+        ],
+        "failure_modes": [
+          "path_traversal_filtered",
+          "chroot_jail_implemented",
+          "file_access_restrictions"
+        ],
+        "environmental_factors": [
+          "nginx_serving_php_backend",
+          "default_file_permissions",
+          "no_web_application_firewall"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "DNS_Configuration_Manipulation",
+        "success_reason": "BIND DNS keys exposed through file read vulnerability",
+        "prerequisite_indicators": [
+          "bind_dns_server_running",
+          "dns_configuration_files_readable",
+          "dynamic_dns_updates_enabled"
+        ],
+        "recognition_patterns": [
+          "ISC BIND version in nmap",
+          "DNS service on port 53",
+          "TSIG keys in configuration files"
+        ],
+        "failure_modes": [
+          "dns_keys_not_readable",
+          "dynamic_updates_disabled",
+          "key_rotation_implemented"
+        ],
+        "environmental_factors": [
+          "standard_bind_configuration_paths",
+          "file_permissions_misconfigured",
+          "dns_update_policies_permissive"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Email_Redirection_Attack",
+        "success_reason": "DNS manipulation allows redirecting password reset emails",
+        "prerequisite_indicators": [
+          "password_reset_functionality",
+          "dns_control_achieved",
+          "mail_server_offline_notice"
+        ],
+        "recognition_patterns": [
+          "mailserver offline banner message",
+          "password reset forms available",
+          "email addresses enumerated"
+        ],
+        "failure_modes": [
+          "email_verification_required",
+          "out_of_band_authentication",
+          "mail_server_hardcoded"
+        ],
+        "environmental_factors": [
+          "dns_based_mail_routing",
+          "no_email_security_controls",
+          "temporary_mail_server_outage"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "File parameter directory traversal",
+        "discovery_method": "URL parameter analysis on /download endpoint",
+        "why_critical": "Enables reading arbitrary system files including DNS configuration",
+        "how_to_recognize": [
+          "file parameter accepts different values",
+          "different response sizes indicate file access",
+          "no error messages for invalid paths"
+        ],
+        "follow_up_actions": [
+          "test_path_traversal_payloads",
+          "read_system_configuration_files",
+          "enumerate_dns_bind_configs"
+        ]
+      },
+      {
+        "discovery": "Mattermost subdomain with offline mail server",
+        "discovery_method": "Virtual host enumeration and banner analysis",
+        "why_critical": "Provides target for email redirection attack",
+        "how_to_recognize": [
+          "mm subdomain responds differently",
+          "mattermost login interface",
+          "mail server offline notice"
+        ],
+        "follow_up_actions": [
+          "enumerate_user_accounts",
+          "setup_malicious_mail_server",
+          "trigger_password_resets"
+        ]
+      },
+      {
+        "discovery": "BIND DNS server with TSIG keys",
+        "discovery_method": "File read vulnerability accessing DNS configuration",
+        "why_critical": "Allows DNS record manipulation for email redirection",
+        "how_to_recognize": [
+          "port 53 DNS service active",
+          "BIND configuration files readable",
+          "TSIG keys present in configs"
+        ],
+        "follow_up_actions": [
+          "extract_dns_keys",
+          "test_dns_update_permissions",
+          "modify_mx_records"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_access",
+        "escalation_method": "File_Read_to_DNS_Control",
+        "why_possible": "Directory traversal exposes DNS TSIG keys enabling record manipulation",
+        "recognition_signs": [
+          "file_parameter_directory_traversal",
+          "bind_dns_server_present",
+          "readable_dns_configuration_files"
+        ],
+        "exploitation_path": "Directory Traversal → DNS Keys → MX Record Manipulation → Email Interception"
+      },
+      {
+        "privilege_level": "dns_control",
+        "escalation_method": "Email_Redirection_to_Account_Access",
+        "why_possible": "DNS control allows redirecting password reset emails to attacker server",
+        "recognition_signs": [
+          "password_reset_functionality_available",
+          "dns_record_modification_successful",
+          "mail_server_currently_offline"
+        ],
+        "exploitation_path": "DNS Control → MX Record Change → Password Reset Interception → Account Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,53,80 open on Linux host with DNS zone transfer available",
+        "decision": "Perform DNS zone transfer first to discover internal infrastructure",
+        "reasoning": "Zone transfer reveals internal network topology and potential attack vectors",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if zone transfer fails"
+          },
+          {
+            "option": "subdomain_brute_force",
+            "when": "if zone transfer partially successful"
+          }
+        ],
+        "success_indicators": [
+          "zone_transfer_successful",
+          "internal_hosts_discovered",
+          "service_subdomains_found"
+        ],
+        "next_decision": "analyze_discovered_services"
+      },
+      {
+        "step": 2,
+        "situation": "Discovered Mattermost instance and file download functionality",
+        "decision": "Test file download for directory traversal vulnerability",
+        "reasoning": "File parameter in download suggests potential LFI/directory traversal",
+        "confidence": 0.8,
+        "prerequisites": [
+          "web_service_accessible",
+          "file_parameter_identified"
+        ],
+        "success_indicators": [
+          "arbitrary_file_read_confirmed"
+        ],
+        "failure_fallbacks": [
+          "mattermost_enumeration",
+          "dns_config_analysis",
+          "contact_form_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Directory traversal confirmed, DNS service running BIND",
+        "decision": "Target BIND configuration files for DNS manipulation",
+        "reasoning": "DNS control allows email redirection for password resets",
+        "confidence": 0.85,
+        "prerequisites": [
+          "file_read_vulnerability",
+          "bind_service_confirmed"
+        ],
+        "success_indicators": [
+          "bind_config_accessed",
+          "dns_keys_extracted"
+        ],
+        "next_phase": "dns_record_manipulation"
+      }
+    ],
+    "branching_logic": {
+      "if_zone_transfer_succeeds": {
+        "action": "map_internal_infrastructure",
+        "tools": [
+          "dig",
+          "nslookup"
+        ],
+        "next_phase": "service_enumeration_on_discovered_hosts"
+      },
+      "if_file_traversal_found": {
+        "action": "target_dns_configuration",
+        "purpose": "gain_dns_control_for_email_redirection",
+        "tools": [
+          "curl",
+          "burp_suite"
+        ],
+        "target_files": [
+          "/etc/bind/named.conf",
+          "/etc/bind/zones/*"
+        ]
+      },
+      "if_dns_keys_obtained": {
+        "action": "modify_dns_records",
+        "purpose": "redirect_password_reset_emails",
+        "tools": [
+          "nsupdate",
+          "dig"
+        ],
+        "target": "mail.snoopy.htb_mx_record"
+      },
+      "if_mattermost_access_gained": {
+        "action": "enumerate_slash_commands",
+        "purpose": "find_server_provisioning_functionality",
+        "tools": [
+          "mattermost_client",
+          "ssh_honeypot"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_try_zone_transfer_when_dns_port_open",
+        "reasoning": "high_value_reconnaissance_with_low_effort",
+        "applicability": "dns_service_detected"
+      },
+      {
+        "rule": "test_file_parameters_for_traversal_immediately",
+        "reasoning": "common_vulnerability_with_high_impact",
+        "applicability": "file_download_functionality_present"
+      },
+      {
+        "rule": "target_dns_configs_when_bind_service_accessible",
+        "reasoning": "dns_control_enables_email_redirection_attacks",
+        "applicability": "bind_service_and_file_read_available"
+      },
+      {
+        "rule": "setup_email_server_for_password_reset_capture",
+        "reasoning": "common_path_to_application_access",
+        "applicability": "dns_manipulation_possible"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Traversal / File Read",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "file_parameter_in_url",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "file_parameter_accepts_paths",
+          "error_messages_reveal_paths",
+          "config_files_readable"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "chroot_jail",
+          "file_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "download_functionality_present",
+          "php_application",
+          "error_messages_verbose"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "DNS Zone Transfer",
+        "mitre_id": "T1590.002",
+        "required_services": [
+          "dns"
+        ],
+        "required_ports": [
+          53
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "dns_server_accessible",
+          "zone_transfer_enabled",
+          "bind_dns_server"
+        ],
+        "success_indicators": [
+          "dig_axfr_returns_records",
+          "subdomain_enumeration_successful",
+          "internal_hostnames_revealed"
+        ],
+        "incompatible_with": [
+          "zone_transfer_disabled",
+          "dns_server_hardened",
+          "access_control_lists"
+        ],
+        "confidence_boosters": [
+          "bind_version_detected",
+          "dns_port_open",
+          "multiple_domains_referenced"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "SSH Honeypot Credential Harvesting",
+        "mitre_id": "T1557",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "automated_connection_mechanism",
+          "credential_reuse_likely",
+          "network_connectivity_to_attacker"
+        ],
+        "success_indicators": [
+          "automated_ssh_connections_observed",
+          "credentials_captured",
+          "service_account_credentials"
+        ],
+        "incompatible_with": [
+          "key_based_auth_only",
+          "network_isolation",
+          "connection_monitoring"
+        ],
+        "confidence_boosters": [
+          "provisioning_systems_present",
+          "automation_tools_detected",
+          "service_integration_apis"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Email Interception via DNS Manipulation",
+        "mitre_id": "T1557.001",
+        "required_services": [
+          "dns"
+        ],
+        "required_ports": [
+          53
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "dns_update_capability",
+          "email_reset_functionality",
+          "mx_record_modification_possible"
+        ],
+        "success_indicators": [
+          "dns_records_updated_successfully",
+          "email_traffic_redirected",
+          "password_reset_emails_captured"
+        ],
+        "incompatible_with": [
+          "dns_sec_enabled",
+          "dns_update_restrictions",
+          "email_security_controls"
+        ],
+        "confidence_boosters": [
+          "bind_dns_keys_accessible",
+          "email_services_referenced",
+          "password_reset_forms_present"
+        ],
+        "typical_success_rate": 0.55,
+        "estimated_time": "20-45 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application_with_file_access": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "download",
+          "file=",
+          "php"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "dns_server": {
+        "port_indicators": [
+          53
+        ],
+        "service_indicators": [
+          "domain",
+          "bind"
+        ],
+        "banner_indicators": [
+          "ISC BIND",
+          "dns-nsid"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_server": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "email_infrastructure": {
+        "port_indicators": [
+          25,
+          587,
+          993,
+          995
+        ],
+        "service_indicators": [
+          "smtp",
+          "imap",
+          "pop3"
+        ],
+        "banner_indicators": [
+          "mail",
+          "email",
+          "contact"
+        ],
+        "confidence_threshold": 0.75
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_traversal",
+          "when": "file_parameter_detected_in_web_app",
+          "reason": "immediate_file_access_potential"
+        },
+        {
+          "attack": "dns_zone_transfer",
+          "when": "dns_server_detected",
+          "reason": "reveals_internal_infrastructure"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "dns_manipulation_for_email_interception",
+          "when": "dns_server_writable_and_email_services_present",
+          "reason": "enables_account_takeover"
+        },
+        {
+          "attack": "ssh_honeypot",
+          "when": "automated_provisioning_systems_detected",
+          "reason": "targets_service_account_credentials"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "DNS Zone Transfer",
+        "mitre_id": "T1590.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "dig",
+            "command_template": "dig axfr {domain} @{dns_server}",
+            "actual_command": "dig axfr snoopy.htb @10.10.11.212",
+            "output_pattern": "snoopy.htb.*IN.*SOA",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "dns_server_accessible",
+          "zone_transfer_enabled",
+          "domain_name_known"
+        ],
+        "success_indicators": [
+          "multiple_dns_records_returned",
+          "subdomain_enumeration_complete",
+          "internal_network_topology_revealed"
+        ],
+        "common_failures": [
+          "zone_transfer_disabled",
+          "dns_server_unreachable",
+          "incorrect_domain_name"
+        ],
+        "follow_up_techniques": [
+          "subdomain_enumeration",
+          "service_discovery",
+          "virtual_host_fuzzing"
+        ],
+        "time_investment": "1-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Local File Inclusion",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u http://{target}/download?file=FUZZ -w {lfi_wordlist} -mc all -ac",
+            "actual_command": "ffuf -u http://snoopy.htb/download?file=FUZZ -w /opt/SecLists/Fuzzing/LFI/LFI-Jhaddix.txt -mc all -ac",
+            "output_pattern": "Status: 200, Size: 796",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          },
+          {
+            "name": "curl",
+            "command_template": "curl 'http://{target}/download?file={payload}'",
+            "actual_command": "curl 'http://snoopy.htb/download?file=....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//....//etc/passwd'",
+            "success_factors": [
+              "path_traversal_bypass",
+              "file_exists",
+              "readable_permissions"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "file_parameter_in_url",
+          "insufficient_input_validation",
+          "web_application_accessible"
+        ],
+        "success_indicators": [
+          "system_files_readable",
+          "passwd_file_contents_returned",
+          "configuration_files_accessible"
+        ],
+        "common_failures": [
+          "path_traversal_filtering",
+          "file_not_found",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "configuration_file_analysis",
+          "credential_extraction",
+          "service_enumeration"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Virtual Host Discovery",
+        "mitre_id": "T1590.002",
+        "category": "reconnaissance",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u http://{target} -H 'Host: FUZZ.{domain}' -w {subdomain_wordlist} -mc all -ac",
+            "actual_command": "ffuf -u http://10.10.11.212 -H \"Host: FUZZ.snoopy.htb\" -w /opt/SecLists/Discovery/DNS/subdomains-top1million-5000.txt -mc all -ac",
+            "output_pattern": "Status: 200, Size: 3132",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "virtual_host_configuration",
+          "domain_name_known"
+        ],
+        "success_indicators": [
+          "different_response_sizes",
+          "unique_content_discovered",
+          "additional_services_found"
+        ],
+        "common_failures": [
+          "no_virtual_hosts_configured",
+          "identical_responses",
+          "rate_limiting"
+        ],
+        "follow_up_techniques": [
+          "service_enumeration",
+          "application_analysis",
+          "credential_testing"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Username Enumeration",
+        "mitre_id": "T1087.001",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "manual_testing",
+            "command_template": "curl -X POST http://{target}/forgot_password -d 'email={username}@{domain}'",
+            "actual_command": "Manual testing via password reset form",
+            "output_pattern": "different error messages for valid vs invalid users",
+            "effectiveness_rating": 3,
+            "reliability": 0.7
+          }
+        ],
+        "prerequisites": [
+          "password_reset_functionality",
+          "different_error_responses",
+          "application_accessible"
+        ],
+        "success_indicators": [
+          "distinct_error_messages",
+          "valid_usernames_identified",
+          "user_enumeration_possible"
+        ],
+        "common_failures": [
+          "identical_error_messages",
+          "rate_limiting",
+          "captcha_protection"
+        ],
+        "follow_up_techniques": [
+          "password_spraying",
+          "credential_stuffing",
+          "social_engineering"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ffuf",
+        "use_case": "web_fuzzing_and_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing",
+          "subdomain_discovery",
+          "lfi_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "wfuzz",
+          "dirb"
+        ],
+        "best_practices": [
+          "use_smart_filtering_with_-ac",
+          "match_all_status_codes_initially",
+          "use_appropriate_wordlists_for_target"
+        ]
+      },
+      {
+        "tool": "dig",
+        "use_case": "dns_enumeration_and_zone_transfers",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "dns_reconnaissance",
+          "subdomain_discovery"
+        ],
+        "alternatives": [
+          "nslookup",
+          "host",
+          "dnsrecon"
+        ],
+        "best_practices": [
+          "always_attempt_zone_transfers",
+          "test_both_tcp_and_udp",
+          "enumerate_all_discovered_subdomains"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "port_scanning_and_service_detection",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "initial_reconnaissance",
+          "service_enumeration"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan",
+          "zmap"
+        ],
+        "best_practices": [
+          "start_with_fast_port_scan",
+          "follow_up_with_service_detection",
+          "use_appropriate_timing_templates"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "web_application_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.212",
+            "purpose": "Initial port discovery",
+            "expected_output": "Open ports: 22, 53, 80"
+          },
+          {
+            "step": 2,
+            "command": "dig axfr snoopy.htb @10.10.11.212",
+            "purpose": "DNS zone transfer for subdomain discovery",
+            "expected_output": "Multiple DNS records including subdomains"
+          },
+          {
+            "step": 3,
+            "command": "ffuf -u http://10.10.11.212 -H \"Host: FUZZ.snoopy.htb\" -w /opt/SecLists/Discovery/DNS/subdomains-top1million-5000.txt -mc all -ac",
+            "purpose": "Virtual host discovery",
+            "expected_output": "Additional virtual hosts like mm.snoopy.htb"
+          },
+          {
+            "step": 4,
+            "command": "ffuf -u http://snoopy.htb/download?file=FUZZ -w /opt/SecLists/Fuzzing/LFI/LFI-Jhaddix.txt -mc all -ac",
+            "purpose": "Test for local file inclusion",
+            "expected_output": "Successful file reads with path traversal payloads"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "20-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Snoopy",
+      "difficulty": "Hard",
+      "os": "Linux Ubuntu 22.04",
+      "platform": "HackTheBox",
+      "release_date": "2023-05-06",
+      "author": "ctrlzero",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "directory_traversal",
+        "dns_manipulation",
+        "cve_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "file_read_vulnerability",
+        "git_cve",
+        "clamav_xxe",
+        "ssh_honeypot"
+      ],
+      "environment_type": "linux_server_multi_service",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "dns_zone_manipulation",
+        "zero_day_exploitation",
+        "xxe_attacks",
+        "git_vulnerabilities"
+      ],
+      "prerequisite_knowledge": [
+        "dns_configuration",
+        "git_internals",
+        "xml_parsing",
+        "ssh_protocols"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "dns_attacks",
+        "cve_exploitation",
+        "xxe_injection"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "dns_security",
+        "patch_management",
+        "service_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Knife",
+        "Previse",
+        "Writer"
+      ],
+      "similarity_reasons": [
+        "cve_exploitation",
+        "multi_stage_attacks",
+        "service_abuse"
+      ],
+      "unique_aspects": [
+        "dns_zone_transfer_abuse",
+        "git_apply_cve",
+        "clamav_xxe",
+        "mattermost_integration"
+      ],
+      "difficulty_factors": [
+        "multiple_undocumented_cves",
+        "complex_attack_chain",
+        "dns_manipulation_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T11:48:21.229194",
+    "original_file": "0xdf_writeups/Htb Snoopy.md",
+    "content_length": 62768,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

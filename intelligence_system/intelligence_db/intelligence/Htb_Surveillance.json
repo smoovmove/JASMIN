@@ -1,0 +1,795 @@
+{
+  "writeup_id": "Htb_Surveillance",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_craftcms_object_injection_to_zoneminder_privesc",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "arbitrary_object_injection",
+    "privilege_path": "www_data_to_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "craftcms_version_4_4_14",
+      "zoneminder_localhost_service",
+      "database_backup_with_hashes",
+      "sudo_privileges_with_ld_preload"
+    ],
+    "environmental_clues": [
+      "powered_by_craftcms_footer",
+      "nginx_ubuntu_22_04",
+      "admin_login_redirect",
+      "502_503_errors_on_enumeration"
+    ],
+    "similar_scenarios": [
+      "craft_cms_rce_boxes",
+      "web_app_to_service_privesc"
+    ],
+    "unique_aspects": [
+      "cve_2023_41892_object_injection",
+      "zoneminder_vulnerability_chain",
+      "multiple_root_paths_via_sudo"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "CVE-2023-41892_PHP_Object_Injection",
+        "success_reason": "CraftCMS 4.4.14 vulnerable to pre-authentication PHP object injection in ConditionsController",
+        "prerequisite_indicators": [
+          "craftcms_version_before_4.4.15",
+          "conditions_controller_accessible",
+          "php_object_injection_possible"
+        ],
+        "recognition_patterns": [
+          "X-Powered-By: Craft CMS header",
+          "Powered by Craft CMS footer text",
+          "version 4.4.14 link in footer",
+          "/admin endpoint returns login page"
+        ],
+        "failure_modes": [
+          "craftcms_version_4.4.15_or_higher",
+          "conditions_controller_disabled",
+          "waf_blocking_object_injection"
+        ],
+        "environmental_factors": [
+          "default_craftcms_installation",
+          "no_security_hardening",
+          "php_deserialization_enabled"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Database_Credential_Extraction",
+        "success_reason": "Database backup file contained password hashes accessible after initial compromise",
+        "prerequisite_indicators": [
+          "database_backup_files_present",
+          "file_system_access_obtained",
+          "backup_files_readable"
+        ],
+        "recognition_patterns": [
+          "backup files in /var/www/html/craft/storage/backups/",
+          "SQL dump files with .sql extension",
+          "user table dumps with password hashes"
+        ],
+        "failure_modes": [
+          "no_backup_files_present",
+          "backup_files_encrypted",
+          "insufficient_file_permissions"
+        ],
+        "environmental_factors": [
+          "automatic_backup_enabled",
+          "backups_stored_in_web_directory",
+          "weak_hash_algorithms_used"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "ZoneMinder_Exploitation",
+        "success_reason": "ZoneMinder instance running on localhost with known vulnerabilities",
+        "prerequisite_indicators": [
+          "zoneminder_service_running",
+          "localhost_port_forwarding_possible",
+          "valid_credentials_available"
+        ],
+        "recognition_patterns": [
+          "ZoneMinder web interface on localhost",
+          "service running on internal ports",
+          "version vulnerable to known CVEs"
+        ],
+        "failure_modes": [
+          "zoneminder_not_installed",
+          "service_properly_hardened",
+          "no_valid_credentials"
+        ],
+        "environmental_factors": [
+          "default_zoneminder_configuration",
+          "internal_service_exposure",
+          "legacy_application_versions"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "20-40 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "CraftCMS version 4.4.14",
+        "discovery_method": "Footer link analysis and HTTP headers",
+        "why_critical": "Vulnerable to CVE-2023-41892 pre-auth RCE",
+        "how_to_recognize": [
+          "X-Powered-By: Craft CMS header",
+          "GitHub version link in footer",
+          "admin login page accessible"
+        ],
+        "follow_up_actions": [
+          "test_php_object_injection",
+          "craft_malicious_payload",
+          "establish_reverse_shell"
+        ]
+      },
+      {
+        "discovery": "Database backup with user credentials",
+        "discovery_method": "File system enumeration after initial compromise",
+        "why_critical": "Contains password hashes for privilege escalation",
+        "how_to_recognize": [
+          "backup files in craft storage directory",
+          "SQL dump files present",
+          "user table with password hashes"
+        ],
+        "follow_up_actions": [
+          "extract_password_hashes",
+          "crack_with_hashcat",
+          "test_credential_reuse"
+        ]
+      },
+      {
+        "discovery": "ZoneMinder localhost service",
+        "discovery_method": "Port enumeration and service discovery",
+        "why_critical": "Additional attack surface for privilege escalation",
+        "how_to_recognize": [
+          "internal services on localhost",
+          "ZoneMinder web interface",
+          "surveillance-related application"
+        ],
+        "follow_up_actions": [
+          "enumerate_zoneminder_version",
+          "search_for_known_vulnerabilities",
+          "test_authentication_bypass"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "Database_Hash_Cracking_to_User",
+        "why_possible": "Weak password used for user account found in database backup",
+        "recognition_signs": [
+          "database_backup_files_accessible",
+          "password_hashes_crackable",
+          "credential_reuse_across_services"
+        ],
+        "exploitation_path": "Database Access → Hash Extraction → Hashcat Cracking → User Login"
+      },
+      {
+        "privilege_level": "user",
+        "escalation_method": "ZoneMinder_Vulnerability_to_Service_Account",
+        "why_possible": "ZoneMinder service vulnerable to authentication bypass or RCE",
+        "recognition_signs": [
+          "zoneminder_service_accessible",
+          "known_cve_applicable",
+          "service_account_privileges"
+        ],
+        "exploitation_path": "User Creds → ZoneMinder Access → CVE Exploit → zoneminder User"
+      },
+      {
+        "privilege_level": "zoneminder",
+        "escalation_method": "Sudo_Privileges_Abuse",
+        "why_possible": "zoneminder user has sudo privileges for specific commands",
+        "recognition_signs": [
+          "sudo_-l_shows_allowed_commands",
+          "ld_preload_option_available",
+          "script_injection_possible"
+        ],
+        "exploitation_path": "Sudo Commands → LD_PRELOAD Abuse → Root Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on Linux host with nginx redirect to domain",
+        "decision": "Add domain to hosts file and enumerate web application",
+        "reasoning": "Limited attack surface requires thorough web enumeration",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "subdomain_enumeration",
+            "when": "if main site yields no results"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "web_application_identified",
+          "technology_stack_discovered",
+          "version_information_found"
+        ],
+        "next_decision": "identify_cms_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Identified Craft CMS version 4.4.14 with admin panel",
+        "decision": "Search for CVEs matching exact version before attempting brute force",
+        "reasoning": "Specific version indicates potential known vulnerabilities",
+        "confidence": 0.95,
+        "prerequisites": [
+          "version_confirmed",
+          "release_date_known"
+        ],
+        "success_indicators": [
+          "cve_found_matching_version"
+        ],
+        "failure_fallbacks": [
+          "admin_panel_brute_force",
+          "directory_enumeration",
+          "parameter_fuzzing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found CVE-2023-41892 affecting Craft CMS 4.4.14",
+        "decision": "Test for PHP object injection vulnerability before complex exploits",
+        "reasoning": "Pre-auth RCE vulnerability with high impact, matches version exactly",
+        "confidence": 0.98,
+        "prerequisites": [
+          "craft_cms_confirmed",
+          "version_vulnerable"
+        ],
+        "success_indicators": [
+          "phpinfo_injection_successful",
+          "arbitrary_code_execution"
+        ],
+        "failure_fallbacks": [
+          "other_cve_research",
+          "credential_attacks"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_phpinfo_succeeds": {
+        "action": "escalate_to_rce",
+        "tools": [
+          "burp_repeater",
+          "imagemagick_msl"
+        ],
+        "next_phase": "file_upload_and_execution"
+      },
+      "if_object_injection_confirmed": {
+        "action": "craft_rce_payload",
+        "alternatives": [
+          "msl_file_upload",
+          "log_poisoning",
+          "temp_file_abuse"
+        ],
+        "decision_criteria": "based_on_available_php_classes"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_system_and_databases",
+        "purpose": "find_credential_reuse_opportunities",
+        "tools": [
+          "linpeas",
+          "database_dumps",
+          "config_files"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_exact_version_cves_first",
+        "reasoning": "version_specific_vulnerabilities_highest_success_rate",
+        "applicability": "any_versioned_software_discovery"
+      },
+      {
+        "rule": "test_phpinfo_injection_before_complex_rce",
+        "reasoning": "confirms_vulnerability_and_gathers_system_info",
+        "applicability": "php_object_injection_scenarios"
+      },
+      {
+        "rule": "enumerate_databases_after_www_data_shell",
+        "reasoning": "web_applications_often_store_reusable_credentials",
+        "applicability": "cms_compromise_scenarios"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "CraftCMS_Object_Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "craftcms_detected",
+          "version_before_4.4.15",
+          "php_backend",
+          "web_application_accessible"
+        ],
+        "success_indicators": [
+          "craftcms_powered_by_header",
+          "admin_login_page_accessible",
+          "version_4.4.14_or_lower",
+          "php_extension_responses"
+        ],
+        "incompatible_with": [
+          "craftcms_version_4.4.15_or_higher",
+          "web_application_firewall_blocking",
+          "php_disabled"
+        ],
+        "confidence_boosters": [
+          "x_powered_by_craft_cms_header",
+          "github_version_link_in_footer",
+          "admin_endpoint_accessible",
+          "index_php_loads"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Directory_Bruteforce",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_service_detected",
+          "no_rate_limiting",
+          "standard_directory_structure"
+        ],
+        "success_indicators": [
+          "admin_directory_found",
+          "config_files_accessible",
+          "backup_files_present",
+          "hidden_endpoints_discovered"
+        ],
+        "incompatible_with": [
+          "aggressive_rate_limiting",
+          "502_503_errors_after_requests",
+          "web_application_firewall"
+        ],
+        "confidence_boosters": [
+          "standard_cms_structure",
+          "common_file_extensions",
+          "predictable_naming_patterns"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Password_Hash_Cracking",
+        "mitre_id": "T1110.002",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "password_hashes_obtained",
+          "weak_password_policy",
+          "common_hash_format"
+        ],
+        "success_indicators": [
+          "database_backup_accessible",
+          "hash_format_recognized",
+          "wordlist_matches_target_context"
+        ],
+        "incompatible_with": [
+          "strong_password_policy",
+          "salted_hashes",
+          "unknown_hash_format"
+        ],
+        "confidence_boosters": [
+          "default_passwords_used",
+          "user_context_available",
+          "common_hash_algorithms"
+        ],
+        "typical_success_rate": 0.73,
+        "estimated_time": "5-60 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "craftcms": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "Craft CMS",
+          "X-Powered-By: Craft CMS",
+          "Powered by Craft CMS"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "nginx",
+          "apache",
+          "iis",
+          "php"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "craftcms_object_injection",
+          "when": "craftcms_version_4.4.14_detected",
+          "reason": "high_success_rate_rce_no_auth_needed"
+        },
+        {
+          "attack": "admin_panel_access",
+          "when": "admin_endpoint_discovered",
+          "reason": "potential_credential_attacks"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected_and_stable",
+          "reason": "reveals_hidden_endpoints_but_time_consuming"
+        },
+        {
+          "attack": "password_cracking",
+          "when": "hashes_obtained_from_database",
+          "reason": "reliable_for_privilege_escalation"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "ssh_bruteforce",
+          "when": "ssh_service_detected",
+          "reason": "low_success_rate_without_usernames"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "CraftCMS Object Injection RCE",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "POST /index.php HTTP/1.1\nContent-Type: application/x-www-form-urlencoded\n\naction=conditions/render&test[userCondition]=craft\\elements\\conditions\\users\\UserCondition&config={\"name\":\"test[userCondition]\",\"as xyz\":{\"class\":\"\\\\GuzzleHttp\\\\Psr7\\\\FnStream\",\"__construct()\":[{\"close\":null}],\"_fn_close\":\"{payload}\"}}",
+            "actual_command": "POST /index.php with config payload containing phpinfo",
+            "output_pattern": "PHP configuration page displayed",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "ImageMagick MSL Exploitation",
+            "command_template": "multipart/form-data with MSL file upload and imagick class instantiation",
+            "actual_command": "POST with MSL file containing webshell write instructions",
+            "success_factors": [
+              "imagick_available",
+              "tmp_directory_writable",
+              "web_directory_writable"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "craftcms_version_4.4.14_or_below",
+          "php_imagick_extension_loaded",
+          "web_application_accessible"
+        ],
+        "success_indicators": [
+          "phpinfo_output_displayed",
+          "webshell_file_created_successfully",
+          "remote_code_execution_achieved"
+        ],
+        "common_failures": [
+          "incorrect_json_syntax_in_payload",
+          "imagick_extension_not_available",
+          "file_permissions_prevent_write",
+          "temporary_file_cleanup_too_fast"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "local_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {target_url} -x {extensions}",
+            "actual_command": "feroxbuster -u http://surveillance.htb -x php",
+            "output_pattern": "HTTP status codes and discovered paths",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 {target_ip}",
+            "actual_command": "nmap -p- --min-rate 10000 10.10.11.245",
+            "success_factors": [
+              "open_ports_discovered",
+              "service_versions_identified"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "target_web_application_accessible",
+          "network_connectivity_established"
+        ],
+        "success_indicators": [
+          "admin_panel_discovered",
+          "interesting_directories_found",
+          "technology_stack_identified"
+        ],
+        "common_failures": [
+          "rate_limiting_blocks_requests",
+          "server_returns_502_503_errors",
+          "waf_blocking_enumeration"
+        ],
+        "follow_up_techniques": [
+          "vulnerability_research",
+          "credential_attacks",
+          "application_exploitation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "manual_exploitation_of_object_injection",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "curl",
+          "custom_python_scripts"
+        ],
+        "best_practices": [
+          "use_repeater_for_payload_refinement",
+          "validate_json_syntax_before_sending",
+          "monitor_response_codes_and_content_length"
+        ]
+      },
+      {
+        "tool": "ImageMagick MSL",
+        "use_case": "arbitrary_file_write_via_object_injection",
+        "effectiveness_rating": 4,
+        "reliability": 0.8,
+        "learning_curve": "high",
+        "essential_for": [
+          "php_imagick_exploitation"
+        ],
+        "alternatives": [
+          "direct_file_upload",
+          "other_php_classes"
+        ],
+        "best_practices": [
+          "crash_php_to_prevent_temp_file_cleanup",
+          "use_multipart_form_data_for_file_upload",
+          "target_writable_web_directories"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "craftcms_rce_exploitation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.11.245",
+            "purpose": "Discover open ports and services",
+            "expected_output": "Ports 22 and 80 open"
+          },
+          {
+            "step": 2,
+            "command": "curl -s http://surveillance.htb | grep -i craft",
+            "purpose": "Identify CraftCMS and version",
+            "expected_output": "Powered by Craft CMS version 4.4.14"
+          },
+          {
+            "step": 3,
+            "command": "POST /index.php with phpinfo payload",
+            "purpose": "Verify CVE-2023-41892 vulnerability",
+            "expected_output": "PHP configuration page displayed"
+          },
+          {
+            "step": 4,
+            "command": "POST /index.php with MSL webshell payload",
+            "purpose": "Write webshell to web directory",
+            "expected_output": "Webshell file created successfully"
+          },
+          {
+            "step": 5,
+            "command": "curl http://surveillance.htb/shell.php?cmd=id",
+            "purpose": "Execute commands via webshell",
+            "expected_output": "Command output showing www-data user"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Surveillance",
+      "difficulty": "Medium",
+      "os": "Ubuntu 22.04",
+      "platform": "HackTheBox",
+      "release_date": "2023-12-09",
+      "author": "TheCyberGeek, TRX",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "cms_exploitation",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "craft_cms_object_injection",
+        "zoneminder_rce",
+        "sudo_privilege_abuse"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "cms_exploitation",
+        "database_enumeration",
+        "sudo_abuse_techniques"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "linux_privilege_escalation",
+        "database_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "cms_exploitation",
+        "privilege_escalation",
+        "database_enumeration"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "cms_patching",
+        "database_security",
+        "sudo_configuration_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Craft",
+        "Photobomb",
+        "Shoppy"
+      ],
+      "similarity_reasons": [
+        "cms_exploitation",
+        "web_to_shell",
+        "multi_stage_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "craft_cms_vulnerability",
+        "zoneminder_exploitation",
+        "ld_preload_abuse"
+      ],
+      "difficulty_factors": [
+        "multiple_exploitation_stages",
+        "service_enumeration",
+        "sudo_abuse_techniques"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:57:50.127822",
+    "original_file": "0xdf_writeups/Htb Surveillance.md",
+    "content_length": 49785,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

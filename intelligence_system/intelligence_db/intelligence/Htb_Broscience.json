@@ -1,0 +1,1059 @@
+{
+  "writeup_id": "Htb_Broscience",
+  "scenario_fingerprint": {
+    "scenario_name": "php_web_app_deserialization_chain",
+    "primary_services": [
+      "http",
+      "https",
+      "ssh"
+    ],
+    "port_signature": "22+80+443",
+    "service_combination": "ssh+http+https",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "directory_traversal_to_deserialization",
+    "privilege_path": "web_to_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "php_source_code_exposure",
+      "custom_serialization_vulnerability",
+      "activation_token_forgery",
+      "database_hash_cracking_with_salt"
+    ],
+    "environmental_clues": [
+      "php_session_cookies",
+      "image_loading_via_php",
+      "user_registration_with_activation",
+      "apache_debian_stack"
+    ],
+    "similar_scenarios": [
+      "php_deserialization_ctfs",
+      "custom_web_app_pentests"
+    ],
+    "unique_aspects": [
+      "certificate_command_injection_privesc",
+      "site_wide_salt_in_hash_cracking",
+      "multi_stage_php_exploitation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Directory Traversal / File Read",
+        "success_reason": "img.php parameter allowed file system access without proper filtering",
+        "prerequisite_indicators": [
+          "php_application_present",
+          "file_parameter_in_url",
+          "custom_file_handling_code"
+        ],
+        "recognition_patterns": [
+          "path parameter in img.php",
+          "missing parameter error message",
+          "attack detection bypass possible"
+        ],
+        "failure_modes": [
+          "proper_input_validation",
+          "chroot_jail_implemented",
+          "file_access_restrictions"
+        ],
+        "environmental_factors": [
+          "custom_php_file_handlers",
+          "insufficient_input_sanitization",
+          "developer_implemented_security"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "PHP Source Code Analysis",
+        "success_reason": "File read vulnerability exposed PHP source code revealing application logic",
+        "prerequisite_indicators": [
+          "file_read_vulnerability_exists",
+          "php_source_files_accessible",
+          "application_logic_in_php"
+        ],
+        "recognition_patterns": [
+          "php file extensions in directory traversal",
+          "source code in response",
+          "application secrets in code"
+        ],
+        "failure_modes": [
+          "compiled_application",
+          "source_code_obfuscated",
+          "no_sensitive_logic_exposed"
+        ],
+        "environmental_factors": [
+          "development_environment_practices",
+          "source_code_contains_secrets",
+          "poor_separation_of_concerns"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Token Forgery",
+        "success_reason": "Activation token generation algorithm exposed in source code",
+        "prerequisite_indicators": [
+          "source_code_access_available",
+          "token_generation_logic_visible",
+          "predictable_token_algorithm"
+        ],
+        "recognition_patterns": [
+          "token generation functions in source",
+          "time-based or predictable seeds",
+          "weak cryptographic implementation"
+        ],
+        "failure_modes": [
+          "strong_random_token_generation",
+          "server_side_validation",
+          "token_expiration_implemented"
+        ],
+        "environmental_factors": [
+          "custom_authentication_implementation",
+          "developer_crypto_mistakes",
+          "insufficient_randomness"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "20-60 minutes"
+      },
+      {
+        "technique": "PHP Deserialization",
+        "success_reason": "Serialized PHP object in cookie with accessible source code for gadget chains",
+        "prerequisite_indicators": [
+          "php_application_present",
+          "serialized_data_in_cookies",
+          "source_code_available_for_analysis"
+        ],
+        "recognition_patterns": [
+          "base64 encoded cookie values",
+          "php serialized object structure",
+          "unserialize() calls in source"
+        ],
+        "failure_modes": [
+          "input_validation_on_cookies",
+          "no_dangerous_magic_methods",
+          "serialization_not_used"
+        ],
+        "environmental_factors": [
+          "custom_php_classes_with_magic_methods",
+          "cookie_based_session_handling",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "30-90 minutes"
+      },
+      {
+        "technique": "Database Hash Cracking",
+        "success_reason": "Database access revealed password hashes with discoverable salt",
+        "prerequisite_indicators": [
+          "database_access_achieved",
+          "password_hashes_stored",
+          "salt_discoverable_in_source"
+        ],
+        "recognition_patterns": [
+          "hash values in database dumps",
+          "salt values in configuration",
+          "weak hashing algorithms used"
+        ],
+        "failure_modes": [
+          "strong_password_policies",
+          "proper_salting_implementation",
+          "modern_hashing_algorithms"
+        ],
+        "environmental_factors": [
+          "weak_password_policies",
+          "predictable_salt_usage",
+          "legacy_hashing_methods"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "45-120 minutes"
+      },
+      {
+        "technique": "Command Injection in Certificate Check",
+        "success_reason": "Certificate validation script vulnerable to command injection via certificate fields",
+        "prerequisite_indicators": [
+          "certificate_validation_scripts_present",
+          "user_controlled_certificate_input",
+          "shell_command_execution_in_script"
+        ],
+        "recognition_patterns": [
+          "certificate checking automation",
+          "shell command construction",
+          "insufficient input sanitization"
+        ],
+        "failure_modes": [
+          "proper_input_sanitization",
+          "parameterized_commands",
+          "restricted_execution_environment"
+        ],
+        "environmental_factors": [
+          "custom_certificate_validation",
+          "shell_script_automation",
+          "insufficient_security_review"
+        ],
+        "success_probability": 0.6,
+        "typical_timeframe": "60-180 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "img.php file read vulnerability",
+        "discovery_method": "Parameter fuzzing and traversal payload testing",
+        "why_critical": "Enabled access to PHP source code revealing all application logic",
+        "how_to_recognize": [
+          "custom file handling endpoints",
+          "path parameters in URLs",
+          "error messages revealing functionality"
+        ],
+        "follow_up_actions": [
+          "enumerate_php_source_files",
+          "analyze_authentication_logic",
+          "identify_deserialization_opportunities"
+        ]
+      },
+      {
+        "discovery": "PHP source code exposure",
+        "discovery_method": "Directory traversal through img.php",
+        "why_critical": "Revealed token generation, deserialization points, and database structure",
+        "how_to_recognize": [
+          "php source code in responses",
+          "application logic exposed",
+          "hardcoded secrets visible"
+        ],
+        "follow_up_actions": [
+          "analyze_token_generation_algorithm",
+          "identify_unserialize_calls",
+          "map_database_schema"
+        ]
+      },
+      {
+        "discovery": "Predictable activation token algorithm",
+        "discovery_method": "Source code analysis of token generation",
+        "why_critical": "Allowed account activation bypass and initial access",
+        "how_to_recognize": [
+          "time-based token generation",
+          "weak randomization",
+          "predictable seed values"
+        ],
+        "follow_up_actions": [
+          "forge_activation_token",
+          "register_and_activate_account",
+          "gain_authenticated_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated",
+        "escalation_method": "file_read_to_source_analysis",
+        "why_possible": "Directory traversal vulnerability exposed application source code",
+        "recognition_signs": [
+          "custom_file_handlers",
+          "insufficient_input_validation",
+          "error_message_information_disclosure"
+        ],
+        "exploitation_path": "Directory Traversal → Source Code → Token Forgery → Authentication"
+      },
+      {
+        "privilege_level": "authenticated_user",
+        "escalation_method": "deserialization_to_webshell",
+        "why_possible": "PHP deserialization in cookie with known source code for gadget construction",
+        "recognition_signs": [
+          "serialized_php_objects_in_cookies",
+          "unserialize_without_validation",
+          "magic_methods_in_classes"
+        ],
+        "exploitation_path": "Cookie Manipulation → PHP Object → Magic Method → Code Execution"
+      },
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "database_hash_cracking",
+        "why_possible": "Database access with crackable password hashes using site-wide salt",
+        "recognition_signs": [
+          "database_credentials_in_source",
+          "weak_password_hashing",
+          "discoverable_salt_values"
+        ],
+        "exploitation_path": "Database Access → Hash Extraction → Salt Discovery → Password Cracking"
+      },
+      {
+        "privilege_level": "user_account",
+        "escalation_method": "command_injection_in_automation",
+        "why_possible": "Certificate validation script with insufficient input sanitization",
+        "recognition_signs": [
+          "automated_certificate_checking",
+          "shell_command_construction",
+          "user_controlled_certificate_fields"
+        ],
+        "exploitation_path": "Malicious Certificate → Command Injection → Root Execution"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found web application with PHP file extensions and img.php endpoint",
+        "decision": "Test for directory traversal/file read vulnerability in img.php",
+        "reasoning": "img.php with path parameter suggests file inclusion vulnerability",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "if file read fails"
+          },
+          {
+            "option": "parameter_fuzzing",
+            "when": "if basic traversal blocked"
+          }
+        ],
+        "success_indicators": [
+          "path_parameter_exists",
+          "error_message_reveals_missing_param",
+          "attack_detection_message_on_traversal"
+        ],
+        "next_decision": "bypass_traversal_filters"
+      },
+      {
+        "step": 2,
+        "situation": "Directory traversal blocked by filter detecting '../'",
+        "decision": "Try double URL encoding bypass (..%252f)",
+        "reasoning": "Common filter bypass technique for path traversal",
+        "confidence": 0.85,
+        "prerequisites": [
+          "traversal_filter_detected",
+          "url_encoding_not_blocked"
+        ],
+        "success_indicators": [
+          "etc_passwd_readable",
+          "system_files_accessible"
+        ],
+        "failure_fallbacks": [
+          "other_encoding_methods",
+          "null_byte_injection",
+          "different_traversal_patterns"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "File read vulnerability confirmed, can access system files",
+        "decision": "Read PHP source code to understand application logic",
+        "reasoning": "Source code reveals authentication mechanisms and potential vulnerabilities",
+        "confidence": 0.95,
+        "prerequisites": [
+          "file_read_working",
+          "php_application_identified"
+        ],
+        "success_indicators": [
+          "php_source_retrieved",
+          "authentication_logic_revealed"
+        ],
+        "next_phase": "analyze_source_for_vulnerabilities"
+      },
+      {
+        "step": 4,
+        "situation": "PHP source reveals activation token generation and deserialization",
+        "decision": "Forge activation token to bypass account activation",
+        "reasoning": "Understanding token generation allows account creation without email access",
+        "confidence": 0.9,
+        "prerequisites": [
+          "activation_logic_understood",
+          "token_generation_algorithm_known"
+        ],
+        "success_indicators": [
+          "account_successfully_activated",
+          "login_successful"
+        ],
+        "next_decision": "exploit_deserialization_vulnerability"
+      },
+      {
+        "step": 5,
+        "situation": "Valid account obtained, deserialization vulnerability identified in source",
+        "decision": "Create malicious PHP serialized object for code execution",
+        "reasoning": "Deserialization vulnerabilities often lead to remote code execution",
+        "confidence": 0.85,
+        "prerequisites": [
+          "valid_account_access",
+          "deserialization_point_identified"
+        ],
+        "success_indicators": [
+          "webshell_deployed",
+          "command_execution_achieved"
+        ],
+        "next_phase": "privilege_escalation_enumeration"
+      }
+    ],
+    "branching_logic": {
+      "if_file_read_succeeds": {
+        "action": "enumerate_php_source_files",
+        "tools": [
+          "curl",
+          "custom_scripts"
+        ],
+        "next_phase": "source_code_analysis"
+      },
+      "if_traversal_blocked": {
+        "action": "try_encoding_bypasses",
+        "alternatives": [
+          "double_url_encoding",
+          "unicode_encoding",
+          "null_bytes"
+        ],
+        "decision_criteria": "based_on_filter_implementation"
+      },
+      "if_source_code_obtained": {
+        "action": "analyze_for_vulnerabilities",
+        "focus_areas": [
+          "authentication",
+          "deserialization",
+          "file_operations"
+        ],
+        "tools": [
+          "manual_analysis",
+          "code_review"
+        ]
+      },
+      "if_deserialization_exploited": {
+        "action": "establish_persistent_access",
+        "methods": [
+          "webshell",
+          "reverse_shell"
+        ],
+        "next_phase": "lateral_movement_preparation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_file_inclusion_on_file_serving_endpoints",
+        "reasoning": "img.php and similar endpoints commonly vulnerable to traversal",
+        "applicability": "web_applications_with_file_serving"
+      },
+      {
+        "rule": "read_source_code_immediately_after_file_read_confirmed",
+        "reasoning": "source_code_provides_roadmap_for_further_exploitation",
+        "applicability": "interpreted_language_applications"
+      },
+      {
+        "rule": "prioritize_deserialization_over_other_vulns_when_found",
+        "reasoning": "deserialization_typically_leads_to_direct_code_execution",
+        "applicability": "php_applications_with_serialization"
+      },
+      {
+        "rule": "use_double_url_encoding_for_traversal_filter_bypass",
+        "reasoning": "common_and_effective_bypass_technique",
+        "applicability": "path_traversal_with_basic_filters"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Directory Traversal / File Read",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_detected",
+          "php_application",
+          "file_inclusion_parameters",
+          "image_path_parameters"
+        ],
+        "success_indicators": [
+          "php_source_code_readable",
+          "config_files_accessible",
+          "sensitive_file_disclosure"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "chroot_jail",
+          "file_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "image_php_parameter",
+          "dynamic_file_loading",
+          "missing_path_sanitization"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "PHP Deserialization",
+        "mitre_id": "T1203",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "php_application",
+          "serialized_cookies",
+          "unserialize_function_usage",
+          "source_code_access"
+        ],
+        "success_indicators": [
+          "phpsessid_cookie_present",
+          "serialized_data_accepted",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "input_sanitization",
+          "safe_deserialization",
+          "cookie_encryption"
+        ],
+        "confidence_boosters": [
+          "custom_php_classes",
+          "magic_methods_present",
+          "cookie_manipulation_possible"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "Hash Cracking with Salt",
+        "mitre_id": "T1110.002",
+        "required_services": [
+          "database",
+          "file_system"
+        ],
+        "required_ports": [
+          3306,
+          5432
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "database_access_obtained",
+          "password_hashes_found",
+          "salt_value_discovered",
+          "weak_passwords_likely"
+        ],
+        "success_indicators": [
+          "hashes_extracted",
+          "salt_identified",
+          "passwords_cracked"
+        ],
+        "incompatible_with": [
+          "strong_password_policy",
+          "bcrypt_with_high_cost",
+          "random_per_user_salts"
+        ],
+        "confidence_boosters": [
+          "site_wide_salt",
+          "common_hash_algorithms",
+          "user_enumeration_possible"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "15-60 minutes"
+      },
+      {
+        "technique": "Command Injection via Certificate",
+        "mitre_id": "T1059.004",
+        "required_services": [
+          "certificate_validation"
+        ],
+        "required_ports": [
+          443
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "certificate_processing_script",
+          "automated_certificate_checking",
+          "insufficient_input_validation",
+          "privileged_script_execution"
+        ],
+        "success_indicators": [
+          "certificate_accepted",
+          "command_executed",
+          "privilege_escalation_achieved"
+        ],
+        "incompatible_with": [
+          "certificate_validation",
+          "input_sanitization",
+          "sandboxed_execution"
+        ],
+        "confidence_boosters": [
+          "custom_certificate_scripts",
+          "root_scheduled_tasks",
+          "certificate_field_processing"
+        ],
+        "typical_success_rate": 0.45,
+        "estimated_time": "30-90 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "php_web_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx"
+        ],
+        "technology_indicators": [
+          "PHPSESSID",
+          ".php",
+          "PHP"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "debian_linux": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH 8.4p1 Debian",
+          "Apache/2.4.54 (Debian)"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_traversal",
+          "when": "php_application_with_file_parameters",
+          "reason": "often_leads_to_source_code_disclosure"
+        },
+        {
+          "attack": "php_deserialization",
+          "when": "php_cookies_and_source_access",
+          "reason": "reliable_code_execution_method"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "hash_cracking",
+          "when": "database_access_obtained",
+          "reason": "depends_on_password_complexity"
+        },
+        {
+          "attack": "command_injection_certificate",
+          "when": "certificate_processing_detected",
+          "reason": "complex_but_high_impact"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Directory Traversal / File Read",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "wfuzz",
+            "command_template": "wfuzz -u {url}?path=FUZZ -w {wordlist} --hs {filter_string} --hh 0",
+            "actual_command": "wfuzz -u https://broscience.htb/includes/img.php?path=FUZZ -w dotdotpwn.txt --hs Attack --hh 0",
+            "output_pattern": "200 response with file contents",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -k {url}?path=..%252f..%252f..%252f..%252f..%252f..%252fetc%252fpasswd",
+            "actual_command": "curl -k https://broscience.htb/includes/img.php?path=..%252f..%252f..%252f..%252f..%252f..%252fetc%252fpasswd",
+            "success_factors": [
+              "double_url_encoding",
+              "bypass_filter"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_file_parameter",
+          "web_application_accessible",
+          "filter_bypass_method_identified"
+        ],
+        "success_indicators": [
+          "system_files_readable",
+          "application_source_code_accessible",
+          "database_credentials_exposed"
+        ],
+        "common_failures": [
+          "filter_blocks_traversal_attempts",
+          "insufficient_privileges",
+          "file_not_found"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "credential_extraction",
+          "activation_token_forging"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Activation Token Forging",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "custom_script",
+            "command_template": "python3 generate_activation.py --timestamp {time}",
+            "actual_command": "Based on srand(time()) weakness in PHP code",
+            "output_pattern": "32-character activation code",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "source_code_access",
+          "weak_random_seed_identified",
+          "registration_timestamp_known"
+        ],
+        "success_indicators": [
+          "account_successfully_activated",
+          "login_access_granted",
+          "application_features_accessible"
+        ],
+        "common_failures": [
+          "incorrect_timestamp_calculation",
+          "strong_random_implementation",
+          "activation_window_expired"
+        ],
+        "follow_up_techniques": [
+          "authenticated_enumeration",
+          "deserialization_exploitation",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "PHP Deserialization",
+        "mitre_id": "T1055.001",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "custom_php_payload",
+            "command_template": "base64_encode(serialize(new MaliciousClass()))",
+            "actual_command": "Craft malicious UserPrefs object with webshell",
+            "output_pattern": "Base64 encoded serialized object",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "unserialize_vulnerability_identified",
+          "user_prefs_cookie_controllable",
+          "authenticated_session_available"
+        ],
+        "success_indicators": [
+          "code_execution_achieved",
+          "webshell_deployed",
+          "system_command_execution"
+        ],
+        "common_failures": [
+          "serialization_format_incorrect",
+          "class_not_available",
+          "input_validation_blocks_payload"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "database_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "20-60 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Database Credential Extraction",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "file_read_vulnerability",
+            "command_template": "curl -k {url}?path=..%252fincludes/db_connect.php",
+            "actual_command": "curl -k https://broscience.htb/includes/img.php?path=..%252fincludes/db_connect.php",
+            "output_pattern": "Database credentials and salt",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "file_read_vulnerability_available",
+          "database_config_file_accessible",
+          "application_source_code_readable"
+        ],
+        "success_indicators": [
+          "database_credentials_obtained",
+          "salt_value_identified",
+          "connection_parameters_extracted"
+        ],
+        "common_failures": [
+          "config_file_not_readable",
+          "credentials_encrypted",
+          "file_path_unknown"
+        ],
+        "follow_up_techniques": [
+          "database_enumeration",
+          "hash_cracking_with_salt",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Command Injection via Certificate",
+        "mitre_id": "T1059.004",
+        "category": "execution",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "openssl",
+            "command_template": "openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj '/CN={malicious_payload}'",
+            "actual_command": "Craft certificate with command injection in CN field",
+            "output_pattern": "Certificate with embedded command",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "certificate_checking_script_identified",
+          "command_injection_vulnerability_found",
+          "certificate_deployment_capability"
+        ],
+        "success_indicators": [
+          "command_executed_as_root",
+          "privilege_escalation_successful",
+          "root_shell_obtained"
+        ],
+        "common_failures": [
+          "input_sanitization_present",
+          "certificate_format_validation",
+          "execution_context_insufficient"
+        ],
+        "follow_up_techniques": [
+          "persistence_establishment",
+          "system_enumeration",
+          "data_exfiltration"
+        ],
+        "time_investment": "30-90 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "wfuzz",
+        "use_case": "directory_traversal_fuzzing",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "ffuf",
+          "burp_intruder"
+        ],
+        "best_practices": [
+          "use_comprehensive_traversal_wordlists",
+          "filter_error_responses_appropriately",
+          "test_multiple_encoding_methods"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "file_read_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_exploitation"
+        ],
+        "alternatives": [
+          "wget",
+          "browser_direct"
+        ],
+        "best_practices": [
+          "use_k_flag_for_ssl_bypass",
+          "test_various_encoding_methods",
+          "automate_multiple_file_reads"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "directory_traversal_to_source_disclosure",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wfuzz -u https://broscience.htb/includes/img.php?path=FUZZ -w dotdotpwn.txt --hs Attack --hh 0",
+            "purpose": "Identify working traversal payloads",
+            "expected_output": "200 responses with file contents"
+          },
+          {
+            "step": 2,
+            "command": "curl -k https://broscience.htb/includes/img.php?path=..%252f..%252f..%252f..%252f..%252f..%252fetc%252fpasswd",
+            "purpose": "Confirm file read capability",
+            "expected_output": "System passwd file contents"
+          },
+          {
+            "step": 3,
+            "command": "curl -k https://broscience.htb/includes/img.php?path=..%252fincludes/db_connect.php",
+            "purpose": "Extract database credentials",
+            "expected_output": "Database connection details and salt"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "activation_bypass_to_authenticated_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl -k https://broscience.htb/includes/img.php?path=..%252fincludes/utils.php",
+            "purpose": "Extract activation code generation logic",
+            "expected_output": "PHP source with srand(time()) weakness"
+          },
+          {
+            "step": 2,
+            "command": "python3 generate_activation.py --timestamp $(date +%s)",
+            "purpose": "Generate valid activation token",
+            "expected_output": "32-character activation code"
+          },
+          {
+            "step": 3,
+            "command": "curl -X POST https://broscience.htb/activate.php -d 'code=GENERATED_CODE'",
+            "purpose": "Activate account with forged token",
+            "expected_output": "Account activation success"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "20-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "BroScience",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2023-01-07",
+      "author": "bmdyy",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "deserialization",
+        "command_injection"
+      ],
+      "key_vulnerabilities": [
+        "directory_traversal",
+        "php_deserialization",
+        "command_injection"
+      ],
+      "environment_type": "web_application_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "php_source_analysis",
+        "deserialization_attacks",
+        "hash_cracking",
+        "certificate_manipulation"
+      ],
+      "prerequisite_knowledge": [
+        "php_fundamentals",
+        "web_exploitation",
+        "serialization_concepts",
+        "hash_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "source_code_analysis",
+        "deserialization",
+        "command_injection"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "secure_deserialization",
+        "certificate_validation",
+        "database_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Pickle Rick",
+        "Arkham",
+        "Craft"
+      ],
+      "similarity_reasons": [
+        "deserialization_attacks",
+        "source_code_analysis",
+        "multi_stage_web_exploitation"
+      ],
+      "unique_aspects": [
+        "certificate_injection",
+        "php_token_forging",
+        "salt_based_hash_cracking"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "source_code_understanding",
+        "custom_exploit_development"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T16:10:51.708892",
+    "original_file": "0xdf_writeups/Htb Broscience.md",
+    "content_length": 42033,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

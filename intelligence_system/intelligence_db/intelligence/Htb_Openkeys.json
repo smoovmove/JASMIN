@@ -1,0 +1,861 @@
+{
+  "writeup_id": "Htb_Openkeys",
+  "scenario_fingerprint": {
+    "scenario_name": "openbsd_web_auth_bypass_privesc",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+http",
+    "os_family": "openbsd",
+    "environment_type": "unix_server",
+    "entry_vector": "web_auth_bypass",
+    "privilege_path": "web_user_to_root",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "vim_swap_file_disclosure",
+      "php_request_variable_bypass",
+      "openbsd_specific_vulnerabilities"
+    ],
+    "environmental_clues": [
+      "openbsd_httpd_server",
+      "ssh_key_retrieval_service",
+      "directory_listing_enabled",
+      "includes_directory_exposed"
+    ],
+    "similar_scenarios": [
+      "unix_web_privesc",
+      "file_disclosure_auth_bypass"
+    ],
+    "unique_aspects": [
+      "qualys_openbsd_vulnerabilities",
+      "xlock_shared_library_attack",
+      "skey_authentication_abuse",
+      "auth_group_escalation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "vim_swap_file_disclosure",
+        "success_reason": "Directory listing enabled and .swp file exposed sensitive PHP source code",
+        "prerequisite_indicators": [
+          "directory_listing_enabled",
+          "web_development_artifacts_present",
+          "backup_files_accessible"
+        ],
+        "recognition_patterns": [
+          ".swp files in web directories",
+          "vim swap file naming convention",
+          "includes/backup directories exposed"
+        ],
+        "failure_modes": [
+          "directory_listing_disabled",
+          "proper_file_cleanup",
+          "web_root_hardening"
+        ],
+        "environmental_factors": [
+          "development_environment_practices",
+          "insufficient_cleanup_procedures",
+          "default_web_server_config"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "php_request_variable_bypass",
+        "success_reason": "$_REQUEST variable allows session manipulation without proper authentication",
+        "prerequisite_indicators": [
+          "php_application_present",
+          "session_management_code_visible",
+          "request_variable_usage"
+        ],
+        "recognition_patterns": [
+          "$_REQUEST usage in session init",
+          "session variables set from user input",
+          "authentication bypass via session manipulation"
+        ],
+        "failure_modes": [
+          "proper_input_validation",
+          "secure_session_management",
+          "use_of_post_get_instead_of_request"
+        ],
+        "environmental_factors": [
+          "php_default_configurations",
+          "insecure_coding_practices",
+          "lack_of_input_sanitization"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "ssh_key_retrieval",
+        "success_reason": "Application designed to serve SSH keys after authentication bypass",
+        "prerequisite_indicators": [
+          "ssh_key_management_application",
+          "authenticated_user_access",
+          "key_retrieval_functionality"
+        ],
+        "recognition_patterns": [
+          "OpenKeyS application title",
+          "SSH key retrieval purpose",
+          "user-specific key access"
+        ],
+        "failure_modes": [
+          "proper_authentication_required",
+          "key_access_restrictions",
+          "session_validation"
+        ],
+        "environmental_factors": [
+          "centralized_key_management",
+          "web_based_ssh_key_distribution",
+          "user_convenience_over_security"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "auth.php.swp vim swap file",
+        "discovery_method": "directory enumeration with gobuster",
+        "why_critical": "Revealed PHP source code showing authentication mechanism and session handling",
+        "how_to_recognize": [
+          "directory listing enabled",
+          ".swp file extensions",
+          "includes directory accessible"
+        ],
+        "follow_up_actions": [
+          "download_swap_file",
+          "recover_with_vim",
+          "analyze_source_code"
+        ]
+      },
+      {
+        "discovery": "jennifer username in swap file",
+        "discovery_method": "binary analysis of .swp file",
+        "why_critical": "Provided target username for authentication bypass",
+        "how_to_recognize": [
+          "strings in binary files",
+          "usernames in development artifacts",
+          "editor history in swap files"
+        ],
+        "follow_up_actions": [
+          "attempt_authentication_bypass",
+          "test_username_validity",
+          "enumerate_other_users"
+        ]
+      },
+      {
+        "discovery": "$_REQUEST variable usage in init_session",
+        "discovery_method": "source code analysis from recovered swap file",
+        "why_critical": "Allowed session manipulation without proper authentication",
+        "how_to_recognize": [
+          "$_REQUEST in session initialization",
+          "user input directly to session variables",
+          "lack of authentication checks"
+        ],
+        "follow_up_actions": [
+          "craft_session_manipulation_request",
+          "bypass_authentication_flow",
+          "access_protected_resources"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_user",
+        "escalation_method": "authentication_bypass_to_ssh_access",
+        "why_possible": "PHP session manipulation allowed impersonation of jennifer user",
+        "recognition_signs": [
+          "request_variable_in_session_init",
+          "ssh_key_retrieval_application",
+          "weak_session_validation"
+        ],
+        "exploitation_path": "Directory Enum → Swap File → Source Code → Auth Bypass → SSH Key → Shell Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80 open on OpenBSD host with web login form",
+        "decision": "Enumerate web application for configuration files and source code",
+        "reasoning": "Limited attack surface requires thorough web enumeration before credential attacks",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known vulnerabilities exist"
+          }
+        ],
+        "success_indicators": [
+          "source_code_discovered",
+          "configuration_files_found",
+          "authentication_mechanism_identified"
+        ],
+        "next_decision": "analyze_authentication_bypass"
+      },
+      {
+        "step": 2,
+        "situation": "Found vim swap file revealing auth.php source code",
+        "decision": "Analyze authentication function for bypass opportunities",
+        "reasoning": "Source code reveals auth_userokay function and potential CVE exploitation",
+        "confidence": 0.95,
+        "prerequisites": [
+          "source_code_available",
+          "authentication_mechanism_known"
+        ],
+        "success_indicators": [
+          "cve_2019_19521_applicable",
+          "bypass_method_identified"
+        ],
+        "failure_fallbacks": [
+          "command_injection_attempts",
+          "sql_injection_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Identified CVE-2019-19521 authentication bypass with -schallenge username",
+        "decision": "Exploit session handling bug to login as specific user",
+        "reasoning": "PHP $_REQUEST variable allows username override through session manipulation",
+        "confidence": 0.85,
+        "prerequisites": [
+          "authentication_bypass_working",
+          "target_username_known"
+        ],
+        "success_indicators": [
+          "session_established",
+          "ssh_key_access_granted"
+        ],
+        "failure_fallbacks": [
+          "direct_bypass_usage",
+          "alternative_user_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_source_code_found": {
+        "action": "analyze_for_vulnerabilities",
+        "tools": [
+          "vim_recovery",
+          "static_analysis"
+        ],
+        "next_phase": "exploit_development"
+      },
+      "if_auth_bypass_succeeds": {
+        "action": "exploit_session_handling_bug",
+        "purpose": "gain_access_as_target_user",
+        "tools": [
+          "burp_suite",
+          "curl"
+        ]
+      },
+      "if_ssh_key_obtained": {
+        "action": "establish_ssh_connection",
+        "next_phase": "privilege_escalation_enumeration",
+        "tools": [
+          "ssh",
+          "private_key"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_for_vim_swap_files_in_web_directories",
+        "reasoning": "high_value_source_code_disclosure_opportunity",
+        "applicability": "web_applications_with_directory_listing"
+      },
+      {
+        "rule": "research_os_specific_cves_when_version_identified",
+        "reasoning": "operating_system_vulnerabilities_often_critical",
+        "applicability": "openbsd_and_other_niche_systems"
+      },
+      {
+        "rule": "analyze_session_handling_when_source_available",
+        "reasoning": "session_bugs_common_in_custom_authentication",
+        "applicability": "php_applications_with_custom_auth"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Vim Swap File Recovery",
+        "mitre_id": "T1005",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "unix",
+          "openbsd"
+        ],
+        "environmental_prerequisites": [
+          "web_server_with_directory_listing",
+          "vim_swap_files_present",
+          "developer_left_editor_open"
+        ],
+        "success_indicators": [
+          "swp_file_accessible",
+          "vim_recovery_successful",
+          "source_code_revealed"
+        ],
+        "incompatible_with": [
+          "directory_listing_disabled",
+          "proper_file_cleanup",
+          "restricted_file_access"
+        ],
+        "confidence_boosters": [
+          "includes_directory_exposed",
+          "development_environment",
+          "backup_files_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "PHP Request Variable Manipulation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "php_application",
+          "request_variable_usage",
+          "session_management_present"
+        ],
+        "success_indicators": [
+          "session_initialized",
+          "authentication_bypassed",
+          "username_parameter_accepted"
+        ],
+        "incompatible_with": [
+          "proper_input_validation",
+          "secure_session_handling",
+          "request_method_restrictions"
+        ],
+        "confidence_boosters": [
+          "dollar_request_variable_used",
+          "weak_session_validation",
+          "login_form_present"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Directory Traversal via Web Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_listing_enabled",
+          "sensitive_files_in_webroot"
+        ],
+        "success_indicators": [
+          "directory_listing_accessible",
+          "sensitive_files_discovered",
+          "configuration_files_readable"
+        ],
+        "incompatible_with": [
+          "directory_listing_disabled",
+          "proper_file_permissions",
+          "web_application_firewall"
+        ],
+        "confidence_boosters": [
+          "apache_nginx_iis_detected",
+          "development_directories_present",
+          "backup_files_visible"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "php_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "PHP",
+          "X-Powered-By: PHP"
+        ],
+        "file_indicators": [
+          ".php",
+          "index.php"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "openbsd_system": {
+        "port_indicators": [
+          22,
+          80
+        ],
+        "service_indicators": [
+          "ssh",
+          "httpd"
+        ],
+        "banner_indicators": [
+          "OpenBSD",
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "technology_indicators": [
+          "apache",
+          "nginx",
+          "httpd"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "often_reveals_sensitive_files_and_directories"
+        },
+        {
+          "attack": "vim_swap_file_recovery",
+          "when": "swp_files_discovered",
+          "reason": "high_success_rate_reveals_source_code"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "php_request_manipulation",
+          "when": "php_application_detected",
+          "reason": "common_vulnerability_in_web_apps"
+        },
+        {
+          "attack": "login_form_testing",
+          "when": "authentication_form_present",
+          "reason": "potential_for_bypass_or_injection"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Authentication Bypass via OpenBSD CVE-2019-19521",
+        "mitre_id": "T1078.003",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "web_browser",
+            "command_template": "Login with username: -schallenge, password: {any_password}",
+            "actual_command": "Username: -schallenge, Password: 0xdf",
+            "output_pattern": "successful_login_redirect",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "openbsd_vulnerable_version",
+          "web_login_form_accessible",
+          "auth_userokay_function_in_use"
+        ],
+        "success_indicators": [
+          "authentication_bypass_successful",
+          "redirect_to_authenticated_page",
+          "session_established"
+        ],
+        "common_failures": [
+          "patched_openbsd_version",
+          "different_auth_mechanism",
+          "input_validation_prevents_dash_usernames"
+        ],
+        "follow_up_techniques": [
+          "session_manipulation",
+          "privilege_escalation",
+          "credential_harvesting"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Session Manipulation via PHP $_REQUEST Variable",
+        "mitre_id": "T1550.004",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "burp_suite",
+            "command_template": "POST /index.php with username={bypass_user}&password={any_pass} and Cookie: username={target_user}",
+            "actual_command": "POST username=-schallenge&password=0xdf with Cookie: username=jennifer",
+            "output_pattern": "302_redirect_to_sshkey.php",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "php_request_variable_used",
+          "session_init_uses_request_not_post",
+          "authentication_bypass_available"
+        ],
+        "success_indicators": [
+          "session_username_set_to_target_user",
+          "access_to_target_user_resources",
+          "ssh_key_retrieval_successful"
+        ],
+        "common_failures": [
+          "consistent_variable_usage_in_code",
+          "cookie_validation_implemented",
+          "session_integrity_checks"
+        ],
+        "follow_up_techniques": [
+          "ssh_key_extraction",
+          "ssh_authentication",
+          "lateral_movement"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Vim Swap File Information Disclosure",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {target_url} -w {wordlist} -x php",
+            "actual_command": "gobuster dir -u http://10.10.10.199 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php",
+            "output_pattern": "directory_listings_enabled",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          },
+          {
+            "name": "vim",
+            "command_template": "vim -r {swap_file}",
+            "actual_command": "vim -r auth.php.swp",
+            "output_pattern": "source_code_recovery",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "directory_listing_enabled",
+          "vim_swap_files_present",
+          "web_server_serves_swap_files"
+        ],
+        "success_indicators": [
+          "source_code_recovered",
+          "authentication_logic_revealed",
+          "usernames_discovered"
+        ],
+        "common_failures": [
+          "directory_listing_disabled",
+          "swap_files_cleaned_up",
+          "access_restrictions_on_includes"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "vulnerability_identification",
+          "authentication_bypass"
+        ],
+        "time_investment": "10-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSH Key Extraction via Web Application",
+        "mitre_id": "T1552.004",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "ssh",
+            "command_template": "ssh -i {private_key_file} {username}@{target_ip}",
+            "actual_command": "ssh -i ~/keys/id_rsa_openkeys_jennifer jennifer@10.10.10.199",
+            "output_pattern": "successful_ssh_connection",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "web_application_authentication_bypass",
+          "ssh_key_retrieval_functionality",
+          "target_user_session_established"
+        ],
+        "success_indicators": [
+          "private_ssh_key_obtained",
+          "ssh_authentication_successful",
+          "shell_access_established"
+        ],
+        "common_failures": [
+          "ssh_key_passphrase_protected",
+          "ssh_service_disabled",
+          "key_based_auth_disabled"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "persistence_establishment"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "dirb"
+        ],
+        "best_practices": [
+          "include_common_extensions_like_php",
+          "use_multiple_wordlists_for_thoroughness",
+          "check_for_directory_listing_enabled"
+        ]
+      },
+      {
+        "tool": "vim",
+        "use_case": "swap_file_recovery",
+        "effectiveness_rating": 5,
+        "reliability": 1.0,
+        "learning_curve": "low",
+        "essential_for": [
+          "source_code_recovery"
+        ],
+        "alternatives": [
+          "strings",
+          "hexdump",
+          "file_analysis"
+        ],
+        "best_practices": [
+          "use_vim_-r_flag_for_recovery",
+          "examine_raw_swap_file_for_additional_info",
+          "look_for_usernames_and_paths_in_swap_data"
+        ]
+      },
+      {
+        "tool": "burp_suite",
+        "use_case": "session_manipulation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_security_testing"
+        ],
+        "alternatives": [
+          "owasp_zap",
+          "manual_curl_requests"
+        ],
+        "best_practices": [
+          "intercept_and_modify_authentication_requests",
+          "test_cookie_parameter_injection",
+          "validate_session_handling_logic"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "openbsd_auth_bypass_to_ssh_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gobuster dir -u http://10.10.10.199 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php",
+            "purpose": "Enumerate web directories and files",
+            "expected_output": "Discovery of /includes directory with auth.php.swp"
+          },
+          {
+            "step": 2,
+            "command": "wget http://10.10.10.199/includes/auth.php.swp",
+            "purpose": "Download vim swap file",
+            "expected_output": "Swap file downloaded successfully"
+          },
+          {
+            "step": 3,
+            "command": "vim -r auth.php.swp",
+            "purpose": "Recover source code from swap file",
+            "expected_output": "PHP authentication code revealed"
+          },
+          {
+            "step": 4,
+            "command": "Login with username: -schallenge, password: any_value",
+            "purpose": "Exploit CVE-2019-19521 authentication bypass",
+            "expected_output": "Successful authentication bypass"
+          },
+          {
+            "step": 5,
+            "command": "POST with Cookie: username=jennifer added to request",
+            "purpose": "Exploit PHP $_REQUEST variable to set session username",
+            "expected_output": "Access to jennifer's SSH key page"
+          },
+          {
+            "step": 6,
+            "command": "ssh -i extracted_key jennifer@10.10.10.199",
+            "purpose": "Authenticate via SSH using extracted private key",
+            "expected_output": "Shell access as jennifer user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "OpenKeyS",
+      "difficulty": "Medium",
+      "os": "OpenBSD",
+      "platform": "HackTheBox",
+      "release_date": "2020-07-25",
+      "author": "polarbearer & GibParadox",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "web_application",
+        "authentication_bypass",
+        "shared_library_injection"
+      ],
+      "key_vulnerabilities": [
+        "vim_swap_file_disclosure",
+        "openbsd_xlock_vulnerability",
+        "skey_authentication_bypass"
+      ],
+      "environment_type": "openbsd_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "openbsd_exploitation",
+        "authentication_bypass",
+        "shared_library_attacks",
+        "skey_abuse"
+      ],
+      "prerequisite_knowledge": [
+        "web_enumeration",
+        "php_basics",
+        "unix_systems",
+        "shared_libraries"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "authentication_bypass",
+        "privilege_escalation",
+        "openbsd_specific"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "authentication_bypass",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_file_permissions",
+        "input_validation",
+        "disable_unused_services",
+        "patch_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Poison",
+        "Nineveh",
+        "Haircut"
+      ],
+      "similarity_reasons": [
+        "web_enumeration",
+        "file_disclosure",
+        "authentication_bypass"
+      ],
+      "unique_aspects": [
+        "openbsd_vulnerabilities",
+        "qualys_cve_chain",
+        "xlock_exploitation",
+        "skey_abuse"
+      ],
+      "difficulty_factors": [
+        "multiple_vulnerability_chain",
+        "openbsd_specific_techniques",
+        "shared_library_injection"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T22:14:07.965786",
+    "original_file": "0xdf_writeups/Htb Openkeys.md",
+    "content_length": 30001,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

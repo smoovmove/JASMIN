@@ -1,0 +1,1100 @@
+{
+  "writeup_id": "Htb_Sizzle",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_scf_kerberoast_dcsync",
+    "primary_services": [
+      "smb",
+      "ldap",
+      "kerberos",
+      "dns",
+      "winrm",
+      "http"
+    ],
+    "port_signature": "53+80+389+445+464+5985+636+3268+3269",
+    "service_combination": "dns+http+ldap+smb+kerberos+winrm+adws",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "scf_file_netntlm_capture",
+    "privilege_path": "user_to_kerberoast_to_dcsync_admin",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "anonymous_ftp_access",
+      "smb_write_permissions",
+      "certificate_authentication",
+      "dcsync_permissions"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "htb_local_domain",
+      "iis_web_server",
+      "certificate_services"
+    ],
+    "similar_scenarios": [
+      "forest_htb_insane",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "scf_file_hash_capture",
+      "certificate_based_auth",
+      "multi_stage_kerberoast"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SCF_File_Attack",
+        "success_reason": "SMB share allowed anonymous write access and user accessed malicious .scf file",
+        "prerequisite_indicators": [
+          "smb_share_writable",
+          "users_browse_shared_folders",
+          "netntlm_authentication_enabled"
+        ],
+        "recognition_patterns": [
+          "anonymous SMB write access",
+          "shared folders with user activity",
+          "Windows file sharing enabled"
+        ],
+        "failure_modes": [
+          "no_write_access_to_shares",
+          "users_dont_browse_folders",
+          "smb_signing_enforced"
+        ],
+        "environmental_factors": [
+          "active_directory_environment",
+          "file_sharing_culture",
+          "insufficient_smb_hardening"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "NetNTLM_Hash_Cracking",
+        "success_reason": "Captured hash used weak password susceptible to dictionary attack",
+        "prerequisite_indicators": [
+          "netntlm_hash_captured",
+          "weak_password_policy",
+          "user_follows_predictable_patterns"
+        ],
+        "recognition_patterns": [
+          "hash captured via responder",
+          "corporate password patterns",
+          "service account credentials"
+        ],
+        "failure_modes": [
+          "strong_complex_passwords",
+          "hash_capture_fails",
+          "account_lockout_policies"
+        ],
+        "environmental_factors": [
+          "legacy_password_policies",
+          "user_security_awareness_low",
+          "default_ntlm_settings"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "1-6 hours"
+      },
+      {
+        "technique": "Certificate_Authentication",
+        "success_reason": "Active Directory Certificate Services allowed user certificate generation",
+        "prerequisite_indicators": [
+          "adcs_available",
+          "certificate_templates_accessible",
+          "user_has_enrollment_rights"
+        ],
+        "recognition_patterns": [
+          "certenroll directory accessible",
+          "certificate services running",
+          "user authentication via certificates enabled"
+        ],
+        "failure_modes": [
+          "certificate_enrollment_restricted",
+          "adcs_not_available",
+          "certificate_validation_strict"
+        ],
+        "environmental_factors": [
+          "enterprise_pki_deployment",
+          "certificate_based_authentication",
+          "default_certificate_templates"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Kerberoasting",
+        "success_reason": "Service accounts with SPNs had weak passwords",
+        "prerequisite_indicators": [
+          "service_accounts_with_spns",
+          "kerberos_authentication_available",
+          "weak_service_account_passwords"
+        ],
+        "recognition_patterns": [
+          "service accounts enumerable",
+          "SPN records in Active Directory",
+          "TGS tickets requestable"
+        ],
+        "failure_modes": [
+          "strong_service_account_passwords",
+          "managed_service_accounts",
+          "kerberos_not_accessible"
+        ],
+        "environmental_factors": [
+          "legacy_service_configurations",
+          "insufficient_password_policies",
+          "default_active_directory_setup"
+        ],
+        "success_probability": 0.7,
+        "typical_timeframe": "30 minutes - 4 hours"
+      },
+      {
+        "technique": "DCSync_Attack",
+        "success_reason": "Service account had replication permissions on domain controller",
+        "prerequisite_indicators": [
+          "replication_permissions_granted",
+          "service_account_compromised",
+          "domain_controller_accessible"
+        ],
+        "recognition_patterns": [
+          "DS-Replication-Get-Changes permissions",
+          "service account with elevated privileges",
+          "Exchange or backup service accounts"
+        ],
+        "failure_modes": [
+          "replication_permissions_restricted",
+          "dcsync_detection_enabled",
+          "service_account_not_privileged"
+        ],
+        "environmental_factors": [
+          "exchange_server_deployment",
+          "backup_service_configurations",
+          "excessive_service_account_permissions"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "writable SMB share",
+        "discovery_method": "SMB enumeration with smbclient",
+        "why_critical": "Enabled .scf file attack to capture NetNTLM hash",
+        "how_to_recognize": [
+          "anonymous write access to shares",
+          "shared folders with user activity",
+          "file sharing permissions misconfigured"
+        ],
+        "follow_up_actions": [
+          "create_malicious_scf_file",
+          "setup_responder_listener",
+          "monitor_for_hash_capture"
+        ]
+      },
+      {
+        "discovery": "Active Directory Certificate Services",
+        "discovery_method": "IIS directory enumeration (/certenroll/)",
+        "why_critical": "Allowed certificate-based authentication bypass",
+        "how_to_recognize": [
+          "certenroll directory accessible",
+          "certificate authority available",
+          "PKI infrastructure deployed"
+        ],
+        "follow_up_actions": [
+          "generate_user_certificate",
+          "authenticate_via_certificate",
+          "access_winrm_services"
+        ]
+      },
+      {
+        "discovery": "service account with replication rights",
+        "discovery_method": "Kerberoasting and privilege enumeration",
+        "why_critical": "Direct path to domain admin via DCSync",
+        "how_to_recognize": [
+          "service account with SPN",
+          "replication permissions granted",
+          "Exchange-related service accounts"
+        ],
+        "follow_up_actions": [
+          "perform_dcsync_attack",
+          "extract_domain_admin_hashes",
+          "achieve_domain_compromise"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous",
+        "escalation_method": "SCF_file_to_user_credentials",
+        "why_possible": "SMB share writable and users browse shared folders",
+        "recognition_signs": [
+          "writable_smb_shares",
+          "active_file_sharing_usage",
+          "netntlm_authentication_enabled"
+        ],
+        "exploitation_path": "Anonymous → .scf file → NetNTLM hash → User credentials"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "Certificate_authentication_to_WinRM",
+        "why_possible": "ADCS available and certificate authentication enabled",
+        "recognition_signs": [
+          "certificate_services_running",
+          "winrm_accepts_certificates",
+          "user_enrollment_permitted"
+        ],
+        "exploitation_path": "User creds → Certificate generation → WinRM access"
+      },
+      {
+        "privilege_level": "authenticated_user",
+        "escalation_method": "Kerberoasting_to_service_account",
+        "why_possible": "Service accounts with SPNs and weak passwords",
+        "recognition_signs": [
+          "service_accounts_enumerable",
+          "spn_records_accessible",
+          "weak_password_policies"
+        ],
+        "exploitation_path": "User → Kerberoast → Service account credentials"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "DCSync_to_domain_admin",
+        "why_possible": "Service account had domain replication permissions",
+        "recognition_signs": [
+          "replication_permissions_granted",
+          "exchange_service_account",
+          "elevated_service_privileges"
+        ],
+        "exploitation_path": "Service account → DCSync → Domain admin hashes"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,53,80,135,139,389,443,445,464,593,636,3268,3269,5985,5986,9389 open on Windows host",
+        "decision": "Identify as Active Directory Domain Controller and prioritize SMB enumeration",
+        "reasoning": "Port combination (53,389,445,464,636,3268,3269,5985) strongly indicates AD DC with certificate services",
+        "confidence": 0.98,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if smb_access_denied"
+          },
+          {
+            "option": "ftp_enumeration",
+            "when": "if anonymous_access_available"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous_bind_allowed"
+          }
+        ],
+        "success_indicators": [
+          "smb_shares_enumerated",
+          "domain_name_discovered",
+          "certificate_services_detected"
+        ],
+        "next_decision": "enumerate_smb_shares_access"
+      },
+      {
+        "step": 2,
+        "situation": "SMB shares discovered including CertEnroll and Department Shares",
+        "decision": "Test anonymous access to all SMB shares systematically",
+        "reasoning": "Different tools show different results, need comprehensive enumeration",
+        "confidence": 0.9,
+        "prerequisites": [
+          "smb_service_accessible"
+        ],
+        "success_indicators": [
+          "writable_shares_found",
+          "readable_shares_found"
+        ],
+        "failure_fallbacks": [
+          "web_directory_enumeration",
+          "certificate_services_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found writable SMB share with anonymous access",
+        "decision": "Deploy SCF file attack to capture NetNTLM hashes",
+        "reasoning": "Writable shares allow hash capture via malicious SCF files",
+        "confidence": 0.85,
+        "prerequisites": [
+          "writable_smb_share",
+          "responder_ready"
+        ],
+        "success_indicators": [
+          "netntlm_hash_captured"
+        ],
+        "failure_fallbacks": [
+          "other_file_types",
+          "directory_traversal",
+          "file_upload_attacks"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "NetNTLM hash captured from SCF file attack",
+        "decision": "Crack hash with hashcat and attempt WinRM authentication",
+        "reasoning": "WinRM ports open, cracked credentials likely provide remote access",
+        "confidence": 0.8,
+        "prerequisites": [
+          "netntlm_hash",
+          "winrm_accessible"
+        ],
+        "success_indicators": [
+          "password_cracked",
+          "winrm_authentication_successful"
+        ],
+        "failure_fallbacks": [
+          "certificate_authentication",
+          "other_services_authentication"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_smb_enumeration_succeeds": {
+        "action": "test_write_access_with_scf_attack",
+        "tools": [
+          "smbclient",
+          "responder",
+          "scf_file"
+        ],
+        "next_phase": "hash_capture_and_cracking"
+      },
+      "if_hash_captured": {
+        "action": "crack_and_authenticate",
+        "tools": [
+          "hashcat",
+          "evil-winrm"
+        ],
+        "next_phase": "kerberoasting_enumeration"
+      },
+      "if_domain_user_obtained": {
+        "action": "kerberoast_for_privilege_escalation",
+        "purpose": "find_service_accounts_with_spns",
+        "tools": [
+          "impacket-GetUserSPNs",
+          "hashcat"
+        ]
+      },
+      "if_certificate_services_available": {
+        "action": "enumerate_certificate_templates",
+        "purpose": "alternative_authentication_method",
+        "tools": [
+          "certreq",
+          "openssl"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_multiple_smb_tools",
+        "reasoning": "smbmap_and_smbclient_show_different_results",
+        "applicability": "smb_enumeration_phase"
+      },
+      {
+        "rule": "prioritize_scf_attacks_on_writable_shares",
+        "reasoning": "high_success_rate_for_hash_capture",
+        "applicability": "writable_smb_shares_found"
+      },
+      {
+        "rule": "use_iis_specific_wordlists_for_web_enumeration",
+        "reasoning": "standard_wordlists_miss_iis_specific_paths",
+        "applicability": "iis_web_servers"
+      },
+      {
+        "rule": "check_certificate_services_when_certenroll_found",
+        "reasoning": "indicates_adcs_deployment_with_potential_vulnerabilities",
+        "applicability": "certenroll_directory_discovered"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SCF_File_Attack",
+        "mitre_id": "T1187",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_write_access",
+          "smb_shares_accessible",
+          "windows_file_sharing_enabled"
+        ],
+        "success_indicators": [
+          "smb_anonymous_access",
+          "writable_shares_found",
+          "netntlm_hash_captured"
+        ],
+        "incompatible_with": [
+          "smb_signing_required",
+          "no_write_permissions",
+          "smb_disabled"
+        ],
+        "confidence_boosters": [
+          "anonymous_ftp_available",
+          "multiple_smb_shares",
+          "windows_server_detected"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Kerberoasting",
+        "mitre_id": "T1558.003",
+        "required_services": [
+          "kerberos",
+          "ldap"
+        ],
+        "required_ports": [
+          88,
+          389
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "valid_domain_credentials",
+          "service_accounts_with_spn"
+        ],
+        "success_indicators": [
+          "domain_controller_accessible",
+          "service_accounts_enumerated",
+          "tgs_tickets_obtained"
+        ],
+        "incompatible_with": [
+          "no_service_accounts",
+          "kerberos_disabled",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "ldap_accessible",
+          "domain_enumeration_successful",
+          "multiple_service_accounts"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "DCSync",
+        "mitre_id": "T1003.006",
+        "required_services": [
+          "ldap"
+        ],
+        "required_ports": [
+          389,
+          636
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "privileged_user_credentials",
+          "replication_permissions"
+        ],
+        "success_indicators": [
+          "domain_controller_accessible",
+          "replication_rights_confirmed",
+          "ntds_secrets_extracted"
+        ],
+        "incompatible_with": [
+          "insufficient_privileges",
+          "replication_blocked",
+          "ldap_disabled"
+        ],
+        "confidence_boosters": [
+          "domain_admin_equivalent",
+          "exchange_server_present",
+          "legacy_ad_configuration"
+        ],
+        "typical_success_rate": 0.95,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Certificate_Authentication",
+        "mitre_id": "T1649",
+        "required_services": [
+          "adcs",
+          "winrm"
+        ],
+        "required_ports": [
+          5985,
+          5986
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_certificate_services",
+          "certificate_templates_available",
+          "winrm_enabled"
+        ],
+        "success_indicators": [
+          "certificate_generated",
+          "winrm_authentication_successful",
+          "user_context_obtained"
+        ],
+        "incompatible_with": [
+          "certificate_services_disabled",
+          "winrm_disabled",
+          "certificate_validation_strict"
+        ],
+        "confidence_boosters": [
+          "default_certificate_templates",
+          "auto_enrollment_enabled",
+          "legacy_ca_configuration"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "20-40 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "kpasswd5",
+          "adws"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "HTB.LOCAL",
+          "globalcatLDAP"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "certificate_services": {
+        "port_indicators": [
+          443,
+          636,
+          3269
+        ],
+        "service_indicators": [
+          "ssl",
+          "ldapssl"
+        ],
+        "banner_indicators": [
+          "certificate",
+          "CA",
+          "ADCS"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "winrm_available": {
+        "port_indicators": [
+          5985,
+          5986,
+          47001
+        ],
+        "service_indicators": [
+          "wsman",
+          "wsmans",
+          "winrm"
+        ],
+        "banner_indicators": [
+          "Microsoft HTTPAPI",
+          "WinRM"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "smb_services": {
+        "port_indicators": [
+          139,
+          445
+        ],
+        "service_indicators": [
+          "netbios-ssn",
+          "microsoft-ds"
+        ],
+        "banner_indicators": [
+          "SMB",
+          "CIFS",
+          "Windows"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "smb_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_provides_initial_foothold_and_user_enumeration"
+        },
+        {
+          "attack": "scf_file_attack",
+          "when": "smb_write_access_available",
+          "reason": "reliable_credential_capture_method"
+        },
+        {
+          "attack": "dcsync",
+          "when": "privileged_user_obtained",
+          "reason": "direct_path_to_domain_admin"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "kerberoasting",
+          "when": "domain_credentials_obtained",
+          "reason": "effective_privilege_escalation_method"
+        },
+        {
+          "attack": "certificate_authentication",
+          "when": "adcs_detected_and_credentials_available",
+          "reason": "alternative_authentication_method"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "web_directory_enumeration",
+          "when": "web_services_detected",
+          "reason": "limited_attack_surface_in_this_scenario"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SCF File Attack",
+        "mitre_id": "T1187",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "smbclient",
+            "command_template": "smbclient -N //{target_ip}/{share_name}",
+            "actual_command": "smbclient -N //10.10.10.103/Department\\ Shares",
+            "output_pattern": "smb: \\>",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "responder",
+            "command_template": "responder -I {interface} -wrf",
+            "actual_command": "responder -I tun0 -wrf",
+            "success_factors": [
+              "smb_share_write_access",
+              "user_browsing_share"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "smb_share_write_access",
+          "users_accessing_share_via_gui",
+          "network_position_for_hash_capture"
+        ],
+        "success_indicators": [
+          "netntlm_hash_captured",
+          "hash_contains_valid_username",
+          "responder_shows_authentication_attempt"
+        ],
+        "common_failures": [
+          "no_write_access_to_shares",
+          "users_not_browsing_shares",
+          "network_isolation_prevents_capture"
+        ],
+        "follow_up_techniques": [
+          "netntlm_hash_cracking",
+          "certificate_authentication",
+          "winrm_access"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Kerberoasting",
+        "mitre_id": "T1558.003",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "GetUserSPNs.py",
+            "command_template": "GetUserSPNs.py {domain}/{username}:{password} -dc-ip {dc_ip} -request",
+            "actual_command": "GetUserSPNs.py htb.local/amanda:Ashare1972 -dc-ip 10.10.10.103 -request",
+            "output_pattern": "$krb5tgs$23$*{username}$",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 13100 {hash_file} {wordlist}",
+            "actual_command": "hashcat -m 13100 kerberoast.hash /usr/share/wordlists/rockyou.txt",
+            "success_factors": [
+              "weak_service_account_password",
+              "comprehensive_wordlist"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "domain_user_credentials",
+          "service_accounts_with_spns",
+          "kerberos_service_accessible"
+        ],
+        "success_indicators": [
+          "tgs_ticket_extracted",
+          "service_account_password_cracked",
+          "elevated_privileges_obtained"
+        ],
+        "common_failures": [
+          "no_service_accounts_with_spns",
+          "strong_service_passwords",
+          "kerberos_encryption_too_strong"
+        ],
+        "follow_up_techniques": [
+          "dcsync_attack",
+          "bloodhound_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-120 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "DCSync Attack",
+        "mitre_id": "T1003.006",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "secretsdump.py",
+            "command_template": "secretsdump.py {domain}/{username}:{password}@{target_ip}",
+            "actual_command": "secretsdump.py htb.local/mrlky:Football#7 -dc-ip 10.10.10.103",
+            "output_pattern": "Administrator:500:aad3b435b51404eeaad3b435b51404ee:",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "dcsync_privileges",
+          "domain_controller_accessible",
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "ntds_dit_dumped_successfully",
+          "administrator_hash_extracted",
+          "domain_admin_access_achieved"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "network_connectivity_issues",
+          "detection_by_security_tools"
+        ],
+        "follow_up_techniques": [
+          "pass_the_hash",
+          "golden_ticket_attack",
+          "persistence_mechanisms"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Certificate Authentication",
+        "mitre_id": "T1649",
+        "category": "defense_evasion",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "openssl",
+            "command_template": "openssl pkcs12 -in {cert_file} -nocerts -out {key_file}",
+            "actual_command": "openssl pkcs12 -in amanda.pfx -nocerts -out amanda.key",
+            "output_pattern": "MAC verified OK",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "evil-winrm",
+            "command_template": "evil-winrm -i {target_ip} -c {cert_file} -k {key_file} -S",
+            "actual_command": "evil-winrm -i 10.10.10.103 -c amanda.crt -k amanda.key -S",
+            "success_factors": [
+              "valid_certificate",
+              "winrm_enabled",
+              "certificate_authentication_allowed"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "certificate_services_available",
+          "user_certificate_enrollment_rights",
+          "winrm_service_enabled"
+        ],
+        "success_indicators": [
+          "certificate_generated_successfully",
+          "winrm_authentication_successful",
+          "remote_shell_obtained"
+        ],
+        "common_failures": [
+          "certificate_enrollment_denied",
+          "certificate_authentication_disabled",
+          "winrm_service_unavailable"
+        ],
+        "follow_up_techniques": [
+          "kerberoasting",
+          "bloodhound_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Responder",
+        "use_case": "netntlm_hash_capture",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "smb_relay_attacks",
+          "credential_harvesting"
+        ],
+        "alternatives": [
+          "inveigh",
+          "metasploit_auxiliary_modules"
+        ],
+        "best_practices": [
+          "run_on_correct_network_interface",
+          "monitor_for_multiple_authentication_attempts",
+          "combine_with_scf_file_attacks"
+        ]
+      },
+      {
+        "tool": "evil-winrm",
+        "use_case": "windows_remote_management_access",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_post_exploitation",
+          "certificate_authentication"
+        ],
+        "alternatives": [
+          "winrm_ruby_library",
+          "powershell_remoting"
+        ],
+        "best_practices": [
+          "use_ssl_when_available",
+          "support_certificate_authentication",
+          "maintain_persistent_sessions"
+        ]
+      },
+      {
+        "tool": "smbclient",
+        "use_case": "smb_share_enumeration_and_access",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "smb_enumeration",
+          "file_transfer"
+        ],
+        "alternatives": [
+          "smbmap",
+          "crackmapexec",
+          "mount_cifs"
+        ],
+        "best_practices": [
+          "test_null_authentication_first",
+          "enumerate_all_available_shares",
+          "check_write_permissions_on_accessible_shares"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "scf_file_to_domain_admin",
+        "steps": [
+          {
+            "step": 1,
+            "command": "smbclient -N -L \\\\\\\\10.10.10.103",
+            "purpose": "Enumerate SMB shares",
+            "expected_output": "List of available shares"
+          },
+          {
+            "step": 2,
+            "command": "smbclient -N //10.10.10.103/Department\\ Shares",
+            "purpose": "Connect to writable share",
+            "expected_output": "SMB prompt with write access"
+          },
+          {
+            "step": 3,
+            "command": "responder -I tun0 -wrf",
+            "purpose": "Start hash capture listener",
+            "expected_output": "Responder listening on interface"
+          },
+          {
+            "step": 4,
+            "command": "put @test.scf",
+            "purpose": "Upload SCF file to trigger authentication",
+            "expected_output": "NetNTLM hash captured by Responder"
+          },
+          {
+            "step": 5,
+            "command": "hashcat -m 5600 hash.txt rockyou.txt",
+            "purpose": "Crack captured NetNTLM hash",
+            "expected_output": "Plaintext password recovered"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "30-90 minutes"
+      },
+      {
+        "sequence_name": "kerberoast_to_dcsync",
+        "steps": [
+          {
+            "step": 1,
+            "command": "GetUserSPNs.py htb.local/amanda:Ashare1972 -dc-ip 10.10.10.103 -request",
+            "purpose": "Extract Kerberos service tickets",
+            "expected_output": "TGS tickets for service accounts"
+          },
+          {
+            "step": 2,
+            "command": "hashcat -m 13100 kerberoast.hash rockyou.txt",
+            "purpose": "Crack service account password",
+            "expected_output": "Service account plaintext password"
+          },
+          {
+            "step": 3,
+            "command": "secretsdump.py htb.local/mrlky:Football#7@10.10.10.103",
+            "purpose": "Perform DCSync attack",
+            "expected_output": "Domain admin NTLM hashes"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "45-120 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Sizzle",
+      "difficulty": "Insane",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2019-01-12",
+      "author": "mrb3n, lkys37en",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "smb_attacks",
+        "certificate_abuse",
+        "kerberos",
+        "active_directory"
+      ],
+      "key_vulnerabilities": [
+        "scf_file_attack",
+        "certificate_authentication",
+        "kerberoasting",
+        "dcsync_permissions"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "scf_file_attacks",
+        "certificate_based_auth",
+        "kerberoasting",
+        "dcsync_attack",
+        "ntlm_relay"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_ad_concepts",
+        "certificate_services",
+        "kerberos_advanced",
+        "smb_protocols"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "certificate_abuse",
+        "kerberos_attacks",
+        "smb_attacks",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "secure_smb_shares",
+        "certificate_security",
+        "kerberos_hardening",
+        "dcsync_protection"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Forest",
+        "Active",
+        "Resolute",
+        "Sauna"
+      ],
+      "similarity_reasons": [
+        "ad_environment",
+        "kerberos_attacks",
+        "domain_controller",
+        "certificate_services"
+      ],
+      "unique_aspects": [
+        "scf_file_exploitation",
+        "certificate_authentication",
+        "complex_attack_chain",
+        "multiple_unintended_paths"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "certificate_concepts",
+        "advanced_ad_attacks",
+        "multiple_privilege_escalation_methods"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T12:19:16.045526",
+    "original_file": "0xdf_writeups/Htb Sizzle.md",
+    "content_length": 86610,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

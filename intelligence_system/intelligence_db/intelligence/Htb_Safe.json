@@ -1,0 +1,822 @@
+{
+  "writeup_id": "Htb_Safe",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_buffer_overflow_rop_exploitation",
+    "primary_services": [
+      "ssh",
+      "http",
+      "custom_binary"
+    ],
+    "port_signature": "22+80+1337",
+    "service_combination": "ssh+apache+custom_service",
+    "os_family": "linux",
+    "environment_type": "standalone_server",
+    "entry_vector": "buffer_overflow",
+    "privilege_path": "binary_exploitation_to_user",
+    "attack_complexity": "medium",
+    "estimated_time": "2-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "custom_echo_service_port_1337",
+      "buffer_overflow_vulnerability",
+      "rop_chain_exploitation",
+      "keepass_database_cracking"
+    ],
+    "environmental_clues": [
+      "echo_service_with_uptime_output",
+      "input_crashes_at_200_chars",
+      "default_apache_page",
+      "debian_linux_system"
+    ],
+    "similar_scenarios": [
+      "bof_ctf_challenges",
+      "custom_service_exploitation"
+    ],
+    "unique_aspects": [
+      "uptime_output_before_echo",
+      "broken_pipe_on_overflow",
+      "keepass_password_database",
+      "multiple_rop_strategies"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Buffer Overflow via gets() function",
+        "success_reason": "Application used unsafe gets() function with 0x70 byte buffer",
+        "prerequisite_indicators": [
+          "custom_service_on_unusual_port",
+          "binary_available_for_download",
+          "crash_on_large_input"
+        ],
+        "recognition_patterns": [
+          "service crashes with 200+ characters",
+          "gets() function in disassembly",
+          "fixed buffer size (0x70 bytes)",
+          "no stack canaries or protections"
+        ],
+        "failure_modes": [
+          "stack_canaries_enabled",
+          "aslr_fully_enabled",
+          "input_length_validation",
+          "safe_functions_used"
+        ],
+        "environmental_factors": [
+          "64bit_elf_binary",
+          "dynamically_linked",
+          "not_stripped_symbols",
+          "debian_linux_target"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "ROP Chain Development",
+        "success_reason": "Binary had sufficient ROP gadgets and predictable memory layout",
+        "prerequisite_indicators": [
+          "buffer_overflow_confirmed",
+          "return_address_control",
+          "libc_functions_available"
+        ],
+        "recognition_patterns": [
+          "system() function in binary",
+          "useful ROP gadgets present",
+          "predictable stack layout",
+          "dynamically linked libraries"
+        ],
+        "failure_modes": [
+          "insufficient_gadgets",
+          "full_aslr_randomization",
+          "stack_cookies_present",
+          "nx_bit_bypass_required"
+        ],
+        "environmental_factors": [
+          "older_linux_system",
+          "minimal_exploit_mitigations",
+          "standard_libc_available"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "45-90 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "myapp binary download",
+        "discovery_method": "HTML source code comment analysis",
+        "why_critical": "Enabled local analysis and exploit development",
+        "how_to_recognize": [
+          "html comments with file paths",
+          "unusual service behavior",
+          "custom application indicators"
+        ],
+        "follow_up_actions": [
+          "download_binary_for_analysis",
+          "reverse_engineer_with_ida",
+          "identify_vulnerability_functions",
+          "develop_local_exploit"
+        ]
+      },
+      {
+        "discovery": "gets() function vulnerability",
+        "discovery_method": "Static analysis with IDA Pro",
+        "why_critical": "Classic buffer overflow leading to RCE",
+        "how_to_recognize": [
+          "gets() in disassembly",
+          "fixed buffer allocation",
+          "no input validation",
+          "crash on large input"
+        ],
+        "follow_up_actions": [
+          "calculate_offset_to_return_address",
+          "identify_rop_gadgets",
+          "craft_exploit_payload",
+          "test_locally_then_remote"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "remote_code_execution",
+        "escalation_method": "buffer_overflow_to_shell",
+        "why_possible": "Unsafe gets() function with no modern protections",
+        "recognition_signs": [
+          "service_crashes_on_long_input",
+          "binary_uses_dangerous_functions",
+          "minimal_exploit_mitigations",
+          "predictable_memory_layout"
+        ],
+        "exploitation_path": "Buffer Overflow → ROP Chain → system('/bin/sh') → Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,1337 open on Linux host",
+        "decision": "Investigate unusual port 1337 first",
+        "reasoning": "Non-standard port likely custom service with vulnerabilities",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if port 1337 fails"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "service_responds",
+          "echo_functionality_confirmed",
+          "buffer_overflow_suspected"
+        ],
+        "next_decision": "test_for_buffer_overflow"
+      },
+      {
+        "step": 2,
+        "situation": "Service crashes with 200 chars but works with 100",
+        "decision": "Download binary from web comment hint and analyze",
+        "reasoning": "Buffer overflow confirmed, need binary for ROP chain development",
+        "confidence": 0.95,
+        "prerequisites": [
+          "crash_confirmed",
+          "web_enumeration_complete"
+        ],
+        "success_indicators": [
+          "binary_downloaded",
+          "gets_function_identified"
+        ],
+        "failure_fallbacks": [
+          "blind_buffer_overflow",
+          "format_string_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Binary analysis shows gets() vulnerability, NX enabled",
+        "decision": "Develop ROP chain for shell execution",
+        "reasoning": "NX prevents shellcode execution, ROP required for exploitation",
+        "confidence": 0.85,
+        "prerequisites": [
+          "binary_analyzed",
+          "offset_calculated",
+          "gadgets_identified"
+        ],
+        "success_indicators": [
+          "rop_chain_working",
+          "shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "ret2libc",
+          "alternative_rop_strategy"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_buffer_overflow_confirmed": {
+        "action": "analyze_binary_protections",
+        "tools": [
+          "checksec",
+          "gdb",
+          "ida"
+        ],
+        "next_phase": "exploit_development"
+      },
+      "if_nx_enabled": {
+        "action": "build_rop_chain",
+        "alternatives": [
+          "ret2libc",
+          "ret2plt",
+          "system_call_rop"
+        ],
+        "decision_criteria": "based_on_available_gadgets"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_for_privilege_escalation",
+        "purpose": "find_path_to_root",
+        "tools": [
+          "linpeas",
+          "manual_enumeration"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_unusual_ports_first",
+        "reasoning": "custom_services_more_likely_vulnerable",
+        "applicability": "non_standard_port_discovery"
+      },
+      {
+        "rule": "check_web_source_for_hints_when_default_pages_found",
+        "reasoning": "ctf_boxes_often_hide_clues_in_comments",
+        "applicability": "default_web_pages_encountered"
+      },
+      {
+        "rule": "download_binaries_immediately_when_available",
+        "reasoning": "local_analysis_essential_for_exploit_development",
+        "applicability": "binary_exploitation_scenarios"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Buffer Overflow",
+        "mitre_id": "T1055",
+        "required_services": [
+          "custom_service"
+        ],
+        "required_ports": [
+          "variable"
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "vulnerable_binary_service",
+          "network_accessible_service",
+          "no_modern_protections"
+        ],
+        "success_indicators": [
+          "service_crashes_on_long_input",
+          "consistent_crash_threshold",
+          "echo_service_or_input_handling"
+        ],
+        "incompatible_with": [
+          "aslr_enabled",
+          "stack_canaries",
+          "nx_bit_protection",
+          "modern_compiler_protections"
+        ],
+        "confidence_boosters": [
+          "predictable_crash_length",
+          "custom_port_service",
+          "simple_echo_functionality",
+          "older_system_versions"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "30-120 minutes"
+      },
+      {
+        "technique": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "directory_structure_exists"
+        ],
+        "success_indicators": [
+          "http_200_responses",
+          "directory_listings_enabled",
+          "hidden_files_found"
+        ],
+        "incompatible_with": [
+          "aggressive_waf",
+          "rate_limiting",
+          "ip_blocking"
+        ],
+        "confidence_boosters": [
+          "default_web_pages",
+          "standard_web_server",
+          "no_custom_error_pages"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Service Banner Grabbing",
+        "mitre_id": "T1046",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [
+          "any"
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "network_service_running",
+          "service_responds_to_connections"
+        ],
+        "success_indicators": [
+          "version_information_disclosed",
+          "service_type_identified",
+          "banner_information_returned"
+        ],
+        "incompatible_with": [
+          "banner_hiding_configured",
+          "connection_filtering",
+          "service_hardening"
+        ],
+        "confidence_boosters": [
+          "default_configurations",
+          "verbose_service_responses",
+          "standard_ports_used"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "buffer_overflow_target": {
+        "port_indicators": [
+          1337,
+          9999,
+          31337
+        ],
+        "service_indicators": [
+          "custom",
+          "echo",
+          "unknown"
+        ],
+        "banner_indicators": [
+          "echo",
+          "input",
+          "custom_service"
+        ],
+        "confidence_threshold": 0.7
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Apache",
+          "nginx",
+          "IIS"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "ssh_service": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH"
+        ],
+        "confidence_threshold": 0.99
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "buffer_overflow",
+          "when": "custom_service_crashes_predictably",
+          "reason": "direct_code_execution_potential"
+        },
+        {
+          "attack": "service_enumeration",
+          "when": "multiple_services_detected",
+          "reason": "identifies_attack_surface"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "web_directory_enumeration",
+          "when": "default_web_page_detected",
+          "reason": "may_reveal_hidden_content"
+        },
+        {
+          "attack": "ssh_enumeration",
+          "when": "ssh_service_detected",
+          "reason": "potential_credential_attacks"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "banner_grabbing",
+          "when": "services_identified",
+          "reason": "information_gathering_only"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Buffer Overflow Exploitation",
+        "mitre_id": "T1055",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "gdb",
+            "command_template": "gdb {binary}",
+            "actual_command": "gdb myapp",
+            "output_pattern": "Program received signal SIGSEGV",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "checksec",
+            "command_template": "checksec {binary}",
+            "actual_command": "checksec myapp",
+            "output_pattern": "NX enabled",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "pattern_create",
+            "command_template": "pattern_create {length}",
+            "actual_command": "pattern_create 200",
+            "output_pattern": "AAA%AAsAABAA$AAnAACAA",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "pattern_offset",
+            "command_template": "pattern_offset {pattern}",
+            "actual_command": "pattern_offset jAA9AAOA",
+            "output_pattern": "found at offset: 120",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_binary_accessible",
+          "gets_function_used",
+          "no_stack_canary",
+          "buffer_size_determinable"
+        ],
+        "success_indicators": [
+          "segmentation_fault_triggered",
+          "rip_control_achieved",
+          "offset_calculated_correctly"
+        ],
+        "common_failures": [
+          "stack_canary_present",
+          "aslr_randomization",
+          "nx_bit_enabled_blocks_shellcode"
+        ],
+        "follow_up_techniques": [
+          "rop_chain_construction",
+          "ret2libc_attack",
+          "system_call_exploitation"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "ROP Chain Construction",
+        "mitre_id": "T1055",
+        "category": "execution",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "ropper",
+            "command_template": "ropper --file {binary} --search {gadget}",
+            "actual_command": "ropper --file myapp --search 'pop rdi'",
+            "output_pattern": "0x0000000000401203: pop rdi; ret;",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "objdump",
+            "command_template": "objdump -d {binary} | grep {instruction}",
+            "actual_command": "objdump -d myapp | grep 'pop rdi'",
+            "output_pattern": "pop    %rdi",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "buffer_overflow_control",
+          "nx_bit_enabled",
+          "no_pie_protection",
+          "gadgets_available_in_binary"
+        ],
+        "success_indicators": [
+          "gadgets_identified",
+          "chain_executes_without_crash",
+          "system_function_called_successfully"
+        ],
+        "common_failures": [
+          "insufficient_gadgets",
+          "stack_alignment_issues",
+          "aslr_breaks_addresses"
+        ],
+        "follow_up_techniques": [
+          "shell_spawning",
+          "privilege_escalation",
+          "persistence_establishment"
+        ],
+        "time_investment": "45-90 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Service Reconnaissance",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp {target}",
+            "actual_command": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp 10.10.10.147",
+            "output_pattern": "PORT     STATE SERVICE",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "nc",
+            "command_template": "nc {target} {port}",
+            "actual_command": "nc 10.10.10.147 1337",
+            "output_pattern": "What do you want me to echo back?",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "network_connectivity",
+          "target_system_accessible"
+        ],
+        "success_indicators": [
+          "open_ports_identified",
+          "service_versions_enumerated",
+          "custom_services_discovered"
+        ],
+        "common_failures": [
+          "firewall_blocking_scans",
+          "rate_limiting_active",
+          "services_behind_authentication"
+        ],
+        "follow_up_techniques": [
+          "vulnerability_assessment",
+          "service_exploitation",
+          "banner_grabbing"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gdb",
+        "use_case": "binary_exploitation_debugging",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "high",
+        "essential_for": [
+          "buffer_overflow_exploitation",
+          "rop_development"
+        ],
+        "alternatives": [
+          "radare2",
+          "x64dbg"
+        ],
+        "best_practices": [
+          "use_peda_or_gef_extensions",
+          "set_follow_fork_mode_appropriately",
+          "create_patterns_for_offset_calculation"
+        ]
+      },
+      {
+        "tool": "checksec",
+        "use_case": "binary_protection_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 1.0,
+        "learning_curve": "low",
+        "essential_for": [
+          "exploit_development",
+          "binary_analysis"
+        ],
+        "alternatives": [
+          "readelf",
+          "objdump"
+        ],
+        "best_practices": [
+          "run_before_exploit_development",
+          "understand_each_protection_mechanism",
+          "plan_exploitation_strategy_accordingly"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "buffer_overflow_offset_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "checksec myapp",
+            "purpose": "Identify binary protections",
+            "expected_output": "NX enabled, No canary found"
+          },
+          {
+            "step": 2,
+            "command": "gdb myapp",
+            "purpose": "Start debugging session",
+            "expected_output": "gdb prompt"
+          },
+          {
+            "step": 3,
+            "command": "pattern_create 200",
+            "purpose": "Generate cyclic pattern",
+            "expected_output": "Unique pattern string"
+          },
+          {
+            "step": 4,
+            "command": "r",
+            "purpose": "Run program with pattern input",
+            "expected_output": "Segmentation fault"
+          },
+          {
+            "step": 5,
+            "command": "pattern_offset jAA9AAOA",
+            "purpose": "Calculate overflow offset",
+            "expected_output": "found at offset: 120"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "service_enumeration_and_testing",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.147",
+            "purpose": "Discover all open ports",
+            "expected_output": "Ports 22, 80, 1337 open"
+          },
+          {
+            "step": 2,
+            "command": "nc 10.10.10.147 1337",
+            "purpose": "Test custom service interaction",
+            "expected_output": "Echo service with uptime"
+          },
+          {
+            "step": 3,
+            "command": "python -c 'print \"a\"*200' | nc 10.10.10.147 1337",
+            "purpose": "Test for buffer overflow",
+            "expected_output": "Service crash or no response"
+          },
+          {
+            "step": 4,
+            "command": "wget 10.10.10.147/myapp",
+            "purpose": "Download binary for analysis",
+            "expected_output": "ELF binary downloaded"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "20-40 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Safe",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2019-07-27",
+      "author": "ecdo",
+      "estimated_time": "2-4 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "buffer_overflow",
+        "rop_chain",
+        "password_cracking"
+      ],
+      "key_vulnerabilities": [
+        "stack_buffer_overflow",
+        "weak_keepass_password"
+      ],
+      "environment_type": "linux_server",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "binary_exploitation",
+        "rop_techniques",
+        "keepass_cracking"
+      ],
+      "prerequisite_knowledge": [
+        "assembly_basics",
+        "buffer_overflow_concepts",
+        "rop_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "binary_exploitation",
+      "subcategories": [
+        "buffer_overflow",
+        "rop_chain",
+        "password_cracking"
+      ],
+      "attack_types": [
+        "code_execution",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "stack_canaries",
+        "aslr_implementation",
+        "strong_passwords"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Frolic",
+        "October",
+        "Brainfuck"
+      ],
+      "similarity_reasons": [
+        "binary_exploitation",
+        "rop_required",
+        "multi_stage_attack"
+      ],
+      "unique_aspects": [
+        "keepass_database",
+        "custom_echo_service",
+        "multiple_rop_strategies"
+      ],
+      "difficulty_factors": [
+        "requires_binary_exploitation_skills",
+        "rop_chain_construction",
+        "password_database_analysis"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T01:39:11.437199",
+    "original_file": "0xdf_writeups/Htb Safe.md",
+    "content_length": 39775,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

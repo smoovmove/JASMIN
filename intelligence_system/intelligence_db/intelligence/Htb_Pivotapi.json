@@ -1,0 +1,895 @@
+{
+  "writeup_id": "Htb_Pivotapi",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_complex_pivot",
+    "primary_services": [
+      "kerberos",
+      "ldap",
+      "smb",
+      "dns",
+      "mssql",
+      "ftp",
+      "ssh"
+    ],
+    "port_signature": "21+22+53+88+389+445+1433",
+    "service_combination": "ftp+ssh+dns+kerberos+ldap+smb+mssql",
+    "os_family": "windows_server",
+    "environment_type": "active_directory",
+    "entry_vector": "pdf_metadata_to_asreproast",
+    "privilege_path": "user_to_domain_admin_multi_pivot",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "anonymous_ftp_with_pdfs",
+      "mssql_tunneling_capability",
+      "keepass_database_present",
+      "laps_password_accessible",
+      "multiple_binary_reversing_required"
+    ],
+    "environmental_clues": [
+      "domain_controller_role",
+      "mixed_linux_windows_services",
+      "developer_shares_present",
+      "database_management_binaries"
+    ],
+    "similar_scenarios": [
+      "forest_htb_insane",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "mssqlproxy_tunneling",
+      "multi_layer_binary_obfuscation",
+      "ssh_on_windows_dc",
+      "ftp_metadata_enumeration"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "ASREPRoast",
+        "success_reason": "User kaorz had pre-authentication disabled (UF_DONT_REQUIRE_PREAUTH flag set)",
+        "prerequisite_indicators": [
+          "kerberos_service_available",
+          "domain_controller_accessible",
+          "valid_username_identified",
+          "accounts_without_preauth_exist"
+        ],
+        "recognition_patterns": [
+          "GetNPUsers returns AS-REP hash",
+          "no preauth required error absent",
+          "username found in metadata/documents",
+          "domain name matches kerberos realm"
+        ],
+        "failure_modes": [
+          "all_accounts_require_preauth",
+          "kerberos_not_accessible",
+          "invalid_usernames",
+          "network_filtering"
+        ],
+        "environmental_factors": [
+          "default_active_directory_config",
+          "legacy_user_configurations",
+          "insufficient_security_hardening",
+          "information_disclosure_via_metadata"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "2-10 minutes"
+      },
+      {
+        "technique": "metadata_enumeration",
+        "success_reason": "PDF metadata contained valid domain username in Creator field",
+        "prerequisite_indicators": [
+          "file_sharing_services_available",
+          "documents_with_metadata_present",
+          "anonymous_access_enabled"
+        ],
+        "recognition_patterns": [
+          "exiftool reveals creator/author fields",
+          "domain name in publisher field",
+          "consistent naming patterns",
+          "recent file timestamps"
+        ],
+        "failure_modes": [
+          "metadata_stripped",
+          "no_file_access",
+          "generic_usernames_only"
+        ],
+        "environmental_factors": [
+          "users_creating_documents_on_domain",
+          "automatic_metadata_population",
+          "lack_of_metadata_sanitization"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "5-15 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "kaorz username in PDF metadata",
+        "discovery_method": "exiftool analysis of notes2.pdf",
+        "why_critical": "Provided valid domain username for AS-REP roasting attack",
+        "how_to_recognize": [
+          "creator field contains username format",
+          "publisher field matches discovered domain",
+          "metadata not sanitized",
+          "recent document creation dates"
+        ],
+        "follow_up_actions": [
+          "test_asrep_roast_attack",
+          "enumerate_additional_usernames",
+          "check_other_document_metadata",
+          "validate_domain_membership"
+        ]
+      },
+      {
+        "discovery": "anonymous FTP access with documents",
+        "discovery_method": "nmap service detection and anonymous login",
+        "why_critical": "Provided initial information disclosure vector for username discovery",
+        "how_to_recognize": [
+          "ftp-anon script shows anonymous access",
+          "document files present",
+          "mixed file types and dates",
+          "passive mode required"
+        ],
+        "follow_up_actions": [
+          "download_all_files",
+          "analyze_metadata_with_exiftool",
+          "review_document_contents",
+          "extract_potential_usernames"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_access",
+        "escalation_method": "information_disclosure_to_authentication",
+        "why_possible": "PDF metadata leaked valid domain username with disabled pre-auth",
+        "recognition_signs": [
+          "anonymous_ftp_contains_documents",
+          "metadata_fields_populated",
+          "domain_context_matches_target",
+          "asrep_roast_successful"
+        ],
+        "exploitation_path": "Anonymous FTP → PDF Metadata → Username → AS-REP Roast → Domain User"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445,1433 open on Windows host with FTP anonymous access",
+        "decision": "Identify as Domain Controller and enumerate FTP for intelligence first",
+        "reasoning": "Port combination indicates AD DC, but FTP anonymous access provides easy intel gathering opportunity",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "direct_kerberos_attacks",
+            "when": "if no useful FTP content"
+          },
+          {
+            "option": "smb_enumeration",
+            "when": "if anonymous access available"
+          }
+        ],
+        "success_indicators": [
+          "ftp_anonymous_login_successful",
+          "documents_or_files_found",
+          "metadata_contains_usernames"
+        ],
+        "next_decision": "analyze_ftp_content_for_usernames"
+      },
+      {
+        "step": 2,
+        "situation": "Found PDF files on FTP with metadata containing username and domain",
+        "decision": "Extract usernames from document metadata and attempt AS-REP Roast",
+        "reasoning": "Document metadata often contains creator usernames, AS-REP Roast requires no credentials",
+        "confidence": 0.85,
+        "prerequisites": [
+          "username_discovered",
+          "domain_name_confirmed"
+        ],
+        "success_indicators": [
+          "asrep_hash_obtained",
+          "user_has_dont_require_preauth_flag"
+        ],
+        "failure_fallbacks": [
+          "kerberos_user_enumeration",
+          "password_spraying",
+          "smb_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Successfully obtained AS-REP hash for user Kaorz",
+        "decision": "Crack hash with common wordlists before attempting advanced attacks",
+        "reasoning": "AS-REP hashes often crack quickly with rockyou.txt, provides immediate domain access",
+        "confidence": 0.8,
+        "prerequisites": [
+          "asrep_hash_format_18200"
+        ],
+        "success_indicators": [
+          "password_cracked_successfully"
+        ],
+        "failure_fallbacks": [
+          "extended_wordlists",
+          "rule_based_attacks",
+          "other_attack_vectors"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_ftp_anonymous_succeeds": {
+        "action": "enumerate_all_files_and_extract_metadata",
+        "tools": [
+          "exiftool",
+          "strings",
+          "file_analysis"
+        ],
+        "next_phase": "username_extraction_and_validation"
+      },
+      "if_usernames_found_in_metadata": {
+        "action": "attempt_asrep_roast_attack",
+        "tools": [
+          "GetNPUsers.py",
+          "kerbrute"
+        ],
+        "decision_criteria": "try_all_discovered_usernames"
+      },
+      "if_asrep_hash_obtained": {
+        "action": "crack_hash_immediately",
+        "tools": [
+          "hashcat",
+          "john"
+        ],
+        "next_phase": "domain_authentication_and_enumeration"
+      },
+      "if_credentials_obtained": {
+        "action": "test_access_across_all_services",
+        "services": [
+          "smb",
+          "winrm",
+          "ssh",
+          "mssql",
+          "ldap"
+        ],
+        "purpose": "identify_available_attack_surfaces"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_document_metadata_for_usernames",
+        "reasoning": "high_success_rate_and_often_overlooked_intelligence_source",
+        "applicability": "any_accessible_documents_or_files"
+      },
+      {
+        "rule": "try_asrep_roast_immediately_after_username_discovery",
+        "reasoning": "no_credentials_required_and_high_success_rate_on_misconfigured_accounts",
+        "applicability": "active_directory_environments_with_usernames"
+      },
+      {
+        "rule": "prioritize_anonymous_ftp_over_complex_attacks",
+        "reasoning": "easy_intelligence_gathering_often_reveals_usernames_or_credentials",
+        "applicability": "ftp_anonymous_access_available"
+      },
+      {
+        "rule": "use_rockyou_wordlist_first_for_hash_cracking",
+        "reasoning": "most_common_passwords_crack_quickly_saving_time",
+        "applicability": "any_obtained_hashes"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "usernames_enumerated"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "PDF_Metadata_Extraction",
+        "mitre_id": "T1083",
+        "required_services": [
+          "ftp",
+          "http",
+          "smb"
+        ],
+        "required_ports": [
+          21,
+          80,
+          443,
+          445
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "pdf_files_accessible",
+          "anonymous_ftp_enabled"
+        ],
+        "success_indicators": [
+          "pdf_files_found",
+          "metadata_contains_usernames",
+          "creator_author_fields_populated"
+        ],
+        "incompatible_with": [
+          "no_file_access",
+          "sanitized_metadata"
+        ],
+        "confidence_boosters": [
+          "multiple_pdf_files",
+          "corporate_documents",
+          "internal_file_shares"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "MSSQL_Proxy_Tunneling",
+        "mitre_id": "T1090.001",
+        "required_services": [
+          "mssql"
+        ],
+        "required_ports": [
+          1433
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "mssql_service_accessible",
+          "valid_database_credentials",
+          "xp_cmdshell_enabled_or_enableable"
+        ],
+        "success_indicators": [
+          "database_connection_established",
+          "command_execution_possible",
+          "network_connectivity_confirmed"
+        ],
+        "incompatible_with": [
+          "xp_cmdshell_disabled_permanently",
+          "insufficient_database_privileges",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "sa_or_sysadmin_privileges",
+          "default_mssql_configuration",
+          "legacy_sql_server_version"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Kerberos_Username_Enumeration",
+        "mitre_id": "T1087.002",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_service_accessible",
+          "domain_controller_reachable"
+        ],
+        "success_indicators": [
+          "valid_usernames_found",
+          "kerbrute_successful_responses",
+          "no_account_lockout_triggered"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "aggressive_account_lockout",
+          "network_filtering"
+        ],
+        "confidence_boosters": [
+          "default_ad_configuration",
+          "common_username_patterns",
+          "service_accounts_present"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "10-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          464,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "kpasswd5"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Microsoft Windows Kerberos"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "mssql_server": {
+        "port_indicators": [
+          1433
+        ],
+        "service_indicators": [
+          "ms-sql-s"
+        ],
+        "banner_indicators": [
+          "Microsoft SQL Server",
+          "MSSQL"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "ftp_anonymous": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp"
+        ],
+        "banner_indicators": [
+          "Anonymous FTP login allowed",
+          "Microsoft ftpd"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "windows_domain_controller": {
+        "port_indicators": [
+          53,
+          88,
+          135,
+          389,
+          445,
+          464,
+          593,
+          636,
+          3268,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "domain",
+          "kerberos-sec",
+          "ldap",
+          "microsoft-ds"
+        ],
+        "banner_indicators": [
+          "Windows_NT",
+          "Microsoft Windows"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "pdf_metadata_extraction",
+          "when": "anonymous_ftp_with_pdfs_detected",
+          "reason": "often_reveals_usernames_for_further_attacks"
+        },
+        {
+          "attack": "kerberos_username_enumeration",
+          "when": "active_directory_detected",
+          "reason": "reliable_username_discovery_method"
+        },
+        {
+          "attack": "asreproast",
+          "when": "active_directory_and_usernames_available",
+          "reason": "high_success_rate_with_known_usernames"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "mssql_authentication_bruteforce",
+          "when": "mssql_service_detected",
+          "reason": "potential_for_privileged_access"
+        },
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "may_reveal_additional_information"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "dns_zone_transfer",
+          "when": "dns_service_detected",
+          "reason": "rarely_successful_on_modern_systems"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "category": "credential_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "GetNPUsers.py",
+            "command_template": "GetNPUsers.py -no-pass -dc-ip {dc_ip} {domain}/{username}",
+            "actual_command": "GetNPUsers.py -no-pass -dc-ip 10.10.10.240 LicorDeBellota.htb/Kaorz",
+            "output_pattern": "$krb5asrep$23${username}@{domain}:",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "hashcat",
+            "command_template": "hashcat -m 18200 {hash_file} {wordlist}",
+            "actual_command": "hashcat -m 18200 kaorz.tgt /usr/share/wordlists/rockyou.txt",
+            "success_factors": [
+              "weak_password",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "kerberos_service_accessible",
+          "domain_name_known",
+          "valid_username_identified",
+          "UF_DONT_REQUIRE_PREAUTH_flag_set"
+        ],
+        "success_indicators": [
+          "hash_extracted_successfully",
+          "hash_cracked_within_reasonable_time",
+          "credentials_provide_domain_access"
+        ],
+        "common_failures": [
+          "preauth_required_for_user",
+          "strong_passwords_resist_cracking",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "bloodhound_enumeration",
+          "smb_enumeration",
+          "credential_validation"
+        ],
+        "time_investment": "5-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "PDF Metadata Extraction",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "exiftool",
+            "command_template": "exiftool {pdf_file}",
+            "actual_command": "exiftool notes2.pdf",
+            "output_pattern": "Creator.*Publisher.*",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "pdf_files_accessible",
+          "metadata_not_sanitized"
+        ],
+        "success_indicators": [
+          "username_found_in_creator_field",
+          "domain_name_confirmed",
+          "metadata_contains_sensitive_info"
+        ],
+        "common_failures": [
+          "metadata_stripped",
+          "generic_usernames_only",
+          "no_domain_correlation"
+        ],
+        "follow_up_techniques": [
+          "asreproast",
+          "username_enumeration",
+          "credential_spraying"
+        ],
+        "time_investment": "2-10 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "BloodHound Enumeration",
+        "mitre_id": "T1087.002",
+        "category": "discovery",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "bloodhound-python",
+            "command_template": "bloodhound-python -c ALL -u {username} -p {password} -d {domain} -dc {dc} -ns {nameserver}",
+            "actual_command": "bloodhound-python -c ALL -u kaorz -p Roper4155 -d licordebellota.htb -dc licordebellota.htb -ns 10.10.10.240",
+            "output_pattern": "Found \\d+ users.*Found \\d+ computers.*Found \\d+ groups",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "valid_domain_credentials",
+          "ldap_access_available",
+          "bloodhound_installed"
+        ],
+        "success_indicators": [
+          "json_files_generated",
+          "users_computers_groups_enumerated",
+          "privilege_escalation_paths_identified"
+        ],
+        "common_failures": [
+          "insufficient_privileges",
+          "network_connectivity_issues",
+          "ldap_access_denied"
+        ],
+        "follow_up_techniques": [
+          "privilege_escalation",
+          "lateral_movement",
+          "targeted_attacks"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "GetNPUsers.py",
+        "use_case": "asreproast_attack",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "kerberos_environments"
+        ],
+        "alternatives": [
+          "rubeus",
+          "powerview"
+        ],
+        "best_practices": [
+          "enumerate_usernames_first",
+          "check_multiple_users",
+          "validate_domain_connectivity"
+        ]
+      },
+      {
+        "tool": "hashcat",
+        "use_case": "kerberos_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "password_cracking"
+        ],
+        "alternatives": [
+          "john",
+          "hashcat_legacy"
+        ],
+        "best_practices": [
+          "use_appropriate_hash_mode",
+          "start_with_common_wordlists",
+          "consider_rule_based_attacks"
+        ]
+      },
+      {
+        "tool": "exiftool",
+        "use_case": "metadata_extraction",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "osint",
+          "reconnaissance"
+        ],
+        "alternatives": [
+          "strings",
+          "pdfinfo"
+        ],
+        "best_practices": [
+          "check_all_file_types",
+          "correlate_metadata_with_target",
+          "look_for_usernames_and_domains"
+        ]
+      },
+      {
+        "tool": "bloodhound-python",
+        "use_case": "active_directory_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "active_directory_environments"
+        ],
+        "alternatives": [
+          "sharphound",
+          "manual_ldap_queries"
+        ],
+        "best_practices": [
+          "run_after_obtaining_domain_credentials",
+          "use_all_collection_methods",
+          "analyze_shortest_paths_to_high_value_targets"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "pdf_to_domain_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "exiftool notes2.pdf",
+            "purpose": "Extract username from PDF metadata",
+            "expected_output": "Creator: Kaorz, Publisher: LicorDeBellota.htb"
+          },
+          {
+            "step": 2,
+            "command": "GetNPUsers.py -no-pass -dc-ip 10.10.10.240 LicorDeBellota.htb/Kaorz",
+            "purpose": "Attempt AS-REP roast attack",
+            "expected_output": "$krb5asrep$23$Kaorz@LICORDEBELLOTA.HTB:..."
+          },
+          {
+            "step": 3,
+            "command": "hashcat -m 18200 kaorz.tgt /usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack extracted Kerberos hash",
+            "expected_output": "Password: Roper4155"
+          },
+          {
+            "step": 4,
+            "command": "bloodhound-python -c ALL -u kaorz -p Roper4155 -d licordebellota.htb -dc licordebellota.htb -ns 10.10.10.240",
+            "purpose": "Enumerate AD environment",
+            "expected_output": "Found 27 users, 1 computers, 57 groups"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "15-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "PivotAPI",
+      "difficulty": "Insane",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2021-05-08",
+      "author": "CyberVaca, 3v4Si0N",
+      "estimated_time": "6-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "active_directory",
+        "reverse_engineering",
+        "database_exploitation",
+        "privilege_escalation"
+      ],
+      "key_vulnerabilities": [
+        "asrep_roasting",
+        "mssql_exploitation",
+        "keepass_database",
+        "laps_misconfiguration",
+        "privilege_escalation_chains"
+      ],
+      "environment_type": "complex_enterprise_domain",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "multi_stage_pivoting",
+        "binary_analysis",
+        "database_tunneling",
+        "credential_extraction",
+        "laps_exploitation"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_ad_concepts",
+        "reverse_engineering",
+        "database_security",
+        "tunneling_techniques",
+        "windows_privileges"
+      ]
+    },
+    "categorization": {
+      "primary_category": "active_directory",
+      "subcategories": [
+        "reverse_engineering",
+        "database_exploitation",
+        "credential_access",
+        "multi_stage_pivoting"
+      ],
+      "attack_types": [
+        "credential_access",
+        "privilege_escalation",
+        "lateral_movement",
+        "persistence"
+      ],
+      "defensive_lessons": [
+        "secure_pdf_metadata",
+        "database_hardening",
+        "keepass_security",
+        "laps_configuration",
+        "privilege_auditing"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blackfield",
+        "APT",
+        "Multimaster"
+      ],
+      "similarity_reasons": [
+        "complex_ad_environment",
+        "multi_stage_attacks",
+        "credential_extraction",
+        "database_components"
+      ],
+      "unique_aspects": [
+        "mssqlproxy_tunneling",
+        "extensive_binary_analysis",
+        "keepass_integration",
+        "laps_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_pivot_points",
+        "reverse_engineering_required",
+        "complex_attack_chain",
+        "advanced_tunneling"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T02:48:15.230202",
+    "original_file": "0xdf_writeups/Htb Pivotapi.md",
+    "content_length": 77840,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

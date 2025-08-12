@@ -1,0 +1,1418 @@
+{
+  "writeup_id": "Htb_Ghost",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_domain_controller_multi_service_complex",
+    "primary_services": [
+      "dns",
+      "kerberos",
+      "ldap",
+      "smb",
+      "http",
+      "mssql",
+      "adfs"
+    ],
+    "port_signature": "53+80+88+389+443+445+1433+8008+8443",
+    "service_combination": "dns+kerberos+ldap+smb+http+mssql+adfs+ghost_blog+gitea",
+    "os_family": "windows_server",
+    "environment_type": "active_directory_hybrid",
+    "entry_vector": "ldap_injection_web_application",
+    "privilege_path": "web_to_container_to_domain_admin",
+    "attack_complexity": "insane",
+    "estimated_time": "8-12 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "ghost_blog_platform",
+      "gitea_source_code_access",
+      "ubuntu_container_in_windows_domain",
+      "golden_saml_attack_vector",
+      "bidirectional_domain_trust",
+      "gmsa_service_accounts",
+      "adfs_integration"
+    ],
+    "environmental_clues": [
+      "mixed_os_environment",
+      "containerized_applications",
+      "custom_api_endpoints",
+      "ssh_controlmaster_sessions",
+      "linked_sql_servers",
+      "subdomain_trust_relationships"
+    ],
+    "similar_scenarios": [
+      "forest_htb_insane",
+      "blackfield_htb_hard"
+    ],
+    "unique_aspects": [
+      "ldap_injection_to_ghost_blog",
+      "directory_traversal_environment_variables",
+      "dns_poisoning_netntlmv2_capture",
+      "golden_saml_adfs_abuse",
+      "cross_domain_trust_exploitation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "LDAP_Injection",
+        "success_reason": "Ghost blog authentication vulnerable to LDAP injection bypassing login",
+        "prerequisite_indicators": [
+          "ldap_authentication_backend",
+          "web_application_with_login",
+          "insufficient_input_sanitization"
+        ],
+        "recognition_patterns": [
+          "ldap authentication errors",
+          "login bypass with special characters",
+          "backend ldap service available"
+        ],
+        "failure_modes": [
+          "proper_input_sanitization",
+          "non_ldap_authentication",
+          "parameterized_queries"
+        ],
+        "environmental_factors": [
+          "custom_ghost_implementation",
+          "ldap_integration",
+          "insufficient_security_testing"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Directory_Traversal_File_Read",
+        "success_reason": "Custom Ghost code contained unvalidated file read functionality",
+        "prerequisite_indicators": [
+          "custom_application_modifications",
+          "file_handling_endpoints",
+          "insufficient_path_validation"
+        ],
+        "recognition_patterns": [
+          "custom api endpoints",
+          "file parameter in requests",
+          "path traversal sequences work"
+        ],
+        "failure_modes": [
+          "proper_path_validation",
+          "chroot_restrictions",
+          "file_access_controls"
+        ],
+        "environmental_factors": [
+          "custom_code_additions",
+          "development_shortcuts",
+          "insufficient_security_review"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Command_Injection",
+        "success_reason": "Custom API endpoint executed user input without sanitization",
+        "prerequisite_indicators": [
+          "custom_api_endpoints",
+          "system_command_execution",
+          "insufficient_input_validation"
+        ],
+        "recognition_patterns": [
+          "api endpoints accepting commands",
+          "system execution functions",
+          "shell metacharacters accepted"
+        ],
+        "failure_modes": [
+          "input_sanitization",
+          "command_whitelisting",
+          "sandboxed_execution"
+        ],
+        "environmental_factors": [
+          "custom_development",
+          "administrative_functionality",
+          "insufficient_security_controls"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "5-20 minutes"
+      },
+      {
+        "technique": "SSH_ControlMaster_Abuse",
+        "success_reason": "Long-running SSH ControlMaster session allowed connection reuse",
+        "prerequisite_indicators": [
+          "ssh_controlmaster_configured",
+          "persistent_ssh_connections",
+          "shared_socket_access"
+        ],
+        "recognition_patterns": [
+          "controlmaster socket files",
+          "ssh connection reuse possible",
+          "existing ssh sessions"
+        ],
+        "failure_modes": [
+          "controlmaster_disabled",
+          "socket_permissions_restricted",
+          "session_timeouts"
+        ],
+        "environmental_factors": [
+          "administrative_convenience_settings",
+          "persistent_connections_needed",
+          "insufficient_session_isolation"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "10-25 minutes"
+      },
+      {
+        "technique": "DNS_Poisoning_NetNTLMv2_Capture",
+        "success_reason": "User had DNS modification rights allowing credential capture",
+        "prerequisite_indicators": [
+          "dns_modification_permissions",
+          "ntlm_authentication_enabled",
+          "network_service_accounts"
+        ],
+        "recognition_patterns": [
+          "dns admin permissions",
+          "ntlm challenge responses",
+          "service authentication attempts"
+        ],
+        "failure_modes": [
+          "restricted_dns_permissions",
+          "ntlm_disabled",
+          "network_segmentation"
+        ],
+        "environmental_factors": [
+          "active_directory_environment",
+          "ntlm_still_enabled",
+          "insufficient_permission_restrictions"
+        ],
+        "success_probability": 0.78,
+        "typical_timeframe": "20-40 minutes"
+      },
+      {
+        "technique": "Golden_SAML_Attack",
+        "success_reason": "ADFS service account access allowed SAML token forgery",
+        "prerequisite_indicators": [
+          "adfs_service_account_access",
+          "saml_authentication_infrastructure",
+          "token_signing_certificate_access"
+        ],
+        "recognition_patterns": [
+          "adfs service running",
+          "saml sso implementation",
+          "certificate access possible"
+        ],
+        "failure_modes": [
+          "certificate_protection",
+          "adfs_hardening",
+          "token_validation_controls"
+        ],
+        "environmental_factors": [
+          "adfs_deployment",
+          "saml_sso_requirements",
+          "insufficient_certificate_protection"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "SQL_Server_Linked_Server_Impersonation",
+        "success_reason": "Database had impersonation rights on linked server with xp_cmdshell enabled",
+        "prerequisite_indicators": [
+          "sql_server_linked_servers",
+          "impersonation_permissions",
+          "xp_cmdshell_capability"
+        ],
+        "recognition_patterns": [
+          "linked server configurations",
+          "impersonation context available",
+          "xp_cmdshell can be enabled"
+        ],
+        "failure_modes": [
+          "impersonation_restricted",
+          "xp_cmdshell_disabled",
+          "linked_server_hardening"
+        ],
+        "environmental_factors": [
+          "multi_server_sql_environment",
+          "administrative_convenience",
+          "insufficient_sql_hardening"
+        ],
+        "success_probability": 0.8,
+        "typical_timeframe": "15-35 minutes"
+      },
+      {
+        "technique": "Domain_Trust_Abuse",
+        "success_reason": "Bidirectional trust between domains allowed cross-domain access",
+        "prerequisite_indicators": [
+          "domain_trust_relationships",
+          "bidirectional_trust_configured",
+          "cross_domain_permissions"
+        ],
+        "recognition_patterns": [
+          "trust relationships enumerated",
+          "cross domain authentication possible",
+          "shared security principals"
+        ],
+        "failure_modes": [
+          "trust_restrictions",
+          "selective_authentication",
+          "trust_monitoring"
+        ],
+        "environmental_factors": [
+          "multi_domain_forest",
+          "business_requirement_trusts",
+          "insufficient_trust_hardening"
+        ],
+        "success_probability": 0.83,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Ghost blog LDAP injection vulnerability",
+        "discovery_method": "Authentication bypass testing",
+        "why_critical": "Initial foothold into application layer",
+        "how_to_recognize": [
+          "ldap authentication backend",
+          "login form injection testing",
+          "authentication bypass responses"
+        ],
+        "follow_up_actions": [
+          "enumerate_application_functionality",
+          "search_for_additional_vulnerabilities",
+          "identify_source_code_access"
+        ]
+      },
+      {
+        "discovery": "Gitea source code repository access",
+        "discovery_method": "Application enumeration after initial access",
+        "why_critical": "Revealed custom code vulnerabilities through source review",
+        "how_to_recognize": [
+          "gitea instance discovery",
+          "source code repositories",
+          "custom application modifications"
+        ],
+        "follow_up_actions": [
+          "review_custom_code_changes",
+          "identify_security_vulnerabilities",
+          "map_application_attack_surface"
+        ]
+      },
+      {
+        "discovery": "gMSA read access to ADFS service account",
+        "discovery_method": "Active Directory enumeration",
+        "why_critical": "Enabled Golden SAML attack for privilege escalation",
+        "how_to_recognize": [
+          "gmsa account enumeration",
+          "adfs service account identification",
+          "read permissions on service accounts"
+        ],
+        "follow_up_actions": [
+          "extract_gmsa_credentials",
+          "access_adfs_infrastructure",
+          "prepare_golden_saml_attack"
+        ]
+      },
+      {
+        "discovery": "SQL Server linked server with impersonation",
+        "discovery_method": "Database enumeration and configuration review",
+        "why_critical": "Provided path to domain controller through linked server",
+        "how_to_recognize": [
+          "linked server configurations",
+          "impersonation context available",
+          "cross server query capabilities"
+        ],
+        "follow_up_actions": [
+          "test_impersonation_context",
+          "enable_xp_cmdshell",
+          "execute_system_commands"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "application_user",
+        "escalation_method": "Custom_Code_Vulnerabilities",
+        "why_possible": "Custom Ghost modifications introduced file read and command injection",
+        "recognition_signs": [
+          "custom_application_code",
+          "additional_api_endpoints",
+          "insufficient_security_testing"
+        ],
+        "exploitation_path": "LDAP Injection → Source Code Access → File Read → Command Injection → Container Root"
+      },
+      {
+        "privilege_level": "container_root",
+        "escalation_method": "SSH_ControlMaster_Reuse",
+        "why_possible": "Persistent SSH connection allowed session hijacking",
+        "recognition_signs": [
+          "controlmaster_socket_files",
+          "ssh_configuration_review",
+          "persistent_connection_evidence"
+        ],
+        "exploitation_path": "Container Root → SSH ControlMaster → VM User Access"
+      },
+      {
+        "privilege_level": "domain_user",
+        "escalation_method": "DNS_Credential_Capture",
+        "why_possible": "DNS modification rights enabled NetNTLMv2 hash capture",
+        "recognition_signs": [
+          "dns_admin_permissions",
+          "ntlm_authentication_active",
+          "service_account_interactions"
+        ],
+        "exploitation_path": "DNS Modification → NetNTLMv2 Capture → Hash Cracking → Service Account"
+      },
+      {
+        "privilege_level": "service_account",
+        "escalation_method": "Golden_SAML_Attack",
+        "why_possible": "ADFS service account access enabled SAML token forgery",
+        "recognition_signs": [
+          "adfs_service_account_access",
+          "saml_infrastructure_present",
+          "token_signing_capabilities"
+        ],
+        "exploitation_path": "gMSA Access → ADFS Service Account → Golden SAML → Admin Panel Access"
+      },
+      {
+        "privilege_level": "database_access",
+        "escalation_method": "Linked_Server_Impersonation",
+        "why_possible": "SQL Server configured with impersonation on linked domain controller",
+        "recognition_signs": [
+          "linked_server_enumeration",
+          "impersonation_permissions",
+          "xp_cmdshell_availability"
+        ],
+        "exploitation_path": "Database Access → Linked Server → Impersonation → xp_cmdshell → DC Access"
+      },
+      {
+        "privilege_level": "subdomain_admin",
+        "escalation_method": "Domain_Trust_Exploitation",
+        "why_possible": "Bidirectional trust between domains allowed cross-domain privilege escalation",
+        "recognition_signs": [
+          "domain_trust_relationships",
+          "bidirectional_trust_configuration",
+          "cross_domain_authentication"
+        ],
+        "exploitation_path": "Subdomain DC → Trust Relationship → Main Domain Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 53,88,389,445,1433,8008,8443 open on Windows host with Ubuntu services",
+        "decision": "Identify as hybrid environment with Windows DC and Ubuntu containers - prioritize web enumeration first",
+        "reasoning": "Mixed port profile suggests containerized services on Windows host, web services likely easier entry point than AD attacks without credentials",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "asreproast_attempt",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "smb_enumeration",
+            "when": "if anonymous access available"
+          },
+          {
+            "option": "ldap_enumeration",
+            "when": "if anonymous bind allowed"
+          }
+        ],
+        "success_indicators": [
+          "web_services_responding",
+          "subdomain_enumeration_successful",
+          "login_panels_discovered"
+        ],
+        "next_decision": "enumerate_web_attack_surface"
+      },
+      {
+        "step": 2,
+        "situation": "Multiple web services discovered including Ghost blog and intranet login",
+        "decision": "Target Ghost blog admin panel and intranet login for injection attacks",
+        "reasoning": "Custom web applications more likely to have vulnerabilities than standard AD services",
+        "confidence": 0.85,
+        "prerequisites": [
+          "web_services_enumerated",
+          "login_panels_identified"
+        ],
+        "success_indicators": [
+          "injection_vulnerability_found",
+          "authentication_bypassed"
+        ],
+        "failure_fallbacks": [
+          "credential_brute_force",
+          "source_code_enumeration",
+          "ad_attacks"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "LDAP injection successful on intranet login",
+        "decision": "Enumerate users and attempt password brute force",
+        "reasoning": "LDAP injection indicates backend AD integration, user enumeration enables targeted attacks",
+        "confidence": 0.8,
+        "prerequisites": [
+          "ldap_injection_confirmed"
+        ],
+        "success_indicators": [
+          "user_list_obtained",
+          "valid_credentials_found"
+        ],
+        "failure_fallbacks": [
+          "explore_other_injection_points",
+          "source_code_analysis"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Valid credentials obtained for web application",
+        "decision": "Enumerate source code repositories and custom functionality",
+        "reasoning": "Custom Ghost modifications likely contain additional vulnerabilities",
+        "confidence": 0.75,
+        "prerequisites": [
+          "web_application_access"
+        ],
+        "success_indicators": [
+          "gitea_access",
+          "source_code_discovered",
+          "custom_endpoints_found"
+        ],
+        "failure_fallbacks": [
+          "privilege_escalation_in_current_context",
+          "lateral_movement_attempts"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_ldap_injection_succeeds": {
+        "action": "enumerate_users_and_brute_force",
+        "tools": [
+          "custom_ldap_injection",
+          "password_lists"
+        ],
+        "next_phase": "authenticated_web_access"
+      },
+      "if_web_credentials_obtained": {
+        "action": "explore_application_functionality",
+        "alternatives": [
+          "source_code_access",
+          "api_enumeration",
+          "file_system_access"
+        ],
+        "decision_criteria": "based_on_application_features"
+      },
+      "if_source_code_discovered": {
+        "action": "analyze_custom_modifications",
+        "purpose": "find_additional_vulnerabilities",
+        "tools": [
+          "static_analysis",
+          "endpoint_fuzzing"
+        ]
+      },
+      "if_container_access_obtained": {
+        "action": "enumerate_container_escape_methods",
+        "alternatives": [
+          "ssh_session_abuse",
+          "shared_resources",
+          "privilege_escalation"
+        ],
+        "decision_criteria": "based_on_container_configuration"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "prioritize_web_over_ad_in_hybrid_environments",
+        "reasoning": "custom_web_applications_higher_success_rate_than_ad_without_credentials",
+        "applicability": "mixed_windows_linux_environments"
+      },
+      {
+        "rule": "always_check_source_code_after_web_access",
+        "reasoning": "custom_modifications_often_contain_additional_vulnerabilities",
+        "applicability": "authenticated_web_application_access"
+      },
+      {
+        "rule": "enumerate_trust_relationships_in_multi_domain_environments",
+        "reasoning": "subdomain_trusts_provide_privilege_escalation_paths",
+        "applicability": "active_directory_with_subdomains"
+      },
+      {
+        "rule": "abuse_long_running_sessions_in_containers",
+        "reasoning": "ssh_controlmaster_and_similar_provide_lateral_movement",
+        "applicability": "container_environments_with_persistent_connections"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "ASREPRoast",
+        "mitre_id": "T1558.004",
+        "required_services": [
+          "kerberos"
+        ],
+        "required_ports": [
+          88
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "active_directory_domain",
+          "kerberos_authentication_enabled",
+          "accounts_without_preauth_exist"
+        ],
+        "success_indicators": [
+          "GetNPUsers_returns_hashes",
+          "domain_controller_accessible",
+          "service_accounts_present"
+        ],
+        "incompatible_with": [
+          "kerberos_disabled",
+          "all_accounts_require_preauth",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "service_account_naming_patterns",
+          "default_ad_configuration",
+          "legacy_exchange_services"
+        ],
+        "typical_success_rate": 0.87,
+        "estimated_time": "5-15 minutes"
+      },
+      {
+        "technique": "LDAP_Injection",
+        "mitre_id": "T1190",
+        "required_services": [
+          "ldap",
+          "http"
+        ],
+        "required_ports": [
+          389,
+          636,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_ldap_auth",
+          "ldap_queries_user_controlled",
+          "insufficient_input_validation"
+        ],
+        "success_indicators": [
+          "authentication_bypass_successful",
+          "ldap_error_messages_revealed",
+          "unauthorized_access_granted"
+        ],
+        "incompatible_with": [
+          "parameterized_ldap_queries",
+          "strict_input_validation",
+          "ldap_service_unavailable"
+        ],
+        "confidence_boosters": [
+          "login_forms_present",
+          "ldap_service_detected",
+          "custom_authentication_mechanisms"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Directory_Traversal",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8008,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "file_access_functionality",
+          "insufficient_path_validation"
+        ],
+        "success_indicators": [
+          "sensitive_files_accessible",
+          "path_traversal_sequences_work",
+          "system_files_readable"
+        ],
+        "incompatible_with": [
+          "strict_path_validation",
+          "chrooted_environment",
+          "file_access_disabled"
+        ],
+        "confidence_boosters": [
+          "custom_web_applications",
+          "file_upload_download_features",
+          "cms_platforms_detected"
+        ],
+        "typical_success_rate": 0.72,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Golden_SAML",
+        "mitre_id": "T1606.002",
+        "required_services": [
+          "adfs",
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          443,
+          80
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "adfs_service_present",
+          "saml_authentication_enabled",
+          "adfs_signing_certificate_access"
+        ],
+        "success_indicators": [
+          "saml_tokens_forged_successfully",
+          "administrative_access_granted",
+          "federation_trust_abused"
+        ],
+        "incompatible_with": [
+          "certificate_pinning_enabled",
+          "saml_disabled",
+          "certificate_access_denied"
+        ],
+        "confidence_boosters": [
+          "adfs_service_account_compromised",
+          "federation_metadata_accessible",
+          "saml_endpoints_identified"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "SMB_Anonymous_Enumeration",
+        "mitre_id": "T1135",
+        "required_services": [
+          "smb"
+        ],
+        "required_ports": [
+          445,
+          139
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "smb_service_accessible",
+          "anonymous_access_allowed",
+          "shares_enumerable"
+        ],
+        "success_indicators": [
+          "shares_listed_successfully",
+          "usernames_enumerated",
+          "sensitive_files_discovered"
+        ],
+        "incompatible_with": [
+          "anonymous_access_disabled",
+          "smb_service_blocked",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_smb_configuration",
+          "legacy_windows_versions",
+          "domain_controller_detected"
+        ],
+        "typical_success_rate": 0.78,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Command_Injection",
+        "mitre_id": "T1059",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8008,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "any"
+        ],
+        "environmental_prerequisites": [
+          "web_application_present",
+          "user_input_processed_by_system",
+          "insufficient_input_sanitization"
+        ],
+        "success_indicators": [
+          "system_commands_executed",
+          "command_output_returned",
+          "reverse_shell_established"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "sandboxed_execution",
+          "command_execution_disabled"
+        ],
+        "confidence_boosters": [
+          "custom_api_endpoints",
+          "system_integration_features",
+          "administrative_interfaces"
+        ],
+        "typical_success_rate": 0.68,
+        "estimated_time": "20-40 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "active_directory": {
+        "port_indicators": [
+          53,
+          88,
+          389,
+          445,
+          3268,
+          636,
+          3269,
+          9389
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "smb",
+          "dns",
+          "adws"
+        ],
+        "banner_indicators": [
+          "Active Directory",
+          "Windows Server",
+          "Microsoft Windows Kerberos"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "web_application": {
+        "port_indicators": [
+          80,
+          443,
+          8008,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "nginx",
+          "apache",
+          "iis"
+        ],
+        "technology_indicators": [
+          "Ghost",
+          "nginx",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "mssql_server": {
+        "port_indicators": [
+          1433
+        ],
+        "service_indicators": [
+          "ms-sql-s"
+        ],
+        "banner_indicators": [
+          "Microsoft SQL Server"
+        ],
+        "confidence_threshold": 0.98
+      },
+      "mixed_environment": {
+        "port_indicators": [
+          80,
+          88,
+          389,
+          445,
+          1433,
+          8008
+        ],
+        "service_indicators": [
+          "kerberos",
+          "ldap",
+          "http",
+          "smb",
+          "ms-sql-s"
+        ],
+        "banner_indicators": [
+          "Windows",
+          "Ubuntu",
+          "nginx"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "asreproast",
+          "when": "active_directory_detected",
+          "reason": "high_success_rate_no_creds_needed"
+        },
+        {
+          "attack": "smb_anonymous_enumeration",
+          "when": "smb_service_detected",
+          "reason": "often_reveals_usernames_and_shares"
+        },
+        {
+          "attack": "ldap_injection",
+          "when": "web_app_and_ldap_detected",
+          "reason": "common_in_ad_integrated_web_apps"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "directory_traversal",
+          "when": "custom_web_application_detected",
+          "reason": "effective_against_custom_code"
+        },
+        {
+          "attack": "command_injection",
+          "when": "api_endpoints_discovered",
+          "reason": "high_impact_if_successful"
+        }
+      ],
+      "advanced_priority": [
+        {
+          "attack": "golden_saml",
+          "when": "adfs_service_compromised",
+          "reason": "requires_prior_compromise_but_high_impact"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "LDAP Injection",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "manual_injection",
+            "command_template": "POST /login with ldap-username={payload}&ldap-secret={payload}",
+            "actual_command": "1_ldap-username=admin&1_ldap-secret=*",
+            "output_pattern": "authentication_bypass_or_error_disclosure",
+            "effectiveness_rating": 4,
+            "reliability": 0.75
+          }
+        ],
+        "prerequisites": [
+          "ldap_authentication_mechanism",
+          "injectable_parameters_identified",
+          "web_application_accessible"
+        ],
+        "success_indicators": [
+          "authentication_bypass_achieved",
+          "ldap_error_messages_disclosed",
+          "unauthorized_access_granted"
+        ],
+        "common_failures": [
+          "input_validation_prevents_injection",
+          "ldap_queries_properly_parameterized",
+          "authentication_mechanism_not_ldap_based"
+        ],
+        "follow_up_techniques": [
+          "credential_enumeration",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "10-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Directory Traversal",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "manual_traversal",
+            "command_template": "GET /api/endpoint?file=../../../{target_file}",
+            "actual_command": "GET /api/files?path=../../../etc/passwd",
+            "output_pattern": "file_contents_or_directory_listing",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "file_read_functionality_exists",
+          "insufficient_input_validation",
+          "web_application_accessible"
+        ],
+        "success_indicators": [
+          "sensitive_files_accessed",
+          "system_configuration_disclosed",
+          "credentials_or_keys_obtained"
+        ],
+        "common_failures": [
+          "path_traversal_filtered",
+          "file_access_restrictions",
+          "application_sandboxing"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "configuration_analysis",
+          "privilege_escalation"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Command Injection",
+        "mitre_id": "T1059",
+        "category": "execution",
+        "phase": "execution",
+        "tools_used": [
+          {
+            "name": "manual_injection",
+            "command_template": "POST /api/endpoint with parameter={command_payload}",
+            "actual_command": "POST /api/execute with cmd=id; whoami",
+            "output_pattern": "command_output_in_response",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "user_input_passed_to_system_commands",
+          "insufficient_input_sanitization",
+          "api_endpoint_accessible"
+        ],
+        "success_indicators": [
+          "arbitrary_commands_executed",
+          "system_information_disclosed",
+          "reverse_shell_established"
+        ],
+        "common_failures": [
+          "command_filtering_active",
+          "restricted_execution_environment",
+          "network_egress_blocked"
+        ],
+        "follow_up_techniques": [
+          "reverse_shell_establishment",
+          "privilege_escalation",
+          "persistence_mechanisms"
+        ],
+        "time_investment": "5-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "SSH ControlMaster Abuse",
+        "mitre_id": "T1021.004",
+        "category": "lateral_movement",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "ssh_controlmaster",
+            "command_template": "ssh -S {control_socket} {target_host}",
+            "actual_command": "ssh -S /tmp/ssh-control-socket target.domain.com",
+            "output_pattern": "authenticated_ssh_session",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "existing_controlmaster_session",
+          "access_to_control_socket",
+          "ssh_client_available"
+        ],
+        "success_indicators": [
+          "successful_ssh_authentication",
+          "access_to_target_system",
+          "privilege_escalation_achieved"
+        ],
+        "common_failures": [
+          "control_socket_not_accessible",
+          "session_expired_or_terminated",
+          "insufficient_permissions"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "persistence_establishment",
+          "domain_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "DNS Record Manipulation",
+        "mitre_id": "T1584.002",
+        "category": "resource_development",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "dns_update",
+            "command_template": "nsupdate -k {key_file}",
+            "actual_command": "nsupdate -k /etc/bind/rndc.key",
+            "output_pattern": "dns_record_updated_successfully",
+            "effectiveness_rating": 4,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "dns_update_permissions",
+          "access_to_dns_server",
+          "valid_authentication_credentials"
+        ],
+        "success_indicators": [
+          "malicious_dns_records_created",
+          "traffic_redirection_successful",
+          "credential_capture_enabled"
+        ],
+        "common_failures": [
+          "insufficient_dns_permissions",
+          "dns_security_policies",
+          "network_monitoring_detection"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "man_in_the_middle_attacks",
+          "service_impersonation"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Golden SAML Attack",
+        "mitre_id": "T1606.002",
+        "category": "credential_access",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "adfs_toolkit",
+            "command_template": "New-ADFSSignedToken -ADFSSigningCertificate {cert} -SAMLResponse {response}",
+            "actual_command": "New-ADFSSignedToken -ADFSSigningCertificate $cert -SAMLResponse $saml",
+            "output_pattern": "signed_saml_token",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "adfs_signing_certificate_access",
+          "saml_token_structure_knowledge",
+          "target_application_saml_enabled"
+        ],
+        "success_indicators": [
+          "forged_saml_token_accepted",
+          "administrative_access_granted",
+          "authentication_bypass_successful"
+        ],
+        "common_failures": [
+          "certificate_access_denied",
+          "saml_validation_failures",
+          "token_replay_protection"
+        ],
+        "follow_up_techniques": [
+          "administrative_panel_access",
+          "credential_harvesting",
+          "persistence_establishment"
+        ],
+        "time_investment": "30-90 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "SQL Server Linked Server Abuse",
+        "mitre_id": "T1210",
+        "category": "lateral_movement",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "sql_queries",
+            "command_template": "SELECT * FROM OPENQUERY([{linked_server}], '{query}')",
+            "actual_command": "SELECT * FROM OPENQUERY([LINKED_SERVER], 'SELECT @@version')",
+            "output_pattern": "query_results_from_linked_server",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "sql_server_access",
+          "linked_server_configured",
+          "impersonation_permissions"
+        ],
+        "success_indicators": [
+          "linked_server_access_achieved",
+          "command_execution_successful",
+          "lateral_movement_completed"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "linked_server_misconfiguration",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "xp_cmdshell_enablement",
+          "credential_harvesting",
+          "domain_controller_access"
+        ],
+        "time_investment": "20-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Domain Trust Abuse",
+        "mitre_id": "T1482",
+        "category": "lateral_movement",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "mimikatz",
+            "command_template": "kerberos::golden /domain:{domain} /sid:{sid} /krbtgt:{hash} /user:{user}",
+            "actual_command": "kerberos::golden /domain:ghost.htb /sid:S-1-5-21-123456789 /krbtgt:abc123 /user:administrator",
+            "output_pattern": "golden_ticket_generated",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "domain_trust_relationship_exists",
+          "krbtgt_hash_obtained",
+          "domain_sid_identified"
+        ],
+        "success_indicators": [
+          "cross_domain_authentication_successful",
+          "administrative_access_achieved",
+          "domain_controller_access_granted"
+        ],
+        "common_failures": [
+          "trust_relationship_restrictions",
+          "kerberos_validation_failures",
+          "insufficient_privileges"
+        ],
+        "follow_up_techniques": [
+          "domain_admin_access",
+          "credential_harvesting",
+          "persistence_establishment"
+        ],
+        "time_investment": "15-45 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "feroxbuster",
+        "use_case": "directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "adjust_thread_count_for_stability",
+          "filter_false_positives"
+        ]
+      },
+      {
+        "tool": "ffuf",
+        "use_case": "subdomain_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_reconnaissance"
+        ],
+        "alternatives": [
+          "gobuster",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_auto_calibration",
+          "filter_by_response_characteristics",
+          "adjust_rate_limiting"
+        ]
+      },
+      {
+        "tool": "nmap",
+        "use_case": "port_scanning_and_service_detection",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "medium",
+        "essential_for": [
+          "network_reconnaissance"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "use_appropriate_timing_templates",
+          "combine_tcp_and_udp_scans",
+          "verify_results_with_manual_testing"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "ldap_injection_to_authentication_bypass",
+        "steps": [
+          {
+            "step": 1,
+            "command": "POST /login with 1_ldap-username=admin&1_ldap-secret=*",
+            "purpose": "Attempt LDAP injection for authentication bypass",
+            "expected_output": "Successful authentication or error disclosure"
+          },
+          {
+            "step": 2,
+            "command": "Analyze response for authentication success or LDAP errors",
+            "purpose": "Determine if injection was successful",
+            "expected_output": "Access granted or information disclosure"
+          }
+        ],
+        "success_rate": 0.6,
+        "typical_duration": "10-30 minutes"
+      },
+      {
+        "sequence_name": "directory_traversal_to_credential_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "GET /api/files?path=../../../etc/passwd",
+            "purpose": "Test for directory traversal vulnerability",
+            "expected_output": "System file contents"
+          },
+          {
+            "step": 2,
+            "command": "GET /api/files?path=../../../home/user/.ssh/id_rsa",
+            "purpose": "Extract SSH private keys",
+            "expected_output": "Private key contents"
+          },
+          {
+            "step": 3,
+            "command": "GET /api/files?path=../../../proc/environ",
+            "purpose": "Extract environment variables",
+            "expected_output": "Environment variable disclosure including API keys"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "15-45 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Ghost",
+      "difficulty": "Insane",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2024-07-13",
+      "author": "tomadimitrie",
+      "estimated_time": "8-12 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "ldap_injection",
+        "directory_traversal",
+        "command_injection",
+        "golden_saml",
+        "domain_trust_abuse"
+      ],
+      "key_vulnerabilities": [
+        "ldap_injection",
+        "file_read_traversal",
+        "api_command_injection",
+        "gmsa_abuse",
+        "adfs_golden_saml",
+        "sql_server_linked_impersonation"
+      ],
+      "environment_type": "complex_multi_domain_enterprise",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "advanced_ad_attacks",
+        "saml_attacks",
+        "container_escapes",
+        "domain_trust_exploitation",
+        "gmsa_attacks"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_ad_concepts",
+        "saml_federation",
+        "sql_server_administration",
+        "container_security",
+        "kerberos_delegation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "advanced_active_directory",
+      "subcategories": [
+        "saml_attacks",
+        "domain_trust_abuse",
+        "container_escape",
+        "sql_injection",
+        "gmsa_exploitation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "lateral_movement",
+        "persistence",
+        "credential_access"
+      ],
+      "defensive_lessons": [
+        "secure_ldap_queries",
+        "container_hardening",
+        "saml_security",
+        "gmsa_permissions",
+        "sql_server_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Blackfield",
+        "APT",
+        "Multimaster"
+      ],
+      "similarity_reasons": [
+        "complex_ad_environment",
+        "multiple_attack_vectors",
+        "advanced_persistence",
+        "federation_attacks"
+      ],
+      "unique_aspects": [
+        "golden_saml_attack",
+        "gmsa_abuse",
+        "multi_domain_trust_exploitation",
+        "container_ssh_escape"
+      ],
+      "difficulty_factors": [
+        "multiple_complex_attack_chains",
+        "advanced_ad_concepts",
+        "saml_federation_knowledge",
+        "container_security_understanding"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:27:27.527925",
+    "original_file": "0xdf_writeups/Htb Ghost.md",
+    "content_length": 150653,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

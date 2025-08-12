@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+"""
+Script to add JASMIN to PATH so you can run it from anywhere
+Usage: python add_jasmin_to_path.py
+"""
+
+import os
+import stat
+import shutil
+from pathlib import Path
+
+def find_jasmin_script():
+    """Find jasmin.py in current directory"""
+    current_dir = Path.cwd()
+    
+    # Look for jasmin.py
+    jasmin_script = current_dir / "jasmin.py"
+    if jasmin_script.exists():
+        return jasmin_script
+    
+    # Look for jarvis.py (in case rename didn't happen yet)
+    jarvis_script = current_dir / "jarvis.py"
+    if jarvis_script.exists():
+        print(f"⚠️  Found jarvis.py instead of jasmin.py")
+        choice = input("Would you like to rename it to jasmin.py first? (y/N): ").strip().lower()
+        if choice in ['y', 'yes']:
+            new_path = current_dir / "jasmin.py"
+            jarvis_script.rename(new_path)
+            print(f"✅ Renamed {jarvis_script} → {new_path}")
+            return new_path
+        else:
+            return jarvis_script
+    
+    return None
+
+def make_executable(script_path):
+    """Make the script executable"""
+    try:
+        # Get current permissions
+        current_perms = script_path.stat().st_mode
+        
+        # Add execute permissions for owner, group, and others
+        new_perms = current_perms | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH
+        
+        # Set new permissions
+        script_path.chmod(new_perms)
+        print(f"✅ Made {script_path} executable")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to make {script_path} executable: {e}")
+        return False
+
+def create_symlink_method(script_path):
+    """Method 1: Create symlink in /usr/local/bin"""
+    target_link = Path("/usr/local/bin/jasmin")
+    
+    try:
+        # Remove existing symlink if it exists
+        if target_link.exists() or target_link.is_symlink():
+            target_link.unlink()
+            print(f"🗑️  Removed existing {target_link}")
+        
+        # Create new symlink
+        target_link.symlink_to(script_path.absolute())
+        print(f"✅ Created symlink: {target_link} → {script_path}")
+        
+        return True, target_link
+    except PermissionError:
+        print(f"❌ Permission denied creating {target_link}")
+        print("   Try running with sudo or choose a different method")
+        return False, None
+    except Exception as e:
+        print(f"❌ Failed to create symlink: {e}")
+        return False, None
+
+def create_local_bin_method(script_path):
+    """Method 2: Copy to ~/.local/bin"""
+    local_bin = Path.home() / ".local" / "bin"
+    target_script = local_bin / "jasmin"
+    
+    try:
+        # Create ~/.local/bin if it doesn't exist
+        local_bin.mkdir(parents=True, exist_ok=True)
+        
+        # Copy script
+        shutil.copy2(script_path, target_script)
+        
+        # Make executable
+        make_executable(target_script)
+        
+        print(f"✅ Copied script to: {target_script}")
+        
+        # Check if ~/.local/bin is in PATH
+        path_env = os.environ.get('PATH', '')
+        if str(local_bin) not in path_env:
+            print(f"⚠️  {local_bin} is not in your PATH")
+            return True, target_script, False
+        else:
+            print(f"✅ {local_bin} is already in PATH")
+            return True, target_script, True
+            
+    except Exception as e:
+        print(f"❌ Failed to copy to ~/.local/bin: {e}")
+        return False, None, False
+
+def add_local_bin_to_path():
+    """Add ~/.local/bin to PATH in shell rc files"""
+    local_bin = Path.home() / ".local" / "bin"
+    home = Path.home()
+    
+    # Common shell rc files
+    rc_files = [
+        home / ".bashrc",
+        home / ".zshrc", 
+        home / ".profile"
+    ]
+    
+    path_line = f'export PATH="$HOME/.local/bin:$PATH"'
+    
+    files_updated = []
+    for rc_file in rc_files:
+        if rc_file.exists():
+            try:
+                # Read current content
+                with open(rc_file, 'r') as f:
+                    content = f.read()
+                
+                # Check if PATH modification already exists
+                if ".local/bin" in content and "PATH" in content:
+                    print(f"✅ {rc_file} already has .local/bin in PATH")
+                    continue
+                
+                # Add PATH modification
+                with open(rc_file, 'a') as f:
+                    f.write(f"\n# Add ~/.local/bin to PATH for jasmin\n")
+                    f.write(f"{path_line}\n")
+                
+                files_updated.append(rc_file)
+                print(f"✅ Updated {rc_file}")
+                
+            except Exception as e:
+                print(f"❌ Failed to update {rc_file}: {e}")
+    
+    return files_updated
+
+def test_installation():
+    """Test if jasmin command works"""
+    print("\n🧪 Testing installation...")
+    
+    # Test which jasmin
+    result = os.system("which jasmin > /dev/null 2>&1")
+    if result == 0:
+        print("✅ 'jasmin' command found in PATH")
+        
+        # Show where it's located
+        location = os.popen("which jasmin").read().strip()
+        print(f"📍 Location: {location}")
+        
+        return True
+    else:
+        print("❌ 'jasmin' command not found in PATH")
+        return False
+
+def main():
+    """Main function"""
+    print("🛠️  JASMIN PATH Installation Script")
+    print("=" * 40)
+    
+    # Find the script
+    script_path = find_jasmin_script()
+    if not script_path:
+        print("❌ Could not find jasmin.py or jarvis.py in current directory")
+        return
+    
+    print(f"📄 Found script: {script_path}")
+    
+    # Make executable
+    if not make_executable(script_path):
+        return
+    
+    # Choose installation method
+    print(f"\n🔧 Choose installation method:")
+    print(f"1. System-wide symlink (requires sudo) - /usr/local/bin/jasmin")
+    print(f"2. User-local copy - ~/.local/bin/jasmin") 
+    print(f"3. Both (try system-wide first, fallback to user-local)")
+    
+    choice = input("\nEnter choice (1/2/3): ").strip()
+    
+    success = False
+    
+    if choice == "1":
+        # System-wide symlink
+        success, target = create_symlink_method(script_path)
+        
+    elif choice == "2":
+        # User-local copy
+        success, target, in_path = create_local_bin_method(script_path)
+        if success and not in_path:
+            files_updated = add_local_bin_to_path()
+            if files_updated:
+                print(f"\n⚠️  Shell configuration updated. Run:")
+                print(f"   source ~/.bashrc")
+                print(f"   (or restart your terminal)")
+        
+    elif choice == "3":
+        # Try system-wide first
+        print("Trying system-wide installation...")
+        success, target = create_symlink_method(script_path)
+        
+        if not success:
+            print("\nFalling back to user-local installation...")
+            success, target, in_path = create_local_bin_method(script_path)
+            if success and not in_path:
+                files_updated = add_local_bin_to_path()
+                if files_updated:
+                    print(f"\n⚠️  Shell configuration updated. Run:")
+                    print(f"   source ~/.bashrc")
+                    print(f"   (or restart your terminal)")
+    
+    else:
+        print("Invalid choice")
+        return
+    
+    if success:
+        print(f"\n🎉 Installation completed!")
+        
+        # Test installation
+        if test_installation():
+            print(f"\n✅ You can now run 'jasmin' from anywhere!")
+        else:
+            print(f"\n⚠️  Installation completed but 'jasmin' not found in current PATH")
+            print(f"   You may need to restart your terminal or run 'source ~/.bashrc'")
+    else:
+        print(f"\n❌ Installation failed")
+
+if __name__ == "__main__":
+    main()

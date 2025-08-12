@@ -1,0 +1,956 @@
+{
+  "writeup_id": "Htb_Postman",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_redis_unauthorized_webmin",
+    "primary_services": [
+      "redis",
+      "ssh",
+      "http",
+      "webmin"
+    ],
+    "port_signature": "22+80+6379+10000",
+    "service_combination": "ssh+http+redis+webmin",
+    "os_family": "linux",
+    "environment_type": "standalone_server",
+    "entry_vector": "redis_unauthorized_access",
+    "privilege_path": "redis_to_user_to_root",
+    "attack_complexity": "easy",
+    "estimated_time": "45-60 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "redis_no_authentication",
+      "redis_arbitrary_file_write",
+      "webmin_password_reuse",
+      "ssh_key_injection"
+    ],
+    "environmental_clues": [
+      "redis_empty_database",
+      "webmin_https_redirect",
+      "ubuntu_18_04_fingerprint",
+      "redis_home_directory_writable"
+    ],
+    "similar_scenarios": [
+      "redis_rce_boxes",
+      "webmin_privilege_escalation"
+    ],
+    "unique_aspects": [
+      "redis_ssh_authorized_keys_write",
+      "encrypted_ssh_key_cracking",
+      "webmin_credential_reuse"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Redis_SSH_Key_Injection",
+        "success_reason": "Redis instance allowed unauthenticated access and arbitrary file writes",
+        "prerequisite_indicators": [
+          "redis_port_accessible",
+          "no_authentication_required",
+          "write_permissions_enabled",
+          "ssh_service_available"
+        ],
+        "recognition_patterns": [
+          "redis-cli connects without auth",
+          "config set dir command succeeds",
+          "/.ssh directory exists",
+          "save command executes successfully"
+        ],
+        "failure_modes": [
+          "redis_requires_authentication",
+          "write_disabled_configuration",
+          "ssh_directory_not_writable",
+          "ssh_service_not_running"
+        ],
+        "environmental_factors": [
+          "default_redis_configuration",
+          "redis_running_as_service_user",
+          "home_directory_with_ssh_access",
+          "permissive_file_permissions"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "SSH_Key_Cracking",
+        "success_reason": "Encrypted SSH private key used weak password",
+        "prerequisite_indicators": [
+          "encrypted_ssh_keys_found",
+          "password_protected_keys",
+          "weak_password_patterns",
+          "john_or_hashcat_available"
+        ],
+        "recognition_patterns": [
+          "BEGIN ENCRYPTED PRIVATE KEY headers",
+          "ssh2john extracts hash successfully",
+          "common password in wordlist",
+          "same password reused across services"
+        ],
+        "failure_modes": [
+          "strong_key_passphrase",
+          "no_encrypted_keys_found",
+          "password_not_in_wordlist",
+          "different_service_passwords"
+        ],
+        "environmental_factors": [
+          "user_password_reuse_habits",
+          "weak_password_policies",
+          "backup_keys_in_accessible_locations",
+          "default_ssh_key_storage"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Webmin_Root_Access",
+        "success_reason": "Webmin running as root with cracked user credentials",
+        "prerequisite_indicators": [
+          "webmin_service_running",
+          "valid_user_credentials",
+          "webmin_running_as_root",
+          "command_execution_features"
+        ],
+        "recognition_patterns": [
+          "webmin login page accessible",
+          "credentials work for authentication",
+          "administrative interface available",
+          "system commands can be executed"
+        ],
+        "failure_modes": [
+          "webmin_not_running_as_root",
+          "credentials_dont_work",
+          "command_execution_disabled",
+          "additional_2fa_required"
+        ],
+        "environmental_factors": [
+          "webmin_default_configuration",
+          "root_privileges_for_admin_tasks",
+          "password_reuse_across_services",
+          "legacy_webmin_version"
+        ],
+        "success_probability": 0.88,
+        "typical_timeframe": "5-10 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Unauthenticated Redis instance",
+        "discovery_method": "nmap service detection and redis-cli connection",
+        "why_critical": "Enabled arbitrary file write leading to SSH access",
+        "how_to_recognize": [
+          "port 6379 open in nmap",
+          "redis-cli connects without password",
+          "config commands work",
+          "write operations succeed"
+        ],
+        "follow_up_actions": [
+          "test_config_set_dir",
+          "check_ssh_directory_exists",
+          "generate_ssh_keypair",
+          "inject_public_key_via_save"
+        ]
+      },
+      {
+        "discovery": "Matt's encrypted SSH private key",
+        "discovery_method": "File system enumeration as redis user",
+        "why_critical": "Weak passphrase led to user privilege escalation",
+        "how_to_recognize": [
+          "encrypted private key files",
+          "ssh2john successfully extracts hash",
+          "weak password patterns",
+          "password reuse indicators"
+        ],
+        "follow_up_actions": [
+          "extract_hash_with_ssh2john",
+          "crack_with_john_or_hashcat",
+          "test_ssh_access",
+          "check_password_reuse"
+        ]
+      },
+      {
+        "discovery": "Webmin running as root",
+        "discovery_method": "Service enumeration and credential testing",
+        "why_critical": "Direct path to root shell with valid credentials",
+        "how_to_recognize": [
+          "webmin service on port 10000",
+          "user credentials work for login",
+          "administrative features available",
+          "command execution possible"
+        ],
+        "follow_up_actions": [
+          "test_cracked_credentials",
+          "access_system_commands",
+          "execute_reverse_shell",
+          "establish_root_access"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "redis_service_account",
+        "escalation_method": "SSH_key_cracking_to_user",
+        "why_possible": "Encrypted SSH key had weak passphrase",
+        "recognition_signs": [
+          "encrypted_ssh_keys_in_filesystem",
+          "ssh2john_extracts_crackable_hash",
+          "weak_password_in_common_wordlists",
+          "password_reuse_patterns"
+        ],
+        "exploitation_path": "Find encrypted key → Extract hash → Crack password → SSH as user"
+      },
+      {
+        "privilege_level": "regular_user",
+        "escalation_method": "Webmin_root_access",
+        "why_possible": "Webmin service running with root privileges",
+        "recognition_signs": [
+          "webmin_accessible_on_port_10000",
+          "user_credentials_work_for_login",
+          "administrative_interface_available",
+          "system_command_execution_enabled"
+        ],
+        "exploitation_path": "User credentials → Webmin login → System commands → Root shell"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,6379,10000 open on Linux host",
+        "decision": "Prioritize Redis exploitation over web enumeration",
+        "reasoning": "Redis on 6379 often allows unauthenticated access and arbitrary file write",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if redis access denied"
+          },
+          {
+            "option": "webmin_bruteforce",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "redis_responds_to_commands",
+          "can_write_keys",
+          "config_commands_work"
+        ],
+        "next_decision": "choose_redis_exploitation_method"
+      },
+      {
+        "step": 2,
+        "situation": "Redis allows unauthenticated read/write access",
+        "decision": "Use SSH key injection via Redis database save",
+        "reasoning": "More reliable than cron job injection, works if .ssh directory exists",
+        "confidence": 0.85,
+        "prerequisites": [
+          "redis_write_access",
+          "ssh_service_running"
+        ],
+        "success_indicators": [
+          "can_change_dir_to_ssh",
+          "save_command_succeeds"
+        ],
+        "failure_fallbacks": [
+          "cron_job_injection",
+          "webshell_upload",
+          "config_file_overwrite"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Got shell as redis user, found encrypted SSH key in /opt",
+        "decision": "Crack encrypted SSH key for lateral movement",
+        "reasoning": "Backup SSH keys often use weak passwords, high success rate",
+        "confidence": 0.8,
+        "prerequisites": [
+          "ssh_key_found",
+          "key_is_encrypted"
+        ],
+        "success_indicators": [
+          "john_cracks_password",
+          "ssh_key_unlocks"
+        ],
+        "failure_fallbacks": [
+          "password_reuse_testing",
+          "further_enumeration"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Cracked SSH key password, gained user access",
+        "decision": "Test password reuse on Webmin service",
+        "reasoning": "Users often reuse passwords across services, Webmin runs as root",
+        "confidence": 0.75,
+        "prerequisites": [
+          "user_password_known",
+          "webmin_service_identified"
+        ],
+        "success_indicators": [
+          "webmin_login_succeeds",
+          "root_access_confirmed"
+        ],
+        "failure_fallbacks": [
+          "sudo_enumeration",
+          "suid_binary_search",
+          "kernel_exploits"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_redis_accessible": {
+        "action": "attempt_ssh_key_injection",
+        "tools": [
+          "redis-cli",
+          "ssh-keygen"
+        ],
+        "next_phase": "establish_foothold"
+      },
+      "if_ssh_key_injection_succeeds": {
+        "action": "enumerate_for_privilege_escalation",
+        "focus": [
+          "backup_files",
+          "config_files",
+          "other_users"
+        ],
+        "next_phase": "lateral_movement"
+      },
+      "if_encrypted_key_found": {
+        "action": "crack_ssh_key_password",
+        "tools": [
+          "ssh2john",
+          "john",
+          "hashcat"
+        ],
+        "next_phase": "test_password_reuse"
+      },
+      "if_user_access_obtained": {
+        "action": "test_credentials_on_all_services",
+        "services": [
+          "webmin",
+          "ssh",
+          "sudo"
+        ],
+        "next_phase": "privilege_escalation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_redis_for_unauthenticated_access",
+        "reasoning": "high_success_rate_for_initial_foothold",
+        "applicability": "redis_service_detected"
+      },
+      {
+        "rule": "prioritize_ssh_key_injection_over_webshell",
+        "reasoning": "more_stable_and_persistent_access",
+        "applicability": "ssh_service_available"
+      },
+      {
+        "rule": "check_opt_and_backup_directories_for_sensitive_files",
+        "reasoning": "common_location_for_backup_credentials",
+        "applicability": "initial_access_obtained"
+      },
+      {
+        "rule": "test_cracked_passwords_on_all_identified_services",
+        "reasoning": "password_reuse_common_escalation_vector",
+        "applicability": "any_password_obtained"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Redis Unauthorized Access",
+        "mitre_id": "T1190",
+        "required_services": [
+          "redis"
+        ],
+        "required_ports": [
+          6379
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "redis_no_authentication",
+          "redis_write_permissions",
+          "network_access_to_redis_port"
+        ],
+        "success_indicators": [
+          "keys_command_returns_data",
+          "config_get_dir_succeeds",
+          "set_command_accepts_data"
+        ],
+        "incompatible_with": [
+          "redis_authentication_enabled",
+          "redis_read_only_mode",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "default_redis_configuration",
+          "redis_running_as_service_user",
+          "ssh_directory_exists"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "SSH Key Injection via Redis",
+        "mitre_id": "T1098.004",
+        "required_services": [
+          "redis",
+          "ssh"
+        ],
+        "required_ports": [
+          6379,
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "redis_write_access",
+          "ssh_service_running",
+          "user_home_directory_accessible",
+          "ssh_directory_exists"
+        ],
+        "success_indicators": [
+          "config_set_dir_succeeds",
+          "authorized_keys_writable",
+          "ssh_login_successful"
+        ],
+        "incompatible_with": [
+          "redis_protected_mode",
+          "ssh_key_only_authentication_disabled",
+          "home_directory_permissions_restricted"
+        ],
+        "confidence_boosters": [
+          "redis_running_as_user_with_home",
+          "default_ssh_configuration",
+          "writable_ssh_directory"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-10 minutes"
+      },
+      {
+        "technique": "Webmin Authentication Bypass",
+        "mitre_id": "T1190",
+        "required_services": [
+          "webmin"
+        ],
+        "required_ports": [
+          10000
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "webmin_service_running",
+          "webmin_version_vulnerable",
+          "valid_credentials_available"
+        ],
+        "success_indicators": [
+          "webmin_login_successful",
+          "administrative_access_granted",
+          "command_execution_possible"
+        ],
+        "incompatible_with": [
+          "webmin_patched_version",
+          "strong_authentication_required",
+          "ip_restrictions_enabled"
+        ],
+        "confidence_boosters": [
+          "webmin_running_as_root",
+          "default_webmin_configuration",
+          "password_reuse_patterns"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-30 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "redis_server": {
+        "port_indicators": [
+          6379
+        ],
+        "service_indicators": [
+          "redis"
+        ],
+        "banner_indicators": [
+          "Redis",
+          "key-value store"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "webmin_service": {
+        "port_indicators": [
+          10000
+        ],
+        "service_indicators": [
+          "webmin",
+          "MiniServ"
+        ],
+        "banner_indicators": [
+          "Webmin",
+          "MiniServ"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "linux_ssh": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "OpenSSH"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu"
+        ],
+        "confidence_threshold": 0.95
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "redis_unauthorized_access",
+          "when": "redis_service_detected",
+          "reason": "often_misconfigured_no_authentication"
+        },
+        {
+          "attack": "ssh_key_injection",
+          "when": "redis_and_ssh_detected",
+          "reason": "reliable_persistence_method"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "webmin_credential_attack",
+          "when": "webmin_service_detected",
+          "reason": "high_privilege_access_if_successful"
+        },
+        {
+          "attack": "directory_bruteforce",
+          "when": "web_service_detected",
+          "reason": "may_reveal_additional_attack_surface"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Redis Unauthorized Access",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "redis-cli",
+            "command_template": "redis-cli -h {target_ip}",
+            "actual_command": "redis-cli -h 10.10.10.160",
+            "output_pattern": "redis_prompt>",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "netcat",
+            "command_template": "nc {target_ip} 6379",
+            "actual_command": "nc 10.10.10.160 6379",
+            "output_pattern": "raw_redis_connection",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "redis_port_accessible",
+          "no_authentication_required",
+          "write_permissions_enabled"
+        ],
+        "success_indicators": [
+          "keys_command_returns_results",
+          "config_commands_accepted",
+          "database_save_successful"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "write_disabled",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "ssh_key_injection",
+          "arbitrary_file_write",
+          "webshell_deployment"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Redis SSH Key Injection",
+        "mitre_id": "T1098.004",
+        "category": "persistence",
+        "phase": "persistence",
+        "tools_used": [
+          {
+            "name": "redis-cli",
+            "command_template": "cat {key_file} | redis-cli -h {target_ip} -x set {key_name}",
+            "actual_command": "cat spaced_key.txt | redis-cli -h 10.10.10.160 -x set 0xdf",
+            "output_pattern": "OK",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "ssh-keygen",
+            "command_template": "ssh-keygen -t rsa -b 2048 -f {key_name}",
+            "actual_command": "ssh-keygen -t rsa -b 2048 -f ~/id_rsa_generated",
+            "output_pattern": "key_pair_generated",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "redis_write_access",
+          "target_user_home_directory_accessible",
+          "ssh_service_running"
+        ],
+        "success_indicators": [
+          "config_dir_change_successful",
+          "authorized_keys_file_created",
+          "ssh_authentication_successful"
+        ],
+        "common_failures": [
+          "ssh_directory_not_writable",
+          "sshd_strict_key_validation",
+          "user_home_directory_not_accessible"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "local_enumeration",
+          "privilege_escalation"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "SSH Private Key Cracking",
+        "mitre_id": "T1110.002",
+        "category": "credential_access",
+        "phase": "credential_access",
+        "tools_used": [
+          {
+            "name": "ssh2john.py",
+            "command_template": "/opt/john/run/ssh2john.py {encrypted_key} > {output_file}",
+            "actual_command": "/opt/john/run/ssh2john.py id_rsa_postman_matt_enc > id_rsa_postman_matt.john",
+            "output_pattern": "john_hash_format",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          },
+          {
+            "name": "john",
+            "command_template": "/opt/john/run/john {hash_file} --wordlist={wordlist}",
+            "actual_command": "/opt/john/run/john id_rsa_postman_matt.john --wordlist=/usr/share/wordlists/rockyou.txt",
+            "success_factors": [
+              "weak_passphrase",
+              "common_wordlist_hit"
+            ],
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "encrypted_ssh_key_available",
+          "weak_passphrase_used",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "hash_conversion_successful",
+          "passphrase_cracked_successfully",
+          "key_decryption_possible"
+        ],
+        "common_failures": [
+          "strong_passphrase_used",
+          "wordlist_insufficient",
+          "key_format_unsupported"
+        ],
+        "follow_up_techniques": [
+          "ssh_authentication",
+          "credential_reuse_testing",
+          "service_authentication"
+        ],
+        "time_investment": "1-30 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Webmin Authentication",
+        "mitre_id": "T1078.003",
+        "category": "initial_access",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "web_browser",
+            "command_template": "https://{target_ip}:10000",
+            "actual_command": "https://10.10.10.160:10000",
+            "output_pattern": "webmin_login_form",
+            "effectiveness_rating": 5,
+            "reliability": 1.0
+          }
+        ],
+        "prerequisites": [
+          "webmin_service_running",
+          "valid_credentials_available",
+          "https_access_possible"
+        ],
+        "success_indicators": [
+          "login_form_accessible",
+          "authentication_successful",
+          "admin_interface_available"
+        ],
+        "common_failures": [
+          "service_not_running",
+          "invalid_credentials",
+          "ssl_certificate_issues"
+        ],
+        "follow_up_techniques": [
+          "webmin_command_execution",
+          "system_administration_abuse",
+          "root_shell_acquisition"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "redis-cli",
+        "use_case": "redis_database_interaction",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "redis_exploitation"
+        ],
+        "alternatives": [
+          "netcat",
+          "telnet"
+        ],
+        "best_practices": [
+          "test_authentication_requirements_first",
+          "check_write_permissions_before_exploitation",
+          "use_proper_key_spacing_for_file_injection"
+        ]
+      },
+      {
+        "tool": "ssh2john.py",
+        "use_case": "ssh_key_hash_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 1.0,
+        "learning_curve": "low",
+        "essential_for": [
+          "encrypted_ssh_key_cracking"
+        ],
+        "alternatives": [
+          "custom_scripts",
+          "manual_extraction"
+        ],
+        "best_practices": [
+          "verify_key_format_before_conversion",
+          "use_appropriate_john_mode_for_key_type",
+          "validate_hash_output_format"
+        ]
+      },
+      {
+        "tool": "john",
+        "use_case": "password_hash_cracking",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "credential_recovery"
+        ],
+        "alternatives": [
+          "hashcat",
+          "hydra"
+        ],
+        "best_practices": [
+          "start_with_common_wordlists",
+          "use_rules_for_password_mutations",
+          "monitor_cracking_progress_regularly"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "redis_to_ssh_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "redis-cli -h 10.10.10.160",
+            "purpose": "Connect to Redis instance",
+            "expected_output": "Redis prompt connection"
+          },
+          {
+            "step": 2,
+            "command": "config get dir",
+            "purpose": "Check current Redis directory",
+            "expected_output": "Current working directory path"
+          },
+          {
+            "step": 3,
+            "command": "config set dir ./.ssh",
+            "purpose": "Change to SSH directory",
+            "expected_output": "OK confirmation"
+          },
+          {
+            "step": 4,
+            "command": "(echo -e \"\\n\\n\"; cat ~/id_rsa_generated.pub; echo -e \"\\n\\n\") > spaced_key.txt",
+            "purpose": "Prepare SSH key with spacing",
+            "expected_output": "File created with padded key"
+          },
+          {
+            "step": 5,
+            "command": "cat spaced_key.txt | redis-cli -h 10.10.10.160 -x set 0xdf",
+            "purpose": "Load SSH key into Redis",
+            "expected_output": "OK confirmation"
+          },
+          {
+            "step": 6,
+            "command": "config set dbfilename \"authorized_keys\"",
+            "purpose": "Set output filename",
+            "expected_output": "OK confirmation"
+          },
+          {
+            "step": 7,
+            "command": "save",
+            "purpose": "Write database to authorized_keys",
+            "expected_output": "OK confirmation"
+          },
+          {
+            "step": 8,
+            "command": "ssh -i ~/id_rsa_generated redis@10.10.10.160",
+            "purpose": "Authenticate via SSH",
+            "expected_output": "Shell as redis user"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "10-15 minutes"
+      },
+      {
+        "sequence_name": "ssh_key_crack_to_credentials",
+        "steps": [
+          {
+            "step": 1,
+            "command": "/opt/john/run/ssh2john.py id_rsa.bak > id_rsa.john",
+            "purpose": "Convert SSH key to John format",
+            "expected_output": "John hash file created"
+          },
+          {
+            "step": 2,
+            "command": "/opt/john/run/john id_rsa.john --wordlist=/usr/share/wordlists/rockyou.txt",
+            "purpose": "Crack SSH key passphrase",
+            "expected_output": "Password: computer2008"
+          },
+          {
+            "step": 3,
+            "command": "Test credentials on various services",
+            "purpose": "Identify where credentials work",
+            "expected_output": "Valid authentication to target service"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "5-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Postman",
+      "difficulty": "Easy",
+      "os": "Linux Ubuntu",
+      "platform": "HackTheBox",
+      "release_date": "2019-11-02",
+      "author": "TheCyberGeek",
+      "estimated_time": "45-60 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "redis_exploitation",
+        "ssh_key_injection",
+        "webmin_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "redis_unauthorized_access",
+        "encrypted_ssh_key_cracking",
+        "webmin_rce"
+      ],
+      "environment_type": "linux_web_server",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "redis_security",
+        "ssh_key_management",
+        "service_pivoting"
+      ],
+      "prerequisite_knowledge": [
+        "basic_linux",
+        "ssh_concepts",
+        "password_cracking"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "database_exploitation",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_redis_configuration",
+        "ssh_key_protection",
+        "webmin_hardening"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Shocker",
+        "Beep",
+        "Valentine"
+      ],
+      "similarity_reasons": [
+        "service_exploitation",
+        "credential_reuse",
+        "web_service_vulnerabilities"
+      ],
+      "unique_aspects": [
+        "redis_ssh_key_injection",
+        "webmin_root_access"
+      ],
+      "difficulty_factors": [
+        "straightforward_attack_chain",
+        "common_service_misconfigurations"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T14:40:18.159993",
+    "original_file": "0xdf_writeups/Htb Postman.md",
+    "content_length": 25526,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

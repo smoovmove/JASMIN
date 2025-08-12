@@ -1,0 +1,861 @@
+{
+  "writeup_id": "Htb_Bagel",
+  "scenario_fingerprint": {
+    "scenario_name": "flask_dotnet_websocket_deserialization",
+    "primary_services": [
+      "http",
+      "ssh",
+      "websocket"
+    ],
+    "port_signature": "22+5000+8000",
+    "service_combination": "ssh+dotnet_core+flask",
+    "os_family": "linux",
+    "environment_type": "dual_web_application",
+    "entry_vector": "file_read_vulnerability",
+    "privilege_path": "file_read_to_deserialization_to_ssh_to_sudo",
+    "attack_complexity": "medium",
+    "estimated_time": "2-3 hours",
+    "scenario_confidence": 0.88,
+    "distinguishing_factors": [
+      "flask_file_read_lfi",
+      "dotnet_core_on_linux",
+      "websocket_communication",
+      "json_deserialization_vulnerability",
+      "sudo_dotnet_privilege_escalation"
+    ],
+    "environmental_clues": [
+      "werkzeug_python_server",
+      "microsoft_netcore_server",
+      "dual_port_web_setup",
+      "flask_page_parameter",
+      "empty_dotnet_response"
+    ],
+    "similar_scenarios": [
+      "multi_service_web_apps",
+      "dotnet_deserialization_boxes"
+    ],
+    "unique_aspects": [
+      "flask_to_dotnet_websocket_bridge",
+      "cross_platform_dotnet_exploitation",
+      "chained_file_read_vulnerabilities"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Directory Traversal / File Read",
+        "success_reason": "Flask application improperly handled page parameter without input validation",
+        "prerequisite_indicators": [
+          "url_parameter_file_inclusion",
+          "python_flask_application",
+          "no_input_sanitization"
+        ],
+        "recognition_patterns": [
+          "URL pattern: ?page=filename.html",
+          "Content-Disposition header with filename",
+          "Werkzeug/Flask server headers",
+          "Static file serving mechanism"
+        ],
+        "failure_modes": [
+          "input_validation_present",
+          "chroot_jail_restrictions",
+          "file_permissions_blocking"
+        ],
+        "environmental_factors": [
+          "linux_filesystem_access",
+          "web_server_file_permissions",
+          "no_waf_protection"
+        ],
+        "success_probability": 0.92,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Process Information Disclosure",
+        "success_reason": "Access to /proc/self/ filesystem via file read vulnerability",
+        "prerequisite_indicators": [
+          "linux_proc_filesystem_accessible",
+          "file_read_vulnerability_exists",
+          "web_server_process_permissions"
+        ],
+        "recognition_patterns": [
+          "/proc/self/cmdline reveals command",
+          "/proc/self/environ shows environment",
+          "Process running as specific user"
+        ],
+        "failure_modes": [
+          "proc_filesystem_restricted",
+          "insufficient_process_permissions",
+          "containerized_environment"
+        ],
+        "environmental_factors": [
+          "standard_linux_proc_filesystem",
+          "web_server_user_permissions",
+          "no_proc_restrictions"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "1-3 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Flask application source code location",
+        "discovery_method": "/proc/self/cmdline and filesystem enumeration",
+        "why_critical": "Reveals application logic, database connections, and internal service communication",
+        "how_to_recognize": [
+          "python3 command line in /proc/self/cmdline",
+          "Flask application file paths",
+          "Configuration file locations"
+        ],
+        "follow_up_actions": [
+          "download_flask_source_code",
+          "analyze_internal_service_connections",
+          "identify_websocket_communications",
+          "extract_dotnet_service_details"
+        ]
+      },
+      {
+        "discovery": "Multi-service architecture",
+        "discovery_method": "Source code analysis revealing Flask + .NET services",
+        "why_critical": "Identifies attack path through service chaining and protocol abuse",
+        "how_to_recognize": [
+          "websocket connections in source",
+          "multiple ports serving different frameworks",
+          "inter-service communication patterns"
+        ],
+        "follow_up_actions": [
+          "map_service_communication_flow",
+          "identify_dotnet_service_vulnerabilities",
+          "analyze_websocket_protocols"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "file_read_access",
+        "escalation_method": "Source_Code_Analysis_to_Service_Exploitation",
+        "why_possible": "File read vulnerability provides access to application source revealing internal architecture",
+        "recognition_signs": [
+          "flask_source_code_accessible",
+          "internal_service_communication_visible",
+          "websocket_protocols_documented"
+        ],
+        "exploitation_path": "File Read → Source Analysis → Service Communication → JSON Deserialization → SSH Key Extraction"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,5000,8000 open on Linux host",
+        "decision": "Enumerate both HTTP services to identify technologies",
+        "reasoning": "Two different HTTP ports suggest different applications/frameworks",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "focus_on_single_port",
+            "when": "if one service is clearly more vulnerable"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if HTTP services are hardened"
+          }
+        ],
+        "success_indicators": [
+          "technology_stack_identified",
+          "application_functionality_mapped",
+          "potential_vulnerabilities_spotted"
+        ],
+        "next_decision": "analyze_application_architecture"
+      },
+      {
+        "step": 2,
+        "situation": "Identified Flask app on 8000 with file parameter and .NET service on 5000",
+        "decision": "Test file read vulnerability on Flask app first",
+        "reasoning": "URL pattern /?page=index.html suggests file inclusion vulnerability",
+        "confidence": 0.85,
+        "prerequisites": [
+          "flask_app_identified",
+          "suspicious_url_parameter"
+        ],
+        "success_indicators": [
+          "file_read_successful",
+          "directory_traversal_works"
+        ],
+        "failure_fallbacks": [
+          "parameter_fuzzing",
+          "dotnet_service_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "File read vulnerability confirmed",
+        "decision": "Extract application source code via file read",
+        "reasoning": "Source code reveals application logic and potential attack vectors",
+        "confidence": 0.95,
+        "prerequisites": [
+          "file_read_working",
+          "application_path_known"
+        ],
+        "success_indicators": [
+          "source_code_retrieved",
+          "application_logic_understood"
+        ],
+        "next_decision": "analyze_source_for_vulnerabilities"
+      },
+      {
+        "step": 4,
+        "situation": "Flask source shows websocket connection to .NET service",
+        "decision": "Use file read to extract .NET application DLL",
+        "reasoning": "Understanding both applications reveals complete attack surface",
+        "confidence": 0.8,
+        "prerequisites": [
+          "websocket_connection_identified",
+          "dotnet_service_location_known"
+        ],
+        "success_indicators": [
+          "dll_extracted",
+          "dotnet_logic_understood"
+        ],
+        "next_decision": "reverse_engineer_dotnet_service"
+      },
+      {
+        "step": 5,
+        "situation": "Found JSON deserialization in .NET service",
+        "decision": "Exploit deserialization for file read and credential extraction",
+        "reasoning": "JSON deserialization often leads to RCE or sensitive data access",
+        "confidence": 0.9,
+        "prerequisites": [
+          "deserialization_vulnerability_identified",
+          "payload_crafted"
+        ],
+        "success_indicators": [
+          "ssh_key_extracted",
+          "user_credentials_found"
+        ],
+        "next_decision": "authenticate_with_extracted_credentials"
+      }
+    ],
+    "branching_logic": {
+      "if_file_read_succeeds": {
+        "action": "extract_application_source_and_config",
+        "tools": [
+          "curl",
+          "file_path_enumeration"
+        ],
+        "next_phase": "source_code_analysis"
+      },
+      "if_source_reveals_websocket": {
+        "action": "analyze_inter_service_communication",
+        "purpose": "understand_complete_application_architecture",
+        "tools": [
+          "static_analysis",
+          "reverse_engineering"
+        ]
+      },
+      "if_dotnet_service_found": {
+        "action": "extract_and_reverse_dll",
+        "tools": [
+          "file_read_vulnerability",
+          "dotnet_decompiler"
+        ],
+        "next_phase": "vulnerability_identification"
+      },
+      "if_deserialization_found": {
+        "action": "craft_exploitation_payload",
+        "purpose": "achieve_file_read_or_rce",
+        "tools": [
+          "json_payload_crafting",
+          "websocket_client"
+        ]
+      },
+      "if_credentials_extracted": {
+        "action": "authenticate_and_establish_foothold",
+        "tools": [
+          "ssh",
+          "extracted_keys"
+        ],
+        "next_phase": "privilege_escalation"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_extract_source_code_when_file_read_available",
+        "reasoning": "source_code_reveals_complete_attack_surface_and_logic_flaws",
+        "applicability": "any_file_read_vulnerability"
+      },
+      {
+        "rule": "analyze_inter_service_communication_in_multi_app_environments",
+        "reasoning": "service_to_service_communication_often_less_secured",
+        "applicability": "multiple_services_identified"
+      },
+      {
+        "rule": "prioritize_deserialization_vulnerabilities_in_dotnet",
+        "reasoning": "high_impact_vulnerability_with_reliable_exploitation",
+        "applicability": "dotnet_applications_with_json_processing"
+      },
+      {
+        "rule": "use_process_information_for_application_discovery",
+        "reasoning": "proc_filesystem_reveals_running_processes_and_paths",
+        "applicability": "linux_systems_with_file_read"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Flask_File_Read_LFI",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8000
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "flask_application_detected",
+          "werkzeug_server_detected",
+          "page_parameter_in_url",
+          "file_inclusion_pattern"
+        ],
+        "success_indicators": [
+          "content_disposition_header_present",
+          "file_path_traversal_works",
+          "source_code_readable"
+        ],
+        "incompatible_with": [
+          "strict_input_validation",
+          "chroot_jail",
+          "file_access_restrictions"
+        ],
+        "confidence_boosters": [
+          "werkzeug_version_banner",
+          "python_version_in_headers",
+          "flask_default_404_page"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "WebSocket_Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "websocket"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8000
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "websocket_endpoint_discovered",
+          "client_server_communication",
+          "message_format_identified"
+        ],
+        "success_indicators": [
+          "websocket_connection_established",
+          "message_injection_successful",
+          "server_response_received"
+        ],
+        "incompatible_with": [
+          "websocket_authentication_required",
+          "message_encryption",
+          "strict_message_validation"
+        ],
+        "confidence_boosters": [
+          "websocket_upgrade_headers",
+          "javascript_websocket_code",
+          "real_time_communication_features"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "DotNet_Deserialization",
+        "mitre_id": "T1055",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          5000,
+          8000
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "dotnet_core_application",
+          "json_deserialization_endpoint",
+          "user_controlled_input"
+        ],
+        "success_indicators": [
+          "microsoft_netcore_banner",
+          "json_payload_accepted",
+          "deserialization_gadget_works"
+        ],
+        "incompatible_with": [
+          "secure_deserialization_settings",
+          "input_type_restrictions",
+          "sandboxed_execution"
+        ],
+        "confidence_boosters": [
+          "microsoft_netcore_version_header",
+          "json_content_type_accepted",
+          "newtonsoft_json_usage"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "30-60 minutes"
+      },
+      {
+        "technique": "Sudo_Privilege_Escalation",
+        "mitre_id": "T1548.003",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "sudo_access_available",
+          "misconfigured_sudo_rules",
+          "user_shell_access"
+        ],
+        "success_indicators": [
+          "sudo_l_shows_permissions",
+          "dotnet_executable_as_root",
+          "command_execution_possible"
+        ],
+        "incompatible_with": [
+          "no_sudo_access",
+          "restricted_sudo_rules",
+          "command_restrictions"
+        ],
+        "confidence_boosters": [
+          "dotnet_installed_system",
+          "user_in_sudo_group",
+          "custom_sudo_rules"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "flask_application": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8000
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Werkzeug",
+          "Python",
+          "Flask"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "dotnet_application": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8000
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-NetCore",
+          "ASP.NET"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "websocket_service": {
+        "port_indicators": [
+          80,
+          443,
+          5000,
+          8000
+        ],
+        "service_indicators": [
+          "websocket",
+          "ws",
+          "wss"
+        ],
+        "technology_indicators": [
+          "upgrade: websocket",
+          "connection: upgrade"
+        ],
+        "confidence_threshold": 0.75
+      },
+      "linux_system": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "banner_indicators": [
+          "OpenSSH",
+          "Ubuntu",
+          "Linux"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "flask_file_read_lfi",
+          "when": "flask_application_detected",
+          "reason": "often_leads_to_source_code_disclosure"
+        },
+        {
+          "attack": "sudo_privilege_escalation",
+          "when": "user_shell_access_obtained",
+          "reason": "high_success_rate_quick_execution"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "dotnet_deserialization",
+          "when": "dotnet_application_detected",
+          "reason": "requires_reverse_engineering_but_reliable"
+        },
+        {
+          "attack": "websocket_exploitation",
+          "when": "websocket_service_detected",
+          "reason": "less_common_attack_vector_good_success"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Directory Traversal / File Read",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl http://{target}/?page=../../../../{file_path}",
+            "actual_command": "curl http://bagel.htb:8000/?page=../../../../etc/passwd",
+            "output_pattern": "file contents displayed",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "vulnerable_file_inclusion_parameter",
+          "web_application_accessible"
+        ],
+        "success_indicators": [
+          "system_files_readable",
+          "application_source_code_accessible",
+          "process_information_available"
+        ],
+        "common_failures": [
+          "path_filtering_implemented",
+          "insufficient_permissions",
+          "file_not_found"
+        ],
+        "follow_up_techniques": [
+          "source_code_analysis",
+          "process_enumeration",
+          "credential_extraction"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Process Information Enumeration",
+        "mitre_id": "T1057",
+        "category": "discovery",
+        "phase": "discovery",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -o- -s http://{target}/?page=../../../../proc/self/{info_file} | tr '\\000' ' '",
+            "actual_command": "curl -o- -s http://bagel.htb:8000/?page=../../../../proc/self/cmdline | tr '\\000' ' '",
+            "output_pattern": "python3 /home/developer/app/app.py",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "file_read_vulnerability",
+          "linux_target_system"
+        ],
+        "success_indicators": [
+          "command_line_arguments_revealed",
+          "environment_variables_accessible",
+          "process_owner_identified"
+        ],
+        "common_failures": [
+          "proc_filesystem_restricted",
+          "binary_output_handling_issues"
+        ],
+        "follow_up_techniques": [
+          "source_code_retrieval",
+          "credential_hunting",
+          "service_enumeration"
+        ],
+        "time_investment": "5-10 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "WebSocket Manipulation",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "wscat",
+            "command_template": "wscat -c ws://{target}:{port}/",
+            "actual_command": "wscat -c ws://bagel.htb:5000",
+            "output_pattern": "Connected (press CTRL+C to quit)",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "websocket_service_accessible",
+          "service_accepts_json_input",
+          "vulnerable_deserialization_present"
+        ],
+        "success_indicators": [
+          "websocket_connection_established",
+          "json_commands_accepted",
+          "file_operations_successful"
+        ],
+        "common_failures": [
+          "authentication_required",
+          "input_validation_blocks_payloads",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "json_deserialization_exploitation",
+          "file_write_operations",
+          "credential_extraction"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "curl",
+        "use_case": "directory_traversal_exploitation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "file_read_vulnerabilities"
+        ],
+        "alternatives": [
+          "burp_suite",
+          "wget",
+          "browser"
+        ],
+        "best_practices": [
+          "use_-o-_flag_for_binary_output",
+          "combine_with_tr_for_null_byte_handling",
+          "test_multiple_traversal_depths"
+        ]
+      },
+      {
+        "tool": "wscat",
+        "use_case": "websocket_testing_and_exploitation",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "websocket_applications"
+        ],
+        "alternatives": [
+          "burp_suite_websocket",
+          "custom_python_scripts"
+        ],
+        "best_practices": [
+          "install_via_npm_globally",
+          "test_json_payloads_systematically",
+          "monitor_responses_for_error_messages"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "flask_source_code_extraction",
+        "steps": [
+          {
+            "step": 1,
+            "command": "curl http://bagel.htb:8000/?page=../../../../etc/passwd",
+            "purpose": "Verify directory traversal vulnerability",
+            "expected_output": "System passwd file contents"
+          },
+          {
+            "step": 2,
+            "command": "curl -o- -s http://bagel.htb:8000/?page=../../../../proc/self/cmdline | tr '\\000' ' '",
+            "purpose": "Identify running process and source location",
+            "expected_output": "python3 /home/developer/app/app.py"
+          },
+          {
+            "step": 3,
+            "command": "curl -o- -s http://bagel.htb:8000/?page=../../../../home/developer/app/app.py",
+            "purpose": "Extract Flask application source code",
+            "expected_output": "Complete Python Flask application source"
+          }
+        ],
+        "success_rate": 0.92,
+        "typical_duration": "5-10 minutes"
+      },
+      {
+        "sequence_name": "websocket_service_discovery",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wscat -c ws://bagel.htb:5000",
+            "purpose": "Establish websocket connection",
+            "expected_output": "Connected (press CTRL+C to quit)"
+          },
+          {
+            "step": 2,
+            "command": "{\"ReadOrder\":\"orders.txt\"}",
+            "purpose": "Test basic websocket functionality",
+            "expected_output": "JSON response with order data"
+          },
+          {
+            "step": 3,
+            "command": "{\"WriteOrder\":\"test data\"}",
+            "purpose": "Test write capabilities",
+            "expected_output": "Operation successed message"
+          }
+        ],
+        "success_rate": 0.88,
+        "typical_duration": "10-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Bagel",
+      "difficulty": "Medium",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2023-02-18",
+      "author": "CestLaVie",
+      "estimated_time": "2-3 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "medium",
+      "skill_level_required": "intermediate",
+      "primary_attack_vectors": [
+        "file_read_vulnerability",
+        "json_deserialization",
+        "websocket_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "lfi",
+        "insecure_deserialization",
+        "sudo_misconfiguration"
+      ],
+      "environment_type": "multi_service_web_application",
+      "real_world_relevance": "high",
+      "learning_value": [
+        "flask_exploitation",
+        "dotnet_reverse_engineering",
+        "websocket_attacks",
+        "json_deserialization"
+      ],
+      "prerequisite_knowledge": [
+        "web_application_testing",
+        "reverse_engineering_basics",
+        "dotnet_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "file_inclusion",
+        "deserialization",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "input_validation",
+        "secure_deserialization",
+        "sudo_hardening",
+        "service_isolation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Json",
+        "Craft",
+        "Arkham"
+      ],
+      "similarity_reasons": [
+        "deserialization_attacks",
+        "multi_service_architecture",
+        "dotnet_exploitation"
+      ],
+      "unique_aspects": [
+        "flask_dotnet_integration",
+        "websocket_pivoting",
+        "dll_reverse_engineering"
+      ],
+      "difficulty_factors": [
+        "multi_stage_exploitation",
+        "reverse_engineering_required",
+        "service_interaction_complexity"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T11:37:24.792362",
+    "original_file": "0xdf_writeups/Htb Bagel.md",
+    "content_length": 50211,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

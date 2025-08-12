@@ -15,7 +15,8 @@ def create_initial_state_file(outdir: Path, boxname: str, ip:str):
         "web_tech" : "", 
         "modules_used" : [], 
         "credentials" : [], 
-        "notes" : [], 
+        "notes" : [],
+        "ip_variables": {}, 
         "last_updated" : datetime.now().isoformat() 
         
     }
@@ -106,6 +107,16 @@ def load_state(outdir: Path) -> Path:
     with open(path) as f: 
         return json.load(f)
 
+def update_discovered_hosts(boxname, outdir: Path, live_hosts: list): 
+    hosts_dir = outdir / "Hosts"
+    hosts_dir.mkdir(exist_ok=True, parents=True)
+
+    for ip in live_hosts: 
+        label = f"{boxname}_{ip.replace('.', '_')}"
+        host_path = hosts_dir / label
+        host_path.mkdir(exist_ok=True, parents=True)
+        create_initial_state_file(host_path, label, ip)
+
     
 def save_state(outdir: Path, state: dict) -> Path:
     path = get_state_path(outdir)
@@ -123,7 +134,7 @@ def append_to_state_list(outdir: Path, field: str, item: dict):
     if field not in state: 
         state[field] = []
     state[field].append(item)
-    save_state(outdir)
+    save_state(outdir, state) 
     
 def mark_module_used(outdir: Path, module_name: str): 
     state = load_state(outdir)
@@ -132,4 +143,51 @@ def mark_module_used(outdir: Path, module_name: str):
     if module_name not in state["modules_used"]: 
         state["modules_used"].append(module_name)
     save_state(outdir,state)
+
+def list_discovered_hosts(boxname): 
+    hosts_dir = Path.home() / "Boxes" / boxname / "Hosts"
+    if not hosts_dir.exists(): 
+        print("[!] No discovered hosts found.")
+        return []
+    
+    hosts = sorted([d.name for d in hosts_dir.iterdir() if d.is_dir()])
+    for idx, host in enumerate(hosts): 
+        ip = host.replace(f"{boxname}_", "").replace("_", ".")
+        print(f"[{idx}] {ip}")
+
+    return hosts
+
+def resolve_host_selection(boxname, user_input): 
+    hosts = list_discovered_hosts(boxname)
+
+    if not hosts: 
+        return None
+    if user_input.isdigit(): 
+        idx = int(user_input)
+        if 0 <= idx < len(hosts): 
+            return hosts[idx]
         
+    label = f"{boxname}_{user_input.replace('.', '_')}"
+    if label in hosts:
+        return label
+
+    print("[!] Invalid host selection.")
+    return None
+
+def update_ip_variables(outdir: Path, ip_variables: dict):
+    """Update IP variables in state.json"""
+    state_path = get_state_path(outdir)
+    
+    if state_path.exists():
+        with open(state_path, 'r') as f:
+            state = json.load(f)
+    else:
+        return False
+    
+    state['ip_variables'] = ip_variables
+    state['last_updated'] = datetime.now().isoformat()
+    
+    with open(state_path, 'w') as f:
+        json.dump(state, f, indent=2)
+    
+    return True

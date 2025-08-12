@@ -1,0 +1,827 @@
+{
+  "writeup_id": "Htb_Chainsaw",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_blockchain_smart_contract_exploitation",
+    "primary_services": [
+      "ftp",
+      "ssh",
+      "http"
+    ],
+    "port_signature": "21+22+9810",
+    "service_combination": "ftp+ssh+custom_http",
+    "os_family": "linux",
+    "environment_type": "blockchain_development",
+    "entry_vector": "smart_contract_command_injection",
+    "privilege_path": "anonymous_ftp_to_suid_escalation",
+    "attack_complexity": "hard",
+    "estimated_time": "3-4 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "solidity_smart_contracts",
+      "ethereum_blockchain_integration",
+      "ipfs_file_system",
+      "custom_web3_service"
+    ],
+    "environmental_clues": [
+      "anonymous_ftp_with_sol_files",
+      "ethereum_addresses_in_files",
+      "custom_http_service_on_high_port",
+      "blockchain_development_environment"
+    ],
+    "similar_scenarios": [
+      "blockchain_ctf_challenges",
+      "web3_penetration_tests"
+    ],
+    "unique_aspects": [
+      "weaponized_ping_smart_contract",
+      "command_injection_in_solidity",
+      "ipfs_ssh_key_storage",
+      "suid_binary_privilege_escalation",
+      "slack_space_flag_hiding"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Anonymous FTP Access",
+        "success_reason": "FTP server allowed anonymous login with sensitive smart contract files",
+        "prerequisite_indicators": [
+          "ftp_service_running",
+          "anonymous_login_enabled",
+          "sensitive_files_exposed"
+        ],
+        "recognition_patterns": [
+          "vsftpd 3.0.3 with anonymous access",
+          "smart contract files (.sol, .json)",
+          "blockchain-related filenames"
+        ],
+        "failure_modes": [
+          "anonymous_access_disabled",
+          "empty_ftp_directory",
+          "authentication_required"
+        ],
+        "environmental_factors": [
+          "default_ftp_configuration",
+          "development_environment_exposure",
+          "insufficient_access_controls"
+        ],
+        "success_probability": 0.95,
+        "typical_timeframe": "2-5 minutes"
+      },
+      {
+        "technique": "Smart Contract Command Injection",
+        "success_reason": "WeaponizedPing contract allows arbitrary domain input without sanitization",
+        "prerequisite_indicators": [
+          "web3_service_accessible",
+          "smart_contract_deployed",
+          "user_input_functions_available"
+        ],
+        "recognition_patterns": [
+          "setDomain function accepts string input",
+          "blockchain service on unusual port (9810)",
+          "solidity contract with user-controlled variables"
+        ],
+        "failure_modes": [
+          "input_sanitization_implemented",
+          "contract_not_deployed",
+          "web3_service_unavailable"
+        ],
+        "environmental_factors": [
+          "development_smart_contracts",
+          "insecure_solidity_coding",
+          "blockchain_testing_environment"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "WeaponizedPing smart contract files",
+        "discovery_method": "Anonymous FTP enumeration",
+        "why_critical": "Revealed smart contract interface and deployment address for command injection",
+        "how_to_recognize": [
+          ".sol solidity source files",
+          ".json contract ABI definitions",
+          "ethereum address format (0x...)"
+        ],
+        "follow_up_actions": [
+          "analyze_contract_functions",
+          "identify_web3_service_port",
+          "test_contract_interaction"
+        ]
+      },
+      {
+        "discovery": "Contract address 0x810EF49BBA6c9515b9aB1E94759Fa71378019Be7",
+        "discovery_method": "FTP file analysis (address.txt)",
+        "why_critical": "Required for interacting with deployed smart contract",
+        "how_to_recognize": [
+          "40 character hex string",
+          "ethereum address format",
+          "contract deployment identifier"
+        ],
+        "follow_up_actions": [
+          "connect_to_web3_provider",
+          "instantiate_contract_object",
+          "test_contract_functions"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "anonymous_ftp",
+        "escalation_method": "Smart_Contract_Command_Injection",
+        "why_possible": "setDomain function executes user input without sanitization",
+        "recognition_signs": [
+          "user_controllable_contract_functions",
+          "string_input_parameters",
+          "backend_command_execution"
+        ],
+        "exploitation_path": "FTP enumeration → Contract analysis → Web3 interaction → Command injection → Shell"
+      },
+      {
+        "privilege_level": "contract_interaction",
+        "escalation_method": "IPFS_SSH_Key_Discovery",
+        "why_possible": "SSH keys stored in InterPlanetary File System accessible files",
+        "recognition_signs": [
+          "ipfs_references_in_system",
+          "ssh_keys_in_distributed_storage",
+          "user_credential_exposure"
+        ],
+        "exploitation_path": "Shell access → IPFS enumeration → SSH key extraction → User privilege escalation"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 21,22,9810 open on Linux host with FTP anonymous access",
+        "decision": "Enumerate FTP first for intelligence gathering",
+        "reasoning": "Anonymous FTP access provides immediate reconnaissance without credentials",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "port_9810_enumeration",
+            "when": "if ftp yields no useful info"
+          },
+          {
+            "option": "ssh_enumeration",
+            "when": "if credentials found"
+          }
+        ],
+        "success_indicators": [
+          "files_downloaded_successfully",
+          "smart_contract_files_found",
+          "blockchain_artifacts_discovered"
+        ],
+        "next_decision": "analyze_smart_contract_files"
+      },
+      {
+        "step": 2,
+        "situation": "Found Solidity smart contract files (.sol, .json) and address.txt",
+        "decision": "Identify port 9810 as Web3/Ethereum provider and attempt contract interaction",
+        "reasoning": "Solidity files indicate blockchain/smart contract environment, port 9810 likely Web3 provider",
+        "confidence": 0.9,
+        "prerequisites": [
+          "solidity_files_analyzed",
+          "contract_address_obtained"
+        ],
+        "success_indicators": [
+          "web3_connection_established",
+          "contract_functions_accessible"
+        ],
+        "failure_fallbacks": [
+          "direct_http_enumeration",
+          "service_fingerprinting"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Successfully connected to Web3 provider with smart contract interface",
+        "decision": "Test contract functions for command injection vulnerabilities",
+        "reasoning": "Smart contracts with string inputs often vulnerable to command injection",
+        "confidence": 0.75,
+        "prerequisites": [
+          "web3_connection_active",
+          "contract_abi_loaded"
+        ],
+        "success_indicators": [
+          "command_execution_confirmed",
+          "reverse_shell_obtained"
+        ],
+        "failure_fallbacks": [
+          "contract_state_manipulation",
+          "blockchain_enumeration"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_ftp_has_blockchain_files": {
+        "action": "setup_web3_interaction",
+        "tools": [
+          "python3",
+          "web3.py",
+          "solidity_compiler"
+        ],
+        "next_phase": "smart_contract_exploitation"
+      },
+      "if_contract_interaction_succeeds": {
+        "action": "test_for_command_injection",
+        "method": "inject_system_commands_in_string_parameters",
+        "next_phase": "establish_reverse_shell"
+      },
+      "if_command_injection_found": {
+        "action": "escalate_to_shell_access",
+        "tools": [
+          "netcat",
+          "reverse_shell_payloads"
+        ],
+        "next_phase": "local_privilege_escalation"
+      },
+      "if_initial_shell_obtained": {
+        "action": "enumerate_for_privilege_escalation",
+        "focus": [
+          "suid_binaries",
+          "ssh_keys",
+          "ipfs_files"
+        ],
+        "next_phase": "root_access_attempts"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_ftp_anonymous_access_first",
+        "reasoning": "immediate_intelligence_gathering_without_authentication",
+        "applicability": "ftp_service_detected"
+      },
+      {
+        "rule": "identify_blockchain_environments_from_file_extensions",
+        "reasoning": "sol_json_files_indicate_smart_contract_targets",
+        "applicability": "solidity_or_web3_artifacts_found"
+      },
+      {
+        "rule": "test_smart_contract_string_inputs_for_command_injection",
+        "reasoning": "common_vulnerability_in_poorly_implemented_contracts",
+        "applicability": "smart_contract_with_string_parameters_identified"
+      },
+      {
+        "rule": "enumerate_ipfs_and_blockchain_storage_after_initial_access",
+        "reasoning": "blockchain_environments_often_use_distributed_storage",
+        "applicability": "blockchain_environment_confirmed"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "FTP Anonymous Access",
+        "mitre_id": "T1021.003",
+        "required_services": [
+          "ftp"
+        ],
+        "required_ports": [
+          21
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "ftp_service_running",
+          "anonymous_login_enabled"
+        ],
+        "success_indicators": [
+          "230_login_successful",
+          "directory_listing_accessible",
+          "files_downloadable"
+        ],
+        "incompatible_with": [
+          "anonymous_login_disabled",
+          "firewall_blocking_ftp",
+          "service_down"
+        ],
+        "confidence_boosters": [
+          "vsftpd_banner",
+          "default_ftp_configuration",
+          "public_file_shares"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "2-5 minutes"
+      },
+      {
+        "technique": "Smart Contract Analysis",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "blockchain"
+        ],
+        "required_ports": [
+          9810,
+          8545,
+          8546
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "solidity_contracts_present",
+          "web3_service_running",
+          "blockchain_node_accessible"
+        ],
+        "success_indicators": [
+          "contract_abi_available",
+          "contract_address_found",
+          "web3_rpc_responsive"
+        ],
+        "incompatible_with": [
+          "no_blockchain_services",
+          "encrypted_contracts",
+          "access_controls_enforced"
+        ],
+        "confidence_boosters": [
+          "sol_file_extensions",
+          "json_abi_files",
+          "ethereum_addresses"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "SUID Binary Exploitation",
+        "mitre_id": "T1548.001",
+        "required_services": [
+          "ssh"
+        ],
+        "required_ports": [
+          22
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "suid_binaries_present",
+          "user_access_obtained",
+          "writable_directories_available"
+        ],
+        "success_indicators": [
+          "suid_bit_set",
+          "binary_executable",
+          "privilege_escalation_possible"
+        ],
+        "incompatible_with": [
+          "no_suid_binaries",
+          "restricted_execution",
+          "selinux_enforcing"
+        ],
+        "confidence_boosters": [
+          "custom_suid_binaries",
+          "development_environment",
+          "weak_file_permissions"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "10-20 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "blockchain_environment": {
+        "port_indicators": [
+          8545,
+          8546,
+          9810,
+          30303
+        ],
+        "service_indicators": [
+          "geth",
+          "web3",
+          "ethereum"
+        ],
+        "banner_indicators": [
+          "JSON-RPC",
+          "Web3",
+          "Ethereum"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "ftp_anonymous": {
+        "port_indicators": [
+          21
+        ],
+        "service_indicators": [
+          "ftp",
+          "vsftpd"
+        ],
+        "banner_indicators": [
+          "Anonymous FTP login allowed",
+          "vsftpd"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "linux_development": {
+        "port_indicators": [
+          22
+        ],
+        "service_indicators": [
+          "ssh",
+          "openssh"
+        ],
+        "technology_indicators": [
+          "ubuntu",
+          "linux"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "ftp_anonymous_enumeration",
+          "when": "ftp_anonymous_detected",
+          "reason": "immediate_file_access_no_credentials"
+        },
+        {
+          "attack": "smart_contract_analysis",
+          "when": "blockchain_service_detected",
+          "reason": "potential_command_injection_in_contracts"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "suid_binary_enumeration",
+          "when": "user_shell_obtained",
+          "reason": "common_privilege_escalation_vector"
+        },
+        {
+          "attack": "ssh_key_enumeration",
+          "when": "file_system_access_gained",
+          "reason": "lateral_movement_opportunity"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Anonymous FTP Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "ftp",
+            "command_template": "ftp {target_ip}",
+            "actual_command": "ftp 10.10.10.142",
+            "output_pattern": "230 Login successful",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "ftp_bulk_download",
+            "command_template": "prompt; bin; mget *",
+            "actual_command": "prompt; bin; mget *",
+            "success_factors": [
+              "anonymous_access_enabled",
+              "readable_files_present"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "ftp_service_accessible",
+          "anonymous_login_enabled"
+        ],
+        "success_indicators": [
+          "successful_anonymous_login",
+          "files_downloaded_successfully",
+          "smart_contract_files_obtained"
+        ],
+        "common_failures": [
+          "anonymous_access_disabled",
+          "no_files_in_directory",
+          "network_connectivity_issues"
+        ],
+        "follow_up_techniques": [
+          "smart_contract_analysis",
+          "web3_interaction",
+          "command_injection_testing"
+        ],
+        "time_investment": "2-5 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Smart Contract Interaction via Web3",
+        "mitre_id": "T1190",
+        "category": "initial_access",
+        "phase": "exploitation",
+        "tools_used": [
+          {
+            "name": "python3_web3",
+            "command_template": "python3 -m pip install web3",
+            "actual_command": "python3 -m pip install web3",
+            "output_pattern": "Successfully installed web3",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "web3_connection",
+            "command_template": "web3 = Web3(Web3.HTTPProvider('http://{ip}:{port}'))",
+            "actual_command": "web3 = Web3(Web3.HTTPProvider('http://10.10.10.142:9810'))",
+            "success_factors": [
+              "web3_provider_accessible",
+              "correct_port_identified"
+            ],
+            "effectiveness_rating": 4
+          },
+          {
+            "name": "contract_interaction",
+            "command_template": "contract = web3.eth.contract(address='{address}', abi={abi})",
+            "actual_command": "contract = web3.eth.contract(address='0x810EF49BBA6c9515b9aB1E94759Fa71378019Be7', abi=wp['abi'])",
+            "success_factors": [
+              "valid_contract_address",
+              "correct_abi_format"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "smart_contract_files_obtained",
+          "web3_provider_accessible",
+          "python3_environment_available"
+        ],
+        "success_indicators": [
+          "web3_connection_established",
+          "contract_functions_accessible",
+          "getDomain_returns_data",
+          "setDomain_accepts_input"
+        ],
+        "common_failures": [
+          "incorrect_provider_url",
+          "malformed_abi_data",
+          "missing_transaction_parameters",
+          "insufficient_gas_or_permissions"
+        ],
+        "follow_up_techniques": [
+          "command_injection_in_setDomain",
+          "blockchain_transaction_manipulation",
+          "smart_contract_vulnerability_exploitation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Port Discovery and Service Fingerprinting",
+        "mitre_id": "T1046",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp {target}",
+            "actual_command": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp 10.10.10.142",
+            "output_pattern": "PORT     STATE SERVICE",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "nmap_service_detection",
+            "command_template": "nmap -sV -sC -p {ports} -oA scans/nmap-scripts {target}",
+            "actual_command": "nmap -sV -sC -p 21,22,9810 -oA scans/nmap-scripts 10.10.10.142",
+            "success_factors": [
+              "open_ports_identified",
+              "service_banners_available"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "target_ip_accessible",
+          "nmap_installed"
+        ],
+        "success_indicators": [
+          "all_ports_discovered",
+          "services_identified_correctly",
+          "version_information_obtained",
+          "unusual_ports_flagged"
+        ],
+        "common_failures": [
+          "firewall_blocking_scans",
+          "rate_limiting_affecting_results",
+          "service_detection_inaccurate"
+        ],
+        "follow_up_techniques": [
+          "ftp_anonymous_access_testing",
+          "ssh_enumeration",
+          "custom_service_investigation"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "nmap",
+        "use_case": "port_discovery_and_service_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "network_reconnaissance",
+          "service_identification"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan",
+          "unicornscan"
+        ],
+        "best_practices": [
+          "use_high_min_rate_for_fast_scanning",
+          "follow_up_with_service_detection",
+          "save_output_in_multiple_formats"
+        ]
+      },
+      {
+        "tool": "python3_web3",
+        "use_case": "ethereum_smart_contract_interaction",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "blockchain_penetration_testing",
+          "smart_contract_exploitation"
+        ],
+        "alternatives": [
+          "truffle",
+          "remix",
+          "brownie"
+        ],
+        "best_practices": [
+          "verify_connection_before_contract_interaction",
+          "understand_call_vs_transact_methods",
+          "handle_transaction_parameters_properly"
+        ]
+      },
+      {
+        "tool": "ftp_client",
+        "use_case": "anonymous_ftp_enumeration",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "file_system_enumeration",
+          "credential_harvesting"
+        ],
+        "alternatives": [
+          "wget",
+          "curl",
+          "lftp"
+        ],
+        "best_practices": [
+          "test_anonymous_access_first",
+          "use_binary_mode_for_file_transfers",
+          "disable_interactive_prompts_for_bulk_operations"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "blockchain_reconnaissance_to_contract_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 10.10.10.142",
+            "purpose": "Discover all open ports",
+            "expected_output": "Ports 21, 22, 9810 open"
+          },
+          {
+            "step": 2,
+            "command": "ftp 10.10.10.142 (anonymous login)",
+            "purpose": "Access FTP anonymously",
+            "expected_output": "230 Login successful"
+          },
+          {
+            "step": 3,
+            "command": "mget * (in FTP session)",
+            "purpose": "Download smart contract files",
+            "expected_output": "WeaponizedPing.sol, WeaponizedPing.json, address.txt"
+          },
+          {
+            "step": 4,
+            "command": "python3 -m pip install web3",
+            "purpose": "Install Web3 library",
+            "expected_output": "Successfully installed web3"
+          },
+          {
+            "step": 5,
+            "command": "web3 = Web3(Web3.HTTPProvider('http://10.10.10.142:9810'))",
+            "purpose": "Connect to blockchain provider",
+            "expected_output": "Connection established"
+          },
+          {
+            "step": 6,
+            "command": "contract.functions.getDomain().call()",
+            "purpose": "Test contract interaction",
+            "expected_output": "google.com"
+          }
+        ],
+        "success_rate": 0.78,
+        "typical_duration": "15-30 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Chainsaw",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2019-06-15",
+      "author": "artikrh, absolutezero",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "blockchain",
+        "smart_contracts",
+        "command_injection"
+      ],
+      "key_vulnerabilities": [
+        "solidity_command_injection",
+        "suid_binary_abuse",
+        "ipfs_data_exposure"
+      ],
+      "environment_type": "blockchain_development",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "blockchain_security",
+        "smart_contract_analysis",
+        "web3_exploitation",
+        "ipfs_forensics"
+      ],
+      "prerequisite_knowledge": [
+        "solidity_basics",
+        "blockchain_concepts",
+        "web3_fundamentals",
+        "linux_privilege_escalation"
+      ]
+    },
+    "categorization": {
+      "primary_category": "blockchain_security",
+      "subcategories": [
+        "smart_contracts",
+        "web3_exploitation",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "command_injection",
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_smart_contract_development",
+        "input_validation",
+        "suid_binary_hardening",
+        "ipfs_access_controls"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Rope",
+        "Craft",
+        "Obscurity"
+      ],
+      "similarity_reasons": [
+        "specialized_technology",
+        "command_injection",
+        "custom_binaries"
+      ],
+      "unique_aspects": [
+        "blockchain_focus",
+        "solidity_exploitation",
+        "ipfs_integration",
+        "slack_space_forensics"
+      ],
+      "difficulty_factors": [
+        "specialized_knowledge_required",
+        "multiple_complex_technologies",
+        "hidden_flag_location"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T21:09:56.835124",
+    "original_file": "0xdf_writeups/Htb Chainsaw.md",
+    "content_length": 61857,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

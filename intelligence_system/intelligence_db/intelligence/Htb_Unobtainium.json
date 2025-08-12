@@ -1,0 +1,957 @@
+{
+  "writeup_id": "Htb_Unobtainium",
+  "scenario_fingerprint": {
+    "scenario_name": "kubernetes_cluster_electron_app_exploitation",
+    "primary_services": [
+      "ssh",
+      "http",
+      "etcd",
+      "kubernetes_api",
+      "nodejs"
+    ],
+    "port_signature": "22+80+2379+2380+8443+10250+10256+31337",
+    "service_combination": "ssh+apache+etcd+kubernetes+nodejs_express",
+    "os_family": "linux_ubuntu",
+    "environment_type": "kubernetes_cluster",
+    "entry_vector": "electron_app_reverse_engineering",
+    "privilege_path": "lfi_to_prototype_pollution_to_command_injection_to_k8s_admin",
+    "attack_complexity": "hard",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "kubernetes_ports_exposed",
+      "electron_application_present",
+      "etcd_cluster_accessible",
+      "minikube_deployment",
+      "nodejs_express_api"
+    ],
+    "environmental_clues": [
+      "kubernetes_api_responses",
+      "etcd_client_server_ports",
+      "minikube_ssl_certificates",
+      "system_anonymous_user_errors",
+      "golang_http_servers"
+    ],
+    "similar_scenarios": [
+      "steamcloud_htb_hard",
+      "delivery_htb_easy"
+    ],
+    "unique_aspects": [
+      "first_kubernetes_htb_box",
+      "electron_app_exploitation_chain",
+      "container_privilege_escalation",
+      "etcd_cluster_enumeration"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Electron_Application_Reverse_Engineering",
+        "success_reason": "Client-side application contained exploitable vulnerabilities and exposed API endpoints",
+        "prerequisite_indicators": [
+          "electron_app_available_for_download",
+          "javascript_source_accessible",
+          "api_endpoints_discoverable"
+        ],
+        "recognition_patterns": [
+          "electron application on website",
+          "asar file extraction possible",
+          "hardcoded API endpoints in source"
+        ],
+        "failure_modes": [
+          "obfuscated_source_code",
+          "no_client_application",
+          "secure_api_implementation"
+        ],
+        "environmental_factors": [
+          "developer_debugging_enabled",
+          "insufficient_input_validation",
+          "client_side_security_reliance"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Local_File_Inclusion",
+        "success_reason": "API endpoint accepted file paths without proper validation",
+        "prerequisite_indicators": [
+          "file_parameter_in_api",
+          "path_traversal_possible",
+          "insufficient_input_sanitization"
+        ],
+        "recognition_patterns": [
+          "file parameter in requests",
+          "../ sequences work",
+          "system files readable"
+        ],
+        "failure_modes": [
+          "proper_input_validation",
+          "chroot_jail_implemented",
+          "file_access_restrictions"
+        ],
+        "environmental_factors": [
+          "web_server_file_permissions",
+          "application_running_privileges",
+          "lack_of_path_restrictions"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "Prototype_Pollution",
+        "success_reason": "Node.js application vulnerable to prototype pollution via JSON input",
+        "prerequisite_indicators": [
+          "nodejs_application",
+          "json_input_processing",
+          "merge_operations_present"
+        ],
+        "recognition_patterns": [
+          "Node.js/Express framework",
+          "JSON POST endpoints",
+          "__proto__ pollution possible"
+        ],
+        "failure_modes": [
+          "input_validation_implemented",
+          "safe_merge_functions_used",
+          "prototype_pollution_protection"
+        ],
+        "environmental_factors": [
+          "vulnerable_nodejs_version",
+          "unsafe_object_merging",
+          "lack_of_prototype_protection"
+        ],
+        "success_probability": 0.68,
+        "typical_timeframe": "20-40 minutes"
+      },
+      {
+        "technique": "Kubernetes_Privilege_Escalation",
+        "success_reason": "Service account token accessible with cluster-admin privileges",
+        "prerequisite_indicators": [
+          "kubernetes_cluster_accessible",
+          "service_account_token_available",
+          "privileged_service_account"
+        ],
+        "recognition_patterns": [
+          "kubernetes API ports open",
+          "service account tokens in filesystem",
+          "cluster-admin role bindings"
+        ],
+        "failure_modes": [
+          "rbac_properly_configured",
+          "service_account_restrictions",
+          "network_policies_enforced"
+        ],
+        "environmental_factors": [
+          "minikube_default_configuration",
+          "overprivileged_service_accounts",
+          "insufficient_rbac_hardening"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "15-30 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Electron application with embedded API endpoints",
+        "discovery_method": "Website enumeration and application download",
+        "why_critical": "Revealed multiple attack vectors including LFI and prototype pollution",
+        "how_to_recognize": [
+          "electron app download links",
+          "asar file structure",
+          "hardcoded API configurations"
+        ],
+        "follow_up_actions": [
+          "extract_asar_files",
+          "analyze_javascript_source",
+          "identify_api_endpoints"
+        ]
+      },
+      {
+        "discovery": "Kubernetes service account token",
+        "discovery_method": "File system enumeration after initial shell",
+        "why_critical": "Provided cluster-admin access to Kubernetes API",
+        "how_to_recognize": [
+          "kubernetes ports in nmap",
+          "service account tokens in /var/run/secrets",
+          "kubectl binary available"
+        ],
+        "follow_up_actions": [
+          "test_kubernetes_api_access",
+          "enumerate_cluster_permissions",
+          "create_privileged_pod"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_application_user",
+        "escalation_method": "Command_Injection_via_Prototype_Pollution",
+        "why_possible": "Prototype pollution allowed overriding command execution parameters",
+        "recognition_signs": [
+          "nodejs_application_vulnerable",
+          "command_execution_functions_present",
+          "prototype_pollution_successful"
+        ],
+        "exploitation_path": "LFI → Source Code Analysis → Prototype Pollution → Command Injection → Shell"
+      },
+      {
+        "privilege_level": "application_shell",
+        "escalation_method": "Kubernetes_Malicious_Pod_Creation",
+        "why_possible": "Service account had cluster-admin privileges allowing privileged pod creation",
+        "recognition_signs": [
+          "service_account_token_accessible",
+          "cluster_admin_permissions",
+          "kubernetes_api_reachable"
+        ],
+        "exploitation_path": "Shell Access → Service Account Token → Kubernetes API → Privileged Pod → Root Access"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found ports 22,80,2379,2380,8443,10250,10256,31337 open on Linux host",
+        "decision": "Identify as Kubernetes cluster and prioritize application analysis",
+        "reasoning": "Port combination (8443 kubernetes-api, 2379/2380 etcd, 10250 kubelet) indicates Kubernetes environment",
+        "confidence": 0.95,
+        "alternatives": [
+          {
+            "option": "web_enumeration",
+            "when": "if kubernetes access fails"
+          },
+          {
+            "option": "application_download",
+            "when": "if downloadable apps available"
+          }
+        ],
+        "success_indicators": [
+          "kubernetes_api_responds",
+          "etcd_accessible",
+          "downloadable_applications_found"
+        ],
+        "next_decision": "analyze_downloadable_applications"
+      },
+      {
+        "step": 2,
+        "situation": "Found downloadable Electron applications on web server",
+        "decision": "Download and reverse engineer Electron app for vulnerabilities",
+        "reasoning": "Electron apps often contain hardcoded credentials, API endpoints, and client-side vulnerabilities",
+        "confidence": 0.9,
+        "prerequisites": [
+          "web_server_accessible",
+          "download_links_found"
+        ],
+        "success_indicators": [
+          "app_downloaded",
+          "source_code_extracted",
+          "api_endpoints_discovered"
+        ],
+        "failure_fallbacks": [
+          "web_directory_bruteforce",
+          "kubernetes_anonymous_access",
+          "service_enumeration"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Kubernetes API returns 403 for anonymous user",
+        "decision": "Focus on application vulnerabilities to gain initial access",
+        "reasoning": "Direct kubernetes access blocked, need credentials or alternative entry point",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "electron_app_analysis",
+            "when": "apps available for download"
+          },
+          {
+            "option": "service_enumeration",
+            "when": "other services accessible"
+          },
+          {
+            "option": "credential_search",
+            "when": "source code available"
+          }
+        ],
+        "success_indicators": [
+          "vulnerability_found_in_app",
+          "credentials_discovered",
+          "api_access_gained"
+        ],
+        "next_decision": "exploit_application_vulnerability"
+      }
+    ],
+    "branching_logic": {
+      "if_kubernetes_detected": {
+        "action": "enumerate_kubernetes_services",
+        "tools": [
+          "kubectl",
+          "curl",
+          "nmap"
+        ],
+        "next_phase": "application_analysis"
+      },
+      "if_electron_app_found": {
+        "action": "reverse_engineer_application",
+        "tools": [
+          "asar",
+          "strings",
+          "grep"
+        ],
+        "purpose": "find_hardcoded_credentials_and_endpoints"
+      },
+      "if_app_vulnerabilities_found": {
+        "action": "exploit_client_side_vulnerabilities",
+        "common_vulns": [
+          "lfi",
+          "prototype_pollution",
+          "command_injection"
+        ],
+        "next_phase": "gain_shell_access"
+      },
+      "if_shell_obtained": {
+        "action": "enumerate_kubernetes_access",
+        "tools": [
+          "kubectl",
+          "service_account_tokens"
+        ],
+        "purpose": "escalate_to_cluster_admin"
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_download_and_analyze_electron_apps",
+        "reasoning": "high_success_rate_for_finding_hardcoded_secrets_and_vulnerabilities",
+        "applicability": "electron_applications_available"
+      },
+      {
+        "rule": "prioritize_kubernetes_service_enumeration_after_initial_access",
+        "reasoning": "kubernetes_environments_often_have_privilege_escalation_paths",
+        "applicability": "kubernetes_cluster_identified"
+      },
+      {
+        "rule": "check_service_account_tokens_immediately_after_shell",
+        "reasoning": "kubernetes_pods_often_have_default_service_accounts_with_elevated_permissions",
+        "applicability": "shell_access_in_kubernetes_environment"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Kubernetes API Enumeration",
+        "mitre_id": "T1087.004",
+        "required_services": [
+          "kubernetes-api"
+        ],
+        "required_ports": [
+          8443
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "kubernetes_cluster_detected",
+          "api_server_accessible",
+          "anonymous_access_enabled"
+        ],
+        "success_indicators": [
+          "kubernetes_error_messages",
+          "api_version_responses",
+          "cluster_info_accessible"
+        ],
+        "incompatible_with": [
+          "rbac_fully_configured",
+          "network_policies_blocking",
+          "api_server_isolated"
+        ],
+        "confidence_boosters": [
+          "minikube_certificates",
+          "default_service_accounts",
+          "system_anonymous_user_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "etcd Database Enumeration",
+        "mitre_id": "T1552.001",
+        "required_services": [
+          "etcd"
+        ],
+        "required_ports": [
+          2379,
+          2380
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "etcd_service_exposed",
+          "kubernetes_cluster_present",
+          "authentication_disabled"
+        ],
+        "success_indicators": [
+          "etcd_client_connection_success",
+          "cluster_secrets_readable",
+          "certificate_access"
+        ],
+        "incompatible_with": [
+          "etcd_authentication_enabled",
+          "tls_client_cert_required",
+          "network_segmentation"
+        ],
+        "confidence_boosters": [
+          "default_etcd_configuration",
+          "kubernetes_secrets_stored",
+          "service_account_tokens_present"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "15-30 minutes"
+      },
+      {
+        "technique": "Kubelet API Exploitation",
+        "mitre_id": "T1611",
+        "required_services": [
+          "kubelet"
+        ],
+        "required_ports": [
+          10250
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "kubelet_api_exposed",
+          "anonymous_auth_enabled",
+          "kubernetes_node_accessible"
+        ],
+        "success_indicators": [
+          "pod_list_accessible",
+          "exec_endpoint_available",
+          "node_metrics_readable"
+        ],
+        "incompatible_with": [
+          "webhook_authorization_enabled",
+          "anonymous_auth_disabled",
+          "network_policies_restrictive"
+        ],
+        "confidence_boosters": [
+          "default_kubelet_config",
+          "privileged_pods_present",
+          "host_network_pods"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "10-25 minutes"
+      },
+      {
+        "technique": "Node.js Express API Exploitation",
+        "mitre_id": "T1190",
+        "required_services": [
+          "nodejs",
+          "express"
+        ],
+        "required_ports": [
+          31337
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "express_framework_detected",
+          "risky_http_methods_enabled",
+          "api_endpoints_exposed"
+        ],
+        "success_indicators": [
+          "put_delete_methods_available",
+          "json_responses",
+          "error_messages_verbose"
+        ],
+        "incompatible_with": [
+          "method_restrictions_enforced",
+          "input_validation_strict",
+          "authentication_required"
+        ],
+        "confidence_boosters": [
+          "development_environment",
+          "verbose_error_messages",
+          "unrestricted_cors"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "20-45 minutes"
+      },
+      {
+        "technique": "Container Escape via Privileged Pod",
+        "mitre_id": "T1611",
+        "required_services": [
+          "kubernetes",
+          "docker"
+        ],
+        "required_ports": [
+          8443,
+          10250
+        ],
+        "os_requirements": [
+          "linux"
+        ],
+        "environmental_prerequisites": [
+          "kubernetes_admin_access",
+          "privileged_pod_creation_allowed",
+          "host_filesystem_mountable"
+        ],
+        "success_indicators": [
+          "pod_creation_successful",
+          "host_filesystem_accessible",
+          "root_privileges_in_container"
+        ],
+        "incompatible_with": [
+          "pod_security_policies_enforced",
+          "privileged_containers_blocked",
+          "admission_controllers_restrictive"
+        ],
+        "confidence_boosters": [
+          "cluster_admin_role",
+          "default_namespace_access",
+          "security_context_unrestricted"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-15 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "kubernetes_cluster": {
+        "port_indicators": [
+          8443,
+          10250,
+          10256,
+          2379,
+          2380
+        ],
+        "service_indicators": [
+          "kubernetes-api",
+          "kubelet",
+          "etcd"
+        ],
+        "banner_indicators": [
+          "minikube",
+          "kubernetes",
+          "system:anonymous"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "nodejs_application": {
+        "port_indicators": [
+          31337,
+          3000,
+          8080
+        ],
+        "service_indicators": [
+          "nodejs",
+          "express"
+        ],
+        "banner_indicators": [
+          "Node.js Express framework"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "container_environment": {
+        "port_indicators": [
+          2375,
+          2376,
+          10250
+        ],
+        "service_indicators": [
+          "docker",
+          "containerd",
+          "kubelet"
+        ],
+        "banner_indicators": [
+          "Docker",
+          "containerd",
+          "Go-IPFS"
+        ],
+        "confidence_threshold": 0.8
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "kubernetes_api_enumeration",
+          "when": "kubernetes_cluster_detected",
+          "reason": "often_misconfigured_anonymous_access"
+        },
+        {
+          "attack": "kubelet_api_exploitation",
+          "when": "kubelet_port_open",
+          "reason": "direct_container_access_possible"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "etcd_enumeration",
+          "when": "etcd_ports_detected",
+          "reason": "contains_cluster_secrets_but_often_protected"
+        },
+        {
+          "attack": "nodejs_api_testing",
+          "when": "express_framework_detected",
+          "reason": "custom_apis_often_vulnerable"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "container_escape",
+          "when": "kubernetes_admin_access_gained",
+          "reason": "requires_prior_compromise_but_reliable"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Kubernetes API Server Reconnaissance",
+        "mitre_id": "T1018",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "nmap",
+            "command_template": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp {target_ip}",
+            "actual_command": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp 10.10.10.235",
+            "output_pattern": "8443/tcp open https-alt",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          },
+          {
+            "name": "nmap service detection",
+            "command_template": "nmap -p {ports} -sCV -oA scans/nmap-tcpscripts {target_ip}",
+            "actual_command": "nmap -p 22,80,2379,2380,8443,10250,10256,31337 -sCV 10000 -oA scans/nmap-tcpscripts 10.10.10.235",
+            "success_factors": [
+              "kubernetes_headers_detected",
+              "ssl_cert_analysis"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "network_connectivity",
+          "target_ip_known"
+        ],
+        "success_indicators": [
+          "kubernetes_api_server_identified",
+          "ssl_certificates_reveal_cluster_info",
+          "forbidden_user_system_anonymous_message"
+        ],
+        "common_failures": [
+          "firewall_blocking_ports",
+          "ssl_handshake_failures"
+        ],
+        "follow_up_techniques": [
+          "kubernetes_api_enumeration",
+          "certificate_analysis",
+          "etcd_enumeration"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Electron Application Reverse Engineering",
+        "mitre_id": "T1587.001",
+        "category": "resource_development",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "ar",
+            "command_template": "ar x {deb_package}",
+            "actual_command": "ar x unobtainium_1.0.0_amd64.deb",
+            "output_pattern": "debian-binary control.tar.gz data.tar.xz",
+            "effectiveness_rating": 5,
+            "reliability": 0.99
+          },
+          {
+            "name": "md5sum",
+            "command_template": "md5sum --check {checksum_file}",
+            "actual_command": "md5sum --check unobtainium_1.0.0_amd64.deb.md5sum",
+            "success_factors": [
+              "package_integrity_verified"
+            ],
+            "effectiveness_rating": 4
+          }
+        ],
+        "prerequisites": [
+          "debian_package_downloaded",
+          "linux_environment_available"
+        ],
+        "success_indicators": [
+          "package_extracted_successfully",
+          "electron_application_identified",
+          "source_code_accessible"
+        ],
+        "common_failures": [
+          "corrupted_package",
+          "missing_extraction_tools",
+          "obfuscated_application_code"
+        ],
+        "follow_up_techniques": [
+          "javascript_source_analysis",
+          "api_endpoint_discovery",
+          "vulnerability_identification"
+        ],
+        "time_investment": "10-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Web Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "reconnaissance",
+        "tools_used": [
+          {
+            "name": "feroxbuster",
+            "command_template": "feroxbuster -u {target_url}",
+            "actual_command": "feroxbuster -u http://10.10.10.235",
+            "output_pattern": "301 redirects and 403 forbidden responses",
+            "effectiveness_rating": 4,
+            "reliability": 0.95
+          }
+        ],
+        "prerequisites": [
+          "web_server_accessible",
+          "wordlist_available"
+        ],
+        "success_indicators": [
+          "hidden_directories_discovered",
+          "interesting_files_found",
+          "application_structure_mapped"
+        ],
+        "common_failures": [
+          "rate_limiting_triggered",
+          "waf_blocking_requests",
+          "no_interesting_paths_found"
+        ],
+        "follow_up_techniques": [
+          "manual_directory_browsing",
+          "source_code_analysis",
+          "parameter_fuzzing"
+        ],
+        "time_investment": "5-20 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "nmap",
+        "use_case": "kubernetes_cluster_discovery",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "kubernetes_environments"
+        ],
+        "alternatives": [
+          "masscan",
+          "rustscan"
+        ],
+        "best_practices": [
+          "scan_full_port_range_for_kubernetes",
+          "analyze_ssl_certificates_for_cluster_info",
+          "identify_etcd_ports_2379_2380"
+        ]
+      },
+      {
+        "tool": "feroxbuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.95,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "gobuster",
+          "dirbuster",
+          "ffuf"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "configure_proper_threading",
+          "handle_rate_limiting"
+        ]
+      },
+      {
+        "tool": "ar",
+        "use_case": "debian_package_extraction",
+        "effectiveness_rating": 5,
+        "reliability": 0.99,
+        "learning_curve": "low",
+        "essential_for": [
+          "debian_package_analysis"
+        ],
+        "alternatives": [
+          "dpkg-deb",
+          "7zip"
+        ],
+        "best_practices": [
+          "verify_package_integrity_first",
+          "extract_in_isolated_environment",
+          "analyze_control_files_for_metadata"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "kubernetes_cluster_reconnaissance",
+        "steps": [
+          {
+            "step": 1,
+            "command": "nmap -p- --min-rate 10000 -oA scans/nmap-alltcp 10.10.10.235",
+            "purpose": "Discover all open ports",
+            "expected_output": "Ports 2379, 2380, 8443, 10250, 10256 indicating Kubernetes"
+          },
+          {
+            "step": 2,
+            "command": "nmap -p 22,80,2379,2380,8443,10250,10256,31337 -sCV -oA scans/nmap-tcpscripts 10.10.10.235",
+            "purpose": "Identify services and analyze certificates",
+            "expected_output": "Kubernetes API server on 8443, etcd on 2379/2380"
+          },
+          {
+            "step": 3,
+            "command": "curl -k https://10.10.10.235:8443/",
+            "purpose": "Test Kubernetes API access",
+            "expected_output": "Forbidden message with system:anonymous user"
+          }
+        ],
+        "success_rate": 0.95,
+        "typical_duration": "10-20 minutes"
+      },
+      {
+        "sequence_name": "electron_app_analysis",
+        "steps": [
+          {
+            "step": 1,
+            "command": "wget http://10.10.10.235/unobtainium_debian.zip",
+            "purpose": "Download application package",
+            "expected_output": "Debian package archive downloaded"
+          },
+          {
+            "step": 2,
+            "command": "unzip unobtainium_debian.zip",
+            "purpose": "Extract package contents",
+            "expected_output": ".deb file and .md5sum file"
+          },
+          {
+            "step": 3,
+            "command": "md5sum --check unobtainium_1.0.0_amd64.deb.md5sum",
+            "purpose": "Verify package integrity",
+            "expected_output": "OK status confirming integrity"
+          },
+          {
+            "step": 4,
+            "command": "ar x unobtainium_1.0.0_amd64.deb",
+            "purpose": "Extract Debian package contents",
+            "expected_output": "debian-binary, control.tar.gz, data.tar.xz files"
+          }
+        ],
+        "success_rate": 0.98,
+        "typical_duration": "5-15 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Unobtainium",
+      "difficulty": "Hard",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2021-04-10",
+      "author": "felamos",
+      "estimated_time": "4-6 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "high",
+      "skill_level_required": "advanced",
+      "primary_attack_vectors": [
+        "electron_app_reverse_engineering",
+        "kubernetes_exploitation",
+        "container_escape"
+      ],
+      "key_vulnerabilities": [
+        "local_file_inclusion",
+        "prototype_pollution",
+        "command_injection",
+        "kubernetes_misconfig"
+      ],
+      "environment_type": "containerized_kubernetes_cluster",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "kubernetes_security",
+        "electron_app_analysis",
+        "container_exploitation",
+        "etcd_enumeration"
+      ],
+      "prerequisite_knowledge": [
+        "javascript_analysis",
+        "kubernetes_fundamentals",
+        "container_concepts",
+        "reverse_engineering"
+      ]
+    },
+    "categorization": {
+      "primary_category": "container_security",
+      "subcategories": [
+        "kubernetes_exploitation",
+        "application_reverse_engineering",
+        "container_escape"
+      ],
+      "attack_types": [
+        "code_analysis",
+        "privilege_escalation",
+        "container_breakout"
+      ],
+      "defensive_lessons": [
+        "kubernetes_rbac",
+        "container_security_policies",
+        "application_hardening",
+        "etcd_security"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Steamcloud",
+        "Delivery",
+        "Bucket"
+      ],
+      "similarity_reasons": [
+        "modern_technologies",
+        "multi_stage_exploitation",
+        "container_environments"
+      ],
+      "unique_aspects": [
+        "first_kubernetes_box",
+        "electron_application_analysis",
+        "etcd_exploitation"
+      ],
+      "difficulty_factors": [
+        "kubernetes_complexity",
+        "multiple_exploitation_techniques",
+        "container_orchestration_knowledge"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T01:57:05.623406",
+    "original_file": "0xdf_writeups/Htb Unobtainium.md",
+    "content_length": 75622,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

