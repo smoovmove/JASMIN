@@ -9,6 +9,12 @@ from pathlib import Path
 import sys
 import os
 
+try:
+    from jasmin_gui_integration import handle_gui_command, check_gui_requirements
+    GUI_INTEGRATION_AVAILABLE = True
+except ImportError:
+    GUI_INTEGRATION_AVAILABLE = False
+
 # Import existing JASMIN modules
 from scans import run_full_scan, run_tcp_scan, check_udp_progress, run_script_scan, run_host_discovery_only, web_enum
 from session import (
@@ -454,6 +460,13 @@ def cli_dispatch(actions, subargs, env):
     elif single_action == "payload":
         return handle_payload_command(env, subargs)
     
+    if "gui" in actions:
+        if GUI_INTEGRATION_AVAILABLE:
+            return handle_gui_command(env, subargs)
+        else:
+            print("[!] GUI integration not available")
+            return env
+    
     print(f"[!] No matching command found for: {', '.join(actions)}")
     return env
 
@@ -491,7 +504,7 @@ def parse_jarvis_command(cmd):
             break
         # Other commands
         elif token in ["fs", "fullscan", "tcp", "udp", "web", "ss", "script", 
-                       "hostscan", "notes", "view", "use", "intel", "ad", "upload"]:
+               "hostscan", "notes", "view", "use", "intel", "ad", "upload", "gui"]:
             actions.add(token)
         else:
             subargs.append(tokens[i])

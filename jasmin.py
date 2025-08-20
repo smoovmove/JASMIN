@@ -13,8 +13,11 @@ import re
 import subprocess
 import platform
 import json
+import shutil 
 from pathlib import Path
 from datetime import datetime
+import importlib.util
+
 from state import load_state, get_state_path, update_ip_variables
 from cli import get_current_prompt
 
@@ -30,6 +33,201 @@ COLORS = {
     'purple': '\033[95m',
     'reset': '\033[0m'
 }
+
+# =============================================================================
+# JASMIN SETUP CLASS 
+# =============================================================================
+
+class JasminSetupManager:
+    """Integrated setup and dependency management for JASMIN"""
+    
+    def __init__(self):
+        self.distro = self.detect_distro()
+        self.missing_tools = []
+        self.missing_python_modules = []
+        
+    def detect_distro(self):
+        """Detect Linux distribution"""
+        try:
+            if Path('/etc/os-release').exists():
+                with open('/etc/os-release') as f:
+                    content = f.read().lower()
+                    if 'ubuntu' in content or 'debian' in content:
+                        return 'debian'
+                    elif 'centos' in content or 'rhel' in content or 'fedora' in content:
+                        return 'redhat'
+                    elif 'arch' in content:
+                        return 'arch'
+        except:
+            pass
+        return 'unknown'
+    
+    def check_command(self, command):
+        """Check if a command exists"""
+        try:
+            result = subprocess.run(['which', command], capture_output=True)
+            return result.returncode == 0
+        except:
+            return False
+    
+    def check_python_module(self, module):
+        """Check if Python module is available (clean, no warnings)"""
+        # Map package names to their import names
+        import_mapping = {
+            'beautifulsoup4': 'bs4',
+            'python-nmap': 'nmap', 
+            'python-whois': 'whois',
+            'pycryptodome': 'Crypto',
+            'pillow': 'PIL',
+            'pyyaml': 'yaml'
+        }
+        
+        # Get the actual import name
+        import_name = import_mapping.get(module, module)
+        
+        # Use importlib to check if module exists
+        spec = importlib.util.find_spec(import_name)
+        return spec is not None
+    
+    def quick_dependency_check(self):
+        """Quick check of essential dependencies"""
+        essential_tools = ['nmap', 'python3', 'curl']
+        essential_modules = ['requests']
+        
+        missing_tools = [tool for tool in essential_tools if not self.check_command(tool)]
+        missing_modules = [mod for mod in essential_modules if not self.check_python_module(mod)]
+        
+        return len(missing_tools) == 0 and len(missing_modules) == 0
+    
+    def show_missing_tools(self):
+        """Show what tools are missing with install commands"""
+        core_tools = ['nmap', 'curl', 'wget', 'nc', 'python3', 'pip3']
+        enhanced_tools = ['feroxbuster', 'gobuster', 'whatweb', 'smbclient']
+        python_modules = ['requests', 'beautifulsoup4', 'paramiko', 'colorama']
+        
+        missing_core = [t for t in core_tools if not self.check_command(t)]
+        missing_enhanced = [t for t in enhanced_tools if not self.check_command(t)]
+        missing_python = [m for m in python_modules if not self.check_python_module(m)]
+        
+        if missing_core or missing_enhanced or missing_python:
+            print(f"\n{COLORS['yellow']}⚠️  Missing Dependencies:{COLORS['reset']}")
+            
+            if missing_core:
+                print(f"\n{COLORS['red']}Critical (JASMIN won't work properly):{COLORS['reset']}")
+                for tool in missing_core:
+                    print(f"  ❌ {tool}")
+            
+            if missing_enhanced:
+                print(f"\n{COLORS['yellow']}Optional (reduced functionality):{COLORS['reset']}")
+                for tool in missing_enhanced:
+                    print(f"  ⚠️  {tool}")
+            
+            if missing_python:
+                print(f"\n{COLORS['yellow']}Python modules:{COLORS['reset']}")
+                for module in missing_python:
+                    print(f"  ❌ {module}")
+            
+            print(f"\n{COLORS['cyan']}Quick Fix:{COLORS['reset']}")
+            if self.distro == 'debian':
+                print("  sudo apt update && sudo apt install nmap curl wget python3-pip")
+                print("  pip3 install requests beautifulsoup4 colorama")
+            elif self.distro == 'redhat':
+                print("  sudo dnf install nmap curl wget python3-pip")
+                print("  pip3 install requests beautifulsoup4 colorama")
+            elif self.distro == 'arch':
+                print("  sudo pacman -S nmap curl wget python-pip")
+                print("  pip3 install requests beautifulsoup4 colorama")
+            
+            print(f"\n{COLORS['green']}Automated Install:{COLORS['reset']}")
+            print("  python3 jasmin.py setup install")
+            
+            return False
+        
+        return True
+    
+    def auto_install(self):
+        """Automated installation"""
+        print(f"\n{COLORS['cyan']}🚀 JASMIN Automated Setup{COLORS['reset']}")
+        print("=" * 30)
+        
+        success = True
+        
+        # Install basic packages
+        print(f"\n{COLORS['blue']}📦 Installing core tools...{COLORS['reset']}")
+        if self.distro == 'debian':
+            cmd = 'sudo apt update && sudo apt install -y nmap curl wget netcat-traditional python3-pip git'
+        elif self.distro == 'redhat':
+            cmd = 'sudo dnf install -y nmap curl wget nc python3-pip git'
+        elif self.distro == 'arch':
+            cmd = 'sudo pacman -S --noconfirm nmap curl wget openbsd-netcat python-pip git'
+        else:
+            print(f"{COLORS['red']}❌ Unknown distribution{COLORS['reset']}")
+            success = False
+            cmd = None
+        
+        if cmd and os.system(cmd) != 0:
+            success = False
+        
+        # Install Python modules
+        print(f"\n{COLORS['blue']}🐍 Installing Python modules...{COLORS['reset']}")
+        python_cmd = f'{sys.executable} -m pip install --user requests beautifulsoup4 paramiko colorama tabulate rich'
+        if os.system(python_cmd) != 0:
+            success = False
+        
+        # Try to install enhanced tools
+        print(f"\n{COLORS['blue']}🔧 Installing enhanced tools...{COLORS['reset']}")
+        if self.distro == 'debian':
+            os.system('sudo apt install -y gobuster whatweb feroxbuster 2>/dev/null')
+        elif self.check_command('cargo'):
+            os.system('cargo install feroxbuster 2>/dev/null')
+        
+        # Setup PATH
+        self.setup_path()
+        
+        if success:
+            print(f"\n{COLORS['green']}🎉 Setup completed! You can now use JASMIN.{COLORS['reset']}")
+            print(f"{COLORS['yellow']}💡 Restart your terminal or run: source ~/.bashrc{COLORS['reset']}")
+        else:
+            print(f"\n{COLORS['yellow']}⚠️  Setup completed with some issues.{COLORS['reset']}")
+            print(f"{COLORS['blue']}💡 JASMIN should still work for basic functionality.{COLORS['reset']}")
+        
+        return success
+    
+    def setup_path(self):
+        """Add JASMIN to PATH"""
+        script_path = None
+        for name in ['jasmin.py', 'jarvis.py']:
+            if Path(name).exists():
+                script_path = Path(name).resolve()
+                break
+        
+        if not script_path:
+            return False
+        
+        os.chmod(script_path, 0o755)
+        
+        # User-local installation
+        local_bin = Path.home() / '.local' / 'bin'
+        local_bin.mkdir(parents=True, exist_ok=True)
+        
+        target = local_bin / 'jasmin'
+        try:
+            shutil.copy2(script_path, target)
+            os.chmod(target, 0o755)
+            
+            # Add to bashrc
+            bashrc = Path.home() / '.bashrc'
+            if bashrc.exists():
+                content = bashrc.read_text()
+                if '.local/bin' not in content:
+                    with open(bashrc, 'a') as f:
+                        f.write('\n# JASMIN PATH\nexport PATH="$HOME/.local/bin:$PATH"\n')
+            
+            print(f"{COLORS['green']}✅ Added JASMIN to PATH{COLORS['reset']}")
+            return True
+        except Exception as e:
+            print(f"{COLORS['yellow']}⚠️  PATH setup failed: {e}{COLORS['reset']}")
+            return False
 
 # ============================================================================
 # JASMIN STARTUP BANNER AND LOADING SYSTEM
@@ -204,6 +402,9 @@ def show_help():
 {COLORS['cyan']}╔══════════════════════════════════════════════════════════════════════════════╗
 ║                            JASMIN Command Reference                          ║                     
 ╚══════════════════════════════════════════════════════════════════════════════╝{COLORS['reset']}
+
+{COLORS['blue']}Dependency Management:{COLORS['reset']}
+  setup                     System setup and dependency management
 
 {COLORS['blue']}Target Management:{COLORS['reset']}
   target new <n> <ip>        Create new target session
@@ -1771,6 +1972,208 @@ def show_status_message(message, msg_type="info"):
     
     print(f"{color}[{msg_type.upper()}]{COLORS['reset']} {message}")
 
+def startup_dependency_check():
+    """Check dependencies on startup and offer to install if missing"""
+    setup_manager = JasminSetupManager()
+    
+    if not setup_manager.quick_dependency_check():
+        print(f"\n{COLORS['yellow']}⚠️  JASMIN Setup Required{COLORS['reset']}")
+        print(f"Essential tools are missing for full functionality.")
+        
+        try:
+            response = input(f"\n{COLORS['cyan']}Run automated setup now? (y/N): {COLORS['reset']}").strip().lower()
+            if response in ['y', 'yes']:
+                if setup_manager.auto_install():
+                    print(f"\n{COLORS['green']}🎉 Setup complete! Please restart JASMIN.{COLORS['reset']}")
+                    return False  # Exit to restart
+                else:
+                    print(f"\n{COLORS['yellow']}Setup had issues but continuing...{COLORS['reset']}")
+            else:
+                print(f"{COLORS['blue']}💡 Run 'setup install' anytime to install dependencies{COLORS['reset']}")
+        except KeyboardInterrupt:
+            print(f"\n{COLORS['blue']}💡 Run 'setup install' anytime to install dependencies{COLORS['reset']}")
+    
+    return True  # Continue normal startup
+
+# =============================================================================
+# SETUP COMMAND HANDLER
+# =============================================================================
+
+def handle_setup_command(tokens, env):
+    """Handle setup-related commands"""
+    setup_manager = JasminSetupManager()
+    
+    if len(tokens) == 1 or (len(tokens) > 1 and tokens[1] == "status"):
+        # Show status
+        print(f"\n{COLORS['cyan']}🔍 JASMIN Dependency Status{COLORS['reset']}")
+        if setup_manager.show_missing_tools():
+            print(f"{COLORS['green']}✅ All essential dependencies satisfied!{COLORS['reset']}")
+        
+    elif len(tokens) > 1 and tokens[1] in ["install", "auto"]:
+        # Automated installation
+        print(f"{COLORS['yellow']}⚠️  This will install packages on your system.{COLORS['reset']}")
+        try:
+            response = input("Continue? (y/N): ").strip().lower()
+            if response in ['y', 'yes']:
+                setup_manager.auto_install()
+            else:
+                print("Setup cancelled.")
+        except KeyboardInterrupt:
+            print("\nSetup cancelled.")
+            
+    elif len(tokens) > 1 and tokens[1] == "check":
+        # Detailed check
+        if setup_manager.quick_dependency_check():
+            print(f"{COLORS['green']}✅ Core dependencies satisfied{COLORS['reset']}")
+        setup_manager.show_missing_tools()
+        
+    elif len(tokens) > 1 and tokens[1] == "path":
+        # PATH setup only
+        setup_manager.setup_path()
+        
+    elif len(tokens) > 1 and tokens[1] == "help":
+        show_setup_help()
+        
+    else:
+        show_setup_help()
+    
+    return env
+
+def show_setup_help():
+    """Show setup command help"""
+    print(f"""
+{COLORS['blue']}JASMIN Setup & Installation{COLORS['reset']}
+
+{COLORS['green']}Commands:{COLORS['reset']}
+  setup                     Show dependency status
+  setup check               Detailed dependency check
+  setup install             Automated installation
+  setup path                Add JASMIN to PATH
+  setup help                Show this help
+
+{COLORS['green']}Quick Start:{COLORS['reset']}
+  1. python3 jasmin.py setup install
+  2. Restart terminal or: source ~/.bashrc  
+  3. Test with: jasmin help
+
+{COLORS['yellow']}What Gets Installed:{COLORS['reset']}
+  ✓ Core tools: nmap, curl, wget, netcat
+  ✓ Python modules: requests, beautifulsoup4, colorama
+  ✓ Enhanced tools: feroxbuster, gobuster, whatweb
+  ✓ PATH configuration for 'jasmin' command
+
+{COLORS['blue']}Manual Installation:{COLORS['reset']}
+  Ubuntu/Debian: sudo apt install nmap curl wget python3-pip
+  CentOS/RHEL:   sudo dnf install nmap curl wget python3-pip
+  Arch Linux:    sudo pacman -S nmap curl wget python-pip
+  
+  Python:        pip3 install requests beautifulsoup4 colorama
+""")
+
+# ============================================================================
+# GUI COMMAND HANDLER (thin shim; launches only on explicit `gui` command)
+# ============================================================================
+
+# Keep a module-level error holder for status messages
+_GUI_IMPORT_ERROR = None
+
+def check_gui_requirements() -> bool:
+    """Return True if PyQt6 and the GUI module are importable."""
+    global _GUI_IMPORT_ERROR
+    try:
+        # Import checks only (no side effects)
+        from PyQt6.QtWidgets import QApplication  # noqa: F401
+        _GUI_IMPORT_ERROR = None
+        return True
+    except Exception as e:
+        _GUI_IMPORT_ERROR = e
+        return False
+
+def show_gui_status():
+    ok = check_gui_requirements()
+    print("JASMIN GUI Status:")
+    print(f"  Available: {'✓' if ok else '✗'}")
+    if not ok and _GUI_IMPORT_ERROR:
+        print(f"  Reason: {_GUI_IMPORT_ERROR}")
+
+def handle_gui_command(tokens, env):
+    """Handle `gui` subcommands."""
+    # Parse subcommand
+    subcommand = tokens[1].lower() if len(tokens) > 1 else "launch"
+    args = tokens[2:] if len(tokens) > 2 else []
+
+    if subcommand in ("help", "h"):
+        return handle_gui_help(args, env)
+    if subcommand in ("status", "check"):
+        return handle_gui_status(args, env)
+    if subcommand in ("launch", "start", "open") or True:
+        # Default to launch for unknown subcommands, preserving old behavior
+        return handle_gui_launch(args, env)
+
+def handle_gui_launch(_args, env):
+    """Launch the Qt GUI for the current session (explicit command only)."""
+    if not check_gui_requirements():
+        print("[!] GUI integration not available")
+        print("[*] Install: pip install PyQt6")
+        return env
+
+    if not env or 'BOXNAME' not in env or 'IP' not in env:
+        print("[!] No active JASMIN session found.")
+        print("[*] Start a session first:")
+        print("    jasmin> target <name> <ip>")
+        print("    jasmin> resume <name>")
+        return env
+
+    print(f"[+] Launching GUI for session: {env['BOXNAME']} ({env['IP']})")
+    print(f"[+] Session directory: {env.get('OUTDIR', '?')}")
+
+    try:
+        from jasmin_gui_main import launch_gui
+        ok = launch_gui(env)  # Blocks until window closes
+        if not ok:
+            print("[!] GUI launch failed")
+    except Exception as e:
+        print(f"[!] GUI launch error: {e}")
+
+    return env
+
+def handle_gui_status(_args, env):
+    show_gui_status()
+    return env
+
+def handle_gui_help(_args, env):
+    help_text = f"""
+{COLORS.get('cyan', '')}GUI Commands:{COLORS.get('reset', '')}
+
+  gui                         Launch visual workbench (default)
+  gui launch                  Launch visual workbench
+  gui status                  Check GUI availability and status
+  gui help                    Show this help
+
+{COLORS.get('yellow', '')}GUI Features:{COLORS.get('reset', '')}
+  • Visual interface to session data
+  • Real-time scan monitoring
+  • State.json visualization
+  • Integrated notes editing
+  • Session management
+  • File system browsing
+
+{COLORS.get('green', '')}Examples:{COLORS.get('reset', '')}
+  jasmin[mybox]> gui                    # Launch GUI
+  jasmin[mybox]> gui status             # Check GUI status
+  jasmin> gui help                      # Show this help
+
+{COLORS.get('yellow', '')}Requirements:{COLORS.get('reset', '')}
+  • PyQt6 (required)
+  • pyperclip (optional)
+  • netifaces (optional)
+
+Install with: pip install PyQt6 pyperclip netifaces
+"""
+    print(help_text)
+    return env
+
+
 # ============================================================================
 # MAIN REPL LOOP
 # ============================================================================
@@ -1899,6 +2302,12 @@ def jasmin_repl(env=None):
                 env = handle_payload_command(tokens, env)
                 continue
 
+            elif base_cmd == "setup":
+                env = handle_setup_command(tokens, env)
+
+            elif base_cmd == "gui":
+                env = handle_gui_command(tokens, env)
+
             # ============================================================================
             # ALSO: Let's verify which functions actually exist
             # Add this test command to see what functions are loaded:
@@ -1933,6 +2342,7 @@ def jasmin_repl(env=None):
                 else:
                     print("[!] No active session.")
             
+            
             # Unknown command
             else:
                 print(f"[!] Unknown command: {base_cmd}. Type 'help' for available commands.")
@@ -1942,6 +2352,9 @@ def jasmin_repl(env=None):
                     print("[*] Did you mean to use the payload module? Try 'payload help'")
                 elif base_cmd in ['scan', 'nmap']:
                     print("[*] Try: fs (full scan), tcp (TCP scan), or web (web enum)")
+                # ADD THIS LINE:
+                elif base_cmd in ['visual', 'interface', 'workbench']:
+                    print("[*] Try: gui (launch visual interface)")
                 
         except KeyboardInterrupt:
             print()  # New line after ^C
@@ -1956,7 +2369,7 @@ def jasmin_repl(env=None):
 
 def main():
     """Main JASMIN function"""
-    
+
     # Parse command line arguments first to check for quiet mode
     parser = argparse.ArgumentParser(description="JASMIN - Just A Smooth Machine Infiltrating Networks")
     parser.add_argument('command', nargs='*', help='Command to execute')
@@ -1964,6 +2377,12 @@ def main():
     parser.add_argument('-q', '--quiet', action='store_true', help='Skip startup banner and loading animation')
     
     args = parser.parse_args()
+
+    # Check dependencies on startup (unless quiet mode)
+    if not args.quiet:
+        if not startup_dependency_check():
+            return  # Exit to restart after setup
+    
     
     # Show JASMIN startup sequence (unless quiet mode)
     if not args.quiet:
