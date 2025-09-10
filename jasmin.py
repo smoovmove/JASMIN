@@ -319,7 +319,7 @@ except ImportError:
 try:
     from scans import (
         run_full_scan, run_tcp_scan, check_udp_progress, 
-        run_script_scan, web_enum
+        run_script_scan, web_enum, run_host_discovery_only, run_sweep_scan
     )
     SCANNING_AVAILABLE = True
 except ImportError:
@@ -413,10 +413,21 @@ def show_help():
   target current                Show current target info
   target delete <n>             Delete target session
 
+{COLORS['blue']}IP Address Management:{COLORS['reset']}
+  ip                           Show current target IP and copy to clipboard
+  ip set <new_ip>              Update primary target IP for current session
+  ip save <n> <ip> [desc]      Save IP with variable name (optional description)
+  ip get <n>                   Retrieve and copy saved IP by variable name
+  ip list                      List all saved IP variables for current target
+  ip export <format>           Export IPs (list/hosts/nmap formats)
+
 {COLORS['blue']}Scanning & Enumeration:{COLORS['reset']}
   fs                            Full TCP scan with service detection
   tcp                           TCP port scan
-  udp                           UDP port scan  
+  udp                           UDP port scan 
+  discovery [ip/cidr]           Host discovery/ping sweep (saves results)
+  sweep                         Scan all discovered hosts (runs discovery if needed)
+  sweep --include <file>        Scan targets from custom file 
   web                           Web application enumeration
   script                        Run NSE scripts
   ss                           Short scan (top 1000 ports)
@@ -432,6 +443,9 @@ def show_help():
   web --gobuster            Use gobuster (traditional)
   web --internal            Internal scan settings (lower threads)
   web --intel               Intelligence analysis integration
+
+{COLORS['blue']}File Management:{COLORS['reset']}
+  ls                           List files in current session directory (alias for 'scans list')
 
 {COLORS['blue']}Scan Results:{COLORS['reset']}
   scans list                    List all scan files in session
@@ -732,36 +746,18 @@ def _get_scan_files(env):
     if not env or 'OUTDIR' not in env:
         return []
     
-    outdir = Path(env['OUTDIR'])
-    boxname = env.get('BOXNAME', '')
+    # Look in scans subdirectory
+    scans_dir = Path(env['OUTDIR']) / "scans"
+    if not scans_dir.exists():
+        return []
     
-    # Find common scan file patterns
-    scan_patterns = [
-        f"{boxname}_*.nmap",
-        f"{boxname}_*.xml", 
-        f"{boxname}_*.txt",
-        f"{boxname}_gobuster*.txt",
-        f"{boxname}_nikto*.txt",
-        f"{boxname}_whatweb*.txt",
-        f"{boxname}_feroxbuster*.txt",
-        f"{boxname}_dirb*.txt"
-    ]
+    # Get all files in scans directory since it only contains scan output
+    scan_files = [f for f in scans_dir.iterdir() if f.is_file()]
     
-    scan_files = []
-    for pattern in scan_patterns:
-        scan_files.extend(outdir.glob(pattern))
-    
-    # Filter out notes files and other non-scan files
-    filtered_files = []
-    for f in scan_files:
-        if not f.name.endswith('_notes.txt') and 'commands.log' not in f.name:
-            filtered_files.append(f)
-    
-    # Remove duplicates and sort
-    return sorted(list(set(filtered_files)))
+    return sorted(scan_files)
 
 def list_scan_files(env):
-    """List all scan files in the current target directory"""
+    """List all scan files in the current target scans directory"""
     if not env or 'OUTDIR' not in env:
         print("[!] No active session")
         return []
@@ -774,9 +770,9 @@ def list_scan_files(env):
         for i, scan_file in enumerate(scan_files, 1):
             file_size = scan_file.stat().st_size
             size_kb = file_size / 1024
-            print(f"    [{i:2d}] {scan_file.name:<25} ({size_kb:.1f} KB)")
+            print(f"  [{i:2d}] {scan_file.name:<25} ({size_kb:.1f} KB)")
     else:
-        print(f"[*] No scan files found in {boxname}")
+        print(f"[*] No scan files found in {boxname}/scans/")
         print(f"[*] Run some scans first: fs, tcp, web")
     
     return scan_files
@@ -788,6 +784,7 @@ def view_scan_file(env, filename_or_number):
         return
     
     outdir = Path(env['OUTDIR'])
+    scans_dir = outdir / "scans"  # Add this line
     
     # If it's a number, get from file list (silently)
     if filename_or_number.isdigit():
@@ -804,7 +801,7 @@ def view_scan_file(env, filename_or_number):
             return
     else:
         # Direct filename - try exact match first
-        target_file = outdir / filename_or_number
+        target_file = scans_dir / filename_or_number
         if not target_file.exists():
             # Try partial matching
             boxname = env.get('BOXNAME', '')
@@ -819,7 +816,7 @@ def view_scan_file(env, filename_or_number):
             ]
             
             for pattern in patterns_to_try:
-                matches = list(outdir.glob(pattern))
+                matches = list(scans_dir.glob(pattern))
                 possible_files.extend(matches)
             
             if possible_files:
@@ -1044,6 +1041,48 @@ def handle_scans_command(tokens, env):
     
     return env
 
+def parse_scan_flags(tokens):
+    """Parse scanning flags and parameters"""
+    flags = {
+        'internal': False,
+        'internal_ip': None,
+        'intel': False,
+        'wordlist_size': 'short'  # ADD THIS - default to short/common.txt
+    }
+    
+    i = 1  # Start after the scan command
+    while i < len(tokens):
+        token = tokens[i]
+        
+        if token == "--internal":
+            # Check if next token is an IP address
+            if i + 1 < len(tokens) and is_valid_ip(tokens[i + 1]):
+                flags['internal'] = True
+                flags['internal_ip'] = tokens[i + 1]
+                i += 2  # Skip both --internal and the IP
+            else:
+                # Just --internal flag without IP (scan current target internally)
+                flags['internal'] = True
+                i += 1
+                
+        elif token == "--intel":
+            flags['intel'] = True
+            i += 1
+        # ADD THESE NEW FLAGS:
+        elif token == "--short":
+            flags['wordlist_size'] = 'short'
+            i += 1
+        elif token == "--medium":
+            flags['wordlist_size'] = 'medium'
+            i += 1
+        elif token == "--large":
+            flags['wordlist_size'] = 'large'
+            i += 1
+        else:
+            i += 1
+    
+    return flags
+
 # ============================================================================
 # WEB TOOL CHECKER
 # ============================================================================
@@ -1142,7 +1181,8 @@ def load_ip_variables(env):
     
     try:
         outdir = Path(env['OUTDIR'])
-        state = load_state(outdir)
+        session_dir = outdir / "session"  # Add this line
+        state = load_state(session_dir)   # Changed from outdir
         return state.get('ip_variables', {})
     except Exception as e:
         print(f"[!] Error loading IP variables: {e}")
@@ -1155,9 +1195,10 @@ def save_ip_variables(env, ip_variables):
     
     try:
         outdir = Path(env['OUTDIR'])
+        session_dir = outdir / "session"  # Add this line
         
         # Load current state
-        state_path = get_state_path(outdir)
+        state_path = get_state_path(session_dir)  # Changed from outdir
         if state_path.exists():
             with open(state_path, 'r') as f:
                 state = json.load(f)
@@ -1363,6 +1404,7 @@ def import_ips_from_scan(env):
         return
     
     outdir = Path(env['OUTDIR'])
+    scans_dir = outdir / "scans"     # Add this line
     boxname = env.get('BOXNAME', '')
     
     # Look for IPs in scan files
@@ -1370,7 +1412,7 @@ def import_ips_from_scan(env):
     found_ips = set()
     
     # Search in common scan files
-    scan_files = list(outdir.glob(f"{boxname}_*.nmap")) + list(outdir.glob(f"{boxname}_*.txt"))
+    scan_files = list(scans_dir.glob(f"{boxname}_*.nmap")) + list(scans_dir.glob(f"{boxname}_*.txt"))
     
     for scan_file in scan_files:
         try:
@@ -1466,7 +1508,8 @@ def update_session_ip(env, new_ip):
     try:
         # Update session.env file
         if outdir:
-            session_file = Path(outdir) / "session.env"
+            session_dir = Path(outdir) / "session"       # Add this line
+            session_file = session_dir / "session.env"   # Changed from outdir
             if session_file.exists():
                 # Read current session file
                 with open(session_file, 'r') as f:
@@ -1490,7 +1533,8 @@ def update_session_ip(env, new_ip):
         # Update notes file with new IP
         try:
             from notes import update_field_in_section
-            notes_file = Path(outdir) / f"{boxname}_notes.txt"
+            session_dir = Path(outdir) / "session"                    # Add this line
+            notes_file = session_dir / f"{boxname}_notes.txt"         # Changed from outdir
             if notes_file.exists():
                 update_field_in_section(notes_file, "System Info", "IP", new_ip)
         except ImportError:
@@ -1611,92 +1655,241 @@ def handle_session_integrated_ip_command(tokens, env):
 # SCANNING COMMANDS
 # ============================================================================
 
+def is_valid_ip(ip_str):
+    """Check if string is a valid IP address"""
+    import re
+    ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
+    if not ip_pattern.match(ip_str):
+        return False
+    
+    # Check each octet is 0-255
+    parts = ip_str.split('.')
+    return all(0 <= int(part) <= 255 for part in parts)
+
 def handle_scan_command(scan_type, tokens, env):
-    """Handle various scanning commands"""
+    """Handle various scanning commands with enhanced internal IP support"""
     if not SCANNING_AVAILABLE:
         print("[!] Scanning modules not available")
         return env
-        
     if not env or 'IP' not in env:
         print("[!] No active target. Use 'target new <n> <ip>' first")
         return env
     
-    target_ip = env['IP']
-    boxname = env['BOXNAME']
+    # Parse flags
+    flags = parse_scan_flags(tokens)
+    
+    # Determine target IP and scan context
+    if flags['internal_ip']:
+        target_ip = flags['internal_ip']
+        scan_context = f"internal scan of {target_ip} via {env['IP']}"
+        # Tunneled scan: internal_10_10_10_50
+        modified_boxname = f"internal_{target_ip.replace('.', '_')}"
+    elif flags['internal']:
+        target_ip = env['IP']
+        scan_context = f"internal scan of {target_ip}"
+        # Internal methodology: just "internal"
+        modified_boxname = "internal"
+    else:
+        target_ip = env['IP']
+        scan_context = f"external scan of {target_ip}"
+        # External scan: use original boxname
+        modified_boxname = env['BOXNAME']
+    
     outdir = Path(env['OUTDIR'])
     logfile = Path(env['LOGFILE'])
     
     try:
         if scan_type in ["fs", "fullscan", "full"]:
-            print(f"[*] Running full TCP scan on {target_ip}")
-            run_full_scan(target_ip, boxname, outdir, logfile)
+            print(f"[*] Running full TCP scan - {scan_context}")
+            
+            # Log the scan context
+            with open(logfile, "a") as f:
+                timestamp = datetime.now().strftime("%F %T")
+                f.write(f"[{timestamp}] Starting full scan - {scan_context}\n")
+            
+            run_full_scan(
+                target_ip, 
+                modified_boxname,
+                outdir, 
+                logfile, 
+                internal=flags['internal'], 
+                intel=flags['intel']
+            )
             
         elif scan_type == "tcp":
-            print(f"[*] Running TCP port scan on {target_ip}")
-            run_tcp_scan(target_ip, boxname, outdir, logfile)
+            print(f"[*] Running TCP port scan - {scan_context}")
+            
+            with open(logfile, "a") as f:
+                timestamp = datetime.now().strftime("%F %T")
+                f.write(f"[{timestamp}] Starting TCP scan - {scan_context}\n")
+            
+            run_tcp_scan(
+                target_ip, 
+                modified_boxname, 
+                outdir, 
+                logfile, 
+                internal=flags['internal'], 
+                intel=flags['intel']
+            )
             
         elif scan_type == "udp":
-            print(f"[*] Running UDP port scan on {target_ip}")
-            check_udp_progress(target_ip, boxname, outdir, logfile)
+            print(f"[*] Running UDP port scan - {scan_context}")
+            # Note: UDP doesn't work well through tunnels, warn user
+            if flags['internal_ip']:
+                print("[!] Warning: UDP scans through tunnels may be unreliable")
             
-        elif scan_type == "ss":
-            print(f"[*] Running short scan on {target_ip}")
-            # Use TCP scan for short scan
-            run_tcp_scan(target_ip, boxname, outdir, logfile)
+            check_udp_progress(target_ip, modified_boxname, outdir, logfile)
+            
+        # REMOVE OR MODIFY THIS SECTION - What do you want for "ss"?
+        # elif scan_type == "ss":
+        #     print("[!] Short scan not implemented")
+        #     return env
             
         elif scan_type == "script":
-            print(f"[*] Running NSE scripts on {target_ip}")
-            run_script_scan(target_ip, boxname, outdir, logfile)
-
-        elif scan_type in ["web", "we"]:
-            # Parse port parameter, flags, tool preference, and protocol
-
-            if len(tokens) > 1 and tokens[1].lower() in ["help", "-h", "--help"]:
-                show_web_help()
-                return env
-
-            port = None
-            internal = False
-            intel = False
-            tool = "auto"  # Default to auto-detection
-            protocol = None  # Let function decide based on port
+            print(f"[*] Running NSE scripts - {scan_context}")
             
-            # Look for parameters and flags in remaining tokens
-            if len(tokens) > 1:
-                for token in tokens[1:]:
-                    if token.isdigit():
-                        port = token
-                    elif token == "--internal":
-                        internal = True
-                    elif token == "--intel":
-                        intel = True
-                    elif token in ["--ferox", "--feroxbuster"]:
-                        tool = "ferox"
-                    elif token in ["--gobuster", "--gobust"]:
-                        tool = "gobuster"
-                    elif token in ["--http", "http"]:
-                        protocol = "http"
-                    elif token in ["--https", "https"]:
-                        protocol = "https"
-                    elif token == "--ssl":  # Alternative flag for HTTPS
-                        protocol = "https"
+            run_script_scan(
+                target_ip, 
+                modified_boxname, 
+                outdir, 
+                logfile, 
+                internal=flags['internal'], 
+                intel=flags['intel']
+            )
+        
+        elif scan_type == "sweep":
+            print(f"[*] Running sweep scan - {scan_context}")
+            
+            # Parse --include flag
+            include_file = None
+            for i, token in enumerate(tokens):
+                if token == "--include" and i + 1 < len(tokens):
+                    include_file = tokens[i + 1]
+                    break
+            
+            # Log the scan context
+            with open(logfile, "a") as f:
+                timestamp = datetime.now().strftime("%F %T")
+                source = f" using {include_file}" if include_file else ""
+                f.write(f"[{timestamp}] Starting sweep scan{source}\n")
+            
+            # Call the sweep function from scans.py
+            success = run_sweep_scan(
+                target_ip,
+                modified_boxname,
+                outdir,
+                logfile,
+                internal=flags['internal'],
+                intel=flags['intel'],
+                include_file=include_file
+            )
+            
+            if not success and include_file:
+                # Show available files if include failed
+                print(f"[*] Available files in session:")
+                list_scan_files(env)
+
+        elif scan_type == "discovery":
+            # Check if a specific IP/CIDR was provided as parameter
+            discovery_target = None
+            for token in tokens[1:]:  # Skip the command itself
+                if token not in ["--internal", "--intel"]:  # Skip flags
+                    # Use existing is_ip_range function to validate
+                    from session import is_ip_range
+                    valid, is_range = is_ip_range(token)
+                    if valid:
+                        discovery_target = token
+                        break
+            
+            # Use provided target or fall back to session IP
+            if discovery_target:
+                target_ip = discovery_target
+                scan_context = f"host discovery on {discovery_target}"
+                if flags['internal']:
+                    scan_context += f" via {env['IP']}"
+            else:
+                # Use session IP (original behavior)
+                scan_context = f"host discovery - external scan of {target_ip}"
+            
+            print(f"[*] Running {scan_context}")
+            
+            # Host discovery works best with CIDR ranges
+            if discovery_target:
+                _, is_range = is_ip_range(discovery_target)  # Fixed syntax error
+                if not is_range:
+                    print(f"[!] Tip: Host discovery works best with CIDR notation (e.g. 192.168.127.0/24)")
+            
+            # Log the scan context
+            with open(logfile, "a") as f:
+                timestamp = datetime.now().strftime("%F %T")
+                f.write(f"[{timestamp}] Starting {scan_context}\n")
+            
+            # Run discovery with file output (pass the boxname)
+            live_ips = run_host_discovery_only(
+                target_ip,
+                internal=flags['internal'],
+                outdir=outdir,
+                boxname=modified_boxname,  # This ensures proper naming
+                save_results=True
+            )
+            
+            if live_ips:
+                print(f"[+] Discovery complete: {len(live_ips)} live hosts found")
+                print(f"[*] Use 'sweep' to scan all discovered hosts")
+            else:
+                print("[*] No live hosts discovered")
+            
+        elif scan_type in ["web", "we"]:
+            # Parse additional web-specific parameters
+            port = None
+            tool = "auto"
+            protocol = None
+            
+            # Look for web-specific parameters (keep existing logic)
+            i = 1
+            while i < len(tokens):
+                token = tokens[i]
+                if token.isdigit():
+                    port = token
+                elif token in ["--ferox", "--feroxbuster"]:
+                    tool = "ferox"
+                elif token in ["--gobuster", "--gobust"]:
+                    tool = "gobuster"
+                elif token in ["--http", "http"]:
+                    protocol = "http"
+                elif token in ["--https", "https"]:
+                    protocol = "https"
+                elif token == "--ssl":
+                    protocol = "https"
+                i += 1
             
             # Build description for output
-            if port and protocol:
-                print(f"[*] Running web enumeration on {target_ip}:{port} ({protocol.upper()})")
-            elif port:
-                print(f"[*] Running web enumeration on {target_ip}:{port}")
-            elif protocol:
-                print(f"[*] Running web enumeration on {target_ip} ({protocol.upper()})")
-            else:
-                print(f"[*] Running web enumeration on {target_ip}")
+            web_desc = f"web enumeration - {scan_context}"
+            if port:
+                web_desc += f" on port {port}"
+            if protocol:
+                web_desc += f" ({protocol.upper()})"
+                
+            print(f"[*] Running {web_desc}")
             
-            web_enum(target_ip, boxname, outdir, logfile, port=port, 
-                    internal=internal, intel=intel, tool=tool, protocol=protocol)
-    
+            web_enum(
+                target_ip, 
+                modified_boxname, 
+                outdir, 
+                logfile, 
+                port=port,
+                internal=flags['internal'], 
+                intel=flags['intel'], 
+                tool=tool, 
+                protocol=protocol
+            )
+                    
     except Exception as e:
+        import traceback
         print(f"[!] Scan error: {e}")
-    
+        print(f"[!] Full traceback:")
+        traceback.print_exc()
+        
     return env
 
 # ============================================================================
@@ -1883,14 +2076,15 @@ def handle_notes_command(cmd, tokens, env):
     try:
         # Extract required parameters from env
         outdir = Path(env["OUTDIR"])
+        session_dir = outdir / "session"  # Add this line
         boxname = env["BOXNAME"]
         
         # Determine correct notes file based on context
         if 'HOST' in env:
             host_ip = env['HOST']
-            notes_path = outdir / f"{boxname}_{host_ip.replace('.', '_')}_notes.txt"
+            notes_path = session_dir / f"{boxname}_{host_ip.replace('.', '_')}_notes.txt"
         else:
-            notes_path = outdir / f"{boxname}_notes.txt"
+            notes_path = session_dir / f"{boxname}_notes.txt"
         
         if len(tokens) > 1:
             subcmd = tokens[1].lower()
@@ -1901,12 +2095,12 @@ def handle_notes_command(cmd, tokens, env):
             elif subcmd == "users":
                 notes_users(notes_path)  # Fixed: pass notes_path instead of env
             elif subcmd == "open":
-                open_notes(boxname, outdir)  # Fixed: pass boxname and outdir
+                open_notes(boxname, session_dir)  # Fixed: pass boxname and outdir
             else:
                 print("[!] Unknown notes command")
                 print("Available: quick, creds, users, open")
         else:
-            open_notes(boxname, outdir)  # Fixed: pass boxname and outdir
+            open_notes(boxname, session_dir)  # Fixed: pass boxname and outdir
     except Exception as e:
         print(f"[!] Notes error: {e}")
 
@@ -2287,12 +2481,14 @@ def jasmin_repl(env=None):
                 env = handle_target_command(tokens, env)
             
             # Handle scanning commands
-            elif base_cmd in ["fs", "fullscan", "full", "tcp", "udp", "web", "we", "ss", "script"]:
+            elif base_cmd in ["fs", "fullscan", "full", "tcp", "udp", "web", "we", "ss", "script", "discovery", "sweep"]:
                 env = handle_scan_command(base_cmd, tokens, env)
             
             #Handle viewing scans commands
             elif base_cmd == "scans":
                 env = handle_scans_command(tokens, env)
+            elif base_cmd == "ls": 
+                env = handle_scans_command(["scans", "list"], env)
 
             #Handle IP commands
             elif base_cmd == "ip":

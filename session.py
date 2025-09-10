@@ -33,7 +33,7 @@ def is_ip_range(value: str) -> tuple[bool, bool]:
         return False, False #invalid input
 
 def get_session_file(boxname: str) -> Path: 
-    return Path.home() / "Boxes" / boxname / "session.env"
+    return Path.home() / "Boxes" / boxname / "session" / "session.env"
 
 def create_target_session(target_name: str, ip_or_range: str) -> dict:
     """Create a new top-level target session"""
@@ -44,21 +44,28 @@ def create_target_session(target_name: str, ip_or_range: str) -> dict:
     outdir = get_target_dir(target_name)
     outdir.mkdir(parents=True, exist_ok=True)
     
+    # Create subdirectories
+    scans_dir = outdir / "scans"
+    scans_dir.mkdir(parents=True, exist_ok=True)
+    
+    session_dir = outdir / "session"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    
     # Create screenshots directory
     screenshots = outdir / "Screenshots"
     screenshots.mkdir(parents=True, exist_ok=True)
     
-    # Create notes file
-    notes_file = outdir / f"{target_name}_notes.txt"
+    # Create notes file in session directory
+    notes_file = session_dir / f"{target_name}_notes.txt"
     if not notes_file.exists():
         notes_file.write_text(default_note_template)
         print(f"[+] Notes file created at {notes_file}")
     
     update_field_in_section(notes_file, "System Info", "IP", ip_or_range)
     
-    # Create session files
-    logfile = outdir / "commands.log"
-    session_file = outdir / "session.env"
+    # Create session files in session directory
+    logfile = session_dir / "commands.log"
+    session_file = session_dir / "session.env"
     
     with open(session_file, "w") as f:
         f.write(f"BOXNAME={target_name}\n")
@@ -66,8 +73,8 @@ def create_target_session(target_name: str, ip_or_range: str) -> dict:
         f.write(f"OUTDIR={outdir}\n")
         f.write(f"LOGFILE={logfile}\n")
     
-    # Initialize state
-    create_initial_state_file(outdir, target_name, ip_or_range)
+    # Initialize state in session directory
+    create_initial_state_file(session_dir, target_name, ip_or_range)
     
     # Set as current target
     set_last_target(target_name)
@@ -131,7 +138,8 @@ def resume_session():
 
 def resume_target_session(target_name: str) -> dict:
     """Resume a target-level session"""
-    session_file = get_target_dir(target_name) / "session.env"
+    target_dir = get_target_dir(target_name)
+    session_file = target_dir / "session" / "session.env"
     
     if not session_file.exists():
         raise FileNotFoundError(f"No session found for target: {target_name}")
@@ -145,7 +153,8 @@ def resume_target_session(target_name: str) -> dict:
     
     # Ensure notes file exists
     outdir = Path(env["OUTDIR"])
-    notes_file = outdir / f"{target_name}_notes.txt"
+    session_dir = outdir / "session"
+    notes_file = session_dir / f"{target_name}_notes.txt"
     if not notes_file.exists():
         notes_file.write_text(default_note_template)
         print(f"[+] Notes file was missing - created new one at {notes_file}")
