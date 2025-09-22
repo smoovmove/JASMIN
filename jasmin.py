@@ -319,7 +319,7 @@ except ImportError:
 try:
     from scans import (
         run_full_scan, run_tcp_scan, check_udp_progress, 
-        run_script_scan, web_enum, run_host_discovery_only, run_sweep_scan
+        run_script_scan, web_enum, run_host_discovery_only, run_sweep_scan, run_detailed_scan
     )
     SCANNING_AVAILABLE = True
 except ImportError:
@@ -330,13 +330,6 @@ except ImportError:
 from payload import PayloadManager, create_payload_manager
 PAYLOAD_AVAILABLE = True
 _payload_manager = None
-
-# Import intelligence system
-try:
-    from intelligence_integration import handle_intel_command
-    INTEL_AVAILABLE = True
-except ImportError:
-    INTEL_AVAILABLE = False
 
 # Import AD enumeration
 try:
@@ -442,7 +435,6 @@ def show_help():
   web --ferox               Use feroxbuster (faster, recursive)
   web --gobuster            Use gobuster (traditional)
   web --internal            Internal scan settings (lower threads)
-  web --intel               Intelligence analysis integration
 
 {COLORS['blue']}File Management:{COLORS['reset']}
   ls                           List files in current session directory (alias for 'scans list')
@@ -464,17 +456,6 @@ def show_help():
   payload list                  Show available payloads
   payload help                  Payload module help
 
-{COLORS['blue']}Intelligence & Analysis:{COLORS['reset']}
-  intel dashboard               Show intelligence overview for current target
-  intel suggest                 Get database-driven attack recommendations
-  intel analyze                 Re-run intelligence analysis on scan results
-  intel show port <n>           Deep analysis of specific port
-  intel show service <name>     Analyze service attack techniques
-  intel cve <name>              Lookup CVE details and exploits
-  intel lookup <service>        Service-specific attack techniques
-  intel show attack             Show available attack patterns
-  intel stats                   Show system performance & database stats
-
 {COLORS['blue']}Session Management:{COLORS['reset']}
   notes                         Session notes and documentation
   upload                        File upload server management
@@ -490,8 +471,6 @@ def show_help():
   jasmin> fs
   jasmin> web
   jasmin> payload search windows reverse
-  jasmin> intel dashboard
-  jasmin> intel show port 445
 
 {COLORS['blue']}Command Line Options:{COLORS['reset']}
   python jasmin.py               Start with full banner
@@ -525,7 +504,6 @@ def show_web_help():
 
 {COLORS['green']}Scan Modes:{COLORS['reset']}
   web --internal            Internal scan (lower threads, longer timeout)
-  web --intel               Enable intelligence analysis integration
 
 {COLORS['green']}Common Examples:{COLORS['reset']}
   web                       HTTP/HTTPS on default ports, best tool
@@ -538,9 +516,9 @@ def show_web_help():
 
 {COLORS['green']}Advanced Examples:{COLORS['reset']}
   web 8080 --https --ferox --internal    # HTTPS + feroxbuster + internal
-  web 9443 --ssl --gobuster --intel      # HTTPS + gobuster + intelligence
+  web 9443 --ssl --gobuster              # HTTPS + gobuster
   web 443 --http                         # Force HTTP on HTTPS port
-  web --https --internal --intel          # All HTTPS options
+  web --https --internal                 # All HTTPS options
 
 {COLORS['green']}Protocol Auto-Detection:{COLORS['reset']}
   {COLORS['cyan']}HTTPS Ports (auto):{COLORS['reset']} 443, 8443, 9443, 10443
@@ -588,8 +566,8 @@ def show_web_help():
 
 {COLORS['green']}Flag Combinations:{COLORS['reset']}
   All flags can be combined in any order:
-  web 9000 --https --ferox --internal --intel
-  web --ssl --gobuster --intel
+  web 9000 --https --ferox --internal
+  web --ssl --gobuster 
   web 8080 --http --internal
 
 {COLORS['green']}Installation Check:{COLORS['reset']}
@@ -601,7 +579,6 @@ def show_web_help():
   • Use feroxbuster for faster, more comprehensive scans
   • Use --internal for pivoted/tunneled targets  
   • HTTPS ports are auto-detected for common configurations
-  • Combine --intel with scans for automatic analysis
   • Output files include protocol and port for easy identification
 
 {COLORS['yellow']}Quick Reference:{COLORS['reset']}
@@ -1046,7 +1023,6 @@ def parse_scan_flags(tokens):
     flags = {
         'internal': False,
         'internal_ip': None,
-        'intel': False,
         'wordlist_size': 'short'  # ADD THIS - default to short/common.txt
     }
     
@@ -1065,9 +1041,6 @@ def parse_scan_flags(tokens):
                 flags['internal'] = True
                 i += 1
                 
-        elif token == "--intel":
-            flags['intel'] = True
-            i += 1
         # ADD THESE NEW FLAGS:
         elif token == "--short":
             flags['wordlist_size'] = 'short'
@@ -1181,8 +1154,16 @@ def load_ip_variables(env):
     
     try:
         outdir = Path(env['OUTDIR'])
-        session_dir = outdir / "session"  # Add this line
-        state = load_state(session_dir)   # Changed from outdir
+        
+        # Determine directory structure by checking session.env location
+        if (outdir / "session.env").exists():
+            # Legacy structure: files in main directory
+            state_dir = outdir
+        else:
+            # New structure: files in session/ subdirectory
+            state_dir = outdir / "session"
+        
+        state = load_state(state_dir)
         return state.get('ip_variables', {})
     except Exception as e:
         print(f"[!] Error loading IP variables: {e}")
@@ -1195,15 +1176,22 @@ def save_ip_variables(env, ip_variables):
     
     try:
         outdir = Path(env['OUTDIR'])
-        session_dir = outdir / "session"  # Add this line
+        
+        # Determine directory structure by checking session.env location
+        if (outdir / "session.env").exists():
+            # Legacy structure: files in main directory
+            state_dir = outdir
+        else:
+            # New structure: files in session/ subdirectory
+            state_dir = outdir / "session"
         
         # Load current state
-        state_path = get_state_path(session_dir)  # Changed from outdir
+        state_path = get_state_path(state_dir)
         if state_path.exists():
             with open(state_path, 'r') as f:
                 state = json.load(f)
         else:
-            # This shouldn't happen, but just in case
+            # Create new state if it doesn't exist
             state = {
                 "hostname": "", "os": "", "ports": [], "services": [],
                 "web_tech": "", "modules_used": [], "credentials": [],
@@ -1213,6 +1201,9 @@ def save_ip_variables(env, ip_variables):
         # Update IP variables and timestamp
         state['ip_variables'] = ip_variables
         state['last_updated'] = datetime.now().isoformat()
+        
+        # Ensure directory exists
+        state_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Save back to file
         with open(state_path, 'w') as f:
@@ -1713,7 +1704,6 @@ def handle_scan_command(scan_type, tokens, env):
                 outdir, 
                 logfile, 
                 internal=flags['internal'], 
-                intel=flags['intel']
             )
             
         elif scan_type == "tcp":
@@ -1729,7 +1719,6 @@ def handle_scan_command(scan_type, tokens, env):
                 outdir, 
                 logfile, 
                 internal=flags['internal'], 
-                intel=flags['intel']
             )
             
         elif scan_type == "udp":
@@ -1754,7 +1743,6 @@ def handle_scan_command(scan_type, tokens, env):
                 outdir, 
                 logfile, 
                 internal=flags['internal'], 
-                intel=flags['intel']
             )
         
         elif scan_type == "sweep":
@@ -1780,7 +1768,6 @@ def handle_scan_command(scan_type, tokens, env):
                 outdir,
                 logfile,
                 internal=flags['internal'],
-                intel=flags['intel'],
                 include_file=include_file
             )
             
@@ -1793,7 +1780,7 @@ def handle_scan_command(scan_type, tokens, env):
             # Check if a specific IP/CIDR was provided as parameter
             discovery_target = None
             for token in tokens[1:]:  # Skip the command itself
-                if token not in ["--internal", "--intel"]:  # Skip flags
+                if token not in ["--internal"]:  # Skip flags
                     # Use existing is_ip_range function to validate
                     from session import is_ip_range
                     valid, is_range = is_ip_range(token)
@@ -1879,7 +1866,6 @@ def handle_scan_command(scan_type, tokens, env):
                 logfile, 
                 port=port,
                 internal=flags['internal'], 
-                intel=flags['intel'], 
                 tool=tool, 
                 protocol=protocol
             )
@@ -1958,48 +1944,6 @@ def handle_payload_command(tokens, env):
             _payload_manager.build_interface = None
     
     return env
-
-# ============================================================================
-# INTELLIGENCE SYSTEM INTEGRATION - Fixed Database Path
-# ============================================================================
-
-def find_intelligence_database():
-    """Find the intelligence database in the current directory structure"""
-    # Try common locations relative to current directory
-    possible_paths = [
-        "intelligence.db",              # Current directory (where it actually is!)
-        "./intelligence.db",
-        "intelligence_db/intelligence.db",
-        "./intelligence_db/intelligence.db"
-    ]
-    
-    for path in possible_paths:
-        if Path(path).exists():
-            return str(Path(path).resolve())
-    
-    # If not found, return the most likely location
-    return "intelligence.db"
-
-def init_jasmin_intelligence():
-    """Initialize the intelligence system with proper path resolution"""
-    if INTEL_AVAILABLE:
-        try:
-            # Find the database
-            db_path = find_intelligence_database()
-            
-            # Check if database exists
-            if not Path(db_path).exists():
-                print(f"[!] Intelligence database not found at: {db_path}")
-                print("[!] Expected location: intelligence.db (in current directory)")
-                print("[!] Run 'python intelligence_main.py' to build the database")
-                return None
-            
-            from intelligence_integration import init_intelligence_system
-            return init_intelligence_system()
-        except Exception as e:
-            print(f"[!] Failed to initialize intelligence system: {e}")
-            return None
-    return None
 
 # ============================================================================
 # ACTIVE DIRECTORY COMMANDS
@@ -2381,9 +2325,6 @@ def jasmin_repl(env=None):
     
     if READLINE_AVAILABLE:
         print(f"{COLORS['green']}[+] Command history and tab completion enabled{COLORS['reset']}")
-        
-    if INTEL_AVAILABLE:
-        print(f"{COLORS['green']}[+] Intelligence system loaded{COLORS['reset']} - use 'intel help' for details")
     
     print()  # Extra line for clarity
     
@@ -2514,10 +2455,6 @@ def jasmin_repl(env=None):
                 if 'handle_payload_command' in globals():
                     print(f"handle_payload_command source file: {inspect.getfile(handle_payload_command)}")
                 continue
-            
-            # Handle intelligence commands
-            elif base_cmd == "intel":
-                env = handle_intel_command(env, tokens)
             
             # Handle AD commands
             elif base_cmd == "ad":

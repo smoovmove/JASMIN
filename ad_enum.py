@@ -16,20 +16,21 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 
-# INTELLIGENCE INTEGRATION - ADD THESE IMPORTS
-try:
-    from intelligence_integration import auto_analyze_scan_results
-    INTEL_AVAILABLE = True
-except ImportError:
-    INTEL_AVAILABLE = False
-
 # CREDENTIAL INTEGRATION
 from state import load_state, append_to_state_list
+
+def get_session_dir(outdir):
+    """Get session directory, with fallback to outdir for backward compatibility"""
+    session_dir = Path(outdir) / "session"
+    if session_dir.exists():
+        return session_dir
+    return Path(outdir)
 
 def load_stored_credentials(outdir):
     """Load stored credentials from state.json"""
     try:
-        state = load_state(Path(outdir))
+        session_dir = get_session_dir(outdir)
+        state = load_state(session_dir)
         return state.get('credentials', [])
     except Exception as e:
         print(f"[!] Could not load stored credentials: {e}")
@@ -38,6 +39,8 @@ def load_stored_credentials(outdir):
 def save_credential(outdir, username, password_or_hash, use_hash, domain=None, source="AD Enumeration"):
     """Save credential to state.json and notes"""
     try:
+        session_dir = get_session_dir(outdir)
+        
         credential = {
             "service": "Active Directory",
             "username": username,
@@ -48,11 +51,11 @@ def save_credential(outdir, username, password_or_hash, use_hash, domain=None, s
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
         }
         
-        append_to_state_list(Path(outdir), "credentials", credential)
+        append_to_state_list(session_dir, "credentials", credential)
         
         # Also add to notes for visibility
         from notes import append_to_notes_section
-        notes_file = Path(outdir) / f"{Path(outdir).name}_notes.txt"
+        notes_file = session_dir / f"{Path(outdir).name}_notes.txt"
         
         if use_hash:
             cred_line = f"- AD → {username}:{password_or_hash} (NTLM Hash)"
@@ -276,7 +279,8 @@ def enumerate_domain_users(dc_ip, username, password_or_hash, use_hash, outdir, 
                     usernames.append(username)
 
     if usernames:
-        users_file = outdir / "ad_users.txt"
+        session_dir = get_session_dir(outdir)
+        users_file = session_dir / "ad_users.txt"
         with open(users_file, "w") as f:
             f.write("\n".join(usernames))
         print(f"[+] Extracted {len(usernames)} usernames to {users_file}")
@@ -342,7 +346,8 @@ def asrep_roast_users(domain, dc_ip, users_file, outdir, debug=False):
                 roasted_hashes.append(line.strip())
 
     if roasted_hashes:
-        asrep_file = outdir / "asrep_hashes.txt"
+        session_dir = get_session_dir(outdir)
+        asrep_file = session_dir / "asrep_hashes.txt"
         with open(asrep_file, 'w') as f:
             f.write('\n'.join(roasted_hashes))
         print(f'[+] {len(roasted_hashes)} AS-REP hash(es) saved to {asrep_file}')
@@ -394,7 +399,8 @@ def kerberoast_users(domain, dc_ip, username, password_or_hash, use_hash, outdir
             kerberos_hashes.append(line.strip())
     
     if kerberos_hashes:
-        kerb_file = outdir / "kerberoast_hashes.txt"
+        session_dir = get_session_dir(outdir)
+        kerb_file = session_dir / "kerberoast_hashes.txt"
         with open(kerb_file, 'w') as f:
             f.write('\n'.join(kerberos_hashes))
         print(f'[+] {len(kerberos_hashes)} Kerberoast hash(es) saved to {kerb_file}')
@@ -444,26 +450,35 @@ def collect_bloodhound_data(dc_ip, username, password_or_hash, use_hash, outdir,
         print(f"Running command: {' '.join(command)}")
 
     try:
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        output = result.stdout
-        if debug:
-            print(output)
+        # Change to session directory for output
+        session_dir = get_session_dir(outdir)
+        original_cwd = Path.cwd()
+        os.chdir(session_dir)
+        
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            output = result.stdout
+            if debug:
+                print(output)
 
-        # Extract the path after the "Compressing output into " text
-        match = re.search(r"Compressing output into (.+\.zip)", output)
-        if match:
-            output_path = match.group(1)
-            print(f"[+] BloodHound data collected: {output_path}")
-            
-            # Move the file to the box directory
-            if os.path.exists(output_path):
-                dest_path = outdir / 'bloodhound.zip'
-                shutil.move(output_path, dest_path)
-                print(f"[+] Moved BloodHound data to {dest_path}")
+            # Extract the path after the "Compressing output into " text
+            match = re.search(r"Compressing output into (.+\.zip)", output)
+            if match:
+                output_path = match.group(1)
+                print(f"[+] BloodHound data collected: {output_path}")
+                
+                # Move the file to the session directory if it's not already there
+                if os.path.exists(output_path):
+                    dest_path = session_dir / 'bloodhound.zip'
+                    if Path(output_path).resolve() != dest_path.resolve():
+                        shutil.move(output_path, dest_path)
+                        print(f"[+] Moved BloodHound data to {dest_path}")
+                else:
+                    print(f"[!] BloodHound file not found: {output_path}")
             else:
-                print(f"[!] BloodHound file not found: {output_path}")
-        else:
-            print("[!] Could not locate BloodHound output file")
+                print("[!] Could not locate BloodHound output file")
+        finally:
+            os.chdir(original_cwd)
 
     except subprocess.CalledProcessError as e:
         print(f"[!] Error collecting BloodHound data: {e}")
@@ -473,8 +488,9 @@ def collect_bloodhound_data(dc_ip, username, password_or_hash, use_hash, outdir,
 def update_ad_notes(outdir, boxname, domain=None, users_count=0, asrep_count=0, kerb_count=0, bloodhound_collected=False):
     """Update notes with AD enumeration findings"""
     
-    # Determine notes file path
-    notes_file = outdir / f"{boxname}_notes.txt"
+    # Determine notes file path using session directory
+    session_dir = get_session_dir(outdir)
+    notes_file = session_dir / f"{boxname}_notes.txt"
     
     # Read existing notes
     notes_content = ""
@@ -515,6 +531,7 @@ def ad_enum_full(env, subargs):
             print(f"[*] Using DC IP {dc_ip} (different from session IP {env['IP']})")
         
         outdir = Path(env['OUTDIR'])
+        session_dir = get_session_dir(outdir)
         logfile = Path(env['LOGFILE'])
         boxname = env['BOXNAME']
         debug = "--debug" in subargs
@@ -542,7 +559,7 @@ def ad_enum_full(env, subargs):
         
         # Step 2: Enumerate users
         users = enumerate_domain_users(dc_ip, username, password_or_hash, use_hash, outdir, debug)
-        users_file = outdir / "ad_users.txt"
+        users_file = session_dir / "ad_users.txt"
         
         # Step 3: Check password policy
         check_password_policy(dc_ip, username, password_or_hash, use_hash, debug)
@@ -551,7 +568,7 @@ def ad_enum_full(env, subargs):
         asrep_count = 0
         if users and users_file.exists():
             asrep_roast_users(domain, dc_ip, users_file, outdir, debug)
-            asrep_file = outdir / "asrep_hashes.txt"
+            asrep_file = session_dir / "asrep_hashes.txt"
             if asrep_file.exists():
                 with open(asrep_file, 'r') as f:
                     asrep_count = len([line for line in f if line.strip()])
@@ -559,7 +576,7 @@ def ad_enum_full(env, subargs):
         # Step 5: Kerberoasting
         kerb_count = 0
         kerberoast_users(domain, dc_ip, username, password_or_hash, use_hash, outdir, debug)
-        kerb_file = outdir / "kerberoast_hashes.txt"
+        kerb_file = session_dir / "kerberoast_hashes.txt"
         if kerb_file.exists():
             with open(kerb_file, 'r') as f:
                 kerb_count = len([line for line in f if line.strip()])
@@ -567,7 +584,7 @@ def ad_enum_full(env, subargs):
         # Wait for BloodHound to complete
         print(f"[*] Waiting for BloodHound collection to complete...")
         bh_thread.join()
-        bloodhound_collected = (outdir / "bloodhound.zip").exists()
+        bloodhound_collected = (session_dir / "bloodhound.zip").exists()
         
         elapsed = time.time() - start_time
         print(f"[+] Full AD enumeration completed in {elapsed/60:.1f} minutes")
@@ -579,13 +596,6 @@ def ad_enum_full(env, subargs):
         with open(logfile, "a") as f:
             timestamp = datetime.now().strftime("%F %T")
             f.write(f"[{timestamp}] AD enumeration completed on {dc_ip} in {elapsed/60:.1f} minutes\n")
-        
-        # Intelligence Analysis Integration (if available)
-        if INTEL_AVAILABLE:
-            try:
-                auto_analyze_scan_results(env)
-            except Exception as e:
-                print(f"[!] Intelligence analysis failed: {e}")
                 
     except ValueError as e:
         print(f"[!] {e}")
@@ -656,6 +666,7 @@ def ad_kerberos(env, subargs):
     try:
         dc_ip, username, password_or_hash, use_hash, using_stored = get_ad_credentials_enhanced(env['OUTDIR'])
         outdir = Path(env['OUTDIR'])
+        session_dir = get_session_dir(outdir)
         debug = "--debug" in subargs
         
         # Get domain name first
@@ -671,7 +682,7 @@ def ad_kerberos(env, subargs):
         # Need users for AS-REP roasting - enumerate them first
         print(f"[*] Enumerating users for Kerberos attacks...")
         users = enumerate_domain_users(dc_ip, username, password_or_hash, use_hash, outdir, debug)
-        users_file = outdir / "ad_users.txt"
+        users_file = session_dir / "ad_users.txt"
         
         if users and users_file.exists():
             # AS-REP Roasting

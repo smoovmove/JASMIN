@@ -139,10 +139,20 @@ def resume_session():
 def resume_target_session(target_name: str) -> dict:
     """Resume a target-level session"""
     target_dir = get_target_dir(target_name)
-    session_file = target_dir / "session" / "session.env"
     
+    # Try new location first (session/session.env)
+    session_file = target_dir / "session" / "session.env"
+    is_legacy_structure = False
+    
+    # Fall back to old location (session.env) for backward compatibility
     if not session_file.exists():
-        raise FileNotFoundError(f"No session found for target: {target_name}")
+        old_session_file = target_dir / "session.env"
+        if old_session_file.exists():
+            session_file = old_session_file
+            is_legacy_structure = True
+            print(f"[*] Using legacy session file location for {target_name}")
+        else:
+            raise FileNotFoundError(f"No session found for target: {target_name}")
     
     env = {}
     with open(session_file) as f:
@@ -153,9 +163,20 @@ def resume_target_session(target_name: str) -> dict:
     
     # Ensure notes file exists
     outdir = Path(env["OUTDIR"])
-    session_dir = outdir / "session"
-    notes_file = session_dir / f"{target_name}_notes.txt"
+    
+    # Handle notes file location based on detected structure
+    if is_legacy_structure:
+        # Old structure: notes in main target directory
+        notes_file = outdir / f"{target_name}_notes.txt"
+    else:
+        # New structure: notes in session subdirectory
+        session_dir = outdir / "session"
+        session_dir.mkdir(exist_ok=True)  # Ensure session dir exists
+        notes_file = session_dir / f"{target_name}_notes.txt"
+    
     if not notes_file.exists():
+        # Make sure parent directory exists
+        notes_file.parent.mkdir(parents=True, exist_ok=True)
         notes_file.write_text(default_note_template)
         print(f"[+] Notes file was missing - created new one at {notes_file}")
     

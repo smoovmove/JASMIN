@@ -1,21 +1,10 @@
 #!/usr/bin/env python3
 
-"""
-Enhanced scans.py with intelligence integration and internal/external methodology
-"""
-
 import subprocess
 import time
 import threading
 from pathlib import Path
 from datetime import datetime
-
-# INTELLIGENCE INTEGRATION - ADD THESE IMPORTS
-try:
-    from intelligence_integration import auto_analyze_scan_results
-    INTEL_AVAILABLE = True
-except ImportError:
-    INTEL_AVAILABLE = False
 
 def get_scan_context(ip, boxname, internal=False):
     """Extract scan context information from parameters"""
@@ -43,7 +32,7 @@ def get_scan_context(ip, boxname, internal=False):
     
     return context
 
-def run_sweep_scan(target_ip, boxname, outdir, logfile, internal=False, intel=False, include_file=None):
+def run_sweep_scan(target_ip, boxname, outdir, logfile, internal=False, include_file=None):
     """
     Run sweep scan on multiple targets
     - Uses existing discovery results if available
@@ -145,14 +134,13 @@ def run_sweep_scan(target_ip, boxname, outdir, logfile, internal=False, intel=Fa
             outdir,
             logfile,
             internal=internal,
-            intel=intel
         )
     
     print(f"[+] Sweep scan completed on {len(live_ips)} hosts")
     return True
 
 
-def run_tcp_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
+def run_tcp_scan(ip, boxname, outdir, logfile, internal=False):
     """Run TCP port scan with service detection"""
     
     context = get_scan_context(ip, boxname, internal)
@@ -170,19 +158,19 @@ def run_tcp_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
         # Internal: Connect scan, no ping, faster rate
         output_file = scans_dir / f"{boxname}_tcp"
         command = [
-            "nmap", "-sT", "-p-", "-T4", 
-            "--min-rate=1000", "--max-retries=1", "--host-timeout=2m", "-Pn",
-            "-oA", str(output_file), ip
-        ]
+        "nmap", "-sT", "-p-", "-Pn",
+        "--min-rate=500", "--max-retries=2", "--host-timeout=10m",
+        "--stats-every=30s", "-oA", str(output_file), ip
+    ]      
         scan_method = "internal TCP scan (connect scan, no ping)"
     else:
         # External: SYN scan, standard discovery
         output_file = scans_dir / f"{boxname}_tcp"
         command = [
-            "nmap", "-sS", "-p-", "-T4",
-            "--min-rate=2000", "--max-retries=1", "--host-timeout=2m",
-            "-oA", str(output_file), ip
-        ]
+        "nmap", "-sS", "-p-", 
+        "--min-rate=400", "--max-retries=2", "--host-timeout=10m",
+        "--stats-every=30s", "-oA", str(output_file), ip
+    ]
         scan_method = "external TCP scan (SYN scan)"
     
     print(f"[*] Running {scan_method}")
@@ -210,21 +198,72 @@ def run_tcp_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
         print("[!] TCP scan timed out after 10 minutes")
     except Exception as e:
         print(f"[!] TCP scan error: {e}")
-    
-    # Intelligence Analysis Integration (only if --intel flag provided)
-    if intel and INTEL_AVAILABLE:
-        env = {
-            'IP': ip,
-            'BOXNAME': context['clean_boxname'],
-            'OUTDIR': str(outdir),
-            'LOGFILE': str(logfile)
-        }
-        try:
-            auto_analyze_scan_results(env)
-        except Exception as e:
-            print(f"[!] Intelligence analysis failed: {e}")
 
-def run_script_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
+def run_detailed_scan(ip, boxname, outdir, logfile, internal=False):
+    """Run combined script and service detection scan"""
+    
+    context = get_scan_context(ip, boxname, internal)
+    
+    print(f"[*] Starting detailed scan on {ip}...")
+    if context['is_tunneled']:
+        print(f"[*] Target: {context['display_name']}")
+
+    outdir = Path(outdir)
+    scans_dir = outdir / "scans"
+    scans_dir.mkdir(exist_ok=True)
+
+    # Get open ports from TCP scan
+    tcp_file = scans_dir / f"{boxname}_tcp.gnmap"
+    open_ports = parse_open_ports(tcp_file)  # You'd need to implement this
+    port_list = ",".join(open_ports)
+    
+    # Build command based on internal/external
+    if internal or context['is_tunneled']:
+        # Internal: Connect scan + scripts + version detection
+        output_file = scans_dir / f"{boxname}_detailed"
+        command = [
+            "nmap", "-sT", "-sC", "-sV", "-T3", "-Pn", "-p", port_list,
+            "--min-rate=500", "--max-retries=2", "--host-timeout=10m",
+            "--stats-every=30s", "-oA", str(output_file), ip
+        ]
+        scan_method = "internal detailed scan (connect + scripts + version)"
+    else:
+        # External: SYN scan + scripts + version detection
+        output_file = scans_dir / f"{boxname}_detailed"
+        command = [
+            "nmap", "-sS", "-sC", "-sV", "-T3", "-p", port_list,
+            "--min-rate=500", "--max-retries=2", "--host-timeout=10m",
+            "--stats-every=30s", "-oA", str(output_file), ip
+        ]
+        scan_method = "external detailed scan (SYN + scripts + version)"
+    
+    print(f"[*] Running {scan_method}")
+    
+    # Execute scan
+    start_time = time.time()
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=1200)  # 20 min timeout
+        elapsed = time.time() - start_time
+        
+        if result.returncode == 0:
+            print(f"[+] Detailed scan completed in {elapsed:.1f} seconds")
+            
+            # Log to file with context
+            with open(logfile, "a") as f:
+                timestamp = datetime.now().strftime("%F %T")
+                context_desc = f"Detailed scan on {context['display_name']} ({ip})"
+                f.write(f"[{timestamp}] {context_desc} completed in {elapsed:.1f}s\n")
+                f.write(f"[{timestamp}] Command: {' '.join(command)}\n")
+                
+        else:
+            print(f"[!] Detailed scan failed: {result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        print("[!] Detailed scan timed out after 20 minutes")
+    except Exception as e:
+        print(f"[!] Detailed scan error: {e}")
+    
+def run_script_scan(ip, boxname, outdir, logfile, internal=False):
     """Run targeted script scan based on open ports"""
     
     context = get_scan_context(ip, boxname, internal)
@@ -282,19 +321,6 @@ def run_script_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
         print("[!] Script scan timed out after 15 minutes")
     except Exception as e:
         print(f"[!] Script scan error: {e}")
-    
-    # Intelligence Analysis Integration (only if --intel flag provided)
-    if intel and INTEL_AVAILABLE:
-        env = {
-            'IP': ip,
-            'BOXNAME': context['clean_boxname'],
-            'OUTDIR': str(outdir),
-            'LOGFILE': str(logfile)
-        }
-        try:
-            auto_analyze_scan_results(env)
-        except Exception as e:
-            print(f"[!] Intelligence analysis failed: {e}")
 
 def run_service_scan(ip, boxname, outdir, logfile, internal=False):
     """Run service version detection on discovered ports"""
@@ -355,7 +381,7 @@ def run_service_scan(ip, boxname, outdir, logfile, internal=False):
     except Exception as e:
         print(f"[!] Service scan error: {e}")
 
-def run_full_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
+def run_full_scan(ip, boxname, outdir, logfile, internal=False):
     """Run comprehensive scan: TCP + Service + UDP + Scripts"""
     
     context = get_scan_context(ip, boxname, internal)
@@ -376,20 +402,16 @@ def run_full_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
         f.write(f"[{timestamp}] Starting full scan ({mode}) on {context['display_name']} ({ip})\n")
     
     # 1. TCP Scan
-    print(f"[*] Step 1/4: TCP port discovery...")
-    run_tcp_scan(ip, boxname, outdir, logfile, internal=internal, intel=False)
+    print(f"[*] Step 1/3: TCP port discovery...")
+    run_tcp_scan(ip, boxname, outdir, logfile, internal=internal)
     
     # 2. Service Detection
-    print(f"[*] Step 2/4: Service detection...")
-    run_service_scan(ip, boxname, outdir, logfile, internal=internal)
-    
-    # 3. Script Scan
-    print(f"[*] Step 3/4: Script enumeration...")
-    run_script_scan(ip, boxname, outdir, logfile, internal=internal, intel=False)
+    print(f"[*] Step 2/3: Service detection...")
+    run_detailed_scan(ip, boxname, outdir, logfile, internal=False)
     
     # 4. UDP Scan (only for external scans, skip for tunneled)
     if not internal and not context['is_tunneled']:
-        print(f"[*] Step 4/4: UDP scan (background)...")
+        print(f"[*] Step 3/3: UDP scan (background)...")
         run_udp_scan(ip, boxname, outdir, logfile)
     else:
         reason = "tunneled scan" if context['is_tunneled'] else "internal mode"
@@ -405,18 +427,6 @@ def run_full_scan(ip, boxname, outdir, logfile, internal=False, intel=False):
         mode = "internal" if internal or context['is_tunneled'] else "external"
         f.write(f"[{timestamp}] Full scan ({mode}) on {context['display_name']} completed in {total_elapsed/60:.1f} minutes\n")
     
-    # Intelligence Analysis Integration (only if --intel flag provided)
-    if intel and INTEL_AVAILABLE:
-        env = {
-            'IP': ip,
-            'BOXNAME': context['clean_boxname'],
-            'OUTDIR': str(outdir),
-            'LOGFILE': str(logfile)
-        }
-        try:
-            auto_analyze_scan_results(env)
-        except Exception as e:
-            print(f"[!] Intelligence analysis failed: {e}")
 
 def run_udp_scan(ip, boxname, outdir, logfile):
     """Run UDP scan in background (external only)"""
@@ -505,7 +515,7 @@ def check_udp_progress(ip, boxname, outdir, logfile):
         print(f"[*] No UDP scan results found for {context['display_name']}")
         print(f"[*] Run 'udp' command to start UDP scan")
 
-def web_enum(ip, boxname, outdir, logfile, port=None, internal=False, intel=False, tool="auto", protocol=None, wordlist_size="short"):
+def web_enum(ip, boxname, outdir, logfile, port=None, internal=False, tool="auto", protocol=None, wordlist_size="short"):
     """Enhanced web enumeration with custom port support, tool selection, and protocol specification"""
     
     # Context awareness
@@ -1112,6 +1122,21 @@ def extract_os_from_nmap(scan_file):
     except Exception:
         return None
     
+def parse_open_ports(gnmap_file):
+    """Extract open ports from .gnmap file"""
+    ports = []
+    with open(gnmap_file, 'r') as f:
+        for line in f:
+            if 'Ports:' in line:
+                # Split on 'Ports: ' and get port section
+                port_section = line.split('Ports: ')[1].split('\t')[0]
+                # Each port is separated by comma
+                for port_info in port_section.split(', '):
+                    if '/open/' in port_info:
+                        port = port_info.split('/')[0]
+                        ports.append(port)
+    return ports
+
 def parse_discovery_results(nmap_output):
     """Parse nmap discovery output to extract live IP addresses"""
     live_ips = []

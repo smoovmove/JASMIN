@@ -25,8 +25,7 @@ from PyQt6.QtGui import QFont, QKeySequence, QAction, QTextCursor
 # inside handle_gui_launch(), not at top-level.
 from jasmin import (
     handle_target_command, handle_scan_command, handle_payload_command,
-    handle_scans_command, handle_session_integrated_ip_command,
-    handle_intel_command, handle_ad_command, handle_notes_command,
+    handle_scans_command, handle_session_integrated_ip_command, handle_ad_command, handle_notes_command,
     handle_upload_command, view_file, show_help, check_web_tools_status,
     get_current_session_env
 )
